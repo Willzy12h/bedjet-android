@@ -2,9 +2,11 @@ package io.github.willzy12h.nocturne.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
@@ -20,6 +22,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.widget.WidgetUpdater
 
 class MainActivity : ComponentActivity() {
     // Built from this activity's own Application rather than the process-wide default factory, which keeps the first one it saw.
@@ -38,7 +42,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { NocturneTheme { NocturneApp(model) } }
+        WidgetUpdater.start(this)
+        setContent {
+            val settings by model.settings.collectAsState()
+            val dark = settings.themeMode.isDark(isSystemInDarkTheme())
+            // The bars are drawn over the app, so their icons follow the app's theme, not the phone's.
+            LaunchedEffect(dark) {
+                val transparent = android.graphics.Color.TRANSPARENT
+                enableEdgeToEdge(
+                    statusBarStyle = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent),
+                    navigationBarStyle = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent),
+                )
+            }
+            NocturneTheme(settings.themeMode) { NocturneApp(model) }
+        }
     }
 
     override fun onStart() {

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
+import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.notify.Notifications
 import java.time.LocalDate
@@ -58,6 +59,18 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium)
+
+        Group("Appearance") {
+            Text("Theme", style = MaterialTheme.typography.bodyLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ThemeMode.entries.forEach { mode ->
+                    FilterChip(settings.themeMode == mode, { model.updateSettings { it.copy(themeMode = mode) } }, label = { Text(themeName(mode)) })
+                }
+            }
+            SwitchRow("Simple view", "Show tonight as a list of steps instead of the curve.", settings.simpleView) { on ->
+                model.updateSettings { it.copy(simpleView = on) }
+            }
+        }
 
         Group("BedJet") {
             Text("Connected unit: ${model.bedJetName() ?: "none yet"}", style = MaterialTheme.typography.bodyMedium)
@@ -180,6 +193,12 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
             dismissButton = { TextButton(onClick = { restoring = null }) { Text("Cancel") } },
         )
     }
+}
+
+private fun themeName(mode: ThemeMode) = when (mode) {
+    ThemeMode.SYSTEM -> "System"
+    ThemeMode.DARK -> "Dark"
+    ThemeMode.LIGHT -> "Light"
 }
 
 @Composable

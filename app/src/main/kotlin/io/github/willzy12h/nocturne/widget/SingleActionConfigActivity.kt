@@ -17,11 +17,14 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.lifecycle.lifecycleScope
+import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.ui.NocturneTheme
 import kotlinx.coroutines.launch
 
@@ -35,7 +38,8 @@ class SingleActionConfigActivity : ComponentActivity() {
         if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return }
         val actions = widgetActions(this)
         setContent {
-            NocturneTheme {
+            val settings by graph.repository.settings.collectAsState()
+            NocturneTheme(settings.themeMode) {
                 Surface(Modifier.fillMaxSize()) {
                     Column(
                         Modifier.systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
