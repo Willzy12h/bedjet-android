@@ -5,6 +5,10 @@ import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.ZonedDateTime
@@ -53,20 +57,30 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
      * Sets the unit's clock and starts a slot, then waits for the unit to report the first step running.
      * A unit that can't run the program stays off and raises a notification instead, which is cleared here.
      */
-    suspend fun startProgram(slot: Int) {
+    suspend fun startProgram(slot: Int) = coroutineScope {
         syncClock()
-        link.send(Codec.startProgram(slot))
-        val outcome = withTimeoutOrNull(START_CONFIRMATION_MS) {
-            link.status.first { status ->
-                val extra = status?.extra ?: return@first false
-                extra.programStep > 0 || extra.notification in REFUSALS
+        // Only reports that arrive after the start count: a program already running would otherwise look like
+        // this one starting, and a refusal that follows would be missed.
+        val reply = async(start = CoroutineStart.UNDISPATCHED) {
+            withTimeoutOrNull(START_CONFIRMATION_MS) {
+                link.status.drop(1).first { status ->
+                    val extra = status?.extra ?: return@first false
+                    extra.programStep == 1 || extra.notification in REFUSALS
+                }
             }
         }
-        when (outcome?.extra?.notification) {
+        link.send(Codec.startProgram(slot))
+        var outcome = reply.await() ?: throw BedJetError.Timeout()
+        if (outcome.extra?.notification !in REFUSALS) {
+            // A refusal can follow the first report; give it a moment.
+            outcome = withTimeoutOrNull(REFUSAL_GRACE_MS) {
+                link.status.first { it?.extra?.notification in REFUSALS }
+            } ?: outcome
+        }
+        when (outcome.extra?.notification) {
             Codec.Notification.PROGRAM_TOO_LONG -> { acknowledge(); throw BedJetError.ProgramTooLong() }
             Codec.Notification.PROGRAM_NEEDS_CLOCK -> { acknowledge(); throw BedJetError.ClockNotSet() }
         }
-        if (outcome == null) throw BedJetError.Timeout()
     }
 
     suspend fun syncClock() {
@@ -97,6 +111,7 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
 
     private companion object {
         const val START_CONFIRMATION_MS = 10_000L
+        const val REFUSAL_GRACE_MS = 1_500L
         val REFUSALS = setOf(Codec.Notification.PROGRAM_TOO_LONG, Codec.Notification.PROGRAM_NEEDS_CLOCK)
     }
 }

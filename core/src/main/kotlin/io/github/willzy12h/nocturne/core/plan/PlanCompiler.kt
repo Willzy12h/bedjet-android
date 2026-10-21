@@ -5,17 +5,22 @@ import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import java.time.Duration
 import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
 /** Turns a profile and a wake time into the steps the BedJet runs, following the unit's limits. */
 object PlanCompiler {
+    /** Shortest last Middle step that ends at a clock time rather than after a duration. */
+    const val MIN_CLOCK_TIME_STEP = 10
 
     /**
      * Compiles a night from [start] to [wake]. Wake-up keeps priority over Start, and Start over Middle, when the
      * night is too short for all of them. The BedJet's clock is set when the program starts, so the last Middle step
      * ends at the wake-up start measured on that clock.
      */
-    fun compile(profile: Profile, start: ZonedDateTime, wake: ZonedDateTime): Plan {
+    fun compile(profile: Profile, startAt: ZonedDateTime, wake: ZonedDateTime): Plan {
+        // The BedJet's clock is set to the minute, so the plan starts on that minute too.
+        val start = startAt.truncatedTo(ChronoUnit.MINUTES)
         // Real minutes, not wall-clock minutes: a night across a clock change is an hour longer or shorter.
         val available = maxOf(0, Duration.between(start, wake).toMinutes().toInt())
         val wakePhases = trimFront(profile.wake, available)
@@ -39,7 +44,9 @@ object PlanCompiler {
         }
 
         val lastMiddle = steps.indexOfLast { it.block == Block.MIDDLE }
-        if (lastMiddle >= 0) {
+        // A short last step could already be past its clock-time end by the time it begins (writing the night takes a
+        // while), and the BedJet would then wait for that time tomorrow. Those run by duration instead.
+        if (lastMiddle >= 0 && steps[lastMiddle].minutes >= MIN_CLOCK_TIME_STEP) {
             val planned = steps[lastMiddle]
             val endOnBedJetClock = start.toLocalTime().plusMinutes(Duration.between(start, planned.endsAt).toMinutes())
             steps[lastMiddle] = planned.copy(

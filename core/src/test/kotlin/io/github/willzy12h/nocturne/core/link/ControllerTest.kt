@@ -3,6 +3,7 @@ package io.github.willzy12h.nocturne.core.link
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -131,6 +132,30 @@ class ControllerTest {
         now = wake.plusSeconds(5)
         link.tick()
         assertEquals(Mode.STANDBY, link.status.value!!.mode)
+    }
+
+    @Test
+    fun refusalIsCaughtEvenWhileAnotherProgramIsStillRunning() = runTest {
+        val demo = demo()
+        demo.connect()
+        val controller = BedJetController(LaggingLink(demo, backgroundScope), { now })
+        controller.store(StoredProgram("Night", listOf(ProgramStep(Mode.COOL, 5, 44, 2, 0))), 0)
+        controller.startProgram(0)
+        // The unit refuses the new program but keeps reporting the old one at step 1 for a moment.
+        demo.slots[1] = StoredProgram("too hot", listOf(ProgramStep(Mode.HEAT, 19, 80, 3, 0)))
+        assertThrows<BedJetError.ProgramTooLong> { controller.startProgram(1) }
+    }
+
+    /** Reports status a moment after it changes, as the real unit's notifications do. */
+    private class LaggingLink(private val inner: DemoBedJet, scope: kotlinx.coroutines.CoroutineScope) : BedJetLink by inner {
+        private val lagged = kotlinx.coroutines.flow.MutableStateFlow(inner.status.value)
+        override val status: kotlinx.coroutines.flow.StateFlow<io.github.willzy12h.nocturne.core.protocol.DeviceStatus?> = lagged
+
+        init {
+            scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                inner.status.collect { kotlinx.coroutines.delay(300); lagged.value = it }
+            }
+        }
     }
 
     /** Flips one byte of every program write, as a dropped or garbled Bluetooth packet would. */

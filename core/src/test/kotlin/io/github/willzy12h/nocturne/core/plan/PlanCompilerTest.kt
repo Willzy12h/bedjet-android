@@ -132,6 +132,23 @@ class PlanCompilerTest {
     }
 
     @Test
+    fun tinyMiddleRunsByDurationNotClockTime() {
+        // A 1-minute Middle with a clock-time end would already be past when it begins, and the BedJet would wait
+        // for the same time tomorrow.
+        val plan = PlanCompiler.compile(profile(start = listOf(Phase(Mode.HEAT, 66, 40, 60))), start, start.plusMinutes(86))
+        val middle = plan.steps.filter { it.block == Block.MIDDLE }
+        assertEquals(1, middle.sumOf { it.minutes })
+        assertFalse(middle.any { it.step.endsAtClockTime })
+    }
+
+    @Test
+    fun startIsTakenToTheMinuteLikeTheBedJetClock() {
+        val plan = PlanCompiler.compile(profile(), start.plusSeconds(59), wake)
+        assertEquals(start, plan.start)
+        assertEquals(6 to 20, plan.steps.last { it.block == Block.MIDDLE }.step.let { it.hours to it.minutes })
+    }
+
+    @Test
     fun tooManyStepsRejected() {
         val p = profile(start = List(30) { Phase(Mode.COOL, 44, 40, 5) }, middle = Middle(Mode.COOL, 50, 20, 44, 44, rampSteps = 8))
         val error = assertThrows<PlanException> { PlanCompiler.compile(p, start, wake) }
