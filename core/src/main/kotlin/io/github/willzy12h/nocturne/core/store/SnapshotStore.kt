@@ -19,6 +19,10 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
     @Serializable
     private data class SnapshotFile(val createdAt: String, val label: String? = null, val manual: Boolean, val bundle: BackupBundle)
 
+    /** The same file without its bundle, which unknown keys being ignored lets [list] skip decoding. */
+    @Serializable
+    private data class SnapshotHeader(val createdAt: String, val label: String? = null, val manual: Boolean)
+
     fun save(bundle: BackupBundle, label: String?, manual: Boolean): SnapshotInfo {
         Files.createDirectories(dir)
         val time = now()
@@ -42,11 +46,16 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
     fun list(): List<SnapshotInfo> {
         if (!dir.exists()) return emptyList()
         return dir.listDirectoryEntries("snap-*.json")
-            .mapNotNull { path -> read(path.name.removeSuffix(".json"))?.let { SnapshotInfo(path.name.removeSuffix(".json"), it.createdAt, it.label, it.manual) } }
+            .mapNotNull { path ->
+                val id = path.name.removeSuffix(".json")
+                runCatching { BackupCodec.json.decodeFromString(SnapshotHeader.serializer(), path.readText()) }
+                    .getOrNull()?.let { SnapshotInfo(id, it.createdAt, it.label, it.manual) }
+            }
             .sortedByDescending { it.id.substringAfter("snap-").substringBefore("-").toLongOrNull() ?: 0 }
     }
 
-    fun load(id: String): BackupBundle? = read(id)?.bundle
+    /** Null when missing, unreadable, or written by a newer version than this one. */
+    fun load(id: String): BackupBundle? = read(id)?.bundle?.takeIf { it.schema <= BackupCodec.SCHEMA }
 
     fun delete(id: String) {
         dir.resolve("$id.json").deleteIfExists()

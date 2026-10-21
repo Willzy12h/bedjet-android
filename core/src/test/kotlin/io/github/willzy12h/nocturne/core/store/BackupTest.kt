@@ -75,6 +75,25 @@ class BackupTest {
     }
 
     @Test
+    fun snapshotFromANewerSchemaDoesNotLoad(@TempDir dir: Path) {
+        val store = SnapshotStore(dir) { now }
+        val info = store.save(bundle().copy(schema = BackupCodec.SCHEMA + 1), "From the future", manual = true)
+        assertNull(store.load(info.id))
+        // It is still listed, so it can be seen and deleted.
+        assertEquals("From the future", store.list().single().label)
+    }
+
+    @Test
+    fun listingReadsOnlyTheHeader(@TempDir dir: Path) {
+        // A snapshot whose bundle this version can't decode still lists, from its header alone.
+        dir.resolve("snap-1000-m.json").toFile().writeText(
+            """{"createdAt":"2026-10-21T22:30Z","label":"Odd","manual":true,"bundle":{"schema":1,"profiles":"not a list"}}""",
+        )
+        val info = SnapshotStore(dir) { now }.list().single()
+        assertEquals(SnapshotInfo("snap-1000-m", "2026-10-21T22:30Z", "Odd", true), info)
+    }
+
+    @Test
     fun deleteRemovesASnapshot(@TempDir dir: Path) {
         val store = SnapshotStore(dir) { now }
         val info = store.save(bundle(), "x", manual = true)

@@ -2,6 +2,8 @@ package io.github.willzy12h.nocturne.data
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
+import androidx.core.util.AtomicFile
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.Profile
@@ -27,6 +29,8 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.nullable
 import java.io.File
+import java.io.FileNotFoundException
+import java.io.IOException
 import java.time.ZonedDateTime
 
 /**
@@ -37,6 +41,14 @@ import java.time.ZonedDateTime
 class Repository(private val context: Context, scope: CoroutineScope) {
     private val dir = context.filesDir
     val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { ZonedDateTime.now() }
+
+    // Declared before the loads below, which fill it.
+    private val _unreadable = MutableStateFlow<List<String>>(emptyList())
+    /**
+     * Files that couldn't be read at start-up, so their defaults are showing instead. Each was moved aside as
+     * `<name>.corrupt-<millis>`. Automatic snapshots are paused while this isn't empty; a restore clears it.
+     */
+    val unreadable: StateFlow<List<String>> = _unreadable.asStateFlow()
 
     private val _profiles = MutableStateFlow(load("profiles.json", ListSerializer(Profile.serializer())) ?: Presets.all)
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
@@ -119,13 +131,19 @@ class Repository(private val context: Context, scope: CoroutineScope) {
         _snapshotList.value = snapshots.list()
     }
 
-    /** Replaces everything with [bundle], keeping a snapshot of what was there first. */
+    /**
+     * Replaces everything with [bundle], keeping a snapshot of what was there first. Slot backups are merged, current
+     * ones winning: an older bundle's backup of a slot may be one of the app's own programs, not the user's original.
+     */
     fun restore(bundle: BackupBundle) {
         snapshots.save(bundle(), "Before restore", manual = true)
         update(_profiles, "profiles.json", ListSerializer(Profile.serializer())) { bundle.profiles }
         update(_settings, "settings.json", Settings.serializer()) { bundle.settings }
-        update(_slotBackups, "slot-backups.json", ListSerializer(SlotBackup.serializer())) { bundle.slotBackups }
+        update(_slotBackups, "slot-backups.json", ListSerializer(SlotBackup.serializer())) { current ->
+            current + bundle.slotBackups.filter { restored -> current.none { it.slot == restored.slot } }
+        }
         update(_history, "history.json", ListSerializer(NightRecord.serializer())) { bundle.history }
+        _unreadable.value = emptyList()
         _snapshotList.value = snapshots.list()
     }
 
@@ -142,23 +160,54 @@ class Repository(private val context: Context, scope: CoroutineScope) {
     }
 
     private fun autoSnapshot() {
+        // Snapshots of the defaults standing in for an unreadable file would push the good ones out.
+        if (_unreadable.value.isNotEmpty()) return
         if (snapshots.saveIfChanged(bundle())) _snapshotList.value = snapshots.list()
     }
 
     // Files
 
-    private fun <T> load(name: String, serializer: KSerializer<T>): T? = runCatching {
-        val file = File(dir, name)
-        if (file.exists()) BackupCodec.json.decodeFromString(serializer, file.readText()) else null
-    }.getOrNull()
+    /** Null when the file doesn't exist yet, or couldn't be read; then it's moved aside and reported in [unreadable]. */
+    private fun <T> load(name: String, serializer: KSerializer<T>): T? {
+        val file = AtomicFile(File(dir, name))
+        return try {
+            BackupCodec.json.decodeFromString(serializer, file.readFully().decodeToString())
+        } catch (_: FileNotFoundException) {
+            null
+        } catch (e: IOException) {
+            setAside(file.baseFile, e)
+        } catch (e: IllegalArgumentException) {
+            // SerializationException is one: bad JSON, or a value from a newer version such as an unknown enum.
+            setAside(file.baseFile, e)
+        }
+    }
+
+    private fun <T> setAside(file: File, cause: Exception): T? {
+        val aside = File(dir, "${file.name}.corrupt-${System.currentTimeMillis()}")
+        Log.w(TAG, "Couldn't read ${file.name}; moved it to ${aside.name}", cause)
+        // If it can't be moved, a copy still keeps the original from being lost on the next write.
+        if (!file.renameTo(aside)) runCatching { file.copyTo(aside) }.onFailure { Log.e(TAG, "Couldn't keep ${file.name}", it) }
+        _unreadable.value += file.name
+        return null
+    }
 
     @Synchronized
     private fun <T> update(flow: MutableStateFlow<T>, name: String, serializer: KSerializer<T>, change: (T) -> T) {
         val value = change(flow.value)
         flow.value = value
-        val file = File(dir, name)
-        val temp = File(dir, "$name.tmp")
-        temp.writeText(BackupCodec.json.encodeToString(serializer, value))
-        temp.renameTo(file)
+        // AtomicFile syncs before replacing the old file, so a power cut leaves either the old or the new one.
+        val file = AtomicFile(File(dir, name))
+        val out = file.startWrite()
+        try {
+            out.write(BackupCodec.json.encodeToString(serializer, value).toByteArray())
+            file.finishWrite(out)
+        } catch (e: IOException) {
+            file.failWrite(out)
+            throw e
+        }
+    }
+
+    private companion object {
+        const val TAG = "Repository"
     }
 }
