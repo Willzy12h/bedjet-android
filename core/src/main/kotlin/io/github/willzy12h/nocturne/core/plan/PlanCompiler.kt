@@ -32,7 +32,7 @@ object PlanCompiler {
         var elapsed = 0
         val steps = mutableListOf<PlannedStep>()
         for ((block, phase) in blocks) {
-            for (step in expand(phase, profile)) {
+            for (step in phaseSteps(phase, profile.limits, profile.turboChain)) {
                 steps += PlannedStep(block, step, start.plusMinutes(elapsed.toLong()), step.durationMinutes)
                 elapsed += step.durationMinutes
             }
@@ -88,19 +88,18 @@ object PlanCompiler {
     }
 
     /** One phase becomes one or more steps: clamped to the limits, then split where the unit would stop it. */
-    private fun expand(phase: Phase, profile: Profile): List<ProgramStep> {
+    fun phaseSteps(phase: Phase, limits: ProfileLimits, turboChain: TurboChain): List<ProgramStep> {
         if (phase.minutes <= 0) return emptyList()
-        val limits = profile.limits
-        val fanStep = (phase.fanPercent.coerceIn(limits.minFan, limits.maxFan).coerceIn(5, 100) / 5.0).roundToInt() - 1
+        val fanStep = fanStepFor(phase.fanPercent, limits)
         return when (phase.mode) {
             Mode.TURBO -> {
                 val turbo = step(Mode.TURBO, fanStep, Mode.TURBO.temperatureRange.first, minOf(phase.minutes, Limits.TURBO_MINUTES))
                 val rest = phase.minutes - turbo.durationMinutes
                 when {
                     rest <= 0 -> listOf(turbo)
-                    profile.turboChain == TurboChain.REPEAT_TURBO ->
+                    turboChain == TurboChain.REPEAT_TURBO ->
                         split(rest, Limits.TURBO_MINUTES).map { turbo.copy(hours = it / 60, minutes = it % 60) }.let { listOf(turbo) + it }
-                    else -> listOf(turbo) + expand(Phase(Mode.HEAT, limits.maxTemp, phase.fanPercent, rest), profile)
+                    else -> listOf(turbo) + phaseSteps(Phase(Mode.HEAT, limits.maxTemp, phase.fanPercent, rest), limits, turboChain)
                 }
             }
             else -> {
@@ -111,7 +110,12 @@ object PlanCompiler {
         }
     }
 
-    private fun temperatureFor(mode: Mode, requested: Int, limits: ProfileLimits): Int {
+    /** Fan percent held to the limits, as the BedJet's 0..19 fan step. */
+    fun fanStepFor(fanPercent: Int, limits: ProfileLimits): Int =
+        (fanPercent.coerceIn(limits.minFan, limits.maxFan).coerceIn(5, 100) / 5.0).roundToInt() - 1
+
+    /** A target held to the limits and to what the BedJet accepts for the mode. */
+    fun temperatureFor(mode: Mode, requested: Int, limits: ProfileLimits): Int {
         val range = mode.temperatureRange
         if (!mode.usesTemperature) return range.first
         // The mode's own range wins when the profile's limits don't overlap it.
