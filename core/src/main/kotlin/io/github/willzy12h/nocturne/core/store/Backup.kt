@@ -15,6 +15,10 @@ enum class WakeAction { SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL, OFF 
 @Serializable
 data class ActionPreset(val mode: Mode, val temperature: Int, val fanPercent: Int, val minutes: Int)
 
+/** Which palette the app and widgets use. SYSTEM follows the phone's dark theme setting. */
+@Serializable
+enum class ThemeMode { SYSTEM, DARK, LIGHT }
+
 @Serializable
 data class Settings(
     /** BedJet slot (0-based) that tonight's plan is written into. */
@@ -35,6 +39,10 @@ data class Settings(
     val autoUpdateCheck: Boolean = false,
     /** Alarms set by these apps move the wake-up; others (calendar reminders, timers) don't. */
     val alarmPackages: Set<String> = setOf("com.google.android.deskclock", "com.sec.android.app.clockpackage"),
+    // Appearance. Defaults keep older saved settings and backups loading unchanged.
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Tonight shows the night as a list of steps instead of the bar curve. */
+    val simpleView: Boolean = false,
 )
 
 /** A program the app found in a BedJet slot before it first overwrote it. */
