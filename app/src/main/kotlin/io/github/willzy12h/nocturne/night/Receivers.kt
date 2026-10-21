@@ -10,10 +10,12 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.notify.Notifications
 import io.github.willzy12h.nocturne.service.BedJetService
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import java.time.ZonedDateTime
 
-/** The wake-up notification and the end of the night, on time, without needing the BedJet. Also re-arms after a reboot. */
+/**
+ * The wake-up notification and the end of the night, on time, without needing the BedJet. Not exported: only this
+ * app's own alarms reach it.
+ */
 class NightAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val graph = context.graph
@@ -28,13 +30,20 @@ class NightAlarmReceiver : BroadcastReceiver() {
                     NightAlarms.schedule(context, night)
                 }
             }
-            Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> {
-                if (ZonedDateTime.now().isAfter(ZonedDateTime.parse(night.endsAt))) {
-                    graph.actions.finish(night, EventKind.ENDED, "Night finished")
-                } else {
-                    NightAlarms.schedule(context, night)
-                }
-            }
+        }
+    }
+}
+
+/** Re-arms the night's alarms after a reboot or an app update, which clear them. Only the system sends these. */
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        val graph = context.graph
+        val night = graph.repository.activeNight.value ?: return
+        if (ZonedDateTime.now().isAfter(ZonedDateTime.parse(night.endsAt))) {
+            graph.actions.finish(night, EventKind.ENDED, "Night finished")
+        } else {
+            NightAlarms.schedule(context, night)
         }
     }
 }
@@ -45,20 +54,25 @@ class AlarmChangedReceiver : BroadcastReceiver() {
         if (intent.action != AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED) return
         val graph = context.graph
         if (graph.repository.activeNight.value == null) return
+        // Another app's alarm leaves the wake-up as it is; no need to wake the BedJet for that.
+        if (AlarmSource.describe(context, graph.repository.settings.value)?.counts == false && !graph.actions.retimePending) return
         try {
             BedJetService.start(context, NightActions.Command.RETIME)
         } catch (e: ForegroundServiceStartNotAllowedException) {
-            // Without "Unrestricted" battery use Android may refuse a background service; try within the broadcast.
+            // Without "Unrestricted" battery use Android may refuse a background service; try within the broadcast,
+            // which only has about ten seconds. On failure NightActions says so and keeps the re-time for later.
             val pending = goAsync()
             graph.scope.launch {
                 try {
-                    withTimeoutOrNull(50_000) { graph.sessions.withConnection { graph.actions.run(NightActions.Command.RETIME) } }
-                } catch (_: Exception) {
-                    // NightActions has already told the person the wake-up didn't move.
+                    graph.actions.retimeWithin(BROADCAST_PATIENCE_MS)
                 } finally {
                     pending.finish()
                 }
             }
         }
+    }
+
+    private companion object {
+        const val BROADCAST_PATIENCE_MS = 9_000L
     }
 }

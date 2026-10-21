@@ -82,13 +82,14 @@ object Notifications {
         context.getSystemService(NotificationManager::class.java).notify(ERROR_ID, notification)
     }
 
-    fun showUpdate(context: Context, tag: String, url: String) {
+    /** Opens the release page: the APK link itself needs signing in when the repository is private. */
+    fun showUpdate(context: Context, tag: String, pageUrl: String) {
         if (!canPost(context)) return
-        val open = PendingIntent.getActivity(context, 0, Intent(Intent.ACTION_VIEW, Uri.parse(url)), PendingIntent.FLAG_IMMUTABLE)
+        val open = PendingIntent.getActivity(context, 0, Intent(Intent.ACTION_VIEW, Uri.parse(pageUrl)), PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Nocturne $tag is available")
-            .setContentText("Tap to download the new APK.")
+            .setContentText("Tap to open the release and download it.")
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()

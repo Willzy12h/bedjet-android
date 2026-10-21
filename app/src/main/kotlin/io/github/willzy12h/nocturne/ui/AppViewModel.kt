@@ -73,11 +73,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onScreenVisible() {
         refreshAlarm()
-        graph.scope.launch { runCatching { graph.sessions.acquire() }.onFailure { graph.sessions.releaseLater() } }
+        graph.sessions.holdForScreen(true)
+        // An alarm change that couldn't reach the BedJet earlier.
+        graph.scope.launch { graph.actions.retryPendingRetime()?.let { _messages.tryEmit(it) } }
         maybeAutoCheckUpdates()
     }
 
-    fun onScreenHidden() = graph.sessions.releaseLater()
+    fun onScreenHidden() = graph.sessions.holdForScreen(false)
+
+    /** The connection chip: try the BedJet again. */
+    fun reconnect() {
+        graph.sessions.reconnect()
+    }
 
     fun refreshAlarm() {
         _nextAlarm.value = AlarmSource.describe(getApplication(), repo.settings.value)
@@ -109,18 +116,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // Commands
 
+    // Everything goes through NightActions, so a button can't interleave with a widget or an alarm change.
+
     fun run(command: NightActions.Command, profileId: String? = null) = act {
-        graph.sessions.withConnection { graph.actions.run(command, profileId) }
+        graph.actions.perform(command, profileId)
     }
 
     /** A Remote control: sent straight to the BedJet. */
     fun remote(label: String, work: suspend (BedJetController) -> Unit) = act {
-        graph.sessions.withConnection { work(graph.controller()) }
+        graph.actions.exclusive { work(graph.controller()) }
         label
     }
 
     fun restoreSlot(slot: Int, program: StoredProgram) = act {
-        graph.sessions.withConnection { graph.controller().store(program, slot) }
+        graph.actions.exclusive { graph.controller().store(program, slot) }
         "Put \"${program.name}\" back in slot ${slot + 1}."
     }
 
@@ -185,7 +194,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             result.onSuccess { latest ->
                 if (latest != null && UpdateChecker.isNewer(latest.tag, version)) {
                     _release.value = latest
-                    if (quiet) Notifications.showUpdate(getApplication(), latest.tag, latest.apkUrl ?: latest.pageUrl)
+                    if (quiet) Notifications.showUpdate(getApplication(), latest.tag, latest.pageUrl)
                 } else if (!quiet) _messages.tryEmit("You're on the latest version ($version).")
             }.onFailure { if (!quiet) _messages.tryEmit("Update check failed: ${it.message}") }
         }

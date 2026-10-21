@@ -46,7 +46,10 @@
         <service android:name=".service.BedJetService" android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
-        <receiver android:name=".night.NightAlarmReceiver" android:exported="true">
+        <!-- The night's own alarms, sent only by this app. -->
+        <receiver android:name=".night.NightAlarmReceiver" android:exported="false" />
+        <!-- Protected system broadcasts, so exporting it lets nothing else in. -->
+        <receiver android:name=".night.BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
