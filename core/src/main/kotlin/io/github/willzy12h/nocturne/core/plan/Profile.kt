@@ -62,6 +62,7 @@ data class Profile(
     val turboChain: TurboChain = TurboChain.TURBO_THEN_HEAT,
 )
 
+@Serializable
 enum class Block { START, MIDDLE, WAKE, AFTER_WAKE }
 
 data class PlannedStep(val block: Block, val step: ProgramStep, val startsAt: ZonedDateTime, val minutes: Int) {
