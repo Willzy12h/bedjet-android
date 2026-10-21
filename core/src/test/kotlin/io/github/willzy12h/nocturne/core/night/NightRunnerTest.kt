@@ -73,6 +73,20 @@ class NightRunnerTest {
     }
 
     @Test
+    fun forcedRetimeAppliesProfileEditsToTonightWithTheSameWakeTime() = runTest {
+        link.connect()
+        val night = runner.start(profile, alarm, 2, emptyList()).night
+        now = now.plusHours(2)
+        val edited = profile.copy(middle = profile.middle.copy(fanStart = 60, fanEnd = 60, rampSteps = 1))
+        assertNull(runner.retime(edited, night, alarm))
+        val result = runner.retime(edited, night, alarm, force = true)!!
+        assertEquals(alarm.toString(), result.night.wakeAt)
+        val middle = result.plan.steps.filter { it.block == io.github.willzy12h.nocturne.core.plan.Block.MIDDLE }
+        assertTrue(middle.all { (it.step.fanStep + 1) * 5 == 60 })
+        assertEquals(result.plan.programSteps, link.slots[2]!!.steps)
+    }
+
+    @Test
     fun alarmRemovedFallsBackToTheDefaultWakeTime() = runTest {
         link.connect()
         val night = runner.start(profile, alarm, 2, emptyList()).night

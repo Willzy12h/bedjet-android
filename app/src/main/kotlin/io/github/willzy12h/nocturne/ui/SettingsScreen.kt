@@ -175,6 +175,22 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
             Text("Installed: ${model.version}", style = MaterialTheme.typography.bodySmall)
         }
 
+        Group("Notification log") {
+            val notices by model.notices.collectAsState()
+            var showAll by remember { mutableStateOf(false) }
+            if (notices.isEmpty()) Text("Notifications Nocturne shows will be listed here.", style = MaterialTheme.typography.bodySmall)
+            (if (showAll) notices else notices.take(10)).forEach { notice ->
+                Column {
+                    Text("${noticeDay(notice.at)} ${Format.clock(notice.at)} · ${notice.title}", style = MaterialTheme.typography.bodyMedium)
+                    if (notice.text.isNotBlank()) Text(notice.text, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (notices.size > 10) TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Show fewer" else "Show all ${notices.size}") }
+                if (notices.isNotEmpty()) TextButton(onClick = model::clearNotices) { Text("Clear log") }
+            }
+        }
+
         Group("About") {
             Text(
                 "Nocturne plans BedJet 3 nights around your alarm. It talks to the BedJet over Bluetooth only. " +
@@ -230,3 +246,6 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, onChan
         }
     }
 }
+
+private fun noticeDay(iso: String): String =
+    runCatching { java.time.ZonedDateTime.parse(iso).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM")) }.getOrDefault("")

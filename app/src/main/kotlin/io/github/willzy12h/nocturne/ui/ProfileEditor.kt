@@ -16,6 +16,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import io.github.willzy12h.nocturne.night.NightActions.Command
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -59,20 +61,54 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit) {
     var profile by remember { mutableStateOf(original) }
     val settings by model.settings.collectAsState()
     val f = settings.fahrenheit
-    BackHandler(onBack = onDone)
+    val night by model.activeNight.collectAsState()
+    val runningTonight = night?.profileId == original.id
+    var confirmDiscard by remember { mutableStateOf(false) }
+    var askApplyTonight by remember { mutableStateOf(false) }
+    // Leaving with unsaved edits asks first, so a stray back swipe doesn't lose them.
+    val leave = { if (profile != original) confirmDiscard = true else onDone() }
+    BackHandler(onBack = leave)
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Discard changes?") },
+            text = { Text("Your edits to ${original.name} haven't been saved.") },
+            confirmButton = { TextButton(onClick = { confirmDiscard = false; onDone() }) { Text("Discard") } },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Keep editing") } },
+        )
+    }
+    if (askApplyTonight) {
+        AlertDialog(
+            onDismissRequest = { askApplyTonight = false },
+            title = { Text("Update tonight too?") },
+            text = { Text("${original.name} is running now. Your changes can wait for the next night, or replace the rest of tonight on the BedJet.") },
+            confirmButton = {
+                TextButton(onClick = { model.saveProfile(profile); model.run(Command.REAPPLY); askApplyTonight = false; onDone() }) { Text("Update tonight") }
+            },
+            dismissButton = { TextButton(onClick = { model.saveProfile(profile); askApplyTonight = false; onDone() }) { Text("Next night") } },
+        )
+    }
 
     Surface(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onDone) { Icon(Icons.Filled.Close, "Cancel") }
+                IconButton(onClick = leave) { Icon(Icons.Filled.Close, "Cancel") }
                 Text("Edit profile", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 val plan = model.previewPlan(profile)
-                Button(onClick = { model.saveProfile(profile); onDone() }, enabled = plan.isSuccess && profile.name.isNotBlank()) { Text("Save") }
+                Button(onClick = { if (runningTonight && profile != original) askApplyTonight = true else { model.saveProfile(profile); onDone() } }, enabled = plan.isSuccess && profile.name.isNotBlank()) { Text("Save") }
             }
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                if (runningTonight) {
+                    Text(
+                        "This profile is running tonight. When you save, you can choose to update tonight or start with the next night.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 model.previewPlan(profile).fold(
                     onSuccess = { plan ->
                         Text("Tonight at ${Format.clock(plan.start)}: ${plan.steps.size} of 32 BedJet steps", style = MaterialTheme.typography.labelLarge)

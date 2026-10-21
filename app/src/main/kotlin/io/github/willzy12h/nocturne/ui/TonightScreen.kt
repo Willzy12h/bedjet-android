@@ -68,6 +68,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val release by model.release.collectAsState()
     var now by remember { mutableStateOf(ZonedDateTime.now()) }
     LaunchedEffect(Unit) { while (true) { delay(30_000); now = ZonedDateTime.now(); model.refreshAlarm() } }
+    val guard = rememberNightGuard(model)
     val dark = nocturneColors.dark
     val simple = settings.simpleView
 
@@ -109,7 +110,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
             // Mid-night the controls come before the plan: they're what you reach for, and up here the
             // "night started" snackbar at the bottom of the screen doesn't cover them.
-            BigButton("End night", onClick = { model.run(Command.END_NIGHT) })
+            BigButton("End night", onClick = { guard.confirm("turn the BedJet off") { model.run(Command.END_NIGHT) } })
             OutlinedButton(onClick = { model.run(Command.RETIME) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Re-check alarm") }
             plan?.let { PlanCard(it, settings, running.wakeFromAlarm, now = now) }
         } else {
@@ -142,7 +143,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
         }
 
-        QuickButtons(model, settings)
+        QuickButtons(model, settings, guard)
     }
 }
 
@@ -204,14 +205,14 @@ private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true
 
 /** Four one-tap actions in a row, each marked with the colour of what it does. */
 @Composable
-private fun QuickButtons(model: AppViewModel, settings: Settings) {
+private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {
     val colors = nocturneColors
     Text("Quick", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        QuickButton("Boost", "${settings.boostMinutes} min", colors.turbo, Modifier.weight(1f)) { model.run(Command.BOOST) }
-        QuickButton("Warm", null, colors.heat, Modifier.weight(1f)) { model.run(Command.WARM) }
-        QuickButton("Cool", null, colors.cool, Modifier.weight(1f)) { model.run(Command.COOL) }
-        QuickButton("Off", null, colors.idle, Modifier.weight(1f)) { model.run(Command.OFF) }
+        QuickButton("Boost", "${settings.boostMinutes} min", colors.turbo, Modifier.weight(1f)) { guard.confirm("start Boost") { model.run(Command.BOOST) } }
+        QuickButton("Warm", null, colors.heat, Modifier.weight(1f)) { guard.confirm("start warming") { model.run(Command.WARM) } }
+        QuickButton("Cool", null, colors.cool, Modifier.weight(1f)) { guard.confirm("start cooling") { model.run(Command.COOL) } }
+        QuickButton("Off", null, colors.idle, Modifier.weight(1f)) { guard.confirm("turn the BedJet off") { model.run(Command.OFF) } }
     }
 }
 

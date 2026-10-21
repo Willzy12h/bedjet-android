@@ -48,6 +48,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val activeNight = repo.activeNight
     val slotBackups = repo.slotBackups
     val snapshots = repo.snapshotList
+    val notices = repo.notices
 
     /** Follows the live link, which changes when demo mode is switched. */
     val linkState: StateFlow<LinkState> = repo.settings.map { graph.link }.flatMapLatest { it.state }
@@ -149,6 +150,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSettings(change: (Settings) -> Settings) = repo.updateSettings(change)
     fun snapshotNow(label: String) { repo.snapshotNow(label); _messages.tryEmit("Snapshot saved.") }
     fun deleteSnapshot(id: String) = repo.deleteSnapshot(id)
+    fun clearNotices() = repo.clearNotices()
     fun restoreSnapshot(id: String) {
         _messages.tryEmit(if (repo.restoreSnapshot(id)) "Restored. What you had before is saved as a snapshot." else "That snapshot couldn't be read.")
     }

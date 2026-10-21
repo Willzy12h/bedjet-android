@@ -31,7 +31,7 @@ class NightActions(private val graph: Graph) {
     private val lock = Mutex()
     @Volatile private var retiming = false
 
-    enum class Command { START_NIGHT, END_NIGHT, OFF, TURBO, BOOST, COOL, WARM, RETIME, SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL }
+    enum class Command { START_NIGHT, END_NIGHT, OFF, TURBO, BOOST, COOL, WARM, RETIME, REAPPLY, SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL }
 
     /**
      * Connects, runs [command] and lets go, one command at a time. A failure during a night is noted in its history
@@ -96,6 +96,7 @@ class NightActions(private val graph: Graph) {
         Command.COOL -> quick(repo.settings.value.extendCool, "Cooling")
         Command.WARM -> quick(repo.settings.value.extendWarm, "Warming")
         Command.RETIME -> retime()
+        Command.REAPPLY -> reapply()
         Command.SNOOZE_WARM -> wakeAction(WakeAction.SNOOZE_WARM)
         Command.SNOOZE_COOL -> wakeAction(WakeAction.SNOOZE_COOL)
         Command.EXTEND_WARM -> wakeAction(WakeAction.EXTEND_WARM)
@@ -117,6 +118,18 @@ class NightActions(private val graph: Graph) {
         NightAlarms.schedule(context, result.night)
         Notifications.cancelWakeUp(context)
         return "${profile.name} started. Waking you at ${clock(result.night.wakeAt)}."
+    }
+
+    /** Puts edits to the running profile on the BedJet for the rest of tonight, keeping the wake time. */
+    private suspend fun reapply(): String {
+        val night = repo.activeNight.value ?: return "No night running."
+        val profile = repo.profile(night.profileId) ?: return "The night's profile was deleted."
+        val result = graph.runner().retime(profile, night, ZonedDateTime.parse(night.wakeAt), force = true)
+            ?: return "Tonight's wake-up has already started, so it's left as it is."
+        repo.setActiveNight(result.night)
+        repo.addEvent(night.recordId, result.event)
+        NightAlarms.schedule(context, result.night)
+        return "Changes applied to the rest of tonight. Waking you at ${clock(result.night.wakeAt)}."
     }
 
     private suspend fun retime(): String {

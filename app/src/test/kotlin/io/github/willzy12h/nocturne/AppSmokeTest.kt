@@ -67,8 +67,26 @@ class AppSmokeTest {
         assertEquals(1, graph.repository.history.value.size)
         assertEquals(1, graph.link.status.value?.extra?.programStep)
         compose.onNodeWithText("End night").performScrollTo().performClick()
+        // Ending a running night asks first.
+        compose.onNodeWithText("Stop night and continue").performClick()
         waitForText("Start night now")
         assertNull(graph.repository.activeNight.value)
+    }
+
+    @Test
+    fun aStrayTapDuringANightAsksBeforeStoppingIt() {
+        compose.onNodeWithText("Start night now").performScrollTo().performClick()
+        waitForText("End night")
+        // Let the "started" message bar time out; it sits over the bottom of the screen.
+        compose.waitUntil(10_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            compose.onAllNodes(hasText("started", substring = true)).fetchSemanticsNodes().isEmpty()
+        }
+        compose.onNodeWithText("Off").performScrollTo().performClick()
+        compose.onNodeWithText("Stop tonight's night?").assertIsDisplayed()
+        compose.onNodeWithText("Keep tonight").performClick()
+        compose.waitForIdle()
+        assertNotNull(graph.repository.activeNight.value)
     }
 
     @Test

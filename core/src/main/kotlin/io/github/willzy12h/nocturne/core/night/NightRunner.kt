@@ -69,16 +69,17 @@ class NightRunner(private val controller: BedJetController, private val now: () 
 
     /**
      * Follows an alarm that changed during the night. Returns null when nothing needs to change: the wake time is the
-     * same, the wake-up has already begun, or the fallback wake time has already passed.
+     * same, the wake-up has already begun, or the fallback wake time has already passed. With [force] the rest of the
+     * night is rewritten even when the wake time hasn't changed, to apply edits made to the running profile.
      */
-    suspend fun retime(profile: Profile, night: ActiveNight, alarm: ZonedDateTime?): RetimeResult? {
+    suspend fun retime(profile: Profile, night: ActiveNight, alarm: ZonedDateTime?, force: Boolean = false): RetimeResult? {
         val time = now()
         val start = ZonedDateTime.parse(night.startedAt)
         val oldWake = ZonedDateTime.parse(night.wakeAt)
         val alarmFits = profile.wakeSource.useAlarm && alarm != null && alarm.isAfter(time) &&
             Duration.between(start, alarm) <= WakeResolver.MAX_NIGHT
         val newWake = if (alarmFits) alarm!! else WakeResolver.nextOccurrence(profile.wakeSource.defaultWakeMinute, start.plus(WakeResolver.MIN_NIGHT))
-        if (newWake.isEqual(oldWake) || !newWake.isAfter(time)) return null
+        if ((newWake.isEqual(oldWake) && !force) || !newWake.isAfter(time)) return null
         val original = PlanCompiler.compile(profile, start, oldWake)
         val plan = PlanCompiler.replan(profile, original, time, newWake) ?: return null
         controller.store(StoredProgram(profile.name, plan.programSteps), night.slot)
@@ -87,7 +88,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             wakeAt = newWake.toString(), wakeFromAlarm = alarmFits,
             wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(),
         )
-        val event = HistoryEvent(time.toString(), EventKind.RETIMED, "Wake-up moved from ${oldWake.toLocalTime()} to ${newWake.toLocalTime()}")
+        val detail = if (newWake.isEqual(oldWake)) "Profile changes applied to the rest of the night" else "Wake-up moved from ${oldWake.toLocalTime()} to ${newWake.toLocalTime()}"
+        val event = HistoryEvent(time.toString(), EventKind.RETIMED, detail)
         return RetimeResult(plan, updated, event)
     }
 
