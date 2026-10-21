@@ -29,6 +29,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        // Robolectric downloads its Android image; Maven Central rate-limits busy machines, so use Google's mirror.
+        unitTests.all { it.systemProperty("robolectric.dependency.repo.url", "https://maven-central.storage-download.googleapis.com/maven2") }
+    }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -48,4 +53,10 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
+
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }

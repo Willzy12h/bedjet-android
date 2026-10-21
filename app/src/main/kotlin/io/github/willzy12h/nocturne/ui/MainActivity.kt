@@ -27,10 +27,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.willzy12h.nocturne.core.plan.Profile
 
 class MainActivity : ComponentActivity() {
-    private val model: AppViewModel by viewModels()
+    // Built from this activity's own Application rather than the process-wide default factory, which keeps the first one it saw.
+    private val model: AppViewModel by viewModels { viewModelFactory { initializer { AppViewModel(application) } } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
