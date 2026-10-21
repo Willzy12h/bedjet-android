@@ -13,15 +13,29 @@ android {
         applicationId = "io.github.willzy12h.nocturne"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Release builds get these from the tag (see .github/workflows/build.yml).
+        versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("versionName") as String?) ?: "0.1.0"
+    }
+
+    // Android only installs an update signed with the same key as the installed app, so releases use one fixed key
+    // when it is provided (GitHub secrets in CI), and the debug key otherwise.
+    val releaseKeystore = System.getenv("NOCTURNE_KEYSTORE")?.let(::file)?.takeIf { it.exists() }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("NOCTURNE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("NOCTURNE_KEY_ALIAS")
+                keyPassword = System.getenv("NOCTURNE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Sideloaded builds are signed with the debug key unless a release keystore is configured.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
