@@ -15,6 +15,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import android.os.Looper
+import java.time.Duration
 import org.robolectric.annotation.Config
 
 /** Launches the real app on Robolectric with the simulated BedJet, and walks every screen. */
@@ -33,8 +36,12 @@ class AppSmokeTest {
         }
     }
 
+    /** Lets Robolectric's clock run while waiting, as real time would; BedJet replies are given short time limits. */
     private fun waitForText(text: String) =
-        compose.waitUntil(10_000) { compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+            compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty()
+        }
 
     @Test
     fun everyTabOpens() {
