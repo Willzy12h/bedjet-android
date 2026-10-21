@@ -41,13 +41,12 @@ class BedJetService : Service() {
         scope.launch {
             queue.withLock {
                 try {
-                    val message = withTimeout(TIMEOUT_MS) {
-                        graph.sessions.withConnection { graph.actions.run(command, profileId) }
-                    }
+                    // A re-time reports its own failure; it retries for up to a minute, within this limit.
+                    val message = withTimeout(TIMEOUT_MS) { graph.actions.perform(command, profileId) }
                     lastResult = message
                 } catch (e: Exception) {
                     lastResult = e.message ?: "Something went wrong."
-                    if (command != NightActions.Command.RETIME) Notifications.showError(this@BedJetService, "BedJet: ${label(command)} didn't work", lastResult.orEmpty())
+                    Notifications.showError(this@BedJetService, "BedJet: ${label(command)} didn't work", lastResult.orEmpty())
                 } finally {
                     pending--
                     if (pending == 0) stopSelf()
