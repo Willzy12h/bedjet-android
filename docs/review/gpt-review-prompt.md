@@ -44,7 +44,7 @@ You are reviewing **Nocturne**, an Android app I sideload. It controls a **BedJe
 
 ## Important context
 - **Nothing has run on a real phone or BedJet yet.** The Bluetooth path (`AndroidBedJetLink`) is reasoned from Android's documented behaviour and Lull's iOS code, and has never been exercised on hardware. Scrutinise it most.
-- Two Claude code reviews have been done and their findings fixed. Deliberate trade-offs are the lines containing `Ruling:` in `.superpowers/sdd/2026-10-21-nocturne-v1/progress.md`. Challenge them if you disagree.
+- Two Claude code reviews have been done. The first review's findings are fixed. The **second review's findings are NOT fixed yet**: they are in `docs/review/claude-second-review.md` (8 Important, 12 Minor, plus QoL ideas). Verify each one, say whether you agree, and include them in your final table. Deliberate trade-offs are the lines containing `Ruling:` in `.superpowers/sdd/2026-10-21-nocturne-v1/progress.md`. Challenge them if you disagree.
 - **Known open items** (confirm, fix approach, or dispute):
   1. The message bar ("snackbar") covers the bottom row of quick buttons for a few seconds after an action.
   2. Release builds aren't shrunk (`isMinifyEnabled = false`). The debug APK is about 60 MB, mostly `material-icons-extended`. R8 needs keep rules checked for kotlinx.serialization.
