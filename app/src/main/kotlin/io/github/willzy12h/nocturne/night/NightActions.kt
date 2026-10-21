@@ -128,6 +128,12 @@ class NightActions(private val graph: Graph) {
         repo.setActiveNight(result.night)
         repo.addEvent(night.recordId, result.event)
         NightAlarms.schedule(context, result.night)
+        // The person changed their alarm, not the night, so say what followed from it.
+        Notifications.showInfo(
+            context,
+            "Wake-up moved to ${clock(result.night.wakeAt)}",
+            "Your alarm changed, so tonight's BedJet plan now wakes you at ${clock(result.night.wakeAt)} instead of ${clock(night.wakeAt)}.",
+        )
         return "Wake-up moved to ${clock(result.night.wakeAt)}."
     }
 

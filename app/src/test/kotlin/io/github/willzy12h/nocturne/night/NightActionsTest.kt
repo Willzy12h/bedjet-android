@@ -61,6 +61,25 @@ class NightActionsTest {
     }
 
     @Test
+    fun aMovedAlarmMovesTheWakeUpAndSaysSo() = runBlocking {
+        graph.actions.perform(Command.START_NIGHT)
+        val before = graph.repository.activeNight.value!!
+        // No creator package, so it counts as the clock app's alarm.
+        val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
+        val at = ZonedDateTime.now().plusHours(5).withSecond(0).withNano(0)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), null), fire)
+
+        graph.actions.perform(Command.RETIME)
+
+        val after = graph.repository.activeNight.value!!
+        assertEquals(at.toInstant(), ZonedDateTime.parse(after.wakeAt).toInstant())
+        val notice = graph.repository.notices.value.first()
+        assertEquals(io.github.willzy12h.nocturne.core.store.NoticeKind.INFO, notice.kind)
+        assertEquals(true, notice.title.startsWith("Wake-up moved to"))
+        assertEquals(true, notice.text.contains(java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(ZonedDateTime.parse(before.wakeAt))))
+    }
+
+    @Test
     fun aDeletedProfileFromAWidgetDoesNotStartAnother() = runBlocking {
         assertEquals("That profile was deleted.", graph.actions.perform(Command.START_NIGHT, "deleted-profile"))
         assertNull(graph.repository.activeNight.value)

@@ -8,7 +8,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.night.ActiveNight
+import io.github.willzy12h.nocturne.core.store.LoggedNotice
+import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.night.NightActions
@@ -25,6 +28,7 @@ object Notifications {
     private const val WAKE_ID = 2
     private const val ERROR_ID = 3
     private const val UPDATE_ID = 4
+    private const val INFO_ID = 5
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -37,7 +41,9 @@ object Notifications {
                 NotificationChannel(CHANNEL_WORKING, "Talking to BedJet", NotificationManager.IMPORTANCE_LOW).apply {
                     description = "Shown briefly while a command is sent."
                 },
-                NotificationChannel(CHANNEL_ALERTS, "Problems and updates", NotificationManager.IMPORTANCE_DEFAULT),
+                NotificationChannel(CHANNEL_ALERTS, "Changes, problems and updates", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = "When your wake-up moves with your alarm, when something didn't work, and new versions."
+                },
             ),
         )
     }
@@ -51,8 +57,9 @@ object Notifications {
 
     /** The wake-up notification. It stays until the night ends or Off is pressed. */
     fun showWakeUp(context: Context, night: ActiveNight, settings: Settings, status: String? = null) {
-        if (!canPost(context)) return
         val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
+        log(context, NoticeKind.WAKE_UP, "Waking you at $wake", status ?: "Your BedJet is getting you ready to wake up.")
+        if (!canPost(context)) return
         val builder = Notification.Builder(context, CHANNEL_WAKE)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Waking you at $wake")
@@ -69,7 +76,13 @@ object Notifications {
 
     fun cancelWakeUp(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(WAKE_ID)
 
-    fun showError(context: Context, title: String, text: String) {
+    fun showError(context: Context, title: String, text: String) = showAlert(context, NoticeKind.PROBLEM, title, text, ERROR_ID)
+
+    /** Something changed without the person doing it, e.g. the wake-up followed a new alarm. */
+    fun showInfo(context: Context, title: String, text: String) = showAlert(context, NoticeKind.INFO, title, text, INFO_ID)
+
+    private fun showAlert(context: Context, kind: NoticeKind, title: String, text: String, id: Int) {
+        log(context, kind, title, text)
         if (!canPost(context)) return
         val notification = Notification.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
@@ -79,11 +92,12 @@ object Notifications {
             .setContentIntent(openApp(context))
             .setAutoCancel(true)
             .build()
-        context.getSystemService(NotificationManager::class.java).notify(ERROR_ID, notification)
+        context.getSystemService(NotificationManager::class.java).notify(id, notification)
     }
 
     /** Opens the release page: the APK link itself needs signing in when the repository is private. */
     fun showUpdate(context: Context, tag: String, pageUrl: String) {
+        log(context, NoticeKind.UPDATE, "Nocturne $tag is available", pageUrl)
         if (!canPost(context)) return
         val open = PendingIntent.getActivity(context, 0, Intent(Intent.ACTION_VIEW, Uri.parse(pageUrl)), PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(context, CHANNEL_ALERTS)
@@ -111,6 +125,10 @@ object Notifications {
         WakeAction.EXTEND_COOL -> NightActions.Command.EXTEND_COOL
         WakeAction.OFF -> NightActions.Command.OFF
     }
+
+    /** Kept even when notifications are off, so Settings can show what would have been said. */
+    private fun log(context: Context, kind: NoticeKind, title: String, text: String) =
+        context.graph.repository.addNotice(LoggedNotice(ZonedDateTime.now().toString(), kind, title, text))
 
     private fun openApp(context: Context) = PendingIntent.getActivity(
         context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,

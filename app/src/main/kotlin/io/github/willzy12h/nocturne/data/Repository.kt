@@ -10,6 +10,8 @@ import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.store.BackupBundle
 import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.History
+import io.github.willzy12h.nocturne.core.store.LoggedNotice
+import io.github.willzy12h.nocturne.core.store.NotificationLog
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.core.store.Settings
@@ -60,6 +62,9 @@ class Repository(private val context: Context, scope: CoroutineScope) {
     val slotBackups: StateFlow<List<SlotBackup>> = _slotBackups.asStateFlow()
     private val _activeNight = MutableStateFlow(load("active-night.json", ActiveNight.serializer().nullable))
     val activeNight: StateFlow<ActiveNight?> = _activeNight.asStateFlow()
+    private val _notices = MutableStateFlow(load("notices.json", ListSerializer(LoggedNotice.serializer())).orEmpty())
+    /** Every notification the app has shown, newest first. Not part of backups. */
+    val notices: StateFlow<List<LoggedNotice>> = _notices.asStateFlow()
     private val _snapshotList = MutableStateFlow(snapshots.list())
     val snapshotList: StateFlow<List<SnapshotInfo>> = _snapshotList.asStateFlow()
 
@@ -110,6 +115,11 @@ class Repository(private val context: Context, scope: CoroutineScope) {
 
     fun addSlotBackup(backup: SlotBackup) =
         update(_slotBackups, "slot-backups.json", ListSerializer(SlotBackup.serializer())) { list -> list.filterNot { it.slot == backup.slot } + backup }
+
+    fun addNotice(notice: LoggedNotice) =
+        update(_notices, "notices.json", ListSerializer(LoggedNotice.serializer())) { NotificationLog.add(it, notice) }
+
+    fun clearNotices() = update(_notices, "notices.json", ListSerializer(LoggedNotice.serializer())) { emptyList() }
 
     // Backups
 
