@@ -59,3 +59,33 @@ Task 1: fix round 1/5 (2 addressed, 0 open; commits 7718d3c..56ab099)
 Task 1: complete (commits e4b0cae..56ab099, review clean)
 Task 1: minor (deferred): end-to-end R06 gap test is a slow regression guard (1.8 s) that doesn't distinguish old/new code
 Task 1: minor (deferred): final state after a disconnect racing connect not asserted
+
+
+## Astra continuation — 22 October 2026
+
+Resumed from 83e6efa69ac46f02ba5e9bd8d542774cece734eb. Tasks 1 and 2 remain complete; their deferred observations remain visible for the final whole-branch review. No hardware verification is claimed.
+
+Ruling: use GPT-6 Astra at medium effort for implementers and all reviewers — the owner explicitly substituted Astra for Opus in this session — cost if wrong: additional fix rounds may be needed; model identity remains truthful.
+Ruling: do not append the old Claude Opus co-author or Claude-session URL to new commits; use truthful Astra attribution instead — those trailers describe a different agent/session — cost if wrong: existing commit-message tooling may need adaptation.
+Ruling: reset only newly created, isolated task worktrees to the latest integrated claude/nocturne-hardening, then write each local.properties using this host's SDK path — never discard unrelated main-worktree changes — cost if wrong: a stale task base requires rebase/review.
+Ruling: execute Task 3, then 4, then Tasks 5 and 6 in parallel isolated worktrees, then 7; lead merges, verifies and pushes each task — explicit owner instruction supersedes earlier phase tables and the skill's default serial implementation — cost if wrong: shared integration changes require explicit reconciliation.
+
+### Continuation preflight
+
+| Task/pair | Shared contract or self-check | Resolution |
+|---|---|---|
+| T3 self | Models, alarm eligibility, preview, overrides and resume must agree; v1 persistence remains readable | Implement and test in core; retain compatibility only where explicit and observable |
+| T3 × T4 | ActiveNight/applied state, expected identity, pending mutation and runner APIs | T4 starts only after reviewed T3 merge; use implementer's interface report |
+| T3 × T5 | Temporary selection/override state and applied programme display | UI consumes the reviewed core model; no live-profile reconstruction |
+| T3 × T6 | Override, profile resolution and runtime persistence | Platform features consume current contracts; no parallel core-night rewrite |
+| T4 self | Local expiry must not connect; uncertain partial writes must persist before mutation | Keep serial state ownership distinct from connection acquisition; regression evidence required |
+| T4 × T5 | NightActions public API, command outcomes, setup/device operations | T4 provides documented UI-facing API; T5 requests any new coordinator change from lead |
+| T4 × T6 | Service/coordinator actions, scheduling and hand-over suppression | T6 uses reviewed commands and carries identity; any shared runtime edit requires coordination |
+| T5 self | Preserve existing design while adding accessibility, recovery and feature controls | Local extensions only; actual-app before/after renders and semantics checks |
+| T5 × T6 | Feature UI wiring, Settings persistence, strings and manifest | Isolated worktrees; feature composables/strings_features.xml owned by T6; lead resolves shared Settings/wiring explicitly before launch |
+| T5 × T7 | New settings/resources and minified persistence | T7 follows both feature/UI merges; verify minified serializers and components |
+| T6 self | Optional automation/provider/permissions cannot alter core control implicitly | Default-off automation; fail gracefully; hardware gates remain pending |
+| T6 × T7 | Health Connect dependency, manifest components and R8 | T7 starts after T6 merge and includes new components in release checks |
+| T7 self | No production-key fallback; test key is deliberately separate | Produce a test-signed APK without committing keys or publishing a release |
+
+Task 3: pending dispatch.
