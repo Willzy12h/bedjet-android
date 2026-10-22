@@ -126,7 +126,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (next?.creator != null && !next.counts) {
-                FilledTonalButton(onClick = { model.updateSettings { it.copy(alarmPackages = it.alarmPackages + next.creator!!) }; model.refreshAlarm() }) {
+                FilledTonalButton(onClick = { model.useAlarmsFrom(next.creator!!) }) {
                     Text("Use alarms from ${next.creator}")
                 }
             }

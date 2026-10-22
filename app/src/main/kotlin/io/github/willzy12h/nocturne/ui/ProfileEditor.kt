@@ -16,7 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
-import io.github.willzy12h.nocturne.night.NightActions.Command
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -84,7 +83,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit) {
             title = { Text("Update tonight too?") },
             text = { Text("${original.name} is running now. Your changes can wait for the next night, or replace the rest of tonight on the BedJet.") },
             confirmButton = {
-                TextButton(onClick = { model.saveProfile(profile); model.run(Command.REAPPLY); askApplyTonight = false; onDone() }) { Text("Update tonight") }
+                TextButton(onClick = { model.saveProfileThenReapply(profile); askApplyTonight = false; onDone() }) { Text("Update tonight") }
             },
             dismissButton = { TextButton(onClick = { model.saveProfile(profile); askApplyTonight = false; onDone() }) { Text("Next night") } },
         )

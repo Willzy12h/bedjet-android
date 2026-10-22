@@ -22,6 +22,7 @@ import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -138,8 +139,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         "Put \"${program.name}\" back in slot ${slot + 1}."
     }
 
+    /** Commands wait for saves asked for before them, so they act on what the person just saved. */
     private fun act(work: suspend () -> String) {
+        val pending = lastSave
         graph.scope.launch {
+            pending?.join()
             _busy.value = true
             val message = try { work() } catch (e: Exception) { e.message ?: "Something went wrong." }
             _busy.value = false
@@ -154,6 +158,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
     fun deleteProfile(id: String) = save { repo.deleteProfile(id) }
     fun updateSettings(change: (Settings) -> Settings) = save { repo.updateSettings(change) }
+
+    /** "Update tonight": the edited profile is saved before the rest of the night is rewritten from it. */
+    fun saveProfileThenReapply(profile: Profile) = act {
+        repo.saveProfile(profile)
+        graph.actions.perform(NightActions.Command.REAPPLY)
+    }
+
+    /** Lets [creator]'s alarms move the wake-up, and shows the next alarm under the saved setting. */
+    fun useAlarmsFrom(creator: String) = save {
+        repo.updateSettings { it.copy(alarmPackages = it.alarmPackages + creator) }
+        refreshAlarm()
+    }
     fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit("Snapshot saved.") }
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
@@ -177,8 +193,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** The latest save, which later saves and commands wait for. Only touched on the main thread. */
+    private var lastSave: Job? = null
+
     private fun save(work: suspend () -> Unit) {
-        graph.scope.launch {
+        val previous = lastSave
+        lastSave = graph.scope.launch {
+            previous?.join()
             try {
                 work()
             } catch (e: CancellationException) {

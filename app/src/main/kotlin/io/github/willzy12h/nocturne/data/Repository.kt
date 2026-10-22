@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.core.util.AtomicFile
+import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.Profile
@@ -67,7 +68,9 @@ class Repository(
     val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { now() }
     private val lock = Mutex()
 
-    // Declared before the loads below, which add to it.
+    // Declared before the loads below, which add to them.
+    /** Files found unreadable while loading, moved aside by the writer once the Repository is made. */
+    private val toSetAside = mutableListOf<File>()
     private val _unreadable = MutableStateFlow(readUnreadableMarker())
     /**
      * Files that couldn't be read, so their defaults are showing instead. Each was moved aside as
@@ -101,6 +104,9 @@ class Repository(
         set(value) = secrets.edit().putString("updateToken", value.trim()).apply()
 
     init {
+        // Moving the unreadable files aside and saving the report are writes, so they wait for the writer. Every
+        // later write queues behind this one, so nothing can be written over an unreadable file before it is moved.
+        if (toSetAside.isNotEmpty()) scope.launch(writer) { serially { setAsidePending() } }
         scope.launch {
             combine(_profiles, _settings) { _, _ -> }.drop(1).debounce(30_000).collect { autoSnapshot() }
         }
@@ -145,6 +151,7 @@ class Repository(
      * the slot may hold the app's own program. Throws when it can't be saved, and then the slot must not be written.
      */
     suspend fun recordOriginalSlot(deviceId: String, slot: Int, program: StoredProgram?): SlotBackup = serially {
+        adoptMigrated(deviceId)
         originalSlot(deviceId, slot) ?: SlotBackup(deviceId, slot, program, now().toString()).also { backup ->
             val list = _slotBackups.value + backup
             writeValue(SLOT_BACKUPS, ListSerializer(SlotBackup.serializer()), list)
@@ -153,7 +160,22 @@ class Repository(
     }
 
     /** What [deviceId]'s [slot] held before the app first wrote to it, or null when that wasn't recorded. */
-    fun originalSlot(deviceId: String, slot: Int): SlotBackup? = _slotBackups.value.firstOrNull { it.deviceId == deviceId && it.slot == slot }
+    fun originalSlot(deviceId: String, slot: Int): SlotBackup? =
+        _slotBackups.value.firstOrNull { it.deviceId == deviceId && it.slot == slot }
+            ?: _slotBackups.value.firstOrNull { it.slot == slot && adopts(deviceId, it.deviceId) }
+
+    /**
+     * The slot backups that count for [deviceId], to tell NightRunner which slots are already backed up. A real
+     * BedJet first adopts, durably, any original saved before devices were recorded for a slot it has none for: that
+     * original came from the BedJet the app was used with, while the slot may by now hold the app's own program. With
+     * no BedJet chosen (null) those migrated originals are returned as they are, so nothing is saved over them. The
+     * demo unit never adopts them.
+     */
+    suspend fun originalsFor(deviceId: String?): List<SlotBackup> {
+        if (deviceId == null) return _slotBackups.value.filter { it.deviceId == Migrations.UNKNOWN_DEVICE }
+        serially { adoptMigrated(deviceId) }
+        return _slotBackups.value.filter { it.deviceId == deviceId }
+    }
 
     /** Saves [backup], replacing any for the same device and slot. */
     suspend fun addSlotBackup(backup: SlotBackup) = update(_slotBackups, SLOT_BACKUPS, ListSerializer(SlotBackup.serializer())) { list ->
@@ -209,7 +231,7 @@ class Repository(
             val settings = bundle.settings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice)
             val history = History.prune(bundle.history, now())
             val slotBackups = _slotBackups.value.let { list ->
-                list + bundle.slotBackups.filter { restored -> list.none { it.deviceId == restored.deviceId && it.slot == restored.slot } }
+                list + bundle.slotBackups.filter { restored -> list.none { it.covers(restored) } }
             }
             val writes = listOf(
                 Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)),
@@ -302,16 +324,45 @@ class Repository(
         }
     }
 
+    /** Notes [file] as unreadable; [setAsidePending] moves it aside on the writer. */
     private fun <T> setAside(file: File, cause: Exception): T? {
-        val aside = File(dir, "${file.name}.corrupt-${System.currentTimeMillis()}")
-        Log.w(TAG, "Couldn't read ${file.name}; moved it to ${aside.name}", cause)
-        // If it can't be moved, a copy still keeps the original from being lost on the next write.
-        if (!file.renameTo(aside)) runCatching { file.copyTo(aside) }.onFailure { Log.e(TAG, "Couldn't keep ${file.name}", it) }
-        val names = (_unreadable.value + file.name).distinct()
-        // Start-up reads happen where the Repository is made; the marker that keeps the report across restarts with them.
-        runCatching { writeValue(UNREADABLE, ListSerializer(String.serializer()), names) }.onFailure { Log.e(TAG, "Couldn't save $UNREADABLE", it) }
-        _unreadable.value = names
+        Log.w(TAG, "Couldn't read ${file.name}; it will be moved aside", cause)
+        toSetAside += file
+        _unreadable.value = (_unreadable.value + file.name).distinct()
         return null
+    }
+
+    /** Runs on the writer. A report that can't be saved is shown as unreadable too, rather than lost on a restart. */
+    private fun setAsidePending() {
+        toSetAside.forEach { file ->
+            val aside = File(dir, "${file.name}.corrupt-${System.currentTimeMillis()}")
+            // If it can't be moved, a copy still keeps the original from being lost on the next write.
+            if (!file.renameTo(aside)) runCatching { file.copyTo(aside) }.onFailure { Log.e(TAG, "Couldn't keep ${file.name}", it) }
+        }
+        toSetAside.clear()
+        val names = _unreadable.value
+        runCatching { writeValue(UNREADABLE, ListSerializer(String.serializer()), names) }.onFailure {
+            Log.e(TAG, "Couldn't save $UNREADABLE", it)
+            _unreadable.value = (names + UNREADABLE).distinct()
+        }
+    }
+
+    /** True when [deviceId] takes over an original saved with [recordedFor] before devices were recorded. */
+    private fun adopts(deviceId: String, recordedFor: String) = recordedFor == Migrations.UNKNOWN_DEVICE && DeviceId.address(deviceId) != null
+
+    /** Two backups of the same slot of the same BedJet, counting a migrated one as the real BedJet's. */
+    private fun SlotBackup.covers(other: SlotBackup) =
+        slot == other.slot && (deviceId == other.deviceId || adopts(deviceId, other.deviceId) || adopts(other.deviceId, deviceId))
+
+    /** Re-tags, durably, the migrated originals of slots [deviceId] has none for. Call on the writer. */
+    private fun adoptMigrated(deviceId: String) {
+        val list = _slotBackups.value
+        val adopted = list.map { backup ->
+            if (adopts(deviceId, backup.deviceId) && list.none { it.deviceId == deviceId && it.slot == backup.slot }) backup.copy(deviceId = deviceId) else backup
+        }
+        if (adopted == list) return
+        writeValue(SLOT_BACKUPS, ListSerializer(SlotBackup.serializer()), adopted)
+        _slotBackups.value = adopted
     }
 
     private fun readUnreadableMarker(): List<String> =

@@ -5,7 +5,10 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
 import android.os.Looper
+import io.github.willzy12h.nocturne.core.link.BedJetController
+import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.core.night.ActiveNight
+import io.github.willzy12h.nocturne.core.night.NightRunner
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.Profile
@@ -31,6 +34,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -48,6 +52,8 @@ import java.io.IOException
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** The plain Application keeps the real app's own Repository out of the way. */
 @RunWith(RobolectricTestRunner::class)
@@ -210,6 +216,28 @@ class RepositoryTest {
     }
 
     @Test
+    fun theUnreadableReportIsSavedOffTheMainThread() {
+        File(dir, "settings.json").writeText("{ not json")
+        val written = CountDownLatch(1)
+        var thread: Thread? = null
+        val repo = repository(writer = Repository.defaultWriter(), writeFile = { file, bytes ->
+            Repository.writeDurably(file, bytes)
+            if (file.name == "unreadable.json") { thread = Thread.currentThread(); written.countDown() }
+        })
+        assertEquals(listOf("settings.json"), repo.unreadable.value)
+        assertTrue(written.await(5, TimeUnit.SECONDS))
+        assertNotSame(Looper.getMainLooper().thread, thread)
+        assertEquals(listOf("settings.json"), repository().unreadable.value)
+    }
+
+    @Test
+    fun anUnreadableReportThatCantBeSavedIsShown() {
+        File(dir, "settings.json").writeText("{ not json")
+        val repo = repository(writeFile = failingFor("unreadable.json"))
+        assertEquals(listOf("settings.json", "unreadable.json"), repo.unreadable.value)
+    }
+
+    @Test
     fun aRestoreClearsTheUnreadableReport() = runBlocking {
         File(dir, "settings.json").writeText("{ not json")
         val repo = repository()
@@ -262,6 +290,68 @@ class RepositoryTest {
 
         repo.addSlotBackup(backup(2, "another demo", "demo"))
         assertEquals(real, repo.originalSlot("ble:AA:BB", 2))
+    }
+
+    // Originals saved before devices were recorded
+
+    private val migrated = SlotBackup("unknown", 2, program, "2026-10-20T22:30Z")
+
+    /** A version 1 backup of slot 3 (index 2), as an upgrade finds it. */
+    private fun version1Original() = File(dir, "slot-backups.json").writeText(
+        """[{"slot":2,"program":{"name":"original","steps":[{"mode":"DRY","fanStep":1,"temperature":60,"hours":1,"minutes":0}]},"savedAt":"2026-10-20T22:30Z"}]""",
+    )
+
+    @Test
+    fun aMigratedOriginalIsAdoptedByTheFirstRealBedJet() = runBlocking {
+        version1Original()
+        val repo = repository()
+        // The slot now holds Nocturne's own program from earlier nights.
+        val link = DemoBedJet(listOf(null, null, StoredProgram("Spring/Autumn", listOf(ProgramStep(Mode.HEAT, 7, 64, 0, 20))))) { now }
+        link.connect()
+        val runner = NightRunner(BedJetController(link) { now }) { now }
+
+        val result = runner.start(Presets.springAutumn, null, 2, repo.originalsFor("ble:AA:BB"), "ble:AA:BB")
+
+        assertNull(result.slotBackup)
+        val adopted = migrated.copy(deviceId = "ble:AA:BB")
+        assertEquals(adopted, repo.originalSlot("ble:AA:BB", 2))
+        assertEquals(listOf(adopted), repo.slotBackups.value)
+        assertEquals(listOf(adopted), repository().slotBackups.value)
+        // Only one BedJet can have been the one it came from.
+        assertNull(repo.originalSlot("ble:CC:DD", 2))
+    }
+
+    @Test
+    fun recordingAnOriginalAdoptsAMigratedOne() = runBlocking {
+        version1Original()
+        val repo = repository()
+        assertEquals(migrated, repo.originalSlot("ble:AA:BB", 2))
+        val stored = repo.recordOriginalSlot("ble:AA:BB", 2, StoredProgram("Spring/Autumn", emptyList()))
+        assertEquals(migrated.copy(deviceId = "ble:AA:BB"), stored)
+        assertEquals(listOf(stored), repository().slotBackups.value)
+    }
+
+    @Test
+    fun theDemoUnitAndNoTargetDoNotAdoptAMigratedOriginal() = runBlocking {
+        version1Original()
+        val repo = repository()
+        assertEquals(emptyList<SlotBackup>(), repo.originalsFor("demo"))
+        assertNull(repo.originalSlot("demo", 2))
+        // With no BedJet chosen the migrated original still counts, so nothing new is saved over it.
+        assertEquals(listOf(migrated), repo.originalsFor(null))
+        assertEquals(listOf(migrated), repository().slotBackups.value)
+    }
+
+    @Test
+    fun restoreDoesNotAddAnOlderBackupOfASlotAlreadyCovered() = runBlocking {
+        version1Original()
+        val repo = repository()
+        repo.restore(repo.bundle().copy(slotBackups = listOf(backup(2, "nocturne's"))))
+        assertEquals(listOf(migrated), repo.slotBackups.value)
+
+        repo.originalsFor("ble:AA:BB")
+        repo.restore(repo.bundle().copy(slotBackups = listOf(migrated.copy(program = StoredProgram("older", emptyList())))))
+        assertEquals(listOf(migrated.copy(deviceId = "ble:AA:BB")), repo.slotBackups.value)
     }
 
     // Import

@@ -111,10 +111,12 @@ class NightActions(private val graph: Graph) {
             ?: return "Add a profile first."
         val settings = repo.settings.value
         val previous = repo.activeNight.value
-        val result = graph.runner().start(profile, AlarmSource.next(context, settings), settings.workingSlot, repo.slotBackups.value, settings.deviceId() ?: Migrations.UNKNOWN_DEVICE)
+        val device = settings.deviceId()
+        val result = graph.runner().start(profile, AlarmSource.next(context, settings), settings.workingSlot, repo.originalsFor(device), device ?: Migrations.UNKNOWN_DEVICE)
         // Only now that the new night is running is the old one over.
         previous?.let { finish(it, EventKind.STOPPED, "Replaced by ${profile.name}") }
-        result.slotBackup?.let { repo.addSlotBackup(it) }
+        // With no BedJet chosen there is no device to keep an original for.
+        if (device != null) result.slotBackup?.let { repo.addSlotBackup(it) }
         repo.addRecord(result.record)
         repo.setActiveNight(result.night)
         NightAlarms.schedule(context, result.night)
@@ -197,8 +199,9 @@ class NightActions(private val graph: Graph) {
 
     private suspend fun boost(): String {
         val settings = repo.settings.value
-        graph.runner().boost(settings.boostMinutes, limits(), settings.workingSlot, repo.slotBackups.value, settings.deviceId() ?: Migrations.UNKNOWN_DEVICE)
-            ?.let { repo.addSlotBackup(it) }
+        val device = settings.deviceId()
+        val backup = graph.runner().boost(settings.boostMinutes, limits(), settings.workingSlot, repo.originalsFor(device), device ?: Migrations.UNKNOWN_DEVICE)
+        if (device != null) backup?.let { repo.addSlotBackup(it) }
         repo.activeNight.value?.let { finish(it, EventKind.STOPPED, "Stopped for Boost") }
         return "Boost: Turbo, then Heat, for ${settings.boostMinutes} minutes."
     }
