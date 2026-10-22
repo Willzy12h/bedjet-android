@@ -1,9 +1,13 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.ble.FakeRadio
+import io.github.willzy12h.nocturne.ble.GattLink
+import io.github.willzy12h.nocturne.ble.GattLinkTest
 import io.github.willzy12h.nocturne.ble.assertThrows
 import io.github.willzy12h.nocturne.ble.eventually
 import io.github.willzy12h.nocturne.core.link.BedJetError
 import io.github.willzy12h.nocturne.core.link.BedJetLink
+import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import kotlinx.coroutines.CompletableDeferred
@@ -111,6 +115,30 @@ class LinkSessionsTest {
         now += 60_000
         sessions.withConnection { }
         assertFalse(sessions.released.value)
+    }
+
+    @Test
+    fun aScreenReconnectDuringATargetSwitchOnlyConnectsToTheNewBedJet() = runBlocking {
+        val radio = FakeRadio()
+        var target: String? = DeviceId.ble(GattLinkTest.ADDRESS)
+        val gatt = GattLink(radio.radio, { target }, GattLinkTest.TIMINGS)
+        val sessions = LinkSessions(scope, { gatt }, { now }, graceMs = 10_000)
+        try {
+            sessions.holdForScreen(true)
+            eventually { gatt.state.value == LinkState.READY }
+            // The switch lets go of the old unit; the screen's reconnect lands before the new target is saved.
+            gatt.disconnect()
+            sessions.reconnect()
+            eventually { radio.connects.size == 2 && gatt.state.value == LinkState.READY }
+            target = DeviceId.ble(GattLinkTest.OTHER)
+            val before = radio.connects.size
+            sessions.reconnect()
+            eventually { gatt.state.value == LinkState.READY && radio.connects.size > before }
+            assertEquals(listOf(GattLinkTest.OTHER), radio.connects.drop(before))
+            assertTrue(radio.ports.filter { it.address == GattLinkTest.ADDRESS }.all { it.closed })
+        } finally {
+            gatt.shutdown()
+        }
     }
 
     /** A link whose connect waits for [gate]. */

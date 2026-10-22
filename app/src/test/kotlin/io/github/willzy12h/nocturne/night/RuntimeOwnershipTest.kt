@@ -198,6 +198,15 @@ class RuntimeOwnershipTest {
         assertEquals(n.identity, graph.repository.activeNight.value!!.identity)
         assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
     }
+    @Test fun aStatusFromAnotherBedJetIsNotObservedAsTheTargets() = runBlocking {
+        start(); advance(60); demo.tick()
+        demo.send(Codec.setMode(Mode.COOL)!!)
+        // Reported by a session still on the previous unit: it says nothing about this one.
+        graph.actions.observeStatus(demo.status.value!!, "demo", graph.now(), source = DeviceId.ble("AA:BB:CC:DD:EE:01"))
+        assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
+        graph.actions.observeStatus(demo.status.value!!, "demo", graph.now(), source = "demo")
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
+    }
     @Test fun normalProgressionIsNotTakeoverButFreshManualStatusIsUnknown() = runBlocking {
         val n = start(); advance(60); demo.tick()
         graph.actions.observeStatus(demo.status.value!!, "demo")

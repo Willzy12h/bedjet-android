@@ -8,6 +8,7 @@ import io.github.willzy12h.nocturne.core.link.BedJetController
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -113,6 +114,78 @@ class GattLinkTest {
         assertThrows<BedJetError.NotConnected> { link.connect() }
         assertEquals(LinkState.BLUETOOTH_OFF, link.state.value)
         assertTrue(fake.connects.isEmpty())
+    }
+
+    // The chosen BedJet only (IR-02)
+
+    @Test
+    fun aRetryAfterTheTargetChangesNeverTriesTheOldBedJet() = runBlocking {
+        // Backoff long enough for the target to change while the first connect waits to retry.
+        val slow = GattLink(fake.radio, { target }, TIMINGS.copy(retryBackoffMs = listOf(300, 300)))
+        try {
+            fake.upcoming += FakeRadio.Behaviour(connectStatus = 133)
+            val first = async { runCatching { slow.connect() } }
+            eventually { fake.connects.size == 1 && fake.ports[0].closed }
+            target = DeviceId.ble(OTHER)
+            val second = async { runCatching { slow.connect() } }
+            first.await(); second.await()
+            assertEquals(listOf(ADDRESS), fake.connects.filter { it == ADDRESS })
+            slow.send(Codec.setFan(5))
+            val written = fake.ports.filter { p -> p.writes.any { it.contentEquals(Codec.setFan(5)) } }
+            assertEquals(listOf(OTHER), written.map { it.address })
+            assertTrue(fake.ports.filter { it.address == ADDRESS }.all { it.closed })
+        } finally {
+            slow.shutdown()
+        }
+    }
+
+    @Test
+    fun disconnectWaitsForAConnectUnderWayToGiveUp() = runBlocking {
+        val slow = GattLink(fake.radio, { target }, TIMINGS.copy(retryBackoffMs = listOf(300, 300)))
+        try {
+            fake.upcoming += FakeRadio.Behaviour(connectStatus = 133)
+            val connecting = async { runCatching { slow.connect() } }
+            eventually { fake.connects.size == 1 && fake.ports[0].closed }
+            // A switch of BedJet saves the new target only once this returns.
+            slow.disconnect()
+            assertTrue("disconnect returned while a connect was still under way", connecting.isCompleted)
+            target = DeviceId.ble(OTHER)
+            delay(400)
+            assertEquals(listOf(ADDRESS), fake.connects)
+        } finally {
+            slow.shutdown()
+        }
+    }
+
+    @Test
+    fun aReadySessionOnTheOldBedJetDoesNotCarryCommandsForTheNewOne() = runBlocking {
+        link.connect()
+        val old = fake.ports.single()
+        target = DeviceId.ble(OTHER)
+        link.send(Codec.setFan(5))
+        assertFalse(old.writes.any { it.contentEquals(Codec.setFan(5)) })
+        assertTrue(old.closed)
+        assertEquals(listOf(ADDRESS, OTHER), fake.connects)
+        assertTrue(fake.ports[1].writes.any { it.contentEquals(Codec.setFan(5)) })
+        // Queries are bound the same way.
+        target = DeviceId.ble(ADDRESS)
+        link.query(Codec.Query.DEVICE_NAME)
+        assertEquals(listOf(ADDRESS, OTHER, ADDRESS), fake.connects)
+        assertTrue(fake.ports[1].closed)
+    }
+
+    @Test
+    fun aStatusFromTheOldBedJetIsNotTakenForTheNewOnes() = runBlocking {
+        link.connect()
+        val old = fake.ports.single()
+        assertEquals(DeviceId.ble(ADDRESS), link.sourcedStatus.first()?.source)
+        target = DeviceId.ble(OTHER)
+        old.notify(Status.full(programStep = 1))
+        fake.drain()
+        val report = link.sourcedStatus.first()!!
+        assertEquals(1, report.status.extra?.programStep)
+        assertEquals(DeviceId.ble(ADDRESS), report.source)
+        assertFalse(report.isFrom(DeviceId.ble(OTHER)))
     }
 
     // Sessions (R01, R02, R04)

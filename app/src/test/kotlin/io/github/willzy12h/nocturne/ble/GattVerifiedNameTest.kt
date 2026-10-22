@@ -22,12 +22,23 @@ class GattVerifiedNameTest {
         } finally {link.shutdown()}
     }
     @Test fun callbackUsesSessionAddressEvenIfSelectedTargetChangesDuringQuery() = runBlocking {
-        val fake=FakeRadio();fake.behaviour=FakeRadio.Behaviour(nameBytes="Original unit".toByteArray())
+        val fake=FakeRadio();fake.upcoming+=FakeRadio.Behaviour(nameBytes="Original unit".toByteArray())
+        fake.behaviour=FakeRadio.Behaviour(nameBytes="Replacement unit".toByteArray())
+        val replacement="11:22:33:44:55:66"
         var target=DeviceId.ble(address)
         val names=mutableListOf<Pair<String,String?>>()
-        val link=GattLink(fake.radio,{target},timings,onName={_,_->target=DeviceId.ble("11:22:33:44:55:66")},
+        val link=GattLink(fake.radio,{target},timings,onName={_,_->target=DeviceId.ble(replacement)},
             onVerifiedName={device,name->names+=device to name})
-        try {link.connect();assertEquals(DeviceId.ble(address) to "Original unit",names.last())}
+        try {
+            link.connect()
+            // The name read on the first session stays bound to that session's address.
+            assertTrue(names.contains(DeviceId.ble(address) to "Original unit"))
+            assertFalse(names.contains(DeviceId.ble(replacement) to "Original unit"))
+            // IR-02: the target changed during the attach, so the link ends on the new BedJet, not the old one.
+            assertEquals(listOf(address,replacement),fake.connects)
+            assertTrue(fake.ports.first().closed)
+            assertEquals(DeviceId.ble(replacement) to "Replacement unit",names.last())
+        }
         finally {link.shutdown()}
     }
     @Test fun unknownNameDoesNotPreventOrdinaryControl() = runBlocking {

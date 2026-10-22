@@ -4,6 +4,7 @@ import io.github.willzy12h.nocturne.core.link.BedJetError
 import io.github.willzy12h.nocturne.core.link.BedJetLink
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.link.SourcedStatus
 import io.github.willzy12h.nocturne.core.protocol.Codec
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Limits
@@ -58,38 +59,56 @@ class GattLink(
     override val state: StateFlow<LinkState> = _state.asStateFlow()
     private val _status = MutableStateFlow<DeviceStatus?>(null)
     override val status: StateFlow<DeviceStatus?> = _status.asStateFlow()
+    private val _sourcedStatus = MutableStateFlow<SourcedStatus?>(null)
+    /** [status] with the BedJet whose session reported it, so a report from a previous target is never taken for the new one's. */
+    override val sourcedStatus: StateFlow<SourcedStatus?> = _sourcedStatus.asStateFlow()
 
     private val operations = Mutex()
     private val connecting = Mutex()
     @Volatile private var current: Session? = null
     /** Set by [connect], cleared by [disconnect]: whether an operation may reconnect a retired session. */
     @Volatile private var wanted = false
+    /** Advanced by [disconnect], so a connect already under way stops even if a later [connect] wants the link again. */
+    @Volatile private var epoch = 0
     private var tag = 0
 
     override suspend fun connect() {
         wanted = true
         connecting.withLock {
-            if (current?.ready == true) return
+            val started = epoch
+            if (connectedToTarget()) return
+            // A session for a BedJet that is no longer the target never counts as connected.
+            current?.let(::retire)
             checkRadio()
-            val address = DeviceId.address(target()) ?: run {
-                _state.value = LinkState.SEARCHING
-                throw BedJetError.NotConnected(NO_TARGET)
-            }
             // A failed connection (133 is the stack's catch-all) or one that never answers often works on a
-            // second try. Only the chosen BedJet is ever tried.
+            // second try. Only the chosen BedJet is ever tried: the target is read again before every attempt, so
+            // a change of BedJet during the backoff is never answered by the old one.
+            var tried: String? = null
             for (attempt in 0..timings.retryBackoffMs.size) {
                 if (attempt > 0) delay(timings.retryBackoffMs[attempt - 1])
-                if (!wanted) break
-                if (attach(address, readVerifiedName = attempt == 0)) return
+                if (!wanted || epoch != started) break
+                val address = targetAddress() ?: run {
+                    _state.value = LinkState.SEARCHING
+                    throw BedJetError.NotConnected(NO_TARGET)
+                }
+                val fresh = tried == null || !address.equals(tried, ignoreCase = true)
+                tried = address
+                if (attach(address, started, readVerifiedName = fresh)) return
             }
             _state.value = LinkState.SEARCHING
             throw BedJetError.NotConnected()
         }
     }
 
+    /**
+     * Lets go of the BedJet and waits for a connect under way to give up, so nothing attaches to the old target after
+     * this returns unless a [connect] asks again.
+     */
     override suspend fun disconnect() {
         wanted = false
+        epoch++
         operations.withLock { current?.let(::retire) }
+        connecting.withLock { }
     }
 
     override suspend fun send(command: ByteArray) {
@@ -112,8 +131,9 @@ class GattLink(
      * remainder read arrives, so an older program step can't confirm the start that follows.
      */
     override suspend fun prepareForStart() {
-        current?.forgetExtra()
-        _status.value = _status.value?.copy(extra = null)
+        val session = current
+        session?.forgetExtra()
+        publish(session, _status.value?.copy(extra = null))
     }
 
     /**
@@ -163,27 +183,41 @@ class GattLink(
     // Connection
 
     private suspend fun ensureConnected() {
-        if (current?.ready == true) return
+        if (connectedToTarget()) return
         if (!wanted) throw BedJetError.NotConnected()
         connect()
     }
 
-    private fun live(): Session = current?.takeIf { it.ready } ?: throw BedJetError.NotConnected()
+    /** The ready session, only while it is for the current target: a command for one BedJet never reaches another. */
+    private fun live(): Session {
+        val session = current?.takeIf { it.ready } ?: throw BedJetError.NotConnected()
+        if (!session.isFor(targetAddress())) {
+            retire(session)
+            throw BedJetError.NotConnected()
+        }
+        return session
+    }
+
+    private fun targetAddress(): String? = DeviceId.address(target())
+
+    private fun connectedToTarget(): Boolean = current?.let { it.ready && it.isFor(targetAddress()) } == true
 
     /**
      * One connection attempt. True once the unit is ready. On false, a throw or cancellation the session is retired,
      * so nothing is left open.
      */
-    private suspend fun attach(address: String, readVerifiedName: Boolean): Boolean {
+    private suspend fun attach(address: String, started: Int, readVerifiedName: Boolean): Boolean {
         current?.let(::retire)
         val session = Session(address)
         current = session
         // A new session invalidates old interop metadata, including after a name-read timeout.
         onVerifiedName(DeviceId.ble(address), null)
-        _status.value = null
+        publish(null, null)
         _state.value = LinkState.CONNECTING
         var attached = false
         try {
+            // A disconnect() that retired the previous session just before this one became current stops it here.
+            if (!stillWanted(session, started)) return false
             session.attachPort(platform(session) { radio.connect(address, session) })
             val discovered = withTimeoutOrNull(timings.connectMs) { session.services.await() } ?: false
             // Notifications must be switched on before the unit streams its status; without them it never reports.
@@ -207,14 +241,24 @@ class GattLink(
                 // Metadata is optional, but exchange failures still retire the session.
                 // The current-session check below decides whether this attempt remains usable.
             }
-            withTimeoutOrNull(timings.firstStatusMs) { status.first { it != null } }
+            if (stillWanted(session, started)) withTimeoutOrNull(timings.firstStatusMs) { status.first { it != null } }
             // The name query can time out, the unit can drop or disconnect() can land meanwhile, each retiring
             // the session: only a session that is still current and still wanted counts as connected.
-            attached = wanted && current === session && session.ready
+            attached = stillWanted(session, started) && session.ready
             return attached
         } finally {
             if (!attached) retire(session)
         }
+    }
+
+    /** Whether [session] is still current, still wanted by an uninterrupted connect and still for the target. */
+    private fun stillWanted(session: Session, started: Int) =
+        wanted && epoch == started && current === session && session.isFor(targetAddress())
+
+    /** Every status goes out with the session that reported it; see [sourcedStatus]. */
+    private fun publish(session: Session?, value: DeviceStatus?) {
+        _sourcedStatus.value = if (session == null || value == null) null else SourcedStatus(DeviceId.ble(session.address), value)
+        _status.value = value
     }
 
     private fun retire(session: Session) {
@@ -223,7 +267,7 @@ class GattLink(
         }
         session.shut()
         if (wasCurrent) {
-            _status.value = null
+            publish(null, null)
             if (_state.value == LinkState.READY || _state.value == LinkState.CONNECTING) _state.value = LinkState.SEARCHING
         }
     }
@@ -299,18 +343,18 @@ class GattLink(
             val head = session.lastHead ?: return
             Codec.parseStatus(head + chunk)?.extra?.let { extra ->
                 session.lastExtra = extra
-                _status.value = _status.value?.copy(extra = extra)
+                publish(session, _status.value?.copy(extra = extra))
             }
             return
         }
         val parsed = Codec.parseStatus(chunk) ?: return
         if (parsed.extra != null) {
             session.lastExtra = parsed.extra
-            _status.value = parsed
+            publish(session, parsed)
             return
         }
         session.lastHead = chunk
-        _status.value = parsed.copy(extra = session.lastExtra)
+        publish(session, parsed.copy(extra = session.lastExtra))
         val now = clock()
         val last = session.lastRemainderRead
         // Only while no operation holds the queue, not merely between its steps: the unit and the GATT stack each
@@ -373,6 +417,8 @@ class GattLink(
         @Volatile private var linked = false
 
         fun port(): GattPort = port ?: throw BedJetError.NotConnected()
+
+        fun isFor(target: String?): Boolean = target != null && address.equals(target, ignoreCase = true)
 
         /** Program progress stays unknown until the unit reports it afresh, by a remainder read or full status. */
         fun forgetExtra() {
