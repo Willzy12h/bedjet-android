@@ -146,6 +146,38 @@ class ControllerTest {
         assertThrows<BedJetError.ProgramTooLong> { controller.startProgram(1) }
     }
 
+    @Test
+    fun startingPreparesTheLinkAfterTheClockAndListensOnlyAfterThat() = runTest {
+        val link = ScriptedLink()
+        assertThrows<BedJetError.Timeout> { BedJetController(link) { now }.startProgram(2) }
+        assertEquals(listOf("send 08", "prepare", "send 01"), link.calls)
+    }
+
+    /**
+     * Records what the controller asks for and never confirms a start. Preparing publishes a stale program step, as
+     * a report racing the start would: a controller already listening would take it as confirmation.
+     */
+    private class ScriptedLink : BedJetLink {
+        val calls = mutableListOf<String>()
+        private val stale = io.github.willzy12h.nocturne.core.protocol.DeviceStatus(
+            remainingSeconds = 0, actualTemperature = 46, targetTemperature = 60, mode = Mode.COOL, fanStep = 7,
+            maxRuntimeMinutes = 0, minTemperature = 38, maxTemperature = 80, ambientTemperature = 45, lastShutdownReason = 0,
+            extra = io.github.willzy12h.nocturne.core.protocol.DeviceStatus.Extra(true, false, programStep = 1, notification = 0),
+        )
+        override val state = kotlinx.coroutines.flow.MutableStateFlow(LinkState.READY)
+        override val status = kotlinx.coroutines.flow.MutableStateFlow<io.github.willzy12h.nocturne.core.protocol.DeviceStatus?>(null)
+        override suspend fun connect() = Unit
+        override suspend fun disconnect() = Unit
+        override suspend fun send(command: ByteArray) {
+            calls += "send %02x".format(command[0])
+        }
+        override suspend fun prepareForStart() {
+            calls += "prepare"
+            status.value = stale
+        }
+        override suspend fun query(request: Int) = ByteArray(0)
+    }
+
     /** Reports status a moment after it changes, as the real unit's notifications do. */
     private class LaggingLink(private val inner: DemoBedJet, scope: kotlinx.coroutines.CoroutineScope) : BedJetLink by inner {
         private val lagged = kotlinx.coroutines.flow.MutableStateFlow(inner.status.value)

@@ -18,10 +18,17 @@ interface BedJetLink {
     suspend fun send(command: ByteArray)
     /** Asks the unit for stored data and returns the reply payload, without the echoed request and tag. */
     suspend fun query(request: Int): ByteArray
+    /**
+     * Called before a program start is sent: forget the program progress last reported, so only a report that
+     * arrives afterwards can confirm the start. Links without split status reports need do nothing.
+     */
+    suspend fun prepareForStart() {}
 }
 
 sealed class BedJetError(message: String) : Exception(message) {
-    class NotConnected : BedJetError("Couldn't reach your BedJet. Check that it's plugged in and nearby.")
+    class NotConnected(
+        message: String = "Couldn't reach your BedJet. Check that it's plugged in and nearby.",
+    ) : BedJetError(message)
     class Timeout : BedJetError("Your BedJet didn't respond. Move closer and try again.")
     class BadResponse : BedJetError("Your BedJet sent something unexpected. Try again.")
     class VerifyFailed : BedJetError("The night didn't save to your BedJet correctly. Try again.")

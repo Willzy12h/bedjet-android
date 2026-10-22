@@ -59,8 +59,9 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
      */
     suspend fun startProgram(slot: Int) = coroutineScope {
         syncClock()
-        // Only reports that arrive after the start count: a program already running would otherwise look like
-        // this one starting, and a refusal that follows would be missed.
+        // Only reports that arrive after this count: a program already running would otherwise look like this one
+        // starting, and a refusal that follows would be missed. The link forgets the progress it last saw first.
+        link.prepareForStart()
         val reply = async(start = CoroutineStart.UNDISPATCHED) {
             withTimeoutOrNull(START_CONFIRMATION_MS) {
                 link.status.drop(1).first { status ->

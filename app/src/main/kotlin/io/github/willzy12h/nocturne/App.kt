@@ -7,6 +7,7 @@ import io.github.willzy12h.nocturne.core.link.BedJetController
 import io.github.willzy12h.nocturne.core.link.BedJetLink
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.core.night.NightRunner
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.LinkSessions
 import io.github.willzy12h.nocturne.night.NightActions
@@ -40,7 +41,7 @@ class Graph(val context: Context) {
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val repository = Repository(context, scope) { now() }
-    val bleLink by lazy { AndroidBedJetLink(context) }
+    val bleLink by lazy { AndroidBedJetLink(context) { repository.settings.value.deviceId() } }
     private val demoLink by lazy {
         DemoBedJet().also { demo -> scope.launch { while (true) { delay(1_000); demo.tick() } } }
     }
