@@ -57,9 +57,11 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     val link: BedJetLink get() = linkOverride ?: if (repository.settings.value.demoMode) demoLink else bleLink
     val sessions = LinkSessions(this)
     val actions = NightActions(this)
+    val platform = io.github.willzy12h.nocturne.platform.PlatformRuntime(this)
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun startRuntime() {
+        platform.start()
         scope.launch { actions.initialise() }
         scope.launch {
             combine(repository.settingsPublication, repository.activeNight) { _, _ -> Unit }.collect {
@@ -69,7 +71,7 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
         scope.launch {
             repository.settings.map { it.deviceId() }.distinctUntilChanged().flatMapLatest { target ->
                 link.status.map { target to it }
-            }.collect { (target, status) -> if (status != null) actions.observeStatus(status, target, now()) }
+            }.collect { (target, status) -> if (status != null) { actions.observeStatus(status, target, now()); platform.observe(status,target) } }
         }
     }
 

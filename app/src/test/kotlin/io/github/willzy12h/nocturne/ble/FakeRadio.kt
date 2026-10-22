@@ -35,6 +35,8 @@ class FakeRadio {
         val connectsInline: Boolean = false,
         /** False leaves every read of the reply characteristic unanswered. */
         val answersReplies: Boolean = true,
+        val nameBytes: ByteArray? = null,
+        val answersNames: Boolean = true,
     )
 
     val radio = object : GattRadio {
@@ -106,10 +108,13 @@ class FakeRadio {
             return true
         }
 
+        override fun has(attr: Attr): Boolean = attr == Attr.NAME && behaviour.nameBytes != null
+
         override fun read(attr: Attr): Boolean {
             if (attr == Attr.STATUS) statusReadThrows?.let { throw it }
             reads += attr
             when (attr) {
+                Attr.NAME -> if (behaviour.answersNames) post { sink.onRead(attr,behaviour.nameBytes ?: byteArrayOf(),GATT_SUCCESS) }
                 Attr.REPLY -> if (behaviour.answersReplies) {
                     val echo = lastQuery ?: byteArrayOf(0, 0)
                     post { sink.onRead(attr, echo + "BEDJET 3".toByteArray() + 0, GATT_SUCCESS) }

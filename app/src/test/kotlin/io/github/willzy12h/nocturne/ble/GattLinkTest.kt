@@ -24,7 +24,7 @@ class GattLinkTest {
     private val fake = FakeRadio()
     private var target: String? = DeviceId.ble(ADDRESS)
     @Volatile private var name: String? = null
-    private val link = GattLink(fake.radio, { target }, TIMINGS, onName = { name = it })
+    private val link = GattLink(fake.radio, { target }, TIMINGS, onName = { _, value -> name = value })
 
     @After
     fun close() = link.shutdown()

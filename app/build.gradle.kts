@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "io.github.willzy12h.nocturne"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.github.willzy12h.nocturne"
@@ -56,6 +56,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(libs.health.connect)
     implementation(libs.coroutines.android)
     implementation(libs.core.ktx)
     implementation(platform(libs.compose.bom))

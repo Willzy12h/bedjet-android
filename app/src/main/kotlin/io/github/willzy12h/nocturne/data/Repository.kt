@@ -105,6 +105,22 @@ class Repository(
     val runtime: StateFlow<RuntimeState> = _runtime.asStateFlow()
     suspend fun updateRuntime(change: (RuntimeState) -> RuntimeState) = update(_runtime, RUNTIME, RuntimeState.serializer(), change)
 
+    private val _automation = MutableStateFlow(load(AUTOMATION) {
+        decode(io.github.willzy12h.nocturne.platform.AutomationState.serializer(), it)
+    } ?: io.github.willzy12h.nocturne.platform.AutomationState())
+    val automation: StateFlow<io.github.willzy12h.nocturne.platform.AutomationState> = _automation.asStateFlow()
+    suspend fun updateAutomation(change: (io.github.willzy12h.nocturne.platform.AutomationState) -> io.github.willzy12h.nocturne.platform.AutomationState) =
+        update(_automation, AUTOMATION, io.github.willzy12h.nocturne.platform.AutomationState.serializer(), change)
+    suspend fun claimAutomation(key: String): Boolean = serially {
+        val current = _automation.value
+        if (key in current.claims) false else {
+            val next = current.copy(claims = (current.claims + key).takeLast(256))
+            writeValue(AUTOMATION, io.github.willzy12h.nocturne.platform.AutomationState.serializer(), next)
+            _automation.value = next
+            true
+        }
+    }
+
     // Excluded from cloud backup and device transfer by res/xml/data_extraction_rules.xml and backup_rules.xml.
     private val secrets = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
     /** GitHub token for checking a private repository. Kept out of backups, exports and snapshots. */
@@ -235,7 +251,8 @@ class Repository(
             _snapshotList.value = snapshots.list()
             val current = _settings.value
             val profiles = bundle.profiles
-            val settings = bundle.settings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice)
+            val settings = bundle.settings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
+                platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null))
             val history = History.prune(bundle.history, now())
             val slotBackups = _slotBackups.value.let { list ->
                 list + bundle.slotBackups.filter { restored -> list.none { it.covers(restored) } }
@@ -389,6 +406,7 @@ class Repository(
         private const val HISTORY = "history.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
         private const val RUNTIME = "runtime.json"
+        private const val AUTOMATION = "automation.json"
         private const val ACTIVE_NIGHT = "active-night.json"
         private const val NOTICES = "notices.json"
         /** Lists the files in [unreadable], so the report survives a restart. */

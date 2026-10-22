@@ -1,5 +1,5 @@
 [versions]
-agp = "8.7.3"
+agp = "8.10.1"
 kotlin = "2.0.21"
 coroutines = "1.9.0"
 serialization = "1.7.3"
@@ -13,6 +13,7 @@ robolectric = "4.14.1"
 junit4 = "4.13.2"
 
 [libraries]
+health-connect = { module = "androidx.health.connect:connect-client", version = "1.1.0" }
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

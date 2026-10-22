@@ -31,17 +31,18 @@ import java.util.UUID
  */
 class AndroidBedJetLink(private val context: Context, private val preparedLink: BedJetLink? = null, target: () -> String?) : BedJetLink {
     private val prefs = context.getSharedPreferences("ble", Context.MODE_PRIVATE)
-    private val engine = GattLink(AndroidRadio(context, ::hasPermissions), target, onName = { name ->
-        deviceName = name
-        prefs.edit().putString(KEY_NAME, name).apply()
-    })
+    private val names = DeviceNames(context, target)
+    val verifiedNames: StateFlow<Pair<String, String?>?> get() = names.verified
+    private val engine = GattLink(AndroidRadio(context, ::hasPermissions), target,
+        onName = names::display, onVerifiedName = names::verify)
 
     override val state: StateFlow<LinkState> get() = engine.state
     override val status: StateFlow<DeviceStatus?> get() = engine.status
 
     /** The unit's name, once read; shown in settings. */
-    @Volatile var deviceName: String? = prefs.getString(KEY_NAME, null)
-        private set
+    val deviceName: String? get() = names.displayName()
+    /** Exact GATT characteristic name, bound to its originating device; legacy display names cannot qualify. */
+    fun deviceNameFor(deviceId: String): String? = names.verifiedName(deviceId)
 
     override suspend fun connect() = engine.connect()
     override suspend fun prepareForStart() = (preparedLink ?: engine).prepareForStart()
@@ -61,7 +62,7 @@ class AndroidBedJetLink(private val context: Context, private val preparedLink: 
     /** Forgets the remembered unit and its name. */
     fun forget() {
         prefs.edit().remove(KEY_ADDRESS).remove(KEY_NAME).apply()
-        deviceName = null
+        names.forget()
     }
 
     fun hasPermissions(): Boolean = listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
@@ -136,10 +137,10 @@ private class AndroidPort : GattPort {
 
     override fun resolve(): Boolean {
         val service = gatt().getService(Gatt.SERVICE) ?: return false
-        characteristics = listOf(Attr.COMMAND to Gatt.COMMAND, Attr.REPLY to Gatt.REPLY, Attr.STATUS to Gatt.STATUS)
+        characteristics = listOf(Attr.COMMAND to Gatt.COMMAND, Attr.REPLY to Gatt.REPLY, Attr.STATUS to Gatt.STATUS, Attr.NAME to Gatt.NAME)
             .mapNotNull { (attr, uuid) -> service.getCharacteristic(uuid)?.let { attr to it } }
             .toMap()
-        return characteristics.size == 3
+        return listOf(Attr.COMMAND, Attr.REPLY, Attr.STATUS).all { it in characteristics }
     }
 
     override fun write(attr: Attr, data: ByteArray): Boolean {
@@ -154,6 +155,8 @@ private class AndroidPort : GattPort {
             gatt().writeCharacteristic(characteristic)
         }
     }
+
+    override fun has(attr: Attr): Boolean = attr in characteristics
 
     override fun read(attr: Attr): Boolean = gatt().readCharacteristic(characteristic(attr))
 
@@ -224,6 +227,7 @@ private object Gatt {
     private fun uuid(short: String): UUID = UUID.fromString("0000$short-bed0-0080-aa55-4265644a6574")
     val SERVICE: UUID = uuid("1000")
     val STATUS: UUID = uuid("2000")
+    val NAME: UUID = uuid("2001")
     val COMMAND: UUID = uuid("2004")
     val REPLY: UUID = uuid("2006")
     val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
@@ -232,6 +236,29 @@ private object Gatt {
         COMMAND -> Attr.COMMAND
         REPLY -> Attr.REPLY
         STATUS -> Attr.STATUS
+        NAME -> Attr.NAME
         else -> Attr.OTHER
+    }
+}
+
+/** Paired editor transactions and observable verification. No mutable target sampling in either callback. */
+internal class DeviceNames(context: Context, private val target: () -> String?) {
+    private val prefs = context.getSharedPreferences("ble", Context.MODE_PRIVATE)
+    private val mutable = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString("verifiedNameDevice", null)?.let {
+        it to prefs.getString("verifiedName", null)
+    })
+    val verified: StateFlow<Pair<String, String?>?> = mutable
+    fun display(device: String, name: String) {
+        prefs.edit().putString("name", name).putString("nameDevice", device).apply()
+    }
+    fun verify(device: String, name: String?) {
+        prefs.edit().putString("verifiedNameDevice", device).putString("verifiedName", name).apply()
+        mutable.value = device to name
+    }
+    fun displayName(): String? = if (prefs.getString("nameDevice", null) == target()) prefs.getString("name", null) else null
+    fun verifiedName(device: String): String? = mutable.value?.takeIf { it.first == device }?.second
+    fun forget() {
+        prefs.edit().remove("name").remove("nameDevice").remove("verifiedName").remove("verifiedNameDevice").apply()
+        mutable.value = null
     }
 }

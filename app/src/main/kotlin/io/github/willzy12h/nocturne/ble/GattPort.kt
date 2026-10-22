@@ -6,7 +6,7 @@ package io.github.willzy12h.nocturne.ble
  */
 
 /** The BedJet characteristics the link uses. [OTHER] is anything else, which no operation waits for. */
-enum class Attr { COMMAND, REPLY, STATUS, OTHER }
+enum class Attr { COMMAND, REPLY, STATUS, NAME, OTHER }
 
 /** How turning on status notifications began. */
 enum class NotifyStart {
@@ -25,6 +25,7 @@ interface GattPort {
     /** After discovery: finds the BedJet service's characteristics, and says whether they are all there. */
     fun resolve(): Boolean
     fun write(attr: Attr, data: ByteArray): Boolean
+    fun has(attr: Attr): Boolean = false
     fun read(attr: Attr): Boolean
     fun enableNotifications(): NotifyStart
     fun disconnect()

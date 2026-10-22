@@ -100,6 +100,7 @@ object BackupValidator {
     }
 
     private fun MutableList<String>.settings(settings: Settings) {
+        addAll(settings.platform.validationErrors())
         if (settings.workingSlot !in SLOTS) add("The working slot is ${settings.workingSlot + 1}; it must be 1 to ${Limits.SLOTS}.")
         if (settings.boostMinutes !in BOOST_MINUTES) add("Boost lasts ${settings.boostMinutes} minutes; it must be 10 to 30.")
         if (settings.notificationActions.size > MAX_NOTIFICATION_ACTIONS) {
