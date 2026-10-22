@@ -51,7 +51,13 @@ data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** Tonight shows the night as a list of steps instead of the bar curve. */
     val simpleView: Boolean = false,
+    val quietNightNotification: Boolean = false,
 ) {
+    fun isDarkTheme(at: ZonedDateTime, systemDark: Boolean): Boolean = when (themeMode) {
+        ThemeMode.SYSTEM -> systemDark
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+    }
     fun setWakeOverride(wakeAt: ZonedDateTime, at: ZonedDateTime): Settings =
         copy(tonightOverride = TonightOverride(wakeAt.toString(), at.toString()))
     fun clearWakeOverride(): Settings = copy(tonightOverride = null)

@@ -32,9 +32,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
-data class StartResult(val plan: Plan, val night: ActiveNight, val record: NightRecord, val slotBackup: SlotBackup?)
-data class RetimeResult(val plan: Plan, val night: ActiveNight, val event: HistoryEvent)
-
 /** Starts, re-times and interrupts nights on a BedJet. Everything here is what the buttons, widgets and alarms do. */
 class NightRunner(private val controller: BedJetController, private val now: () -> ZonedDateTime) {
 
@@ -202,101 +199,4 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         }
     }
 
-    /**
-     * Interim compatibility adapter: does not bind repository identity or durably publish state.
-     * Task 4 must replace production use with [prepareStart] and [apply] under its command lock.
-     * Plans tonight around [alarm] (or the profile's wake time), writes it to [slot] of the BedJet named [deviceId] and
-     * starts it.
-     */
-    suspend fun start(
-        profile: Profile,
-        alarm: ZonedDateTime?,
-        slot: Int,
-        alreadyBackedUp: List<SlotBackup>,
-        deviceId: String = Migrations.UNKNOWN_DEVICE,
-        override: TonightOverride? = null,
-    ): StartResult {
-        val time = now()
-        val prepared = prepareStart(profile, alarm, slot, deviceId, null, null, override)
-        val change = (prepared as? Preparation.Ready)?.change
-            ?: throw PlanException((prepared as? Preparation.Refused)?.reason ?: "The night changed.")
-        var backup: SlotBackup? = null
-        val outcome = apply(change, { null }, beforeWrite = { backup = backupIfNeeded(deviceId, slot, alreadyBackedUp) })
-        val applied = when (outcome) {
-            is NightMutation.Applied -> outcome
-            is NightMutation.Failed -> throw outcome.cause
-            is NightMutation.Refused -> throw PlanException(outcome.reason)
-            is NightMutation.Stale -> throw PlanException("The night changed.")
-        }
-        val plan = applied.plan
-        val night = applied.night
-        val wake = WakeChoice(ZonedDateTime.parse(night.wakeAt), night.wakeFromAlarm, night.wakeOrigin)
-        val source = when (wake.origin) {
-            WakeOrigin.ALARM -> "alarm"
-            WakeOrigin.PROFILE_DEFAULT -> "default wake time"
-            WakeOrigin.OVERRIDE -> "tonight-only wake time"
-        }
-        val record = NightRecord(
-            id = night.recordId, profileId = profile.id, profileName = profile.name,
-            startedAt = night.startedAt, wakeAt = night.wakeAt, wakeFromAlarm = wake.fromAlarm,
-            steps = recordedSteps(plan),
-            events = listOf(HistoryEvent(time.toString(), EventKind.STARTED, "Started ${profile.name}, waking at ${wake.time.toLocalTime()} ($source)")),
-            deviceId = deviceId, revisions = listOf(night.applied),
-        )
-        return StartResult(plan, night, record, backup)
-    }
-
-    /**
-     * Interim compatibility adapter: [prepareRetime] / [reapply] plus [apply] provide the authoritative API.
-     * Follows an alarm that changed during the night. Returns null when nothing needs to change: the wake time is the
-     * same, the wake-up has already begun, or the fallback wake time has already passed. With [force] the rest of the
-     * night is rewritten even when the wake time hasn't changed, to apply edits made to the running profile.
-     */
-    suspend fun retime(profile: Profile, night: ActiveNight, alarm: ZonedDateTime?, force: Boolean = false): RetimeResult? {
-        val prepared = if (force) reapply(night, profile, night.identity)
-            else prepareRetime(night, night.identity, alarm, liveProfile = profile)
-        val change = (prepared as? Preparation.Ready)?.change ?: return null
-        return when (val result = apply(change, { night })) {
-            is NightMutation.Applied -> RetimeResult(result.plan, result.night, HistoryEvent(now().toString(), EventKind.RETIMED,
-                if (force) "Profile changes applied to the rest of the night" else "Wake-up moved to ${ZonedDateTime.parse(result.night.wakeAt).toLocalTime()}"))
-            is NightMutation.Failed -> throw result.cause
-            else -> null
-        }
-    }
-
-    /** Interim unowned adapter for Task 4 migration. Runs a manual action held to the profile's limits. */
-    suspend fun quickAction(preset: ActionPreset, limits: ProfileLimits) {
-        val temperature = PlanCompiler.temperatureFor(preset.mode, preset.temperature, limits)
-        val fanStep = PlanCompiler.fanStepFor(preset.fanPercent, limits)
-        controller.runManual(preset.mode, temperature, fanStep, preset.minutes)
-    }
-
-    /** Interim unowned adapter for Task 4 migration. Turbo for its 10 minutes then Heat at the hottest the limits allow, written to [slot] so the BedJet chains them. */
-    suspend fun boost(
-        minutes: Int,
-        limits: ProfileLimits,
-        slot: Int,
-        alreadyBackedUp: List<SlotBackup> = emptyList(),
-        deviceId: String = Migrations.UNKNOWN_DEVICE,
-    ): SlotBackup? {
-        val steps = PlanCompiler.phaseSteps(Phase(Mode.TURBO, 86, 100, minutes), limits, TurboChain.TURBO_THEN_HEAT)
-        val backup = backupIfNeeded(deviceId, slot, alreadyBackedUp)
-        controller.store(StoredProgram("Boost", steps), slot)
-        controller.startProgram(slot)
-        return backup
-    }
-
-    /** Interim unowned adapter; Task 4 owns expected-identity checks for manual commands and Off. */
-    suspend fun stop() = controller.stop()
-
-    /** Keeps a copy of a program the app didn't write, the first time a slot of this device is overwritten. */
-    private suspend fun backupIfNeeded(deviceId: String, slot: Int, alreadyBackedUp: List<SlotBackup>): SlotBackup? {
-        if (alreadyBackedUp.any { it.deviceId == deviceId && it.slot == slot }) return null
-        val existing = controller.storedPrograms().getOrNull(slot) ?: return null
-        return SlotBackup(deviceId, slot, existing, now().toString())
-    }
-
-    private fun recordedSteps(plan: Plan) = plan.steps.map {
-        RecordedStep(it.block, it.step.mode, it.step.temperature, (it.step.fanStep + 1) * 5, it.startsAt.toString(), it.minutes)
-    }
 }

@@ -13,10 +13,12 @@ class NightTransactionsTest {
     private var now = ZonedDateTime.parse("2026-10-21T22:30:00Z")
     private val wake = now.plusHours(8)
     private val link = DemoBedJet { now }
-    private val runner = NightRunner(BedJetController(link) { now }) { now }
+    private val controller = BedJetController(link) { now }
+    private val runner = NightRunner(controller) { now }
+    private val fixture = NightFixture(runner, controller) { now }
     private suspend fun start(p: Profile = Presets.springAutumn): ActiveNight {
         link.connect()
-        return runner.start(p, wake, 2, emptyList(), "demo").night
+        return fixture.start(p, wake, 2, emptyList(), "demo").night
     }
     private fun ready(p: Preparation): PreparedChange {
         assertTrue(p is Preparation.Ready, "Expected a prepared change, got $p")
@@ -74,7 +76,7 @@ class NightTransactionsTest {
             if (it.confidence == Confidence.PENDING) {
                 assertEquals(before, link.slots[2])
                 assertEquals(night.applied, it.applied)
-                assertEquals(change.request, it.pending)
+                assertEquals(change.request.copy(intended = change.intended), it.pending)
             }
         })
         assertEquals(listOf(Confidence.PENDING, Confidence.CONFIRMED), states)
@@ -122,7 +124,7 @@ class NightTransactionsTest {
         val p = Presets.springAutumn
         val override = TonightOverride(now.plusHours(7).toString(), now.toString())
         val preview = NightPreview.forStartNow(p, now, wake, override)
-        val result = runner.start(p, wake, 2, emptyList(), "demo", override = override)
+        val result = fixture.start(p, wake, 2, emptyList(), "demo", override = override)
         assertEquals(preview.plan, result.plan)
         assertEquals(WakeOrigin.OVERRIDE, result.night.wakeOrigin)
         assertTrue(result.record.events.single().detail.contains("tonight-only"))

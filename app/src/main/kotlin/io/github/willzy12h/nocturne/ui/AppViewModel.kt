@@ -81,7 +81,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refreshAlarm()
         graph.sessions.holdForScreen(true)
         // An alarm change that couldn't reach the BedJet earlier.
-        graph.scope.launch { graph.actions.retryPendingRetime()?.let { _messages.tryEmit(it) } }
+        graph.scope.launch {
+            graph.actions.reconcile()
+            if (graph.actions.retimePending) io.github.willzy12h.nocturne.service.BedJetService.start(getApplication(), NightActions.Command.RETRY_RETIME)
+        }
         maybeAutoCheckUpdates()
     }
 
@@ -123,29 +126,49 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // Everything goes through NightActions, so a button can't interleave with a widget or an alarm change.
 
-    fun run(command: NightActions.Command, profileId: String? = null) = act {
-        graph.actions.perform(command, profileId)
+    private var confirmedNight: io.github.willzy12h.nocturne.core.night.NightIdentity? = null
+
+    /** Only the positive dialog callback enters this synchronous capture scope. */
+    fun withConfirmedNight(expected: io.github.willzy12h.nocturne.core.night.NightIdentity, action: () -> Unit) {
+        if (activeNight.value?.identity != expected) {
+            _messages.tryEmit(getApplication<Application>().getString(io.github.willzy12h.nocturne.R.string.runtime_stale))
+            return
+        }
+        confirmedNight = expected
+        try { action() } finally { confirmedNight = null }
+    }
+
+    fun run(command: NightActions.Command, profileId: String? = null, replacementConfirmed: Boolean = false) {
+        val request = graph.actions.capture(command, profileId, requireIdentity = replacementConfirmed || confirmedNight != null)
+            .let { it.copy(expected = confirmedNight ?: it.expected, replacementConfirmed = replacementConfirmed || confirmedNight != null) }
+        act(hardware = command != NightActions.Command.STOP_TRACKING) { graph.actions.execute(request).message }
     }
 
     /** A Remote control: sent straight to the BedJet. */
-    fun remote(label: String, work: suspend (BedJetController) -> Unit) = act {
-        graph.actions.exclusive { work(graph.controller()) }
-        label
+    fun remote(label: String, endsNight: Boolean = false, work: suspend (BedJetController) -> Unit) {
+        val captured = graph.actions.capture(NightActions.Command.OFF)
+        val expected = confirmedNight ?: captured.expected
+        act { graph.actions.remote(label, endsNight, captured.deviceId, expected, work).message }
     }
 
     fun restoreSlot(slot: Int, program: StoredProgram) = act {
-        graph.actions.exclusive { graph.controller().store(program, slot) }
-        "Put \"${program.name}\" back in slot ${slot + 1}."
+        graph.actions.restoreOriginal(slot).message
     }
 
     /** Commands wait for saves asked for before them, so they act on what the person just saved. */
-    private fun act(work: suspend () -> String) {
+    private fun act(hardware: Boolean = true, work: suspend () -> String) {
         val pending = lastSave
+        val target = graph.actions.capture(NightActions.Command.OFF).deviceId
         graph.scope.launch {
             pending?.join()
             _busy.value = true
-            val message = try { work() } catch (e: Exception) { e.message ?: "Something went wrong." }
-            _busy.value = false
+            val message = try {
+                if (hardware) kotlinx.coroutines.withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target)) {
+                    io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication()) { work() }
+                } else work()
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { e.message ?: "Something went wrong." }
+            finally { _busy.value = false }
             _messages.tryEmit(message)
         }
     }
@@ -156,12 +179,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
     fun deleteProfile(id: String) = save { repo.deleteProfile(id) }
-    fun updateSettings(change: (Settings) -> Settings) = save { repo.updateSettings(change) }
+    fun updateSettings(change: (Settings) -> Settings) = save {
+        val outcome = graph.actions.updateSettings(change)
+        if (!outcome.succeeded) _messages.tryEmit(outcome.message)
+    }
 
     /** "Update tonight": the edited profile is saved before the rest of the night is rewritten from it. */
-    fun saveProfileThenReapply(profile: Profile) = act {
-        repo.saveProfile(profile)
-        graph.actions.perform(NightActions.Command.REAPPLY)
+    fun saveProfileThenReapply(profile: Profile) {
+        val request = graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)
+        act {
+            repo.saveProfile(profile)
+            graph.actions.execute(request).message
+        }
     }
 
     /** Lets [creator]'s alarms move the wake-up, and shows the next alarm under the saved setting. */
@@ -209,10 +238,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun forgetBedJet() {
-        graph.bleLink.forget()
-        _messages.tryEmit("Forgot this BedJet. The next one found nearby will be used.")
-    }
+    fun forgetBedJet() = act(hardware = false) { graph.actions.forgetTarget().message }
 
     fun bedJetName(): String? = if (settings.value.demoMode) "BEDJET-DEMO" else graph.bleLink.deviceName
 

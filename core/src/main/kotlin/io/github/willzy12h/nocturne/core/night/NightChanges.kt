@@ -16,7 +16,7 @@ sealed interface Preparation {
 data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previous: ActiveNight?, val request: PendingChange,
     val expectedCommand: Long? = null) {
     val pendingNight: ActiveNight get() = (previous ?: intended.copy(applied = AppliedProgram())).copy(
-        confidence = Confidence.PENDING, pending = request,
+        confidence = Confidence.PENDING, pending = request.copy(intended = intended),
     )
 }
 sealed interface NightMutation {

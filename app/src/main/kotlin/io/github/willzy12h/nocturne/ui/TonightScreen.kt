@@ -209,9 +209,9 @@ private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGu
     val colors = nocturneColors
     Text("Quick", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        QuickButton("Boost", "${settings.boostMinutes} min", colors.turbo, Modifier.weight(1f)) { guard.confirm("start Boost") { model.run(Command.BOOST) } }
-        QuickButton("Warm", null, colors.heat, Modifier.weight(1f)) { guard.confirm("start warming") { model.run(Command.WARM) } }
-        QuickButton("Cool", null, colors.cool, Modifier.weight(1f)) { guard.confirm("start cooling") { model.run(Command.COOL) } }
+        QuickButton("Boost", "${settings.boostMinutes} min", colors.turbo, Modifier.weight(1f)) { guard.confirm("start Boost") { model.run(Command.BOOST, replacementConfirmed = true) } }
+        QuickButton("Warm", null, colors.heat, Modifier.weight(1f)) { guard.confirm("start warming") { model.run(Command.WARM, replacementConfirmed = true) } }
+        QuickButton("Cool", null, colors.cool, Modifier.weight(1f)) { guard.confirm("start cooling") { model.run(Command.COOL, replacementConfirmed = true) } }
         QuickButton("Off", null, colors.idle, Modifier.weight(1f)) { guard.confirm("turn the BedJet off") { model.run(Command.OFF) } }
     }
 }

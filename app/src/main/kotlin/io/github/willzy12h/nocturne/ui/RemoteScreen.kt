@@ -57,7 +57,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.TURBO, Mode.DRY, Mode.STANDBY).forEach { mode ->
-                FilterChip(s.mode == mode, { guard.confirm(if (mode == Mode.STANDBY) "turn the BedJet off" else "switch to ${Format.modeName(mode)}") { model.remote(Format.modeName(mode)) { it.setMode(mode) } } }, label = { Text(Format.modeName(mode)) })
+                FilterChip(s.mode == mode, { guard.confirm(if (mode == Mode.STANDBY) "turn the BedJet off" else "switch to ${Format.modeName(mode)}") { model.remote(Format.modeName(mode), endsNight = true) { it.setMode(mode) } } }, label = { Text(Format.modeName(mode)) })
             }
         }
         if (s.isRunning && s.mode.usesTemperature) {
@@ -86,7 +86,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton({ guard.confirm("start Boost") { model.run(Command.BOOST) } }) { Text("Boost ${settings.boostMinutes}m") }
+            FilledTonalButton({ guard.confirm("start Boost") { model.run(Command.BOOST, replacementConfirmed = true) } }) { Text("Boost ${settings.boostMinutes}m") }
         }
         s.extra?.let { extra ->
             SwitchRow("Lights", null, extra.ledEnabled) { on -> model.remote("Lights ${if (on) "on" else "off"}") { it.setLed(on) } }

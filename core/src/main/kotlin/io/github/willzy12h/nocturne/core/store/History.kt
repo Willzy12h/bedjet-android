@@ -8,7 +8,7 @@ import java.time.ZonedDateTime
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class EventKind { STARTED, RETIMED, SNOOZED, EXTENDED, STOPPED, ENDED, UNIT_NOTICE, ERROR, REMOTE_CHANGE }
+enum class EventKind { STARTED, RETIMED, SNOOZED, EXTENDED, STOPPED, ENDED, UNIT_NOTICE, ERROR, REMOTE_CHANGE, RECOVERED }
 
 /** Times are ISO-8601 zoned date-times, as `ZonedDateTime.toString()` writes them. */
 @Serializable

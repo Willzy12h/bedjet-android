@@ -66,11 +66,9 @@ fun widgetBedJetName(context: Context, settings: Settings): String =
     if (settings.demoMode) "BEDJET-DEMO" else context.graph.bleLink.deviceName ?: "BedJet"
 
 /** The app's palettes, so widgets match it: Midnight Ink in dark, Daylight in light, following the theme setting. */
-fun widgetColors(mode: ThemeMode): ColorProviders = when (mode) {
-    ThemeMode.SYSTEM -> materialColors(light = DaylightScheme, dark = MidnightInkScheme)
-    ThemeMode.DARK -> materialColors(MidnightInkScheme)
-    ThemeMode.LIGHT -> materialColors(DaylightScheme)
-}
+fun widgetColors(settings: Settings, at: java.time.ZonedDateTime): ColorProviders =
+    if (settings.themeMode == ThemeMode.SYSTEM) materialColors(light = DaylightScheme, dark = MidnightInkScheme)
+    else materialColors(if (settings.isDarkTheme(at, systemDark = false)) MidnightInkScheme else DaylightScheme)
 
 @Composable
 private fun Caption(text: String, modifier: GlanceModifier = GlanceModifier) {
@@ -104,7 +102,7 @@ class QuickControlsWidget : GlanceAppWidget() {
             // Read as state so a running widget session redraws when these change; WidgetUpdater covers the rest.
             val settings by repo.settings.collectAsState()
             val profiles by repo.profiles.collectAsState()
-            GlanceTheme(colors = widgetColors(settings.themeMode)) {
+            GlanceTheme(colors = widgetColors(settings, context.graph.now())) {
                 val actions = remember(settings, profiles) { widgetActions(context) }
                 val size = LocalSize.current
                 val columns = when { size.width >= 250.dp -> 3; size.width >= 130.dp -> 2; else -> 1 }
@@ -142,7 +140,7 @@ class SingleActionWidget : GlanceAppWidget() {
         val repo = context.graph.repository
         provideContent {
             val settings by repo.settings.collectAsState()
-            GlanceTheme(colors = widgetColors(settings.themeMode)) {
+            GlanceTheme(colors = widgetColors(settings, context.graph.now())) {
                 val prefs = currentState<Preferences>()
                 val command = prefs[KEY_COMMAND]?.let { runCatching { Command.valueOf(it) }.getOrNull() } ?: Command.START_NIGHT
                 val label = prefs[KEY_LABEL] ?: "Start tonight"

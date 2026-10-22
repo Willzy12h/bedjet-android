@@ -29,7 +29,7 @@ import java.util.UUID
  * The connection logic lives in [GattLink]; this class supplies Android's Bluetooth classes and remembers the
  * unit's name for display.
  */
-class AndroidBedJetLink(private val context: Context, target: () -> String?) : BedJetLink {
+class AndroidBedJetLink(private val context: Context, private val preparedLink: BedJetLink? = null, target: () -> String?) : BedJetLink {
     private val prefs = context.getSharedPreferences("ble", Context.MODE_PRIVATE)
     private val engine = GattLink(AndroidRadio(context, ::hasPermissions), target, onName = { name ->
         deviceName = name
@@ -44,6 +44,7 @@ class AndroidBedJetLink(private val context: Context, target: () -> String?) : B
         private set
 
     override suspend fun connect() = engine.connect()
+    override suspend fun prepareForStart() = (preparedLink ?: engine).prepareForStart()
     override suspend fun disconnect() = engine.disconnect()
     override suspend fun send(command: ByteArray) = engine.send(command)
     override suspend fun query(request: Int): ByteArray = engine.query(request)

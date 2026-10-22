@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.data
 
+import io.github.willzy12h.nocturne.night.RuntimeState
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -97,6 +98,10 @@ class Repository(
     private val _snapshotList = MutableStateFlow(snapshots.list())
     val snapshotList: StateFlow<List<SnapshotInfo>> = _snapshotList.asStateFlow()
 
+    private val _runtime = MutableStateFlow(load(RUNTIME) { decode(RuntimeState.serializer(), it) } ?: RuntimeState())
+    val runtime: StateFlow<RuntimeState> = _runtime.asStateFlow()
+    suspend fun updateRuntime(change: (RuntimeState) -> RuntimeState) = update(_runtime, RUNTIME, RuntimeState.serializer(), change)
+
     // Excluded from cloud backup and device transfer by res/xml/data_extraction_rules.xml and backup_rules.xml.
     private val secrets = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
     /** GitHub token for checking a private repository. Kept out of backups, exports and snapshots. */
@@ -179,11 +184,6 @@ class Repository(
         if (deviceId == null) return _slotBackups.value.filter { it.deviceId == Migrations.UNKNOWN_DEVICE }
         serially { adoptMigrated(deviceId) }
         return _slotBackups.value.filter { it.deviceId == deviceId }
-    }
-
-    /** Saves [backup], replacing any for the same device and slot. */
-    suspend fun addSlotBackup(backup: SlotBackup) = update(_slotBackups, SLOT_BACKUPS, ListSerializer(SlotBackup.serializer())) { list ->
-        list.filterNot { it.deviceId == backup.deviceId && it.slot == backup.slot } + backup
     }
 
     suspend fun addNotice(notice: LoggedNotice) =
@@ -383,6 +383,7 @@ class Repository(
         private const val SETTINGS = "settings.json"
         private const val HISTORY = "history.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
+        private const val RUNTIME = "runtime.json"
         private const val ACTIVE_NIGHT = "active-night.json"
         private const val NOTICES = "notices.json"
         /** Lists the files in [unreadable], so the report survives a restart. */
