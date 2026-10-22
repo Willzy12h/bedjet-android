@@ -109,6 +109,14 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 | V05 | Samsung + BedJet 3 acceptance checklist | L | implemented: docs/review/samsung-bedjet-acceptance.md; all physical checks NOT RUN |
 | V06 | Independent review (W6) and fix pass | W6 / L | open |
 
+## Independent review (IR)
+
+Findings from `docs/review/independent-review-tasks-1-4.md`, fixed on `claude/nocturne-ir-fixes`.
+
+| ID | Item | Source | Status | Commit | Tests | Hardware check |
+|---|---|---|---|---|---|---|
+| IR-01 | Automatic and programme-preserving rewrites (re-time retry, immediate re-time, Reapply after a profile edit, tonight-only wake override set/clear) read a fresh BedJet status first and compare step, mode and target temperature with the tracked night (one helper shared with Take back; 20 s step-boundary grace). On a mismatch nothing is written: the night becomes UNKNOWN with the takeover reason, the pending re-time and its retry alarm are cleared, a REMOTE_CHANGE event is added and the existing takeover notice is shown (no extra generic failure). Resume and Start stay explicit user replacements. | X-1, RT-1 | auto-verified | this commit, "fix(night): read the BedJet before automatic rewrites (IR-01)" | RemoteTakeoverRewriteTest (8); existing RuntimeOwnershipTest/NightActionsTest Take back, Reapply and re-time tests unchanged and green | not run |
+
 ## Task 3 integration checkpoint
 
 Task 3 implementation plus one fix round passed independent scoped re-review and the full merged gate: **140 core passes; 85 app passes, four screenshot skips; debug assembly; zero lint errors, two warnings**. The new temporal regressions in `NightTemporalEligibilityTest` cover resume at/after wake, slow upload/readback and the final start-command guard after clock synchronisation. Whole-app durability/ownership and UI items marked pending above remain Task 4–6 work. No hardware verification.

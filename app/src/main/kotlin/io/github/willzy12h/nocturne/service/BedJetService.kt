@@ -48,7 +48,7 @@ class BedJetService : Service() {
                 }
                 val result = withTimeout(NightActions.OPERATION_MS) { graph.actions.execute(request!!) }
                 lastResult = result.message
-                if (!result.succeeded) Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
+                if (!result.succeeded && !result.notified) Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
             } catch (e: CancellationException) {
                 handoff?.result?.cancel(e)
                 if (e is TimeoutCancellationException) failure(this@BedJetService, e, handoff?.notifyFailures ?: true)

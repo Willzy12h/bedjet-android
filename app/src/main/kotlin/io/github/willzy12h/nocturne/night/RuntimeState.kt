@@ -26,7 +26,8 @@ import kotlinx.serialization.Serializable
 data class CommandRequest(val command: NightActions.Command, val profileId: String?, val deviceId: String?,
     val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false)
 enum class OutcomeKind { CONFIRMED, ACCEPTED, LOCAL, REFUSED, STALE, FAILED, UNKNOWN, CONFIRMATION_REQUIRED }
-data class CommandOutcome(val kind: OutcomeKind, val message: String) {
+/** [notified] means the runtime already posted the user-facing notice, so callers do not add a generic failure. */
+data class CommandOutcome(val kind: OutcomeKind, val message: String, val notified: Boolean = false) {
     val succeeded: Boolean get() = kind in setOf(OutcomeKind.CONFIRMED, OutcomeKind.ACCEPTED, OutcomeKind.LOCAL)
 }
 data class BusyState(val runningLabel: String? = null, val queuedCount: Int = 0)

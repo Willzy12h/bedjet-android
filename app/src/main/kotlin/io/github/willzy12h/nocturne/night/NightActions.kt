@@ -117,6 +117,7 @@ class NightActions(private val graph: Graph) {
             val night = repo.activeNight.value ?: return refused(R.string.runtime_no_night)
             if (night.trackingManual) return refused(R.string.runtime_manual_tracking)
             val profile = repo.profile(night.profileId) ?: return refused(R.string.runtime_profile_deleted)
+            takeoverBeforeRewrite(night)?.let { return it }
             advanceGeneration()
             return apply(graph.runner().reapply(night, profile, night.identity, repo.settings.value.resolveWakeOverride(graph.now())?.wakeAt?.let(ZonedDateTime::parse)), R.string.runtime_reapplied)
         }
@@ -347,6 +348,7 @@ class NightActions(private val graph: Graph) {
         }
         return try {
             connected {
+                takeoverBeforeRewrite(n)?.let { return@connected it }
                 val result = apply(graph.runner().prepareRetime(n, pending.expected, pending.alarmAt?.let(ZonedDateTime::parse),
                     ZonedDateTime.parse(pending.deadline), repo.profile(n.profileId), repo.settings.value, pending.alarmOrigin), R.string.runtime_retimed)
                 if (!result.succeeded) { repo.updateRuntime { it.copy(retime = null, reason = result.message) }; NightAlarms.cancelRetry(context) }
@@ -396,6 +398,33 @@ class NightActions(private val graph: Graph) {
         repo.addEvent(night.recordId, event(EventKind.RECOVERED, text(R.string.runtime_manual_tracking)))
         NightAlarms.schedule(context, updated)
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_manual_tracking))
+    }
+    /** What the tracked night expects of the BedJet at [at]: programme step, mode and, for temperature modes,
+     * target. With [grace], a report still on the previous step just after a boundary also matches. */
+    private fun runsNight(n: ActiveNight, status: DeviceStatus, at: ZonedDateTime, grace: Boolean = false): Boolean {
+        val plan = n.activePlan(repo.profile(n.profileId)) ?: return false
+        val (index, step) = plan.stepAt(at) ?: return false
+        fun runs(i: Int, planned: PlannedStep) = status.extra?.programStep == i + 1 && status.mode == planned.step.mode &&
+            (!status.mode.usesTemperature || status.targetTemperature == planned.step.temperature)
+        return runs(index, step) ||
+            (grace && index > 0 && at.isBefore(step.startsAt.plusSeconds(TAKEOVER_GRACE_S)) && runs(index - 1, plan.steps[index - 1]))
+    }
+    /** An automatic or programme-preserving rewrite never silently undoes a physical-remote change (IR-01).
+     * Reads the BedJet first. Null means it still runs the tracked night and the rewrite may go ahead. */
+    private suspend fun takeoverBeforeRewrite(n: ActiveNight): CommandOutcome? {
+        if (n.confidence != Confidence.CONFIRMED || n.trackingManual) return null
+        // A status that never arrives is a failed attempt with nothing written, not a cancellation.
+        val status = try { freshStatus() } catch (_: TimeoutCancellationException) { throw BedJetError.Timeout() }
+        if (runsNight(n, status, graph.now(), grace = true)) return null
+        recordTakeover(n)
+        return CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover), notified = true)
+    }
+    private suspend fun recordTakeover(n: ActiveNight) {
+        publishNight(n.copy(confidence = Confidence.UNKNOWN))
+        repo.updateRuntime { it.copy(retime = null, reason = text(R.string.runtime_takeover)) }
+        repo.addEvent(n.recordId, event(EventKind.REMOTE_CHANGE, text(R.string.runtime_takeover)))
+        NightAlarms.cancelRetry(context)
+        Notifications.showInfo(context, text(R.string.runtime_takeover_title), text(R.string.runtime_takeover))
     }
     private suspend fun freshStatus(): DeviceStatus {
         // Reconnect under whole-command ownership. Existing READY status may predate this operation.
@@ -491,16 +520,12 @@ class NightActions(private val graph: Graph) {
             if (n.confidence != Confidence.CONFIRMED || n.trackingManual) return@withLock
             val plan = n.activePlan(repo.profile(n.profileId)) ?: return@withLock
             val current = plan.stepAt(receivedAt) ?: return@withLock
-            val grace = receivedAt.isBefore(current.second.startsAt.plusSeconds(20))
+            val grace = receivedAt.isBefore(current.second.startsAt.plusSeconds(TAKEOVER_GRACE_S))
             val contradicts = (extra.programStep == 0 && status.isRunning) ||
                 (!grace && (extra.programStep != current.first + 1 || status.mode != current.second.step.mode ||
                     (status.mode.usesTemperature && status.targetTemperature != current.second.step.temperature)))
             if (!contradicts) return@withLock
-            publishNight(n.copy(confidence = Confidence.UNKNOWN))
-            repo.updateRuntime { it.copy(retime = null, reason = text(R.string.runtime_takeover)) }
-            repo.addEvent(n.recordId, event(EventKind.REMOTE_CHANGE, text(R.string.runtime_takeover)))
-            NightAlarms.cancelRetry(context)
-            Notifications.showInfo(context, text(R.string.runtime_takeover_title), text(R.string.runtime_takeover))
+            recordTakeover(n)
         }
     }
     private var lastNotice: Pair<String, Int>? = null
@@ -586,6 +611,7 @@ class NightActions(private val graph: Graph) {
                 alarm?.time, liveProfile = profile, settings = repo.settings.value, alarmOrigin = alarm?.creator)
         if (prepared is Preparation.Refused) return@owned CommandOutcome(OutcomeKind.REFUSED, prepared.reason)
         connected {
+            takeoverBeforeRewrite(n)?.let { return@connected it }
             advanceGeneration()
             repo.updateSettings { if (wake == null) it.clearWakeOverride() else it.setWakeOverride(wake, graph.now()) }
             apply(prepared, R.string.runtime_reapplied)
@@ -653,9 +679,7 @@ class NightActions(private val graph: Graph) {
             val status = freshStatus()
             // Uncertain hardware is never replayed. The user can keep a fresh manual run or stop tracking.
             repo.activeNight.value?.let { n ->
-                val step = n.activePlan(repo.profile(n.profileId))?.stepAt(graph.now())
-                if (step == null || status.extra?.programStep != step.first + 1 || status.mode != step.second.step.mode ||
-                    (status.mode.usesTemperature && status.targetTemperature != step.second.step.temperature)) {
+                if (!runsNight(n, status, graph.now())) {
                     publishNight(n.copy(confidence = Confidence.UNKNOWN))
                     repo.updateRuntime { it.copy(reason = text(R.string.runtime_takeover), retime = null) }
                     repo.addEvent(n.recordId, event(EventKind.REMOTE_CHANGE, text(R.string.runtime_takeover)))
@@ -706,6 +730,8 @@ class NightActions(private val graph: Graph) {
     private fun clock(iso: String) = ZonedDateTime.parse(iso).format(DateTimeFormatter.ofPattern("HH:mm"))
     companion object {
         const val OPERATION_MS = 90_000L
+        /** A step boundary is not a takeover: the unit's report may lag the planned boundary briefly. */
+        private const val TAKEOVER_GRACE_S = 20L
         fun commandLabel(context: android.content.Context, command: Command): String = context.getString(when (command) {
             Command.START_NIGHT -> R.string.runtime_command_start_night
             Command.END_NIGHT -> R.string.runtime_command_end_night
