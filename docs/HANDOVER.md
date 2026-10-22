@@ -1,6 +1,6 @@
 # Handover
 
-**Updated:** 2026-10-22, Astra continuation from `83e6efa`. Tasks 1–3 are integrated and verified automatically. Task 4 is next; no hardware has been tested.
+**Updated:** 2026-10-22, Astra continuation from `83e6efa`. Tasks 1–3 are integrated and verified automatically. Task 4 is in progress in an isolated worktree; no hardware has been tested.
 
 - **Branch:** `claude/nocturne-hardening`, pushed. The base is `claude/lucid-mayer-i1h2gy` @ `22766fd`.
 - **Plan and task briefs:** `docs/superpowers/plans/2026-10-22-nocturne-hardening.md` (Tasks 1–7, global constraints, carried items).
@@ -35,7 +35,7 @@
 
 ## Remaining tasks (briefs ready in the plan)
 
-1. **Task 4 — next:** app runtime, alarms, service and command ownership. Read its expanded lead integration rulings as well as the carried notes: durable complete mutation intent, original-slot backup before writes, pending retries/expiry, identity/target binding, takeover/recovery, shortcut security, pin/restore/resume, job-owned operations and a whole-command hand-over gate.
+1. **Task 4 — in progress:** app runtime, alarms, service and command ownership. Read its expanded lead integration rulings as well as the carried notes: durable complete mutation intent, original-slot backup before writes, pending retries/expiry, identity/target binding, takeover/recovery, shortcut security, pin/restore/resume, job-owned operations and a whole-command hand-over gate.
 2. **Task 5:** UI/accessibility in the existing Midnight Ink, Daylight and Simple design; scheduled theme, setup/device selection, morning check-in, strings/haptics, drafts, recovery and feature controls. Choice expiry must refresh an open screen.
 3. **Task 6:** platform features in parallel with Task 5. Richer widgets/tile, reminders, best-effort charger jobs (off by default), Health Connect, CSV and pinned Lull hand-over. Read `docs/review/platform-preflight.md` and the plan's platform rulings; do not implement an unsupported manifest charger receiver/FGS path.
 4. **Task 7:** release signing and shrinking. Then a final whole-branch review and one fix wave, after-screenshots with `Graph.clock`, completed screenshot comparison, draft PR to `claude/lucid-mayer-i1h2gy` and a test-signed release APK with version/SHA-256.
