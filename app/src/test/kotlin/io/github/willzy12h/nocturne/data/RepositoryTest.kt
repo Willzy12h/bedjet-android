@@ -292,6 +292,49 @@ class RepositoryTest {
         assertEquals(real, repo.originalSlot("ble:AA:BB", 2))
     }
 
+    // An unreadable slot-backups file (IR-03)
+
+    @Test
+    fun anUnreadableSlotBackupFileBlocksRecordingOriginals() = runBlocking {
+        File(dir, "slot-backups.json").writeText("{garbage")
+        val repo = repository()
+        assertEquals(listOf("slot-backups.json"), repo.unreadable.value)
+
+        assertThrows(SlotBackupsUnreadable::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertThrows(SlotBackupsUnreadable::class.java) { runBlocking { repo.originalsFor("ble:AA:BB") } }
+        assertThrows(SlotBackupsUnreadable::class.java) { runBlocking { repo.originalsFor(null) } }
+        assertFalse("nothing written over the unreadable originals", File(dir, "slot-backups.json").exists())
+        assertEquals(emptyList<SlotBackup>(), repo.slotBackups.value)
+        // Still blocked after a restart: the report survives it.
+        assertThrows(SlotBackupsUnreadable::class.java) { runBlocking { repository().recordOriginalSlot("ble:AA:BB", 2, program) } }
+
+        repo.dismissUnreadable()
+        val recorded = repo.recordOriginalSlot("ble:AA:BB", 2, program)
+        assertEquals(SlotBackup("ble:AA:BB", 2, program, now.toString()), recorded)
+        assertEquals(listOf(recorded), repository().slotBackups.value)
+    }
+
+    @Test
+    fun restoreLetsASnapshotsOriginalsWinOverOnesRecordedAfterTheLoss() = runBlocking {
+        val before = repository()
+        before.recordOriginalSlot("ble:AA:BB", 2, program)
+        before.snapshotNow("Good")
+        val good = before.snapshots.list().first { it.manual }
+
+        File(dir, "slot-backups.json").writeText("{garbage")
+        val repo = repository()
+        repo.dismissUnreadable()
+        // After the loss the slot holds Nocturne's own program, and that is what gets recorded.
+        val fake = repo.recordOriginalSlot("ble:AA:BB", 2, StoredProgram("Spring/Autumn", emptyList()))
+        val fresh = repo.recordOriginalSlot("ble:AA:BB", 1, null)
+        assertEquals("Spring/Autumn", fake.program?.name)
+
+        assertTrue(repo.restoreSnapshot(good.id))
+        assertEquals(listOf(SlotBackup("ble:AA:BB", 2, program, now.toString()), fresh).toSet(), repo.slotBackups.value.toSet())
+        assertEquals(program, repo.originalSlot("ble:AA:BB", 2)?.program)
+        assertEquals(program, repository().originalSlot("ble:AA:BB", 2)?.program)
+    }
+
     // Originals saved before devices were recorded
 
     private val migrated = SlotBackup("unknown", 2, program, "2026-10-20T22:30Z")

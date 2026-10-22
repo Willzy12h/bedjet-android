@@ -93,6 +93,11 @@ class Repository(
     private val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
     /** What each device's slots held before the app first wrote them. See [recordOriginalSlot]. */
     val slotBackups: StateFlow<List<SlotBackup>> = _slotBackups.asStateFlow()
+    /**
+     * When the loss of an unreadable `slot-backups.json` was accepted with [dismissUnreadable], or null. Originals
+     * saved from then on may be the app's own programs, so a restore lets a snapshot's originals win over them.
+     */
+    private var slotBackupsLostAt: ZonedDateTime? = readSlotBackupsLostAt()
     private val _activeNight = MutableStateFlow(load(ACTIVE_NIGHT) { decode(ActiveNight.serializer().nullable, it) })
     val activeNight: StateFlow<ActiveNight?> = _activeNight.asStateFlow()
     private val _notices = MutableStateFlow(load(NOTICES) { decode(ListSerializer(LoggedNotice.serializer()), it) }.orEmpty())
@@ -177,8 +182,10 @@ class Repository(
      * Saves what [deviceId]'s [slot] held before the app writes to it: [program], or an empty-slot marker when null.
      * The first original is kept: once a slot is recorded, later calls return that record unchanged, since by then
      * the slot may hold the app's own program. Throws when it can't be saved, and then the slot must not be written.
+     * Throws [SlotBackupsUnreadable], saving nothing, while the saved originals can't be read.
      */
     suspend fun recordOriginalSlot(deviceId: String, slot: Int, program: StoredProgram?): SlotBackup = serially {
+        requireSlotBackupsReadable()
         adoptMigrated(deviceId)
         originalSlot(deviceId, slot) ?: SlotBackup(deviceId, slot, program, now().toString()).also { backup ->
             val list = _slotBackups.value + backup
@@ -197,9 +204,10 @@ class Repository(
      * BedJet first adopts, durably, any original saved before devices were recorded for a slot it has none for: that
      * original came from the BedJet the app was used with, while the slot may by now hold the app's own program. With
      * no BedJet chosen (null) those migrated originals are returned as they are, so nothing is saved over them. The
-     * demo unit never adopts them.
+     * demo unit never adopts them. Throws [SlotBackupsUnreadable] while the saved originals can't be read.
      */
     suspend fun originalsFor(deviceId: String?): List<SlotBackup> {
+        requireSlotBackupsReadable()
         if (deviceId == null) return _slotBackups.value.filter { it.deviceId == Migrations.UNKNOWN_DEVICE }
         serially { adoptMigrated(deviceId) }
         return _slotBackups.value.filter { it.deviceId == deviceId }
@@ -210,8 +218,27 @@ class Repository(
 
     suspend fun clearNotices() = update(_notices, NOTICES, ListSerializer(LoggedNotice.serializer())) { emptyList() }
 
-    /** Stops reporting the files listed in [unreadable]. Their set-aside copies stay where they are. */
-    suspend fun dismissUnreadable() = serially { clearUnreadable() }
+    /** True while `slot-backups.json` is reported unreadable: no slot may be written until it is restored or dismissed. */
+    val slotBackupsUnreadable: Boolean get() = SLOT_BACKUPS in _unreadable.value
+
+    /** Throws [SlotBackupsUnreadable] while [slotBackupsUnreadable]. */
+    fun requireSlotBackupsReadable() {
+        if (slotBackupsUnreadable) throw SlotBackupsUnreadable()
+    }
+
+    /**
+     * Stops reporting the files listed in [unreadable]. Their set-aside copies stay where they are. Dismissing an
+     * unreadable `slot-backups.json` accepts the loss of its originals: the time is saved first, so a later restore
+     * lets a snapshot's originals win over ones recorded from now on.
+     */
+    suspend fun dismissUnreadable() = serially {
+        if (slotBackupsUnreadable) {
+            val at = now()
+            writeFile(File(dir, SLOT_BACKUPS_LOST), at.toString().toByteArray())
+            slotBackupsLostAt = at
+        }
+        clearUnreadable()
+    }
 
     // Backups
 
@@ -240,7 +267,9 @@ class Repository(
      *
      * The chosen BedJet, demo mode, the update token and the night under way are kept: a restore changes what the app
      * knows, never which BedJet it talks to or what that BedJet is doing. Slot backups are merged, current ones
-     * winning: an older bundle's backup of a slot may be one of the app's own programs, not the user's original.
+     * winning: an older bundle's backup of a slot may be one of the app's own programs, not the user's original. The
+     * exception is a current one saved after an unreadable slot-backups file was dismissed: that may be the app's own
+     * program, so the bundle's backup of the same slot wins.
      * Everything is written before anything is published; if a write fails the files already written are put back.
      */
     suspend fun restore(bundle: BackupBundle, label: String = "Before import") {
@@ -255,7 +284,8 @@ class Repository(
                 platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null))
             val history = History.prune(bundle.history, now())
             val slotBackups = _slotBackups.value.let { list ->
-                list + bundle.slotBackups.filter { restored -> list.none { it.covers(restored) } }
+                val kept = list.filterNot { current -> savedAfterLoss(current) && bundle.slotBackups.any { current.covers(it) } }
+                kept + bundle.slotBackups.filter { restored -> kept.none { it.covers(restored) } }
             }
             val writes = listOf(
                 Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)),
@@ -391,6 +421,16 @@ class Repository(
         _slotBackups.value = adopted
     }
 
+    /** True when [backup] was saved once the loss of unreadable slot backups had been accepted. */
+    private fun savedAfterLoss(backup: SlotBackup): Boolean {
+        val lost = slotBackupsLostAt ?: return false
+        val saved = runCatching { ZonedDateTime.parse(backup.savedAt) }.getOrNull() ?: return false
+        return !saved.toInstant().isBefore(lost.toInstant())
+    }
+
+    private fun readSlotBackupsLostAt(): ZonedDateTime? =
+        runCatching { ZonedDateTime.parse(AtomicFile(File(dir, SLOT_BACKUPS_LOST)).readFully().decodeToString().trim()) }.getOrNull()
+
     private fun readUnreadableMarker(): List<String> =
         runCatching { decode(ListSerializer(String.serializer()), AtomicFile(File(dir, UNREADABLE)).readFully().decodeToString()) }.getOrDefault(emptyList())
 
@@ -405,6 +445,8 @@ class Repository(
         private const val SETTINGS = "settings.json"
         private const val HISTORY = "history.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
+        /** When an unreadable [SLOT_BACKUPS] was dismissed. Device-local, like [UNREADABLE]. */
+        private const val SLOT_BACKUPS_LOST = "slot-backups-lost.txt"
         private const val RUNTIME = "runtime.json"
         private const val AUTOMATION = "automation.json"
         private const val ACTIVE_NIGHT = "active-night.json"

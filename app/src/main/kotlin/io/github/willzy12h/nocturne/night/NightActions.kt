@@ -7,6 +7,7 @@ import io.github.willzy12h.nocturne.core.night.*
 import io.github.willzy12h.nocturne.core.plan.*
 import io.github.willzy12h.nocturne.core.protocol.*
 import io.github.willzy12h.nocturne.core.store.*
+import io.github.willzy12h.nocturne.data.SlotBackupsUnreadable
 import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -45,13 +46,14 @@ class NightActions(private val graph: Graph) {
             Command.KEEP_TRACKING -> keepTrackingLocked()
             Command.RETRY_RETIME -> { consumeAlarmObservation(); retryRetimeLocked() }
             Command.RETIME -> { consumeAlarmObservation(); val queued = queueRetimeLocked(); if (queued.kind == OutcomeKind.LOCAL) retryRetimeLocked() else queued }
-            else -> connected { run(request) }
+            else -> slotWriteRefusal(request.command) ?: connected { run(request) }
         }
     }
     /** No FGS, detached launch or retry. Job cancellation propagates after durable uncertainty is saved. */
     suspend fun performJobOwned(request: CommandRequest, eligible: suspend (DeviceStatus) -> Boolean): CommandOutcome =
         owned(label(request.command), request.deviceId) {
             if (request.requireIdentity && request.expected != repo.activeNight.value?.identity) return@owned stale()
+            slotWriteRefusal(request.command)?.let { return@owned it }
             connected {
                 val fresh = freshStatus()
                 if (repo.activeNight.value != null || !eligible(fresh)) return@connected refused(R.string.runtime_ineligible)
@@ -81,6 +83,9 @@ class NightActions(private val graph: Graph) {
                 result
             }
         } catch (e: CancellationException) { throw e
+        } catch (e: SlotBackupsUnreadable) {
+            // Thrown before any slot write; the night's confidence is left as it was.
+            return slotBackupsRefusal()!!.also { _outcomes.emit(it) }
         } catch (e: Exception) {
             recordError("$label: ${e.message.orEmpty()}")
             return CommandOutcome(if (repo.activeNight.value?.confidence == Confidence.UNKNOWN || repo.runtime.value.slotWrite?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
@@ -141,6 +146,7 @@ class NightActions(private val graph: Graph) {
             is Preparation.Refused -> return CommandOutcome(OutcomeKind.REFUSED, preparation.reason)
             is Preparation.Stale -> return stale()
         }
+        slotBackupsRefusal()?.let { return it }
         val result = graph.runner().apply(change, { repo.activeNight.value }, { repo.runtime.value.generation },
             publish = { publishNight(it); if (it.confidence != Confidence.CONFIRMED) Notifications.cancelQuiet(context) }, beforeWrite = { backup(change.intended.deviceId, change.intended.slot) })
         return when (result) {
@@ -178,6 +184,12 @@ class NightActions(private val graph: Graph) {
             is NightMutation.Stale -> stale()
         }
     }
+    /** IR-03: while the saved slot originals can't be read, no slot is written and nothing is published first. */
+    private fun slotBackupsRefusal(): CommandOutcome? =
+        if (repo.slotBackupsUnreadable) refused(R.string.runtime_slot_backups_unreadable) else null
+    /** [slotBackupsRefusal] for the commands that write a slot, checked before connecting. */
+    private fun slotWriteRefusal(command: Command): CommandOutcome? =
+        if (command in SLOT_WRITES) slotBackupsRefusal() else null
     internal suspend fun backup(device: String, slot: Int) {
         repo.originalsFor(device)
         val existing = repo.originalSlot(device, slot)
@@ -345,6 +357,9 @@ class NightActions(private val graph: Graph) {
         }
         if (n?.identity != pending.expected || hasUnfinishedReplacement(n) || n.trackingManual || n.confidence != Confidence.CONFIRMED || pending.deviceId != repo.settings.value.deviceId()) {
             repo.updateRuntime { it.copy(retime = null) }; NightAlarms.cancelRetry(context); return stale()
+        }
+        slotBackupsRefusal()?.let { refusal ->
+            repo.updateRuntime { it.copy(retime = null, reason = refusal.message) }; NightAlarms.cancelRetry(context); return refusal
         }
         return try {
             connected {
@@ -532,6 +547,7 @@ class NightActions(private val graph: Graph) {
     private var lastNotice: Pair<String, Int>? = null
     suspend fun pin(profileId: String, slot: Int): CommandOutcome = owned(text(R.string.runtime_pin_label), repo.settings.value.deviceId()) {
         if (slot !in 0..2 || slot == repo.settings.value.workingSlot) return@owned refused(R.string.runtime_pin_slot)
+        slotBackupsRefusal()?.let { return@owned it }
         val profile = repo.profile(profileId) ?: return@owned refused(R.string.runtime_profile_deleted)
         connected {
             if (freshStatus().extra?.programStep != 0) return@connected refused(R.string.runtime_slot_running)
@@ -546,6 +562,7 @@ class NightActions(private val graph: Graph) {
         if (!ReplacementPolicy.permitsSlotRestore(repo.activeNight.value)) return@owned refused(R.string.runtime_restore_active)
         if (slot !in 0..2) return@owned refused(R.string.runtime_pin_slot)
         val target = repo.settings.value.deviceId() ?: return@owned refused(R.string.runtime_choose_target)
+        slotBackupsRefusal()?.let { return@owned it }
         repo.originalsFor(target)
         val original = repo.originalSlot(target, slot) ?: return@owned refused(R.string.runtime_no_original)
         connected {
@@ -556,6 +573,7 @@ class NightActions(private val graph: Graph) {
     }
     private suspend fun writeSlotLocked(slot: Int, program: StoredProgram?, label: String, start: Boolean = false): CommandOutcome {
         val target = repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target)
+        slotBackupsRefusal()?.let { return it }
         val intent = SlotWrite(target, slot, program, label = label, startRequested = start,
             displaced = if (start) repo.activeNight.value?.identity else null)
         repo.updateRuntime { it.copy(slotWrite = intent) }
@@ -611,6 +629,7 @@ class NightActions(private val graph: Graph) {
             else graph.runner().prepareRetime(n.copy(wakeOrigin = WakeOrigin.PROFILE_DEFAULT), n.identity,
                 alarm?.time, liveProfile = profile, settings = repo.settings.value, alarmOrigin = alarm?.creator)
         if (prepared is Preparation.Refused) return@owned CommandOutcome(OutcomeKind.REFUSED, prepared.reason)
+        slotBackupsRefusal()?.let { return@owned it }
         connected {
             takeoverBeforeRewrite(n)?.let { return@connected it }
             advanceGeneration()
@@ -731,6 +750,8 @@ class NightActions(private val graph: Graph) {
     private fun clock(iso: String) = ZonedDateTime.parse(iso).format(DateTimeFormatter.ofPattern("HH:mm"))
     companion object {
         const val OPERATION_MS = 90_000L
+        /** Commands that may write a slot, refused while the saved slot originals can't be read (IR-03). */
+        private val SLOT_WRITES = setOf(Command.START_NIGHT, Command.REAPPLY, Command.BOOST, Command.RESUME)
         /** A step boundary is not a takeover: the unit's report may lag the planned boundary briefly. */
         private const val TAKEOVER_GRACE_S = 20L
         fun commandLabel(context: android.content.Context, command: Command): String = context.getString(when (command) {
