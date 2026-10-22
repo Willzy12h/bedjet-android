@@ -6,14 +6,21 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** One RFC 4180 table: typed rows preserve nights, every applied revision, steps, samples and events. */
+/** One RFC4180 table. Risky text receives a visible "Text: " prefix before CSV quoting;
+ * generated numeric columns remain numeric. This is an explicit representation policy, not a
+ * guarantee about every spreadsheet consumer's subsequent transformations. */
 object HistoryCsv {
     fun encode(records: List<NightRecord>, fahrenheit: Boolean, identifiers: Boolean): String = buildString {
-        fun row(values: List<String>) {
-            append(values.joinToString(",") { raw ->
-                val text = if (identifiers) raw else raw.replace(Regex("(?i)(?:ble:)?(?:[0-9a-f]{2}:){5}[0-9a-f]{2}"), "[device omitted]")
+        fun row(values: List<String>, numeric: Set<Int> = emptySet()) {
+            append(values.mapIndexed { index, raw ->
+                val redacted = if (identifiers) raw else raw.replace(Regex("(?i)(?:ble:)?(?:[0-9a-f]{2}:){5}[0-9a-f]{2}"), "[device omitted]")
+                val leading = redacted.firstOrNull()
+                val riskyText = index !in numeric && leading != null &&
+                    (leading in "=+-@＝＋－＠" || leading.isWhitespace() || leading.isISOControl() ||
+                        Character.getType(leading) == Character.FORMAT.toInt())
+                val text = if (riskyText) "Text: $redacted" else redacted
                 if (text.any { it in ",\"\r\n" }) "\"${text.replace("\"", "\"\"")}\"" else text
-            }); append("\r\n")
+            }.joinToString(",")); append("\r\n")
         }
         fun time(value: String): String = runCatching { ZonedDateTime.parse(value).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) }.getOrDefault(value)
         fun zone(value: String): String = runCatching { ZonedDateTime.parse(value).zone.id }.getOrDefault("")
@@ -28,10 +35,16 @@ object HistoryCsv {
                 val c = temp?.div(2.0)
                 val cells = mutableListOf(kind, n.id, n.profileName, revision, time(at), time(end), zone(at), mode,
                     c?.let { String.format(Locale.ROOT, "%.1f", it) }.orEmpty())
-                if (fahrenheit) cells += c?.let { String.format(Locale.ROOT, "%.1f", it * 9 / 5 + 32) }.orEmpty()
+                val numeric = mutableSetOf(3, 8) // Generated revision and Celsius temperature.
+                if (fahrenheit) {
+                    numeric += cells.size
+                    cells += c?.let { String.format(Locale.ROOT, "%.1f", it * 9 / 5 + 32) }.orEmpty()
+                }
+                numeric += cells.size // Generated fan percentage.
+                numeric += cells.size + 1 // Generated duration.
                 cells += listOf(fan, minutes, detail)
                 if (identifiers) cells += n.deviceId
-                row(cells)
+                row(cells, numeric)
             }
             fun step(s: RecordedStep, revision: String) = emit("step", s.startsAt, revision=revision, mode=s.mode.name,
                 temp=s.temperature, fan=s.fanPercent.toString(), minutes=s.minutes.toString(), detail=s.block.name)

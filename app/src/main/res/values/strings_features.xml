@@ -49,7 +49,7 @@
     <string name="feature_stage_line">%1$s–%2$s · %3$s</string>
     <string name="feature_csv">Export history CSV</string>
     <string name="feature_identifiers">Include device identifiers</string>
-    <string name="feature_csv_help">Exports nights, revisions, steps, events and temperatures. Device addresses are omitted unless selected.</string>
+    <string name="feature_csv_help">Exports nights, revisions, steps, events and temperatures. Device addresses are omitted unless selected. Text beginning with a formula marker, whitespace or control character is visibly prefixed with “Text: ”. Generated numbers are unchanged.</string>
     <string name="feature_save">Choose file</string>
     <string name="feature_export_done">History exported</string>
     <string name="feature_export_failed">Could not save the history file.</string>

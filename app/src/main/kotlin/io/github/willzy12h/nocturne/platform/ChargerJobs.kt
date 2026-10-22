@@ -73,26 +73,34 @@ class ChargerJobService : JobService() {
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
     private data class Running(val params: JobParameters, var stopped: Boolean=false, var job: Job?=null)
     private var running: Running?=null
+    // Injectable operation boundary; the service still owns the sole execution coroutine and cleanup.
+    internal var ownedOperation: suspend () -> Unit = {
+        ChargerRun(graph,{ChargerJobs.charging(this)},
+            {profile,key->PlatformNotifications.countdown(this,profile,key)},
+            {delay(60_000)},{ChargerJobs.permitted(this)}).execute()
+    }
     override fun onStartJob(params: JobParameters): Boolean {
-        if (running != null) return false
+        if (params.jobId != ChargerJobs.ID || running != null) return false
         val owner=Running(params);running=owner
         owner.job=scope.launch {
             try {
-                ChargerRun(graph,{ChargerJobs.charging(this@ChargerJobService)},
-                    {profile,key->PlatformNotifications.countdown(this@ChargerJobService,profile,key)},
-                    {delay(60_000)},{ChargerJobs.permitted(this@ChargerJobService)}).execute()
+                ownedOperation()
             } catch (e: CancellationException) {throw e
             } catch (e: Exception) {android.util.Log.w("ChargerJob","Automatic start ended",e)
             } finally {
-                getSystemService(NotificationManager::class.java).cancel(PlatformNotifications.CHARGER_ID)
-                if (running === owner) running=null
-                if (!owner.stopped) jobFinished(params,false)
+                // Retain this generation until its operation (including cancellation cleanup) completes.
+                if (running === owner) {
+                    getSystemService(NotificationManager::class.java).cancel(PlatformNotifications.CHARGER_ID)
+                    running=null
+                    if (!owner.stopped) jobFinished(params,false)
+                }
             }
         }
         return true
     }
     override fun onStopJob(params: JobParameters): Boolean {
-        running?.takeIf {it.params === params}?.let {it.stopped=true;it.job?.cancel()}
+        // Binder unmarshals a distinct parameters object; the reserved job ID is the logical identity.
+        running?.takeIf {it.params.jobId == params.jobId}?.let {it.stopped=true;it.job?.cancel()}
         return true // Any later periodic execution repeats the entire grace; attempts remain suppressed.
     }
     override fun onDestroy() { running?.stopped=true;scope.cancel();super.onDestroy() }
