@@ -33,6 +33,8 @@ class FakeRadio {
         val firstStatus: ByteArray? = Status.full(programStep = 0),
         /** Delivers the connection callback before connect() has returned, as a fast stack can. */
         val connectsInline: Boolean = false,
+        /** False leaves every read of the reply characteristic unanswered. */
+        val answersReplies: Boolean = true,
     )
 
     val radio = object : GattRadio {
@@ -108,7 +110,7 @@ class FakeRadio {
             if (attr == Attr.STATUS) statusReadThrows?.let { throw it }
             reads += attr
             when (attr) {
-                Attr.REPLY -> {
+                Attr.REPLY -> if (behaviour.answersReplies) {
                     val echo = lastQuery ?: byteArrayOf(0, 0)
                     post { sink.onRead(attr, echo + "BEDJET 3".toByteArray() + 0, GATT_SUCCESS) }
                 }

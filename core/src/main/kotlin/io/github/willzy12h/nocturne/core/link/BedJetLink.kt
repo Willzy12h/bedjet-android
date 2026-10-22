@@ -18,6 +18,11 @@ interface BedJetLink {
     suspend fun send(command: ByteArray)
     /** Asks the unit for stored data and returns the reply payload, without the echoed request and tag. */
     suspend fun query(request: Int): ByteArray
+    /**
+     * Called before a program start is sent: forget the program progress last reported, so only a report that
+     * arrives afterwards can confirm the start. Links without split status reports need do nothing.
+     */
+    suspend fun prepareForStart() {}
 }
 
 sealed class BedJetError(message: String) : Exception(message) {

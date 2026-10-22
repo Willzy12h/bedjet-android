@@ -85,6 +85,26 @@ class GattLinkTest {
     }
 
     @Test
+    fun anAttachWhoseSessionDiesBeforeItIsReadyIsRetried() = runBlocking {
+        // The first connection never answers the name query, so its session is retired mid-attach.
+        fake.upcoming += FakeRadio.Behaviour(answersReplies = false)
+        link.connect()
+        assertEquals(listOf(ADDRESS, ADDRESS), fake.connects)
+        assertTrue(fake.ports[0].closed)
+        assertEquals(LinkState.READY, link.state.value)
+        link.send(Codec.setFan(4))
+        assertTrue(fake.ports[1].writes.any { it.contentEquals(Codec.setFan(4)) })
+    }
+
+    @Test
+    fun anAttachThatNeverGetsReadyFailsRatherThanReturning() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(answersReplies = false)
+        assertThrows<BedJetError.NotConnected> { link.connect() }
+        assertEquals(3, fake.connects.size)
+        assertEquals(LinkState.SEARCHING, link.state.value)
+    }
+
+    @Test
     fun permissionsAndBluetoothOffAreReported() = runBlocking {
         fake.availability = Radio.UNAUTHORIZED
         assertThrows<BedJetError.NotConnected> { link.connect() }
@@ -211,6 +231,46 @@ class GattLinkTest {
         delay(100)
         assertFalse("A stale program step confirmed the start", start.isCompleted)
         assertEquals(null, link.status.value?.extra)
+        port.answerStatusRead(Status.remainder(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    @Test
+    fun preparingForAStartForgetsTheProgramStepUntilAFreshReport() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        link.prepareForStart()
+        assertEquals(null, link.status.value?.extra)
+        port.notify(Status.head())
+        eventually { port.reads.contains(Attr.STATUS) }
+        assertEquals(null, link.status.value?.extra)
+        port.answerStatusRead(Status.remainder(programStep = 1))
+        eventually { link.status.value?.extra?.programStep == 1 }
+    }
+
+    @Test
+    fun aReportBetweenTheClockAndTheStartDoesNotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        port.holdWrites = true
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val start = async { runCatching { controller.startProgram(2) } }
+        eventually { port.writes.any { it[0].toInt() == 0x08 } }
+        // A head-only report while the clock is being set still carries the old program step.
+        port.notify(Status.head())
+        fake.drain()
+        port.ackWrite()
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        port.notify(Status.head())
+        fake.drain()
+        port.ackWrite()
+        // Longer than the controller's refusal grace, so a confirmation would have finished the start by now.
+        delay(1_800)
+        assertFalse("A stale program step confirmed the start", start.isCompleted)
+        port.notify(Status.head())
+        eventually { port.reads.contains(Attr.STATUS) }
         port.answerStatusRead(Status.remainder(programStep = 1))
         withTimeout(4_000) { start.await() }.getOrThrow()
     }

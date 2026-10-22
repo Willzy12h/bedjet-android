@@ -107,6 +107,15 @@ class GattLink(
     }
 
     /**
+     * Forgets the program progress last reported, now and for head-only reports, until a fresh full status or
+     * remainder read arrives, so an older program step can't confirm the start that follows.
+     */
+    override suspend fun prepareForStart() {
+        current?.forgetExtra()
+        _status.value = _status.value?.copy(extra = null)
+    }
+
+    /**
      * Lists the BedJets advertising nearby, strongest first, without connecting to any: first by the BedJet service
      * (which works with the screen off), then by name for units that advertise only that.
      */
@@ -184,8 +193,10 @@ class GattLink(
                 // The name is only for display; the connection is still good.
             }
             withTimeoutOrNull(timings.firstStatusMs) { status.first { it != null } }
-            attached = true
-            return true
+            // The name query can time out, the unit can drop or disconnect() can land meanwhile, each retiring
+            // the session: only a session that is still current and still wanted counts as connected.
+            attached = wanted && current === session && session.ready
+            return attached
         } finally {
             if (!attached) retire(session)
         }
@@ -350,6 +361,8 @@ class GattLink(
 
         /** Program progress stays unknown until the unit reports it afresh, by a remainder read or full status. */
         fun forgetExtra() {
+            // Without the head, a remainder read already under way can't be merged into a status either.
+            lastHead = null
             lastExtra = null
             lastRemainderRead = null
         }
@@ -430,9 +443,10 @@ class GattLink(
             if (!pending.compareAndSet(waiting, null)) return
             when {
                 waiting.kind != kind || waiting.attr != attr -> {
-                    waiting.result.completeExceptionally(BedJetError.BadResponse())
-                    // This operation's own answer may still arrive, and would be taken for the next one's.
+                    // This operation's own answer may still arrive, and would be taken for the next one's. Retire
+                    // before failing the operation, so nothing can run on this session in between.
                     retire(this)
+                    waiting.result.completeExceptionally(BedJetError.BadResponse())
                 }
                 status != GATT_SUCCESS -> waiting.result.completeExceptionally(BedJetError.BadResponse())
                 else -> waiting.result.complete(value)
