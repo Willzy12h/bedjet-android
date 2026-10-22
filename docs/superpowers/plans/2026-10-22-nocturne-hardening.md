@@ -542,3 +542,5 @@ Ruling: Task5 may mechanically migrate `widget/SingleActionConfigActivity.kt`'s 
 
 - Supply representative real-app renders (Dark Tonight, Light Tonight, Simple and320dp at200% text) with Graph.clock pinned before composition before the task review. The lead captures the full final after set later.
 - Accept a morning suggestion against the current reusable profile, preserving unrelated edits; refuse/refresh if deleted or materially changed. Never replace the reusable profile with the saved night snapshot or silently reapply a suggestion to a running night. Cover acceptance after edit/deletion.
+
+Ruling: the Quick Settings tile opens the actual Tonight screen using an explicit PendingIntent; the existing Start/End controls provide the quick action through that activity and shared confirmation policy. MainActivity must honour the explicit Tonight navigation request on first and subsequent intents, even over restored navigation. No duplicate tile-only button/preview screen is added — this satisfies tap-to-Tonight while preserving existing controls — cost if wrong: an extra user tap to start/end, already consistent with the plan's navigation requirement.
