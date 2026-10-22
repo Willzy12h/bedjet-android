@@ -164,3 +164,74 @@ Final output, `task4-verified-gate.log`: **BUILD SUCCESSFUL in 1m42s**, 59 actio
 The final suite also includes deterministic `endAlarmQueuedBehindExtendCannotExpireItsNewRevision`: hold the owner, enqueue Extend then old end, release, verify the new revision survives, then expire exactly at the manual end with no BLE calls. This supplements the earlier stale-finish/manual-boundary RED/GREEN cases. UI busy cleanup now clears in finally when service cancellation propagates. Final added service regressions prove cancellation before delivery removes the token and deferred pin refuses target changes under coordinator ownership.
 
 No known blocking test/build/lint failures remain. Physical BedJet, actual phone background policy/Doze, notification permission UX and two-phone hand-over remain hardware-pending. Full report contains frozen Task5/6 contracts and the service default route; do not use a bare UI graph.scope call as foreground-service ownership.
+
+## Independent review fix round 1 (base dd0c365)
+
+Read the five Important findings verbatim in task-4-fix-1.md and full task-4-review.md; applied the receiving-code-review workflow. No reset, no subagents, no push. All five findings were confirmed against current control flow and fixed in this round. Root will run the integrated full gate; this round uses precise RED/GREEN cases followed by the five requested covering suites.
+
+### Fixes and contracts
+
+1. **Interrupted Boost:** SlotWrite now durably includes `startRequested: Boolean = false` and `displaced: NightIdentity? = null`, before hardware mutation. The writer populates both for Boost. A restart with a matching displaced active identity marks that night UNKNOWN whether the slot journal was PENDING or CONFIRMED; neither readback completion nor start acceptance is mistaken for completion of the local displacement. Both queueRetimeLocked and retryRetimeLocked independently reject an unfinished replacement. The stored programme/previous identity remains reviewable; there is no automatic upload replay. Two restart regressions seed both crash windows with a pending alarm observation and assert zero hardware writes, UNKNOWN and no remaining automatic retime.
+
+2. **Bounded wake/end delivery:** RuntimeState adds `localDeliveries: List<LocalDelivery> = emptyList()`; each received signal has its own ID, action, exact night/revision and receipt timestamp. `submitLocalDelivery(action, expected)` performs bounded durable submission through the existing Repository writer without waiting for the hardware mutex. It coalesces at most the two action kinds, rechecks identity inside the serial write transform, and prearms/rearms a separate `ACTION_LOCAL_RETRY` alarm. `drainLocalDeliveries()` uses tryLock, never waits in the receiver and never acquires BLE. The current whole-operation owner's finally drains under its existing mutex; a one-minute best-effort local retry and startup reconciliation cover process loss/other local owners. Clearing is by consumed delivery ID, preserving newer signals. Wake/end implementation is split into locked helpers so there is no nested mutex.
+
+   This is a received-delivery journal, not startup replay: reconciliation never creates a historical wake signal. An actually received delayed wake is delivered once only while that same confirmed nonmanual revision remains in its live wake/end interval. A delayed wake after the end or after a revision change is discarded locally. A received end still performs only identity-bound local expiry. Owner cleanup uses a bounded 8-second NonCancellable drain; failure retains/rearms the local signal. The receiver itself retains its 8.5-second total budget. Storage failure is still a bounded failure path, not a guarantee of durability when the disk cannot save.
+
+   Actual BroadcastReceiver tests hold ownership, wait for durable submission, advance Robolectric's looper by10 seconds (beyond the broadcast budget), then release. They prove wake/end delivery, one wake notice, no hardware writes or additional connection acquisitions. A further actual-receiver test changes the revision before release and proves the old delivery is discarded. The initial GREEN attempt advanced virtual timeout before the disk submission could complete; corrected the fixture to observe durable submission first, isolating the intended long mutex wait rather than simulating slow storage.
+
+3. **Equal-time override reset:** `setWakeOverride(null)` resolves fallback attribution using the original night start and AlarmPolicy. When the instant is unchanged it returns LOCAL, preserves the applied programme/wake instant, clears tonightOverride and updates wakeOrigin/wakeFromAlarm. A narrow `wakeSourceChange` journal makes the settings/active-file transition restart-completable under the same coordinator; reconcile finishes it only for its captured identity. No BLE is acquired for this case. Changed-time resets retain the prepared transaction route, now carrying alarm creator attribution. The regression resets an override equal to the alarm, then changes that alarm and proves normal retime follows it.
+
+4. **Truthful quiet status:** all coordinator active-night publications now go through a helper that reconciles the quiet notification after persistence. UNKNOWN, FAILED, PENDING, no active night and manual tracking cancel it. Prepared operations, failed manual commands, physical/other-phone takeover, take-back, snooze and Keep tracking all use that helper. Owned settings updates refresh it immediately; Graph observes Repository.settingsPublication together with active-night state so a restored/imported setting outside the command path refreshes it as well; the monotonic publication signal cannot disappear when the Settings value returns to its prior value. NotificationManager-shadow tests cover takeover, failure, manual tracking, take-back, snooze, off/on setting changes and a direct restored-setting path.
+
+5. **Replacement Resume notification:** successful programme replacement with a valid offer now posts the Resume notification. Its action and body open ShortcutActivity's real confirmation dialog via an immutable activity PendingIntent, capturing the current night/revision/target when posted. New helper `ShortcutActivity.confirmationIntent(context, request)` carries that identity into the dialog; external extras still cannot waive confirmation. Only the positive callback sets replacementConfirmed and retains the captured request. Cancellation executes nothing. If the night changes even before the notification dialog opens, acceptance delivers the old strict identity and returns STALE. The notification test covers Start-over-Start, an actual cancel, then changed-revision-before-open acceptance and stale service rejection. Task5 may use its own richer presentation but must preserve this exact confirmation discipline.
+
+Existing public command/service/job APIs are unchanged. New runtime fields are defaulted for old JSON. New receiver APIs are local-only; Task5/6 should not use them as hardware command routes. No manifest change in this fix round. R35's removed core Boost test citation was mechanically replaced with RuntimeOwnershipTest.manualLimitsAndBoostUseOwnedRuntimeAndPreserveOriginal, retaining its planning tests.
+
+### Commands and RED/GREEN evidence
+
+Every run used this worktree and the lead's serialized wrapper, invoked with bash because the supplied script lacks executable permission:
+
+```sh
+bash /workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/run-gradle.sh \
+  :app:testDebugUnitTest --tests '<specified case or suite>' --offline
+```
+
+Approved elevated sockets, JDK17, 2GiB Gradle heap, max-workers2 and shared flock were supplied by that wrapper. No cache deletion or daemon stop. The initial direct invocation returned exit126 before Gradle; bash invocation resolved it without changing file permissions.
+
+- `task4-fix1-red-boost.log`: two Boost restart failures.
+- `task4-fix1-boost-green-receiver-red.log`: four tests, two Boost cases passed, two actual receiver cases failed.
+- `task4-fix1-green-receiver.log`: initial fixture timing failed both receivers because virtual timeout preceded disk completion; no success claimed.
+- `task4-fix1-receiver-green-state-red.log`: six tests, receivers passed; equal override, two quiet tests and replacement notification failed (four expected failures).
+- `task4-fix1-green-override.log`: equal override reset/follow-alarm case passed.
+- `task4-fix1-green-quiet.log`: three quiet transition tests passed.
+- `task4-fix1-green-resume.log`: replacement notification/confirmation case passed.
+- `task4-fix1-red-restored-setting.log`: restored-setting observer case failed before the settings observer was added.
+- `task4-fix1-focused-green.log`:66 tests,65 passed, one restored-setting test failed. The initial scheduling hypothesis was insufficient: both Thread.yield and coroutine yield still failed. Debugging confirmed active observer jobs and persisted quiet=false. The boolean-only map/distinct observer could suppress the final false after conflation, while synchronous active publication had displayed the notification. The fix observes combined settings and active-night state and refreshes using current persisted values. The same assertNull remains; the test allows coroutine/looper work without real-time sleep or changing Graph.clock.
+
+Final focused output/counts and fix commit are appended after verification. Baseline Gradle deprecations and test-shadow API deprecations remain reported; no warning-free or hardware-verification claim. Root retains the full build/lint/integrated gate.
+
+### Corrected notification observer diagnosis
+
+The combined66-test failure was investigated rather than treating an extra wait as a fix. `task4-fix1-green-restored-setting.log` and `task4-fix1-green-restored-setting-yield.log` both still failed. Temporary test diagnostics (`task4-fix1-debug-observer.log` / XML) showed active scope children and quiet=false; removed those prints afterwards. Boolean-only `map { quietNightNotification }.distinctUntilChanged()` omitted a necessary refresh when transitions were conflated and the active-night path had posted a notification synchronously. Graph now combines persisted Settings and ActiveNight events and refreshes from their current values without the lossy boolean filter. `task4-fix1-green-observer.log`: one test passed, BUILD SUCCESSFUL in19s. The eventual assertNull is unchanged; coroutine yield only permits asynchronous collector work, and the preceding failed yield run proves synchronisation alone did not hide the defect. The final corrected combined run is task4-fix1-focused-verified.log.
+
+### Stable-night settings conflation follow-up (lead review)
+
+The lead correctly identified that observing whole Settings plus ActiveNight still permits StateFlow to conflate false→true→false when the final Settings equals the last delivered value and the active night is unchanged. Added `quietNotificationRefreshSurvivesSameSettingsRoundTripWithStableNight`: let the observer consume quiet=false for an existing confirmed night, synchronously enable quiet and assert a visible notification, restore the exact prior Settings without pumping the observer between writes, then verify the same active night and assert the notification is absent. `task4-fix1-red-stable-settings.log` failed that assertion with the intermediate combine-only implementation.
+
+The final causal fix is a narrow `Repository.settingsPublication: StateFlow<Long>` (internal, process-local, not persisted), incremented by the existing serial writer only after successful Settings publication, including restore. It creates no new writer/store or command lock. Graph combines that monotonic publication revision with active-night state and always reads current settings/night when refreshing. A same-value settings restore now necessarily changes the revision even if Settings StateFlow suppresses the value emission. The notification assertion and stable-night assertion remain unchanged; observer pumping is only to deliver asynchronous work. This supersedes the intermediate boolean-filter/whole-settings solution. The original66-test corrected run passed before this additional case; the final67-test covering run includes the stronger scenario.
+
+### Fix round 1 final verification
+
+Fix commit: `5cdb4a0` (`fix(runtime): close reviewed recovery and delivery gaps`), parent dd0c365, truthful Implemented-By: GPT-6 Astra. No push; worktree clean. All five Important review findings addressed; R35 citation corrected. Existing public UI/job/service contracts preserved, with additive local-delivery and confirmation-intent helpers documented above.
+
+`task4-fix1-green-settings-publication.log`: both settings-notification regressions passed, BUILD SUCCESSFUL in22s. Final combined command:
+
+```sh
+bash /workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/run-gradle.sh \
+  :app:testDebugUnitTest \
+  --tests '*RuntimeOwnershipTest' --tests '*RuntimeServiceTest' \
+  --tests '*RuntimeDeliveryTest' --tests '*RuntimeRegressionTest' \
+  --tests '*NightActionsTest' --offline
+```
+
+`task4-fix1-final-focused.log`: **BUILD SUCCESSFUL in1m40s**, exit0,30 actionable tasks:1 executed,29 up-to-date. Fresh XML totals: **67 tests,67 passed,0 failures,0 errors,0 skipped**. Breakdown: RuntimeOwnershipTest30, RuntimeServiceTest9, RuntimeDeliveryTest14, RuntimeRegressionTest5, NightActionsTest9. `git diff --check` clean before commit. Main and test compilation passed through these runs. Full core/app/build/lint integration gate is intentionally left to root after review, as instructed; no renewed full-gate or hardware claim. Existing Gradle9 deprecation notice and shadow-API compiler deprecations remain disclosed. No known remaining failure in the reviewed scope.
