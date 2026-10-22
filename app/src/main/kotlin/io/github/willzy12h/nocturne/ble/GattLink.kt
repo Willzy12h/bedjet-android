@@ -40,7 +40,8 @@ class GattLink(
     private val timings: Timings = Timings(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
-    private val onName: (String) -> Unit = {},
+    private val onName: (String, String) -> Unit = { _, _ -> },
+    private val onVerifiedName: (String, String?) -> Unit = { _, _ -> },
 ) : BedJetLink {
     data class Timings(
         val operationMs: Long = 5_000,
@@ -79,7 +80,7 @@ class GattLink(
             for (attempt in 0..timings.retryBackoffMs.size) {
                 if (attempt > 0) delay(timings.retryBackoffMs[attempt - 1])
                 if (!wanted) break
-                if (attach(address)) return
+                if (attach(address, readVerifiedName = attempt == 0)) return
             }
             _state.value = LinkState.SEARCHING
             throw BedJetError.NotConnected()
@@ -173,10 +174,12 @@ class GattLink(
      * One connection attempt. True once the unit is ready. On false, a throw or cancellation the session is retired,
      * so nothing is left open.
      */
-    private suspend fun attach(address: String): Boolean {
+    private suspend fun attach(address: String, readVerifiedName: Boolean): Boolean {
         current?.let(::retire)
         val session = Session(address)
         current = session
+        // A new session invalidates old interop metadata, including after a name-read timeout.
+        onVerifiedName(DeviceId.ble(address), null)
         _status.value = null
         _state.value = LinkState.CONNECTING
         var attached = false
@@ -188,9 +191,21 @@ class GattLink(
             session.ready = true
             _state.value = LinkState.READY
             try {
-                onName(Codec.parseText(operations.withLock { ask(session, Codec.Query.DEVICE_NAME) }))
+                operations.withLock {
+                    val name = Codec.parseText(ask(session, Codec.Query.DEVICE_NAME))
+                    if (current === session && wanted && session.ready) onName(DeviceId.ble(session.address), name)
+                }
+                // Optional Lull identity comes from characteristic 2001, never the display query.
+                // An in-flight timeout still retires this session. Only this connect call's later retry
+                // skips metadata, allowing ordinary control on a fresh session with interop unknown.
+                if (readVerifiedName && session.port().has(Attr.NAME)) operations.withLock {
+                    val name = Codec.parseText(exchange(session, Kind.READ, Attr.NAME) { it.read(Attr.NAME) })
+                    if (current === session && wanted && session.ready)
+                        onVerifiedName(DeviceId.ble(session.address), name.takeIf { it.isNotEmpty() })
+                }
             } catch (e: BedJetError) {
-                // The name is only for display; the connection is still good.
+                // Metadata is optional, but exchange failures still retire the session.
+                // The current-session check below decides whether this attempt remains usable.
             }
             withTimeoutOrNull(timings.firstStatusMs) { status.first { it != null } }
             // The name query can time out, the unit can drop or disconnect() can land meanwhile, each retiring

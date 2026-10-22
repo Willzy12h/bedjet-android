@@ -67,12 +67,12 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 |---|---|---|---|---|---|---|
 | U01 | Quick actions stay reachable while the snackbar shows | brief | W4 | open | | |
 | U02 | "Use tonight" is temporary; add "Follow schedule" | brief | W4 + W3 | in progress: temporary choice migration/resolution auto-verified; Follow schedule UI pending | `feat(core): snapshot and transact active nights` | WakePolicyHardeningTest.temporary choice expires to schedule and follow schedule clears it; legacy selection migrates to an expiring choice when resolved |
-| U03 | Widgets resolve dynamic profiles at tap time; fixed or deleted profiles handled clearly | brief | W5 | open | | |
+| U03 | Widgets resolve dynamic profiles at tap time; fixed or deleted profiles handled clearly | brief | W5 | auto-verified; device acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | WidgetPolicyTest; PlatformDeliveryTest; PlatformActivityTest |
 | U04 | Unsaved editor drafts and navigation survive recreation | brief | W4 | open | | |
 | U05 | TalkBack semantics for switches, sliders and the chart (names, units, text alternatives) | brief; 2R m#11 | W4 | open | | |
 | U06 | Contrast, touch targets, narrow layouts, large text | brief | W4 | open | | |
 | U07 | Observations scoped correctly (no leaked collectors); queued and running commands shown | brief; 2R m#7 | W4 | open | | |
-| U08 | Show widget/shortcut/update outcomes where they were started; no duplicate feedback | brief; 2R m#8 | W4 + W5 | open | | |
+| U08 | Show widget/shortcut/update outcomes where they were started; no duplicate feedback | brief; 2R m#8 | W4 + W5 | widget origin auto-verified; Task 5 UI adoption pending | `feat(platform): add guarded bedtime and phone integrations` | PlatformActivityTest; OriginFeedbackTest; RuntimeServiceTest |
 | U09 | History records BedJet notices, Remote failures, applied revisions, takeover and recovery | brief | W3 + W4 | in progress: runtime auto-verified; Task 5/6 presentation pending | `feat(runtime): own durable night commands and recovery` | RuntimeOwnershipTest.normalProgressionIsNotTakeoverButFreshManualStatusIsUnknown; snoozeStoresTheAcceptedManualProgrammeInsteadOfTheOldNightCurve; diagnosticsExcludeTokenButIncludeBoundedEventsAndLink |
 | U10 | Show next-night edits, and pending versus confirmed wake changes | brief | W4 | open | | |
 | U11 | Strings moved to resources (UK English), plurals, units, a11y text | brief / F14 | W4 | open | | |
@@ -83,16 +83,16 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 |---|---|---|---|---|---|---|
 | F01 | Tonight-only wake override (phone alarm untouched; precedence override > alarm > default; reset; survives restart; expires) | W3 + W4 | in progress: runtime auto-verified; Task 5/6 presentation pending | `feat(runtime): own durable night commands and recovery` | RuntimeOwnershipTest.reapplyHonoursNewTonightOverrideAndFinishClearsIt; RuntimeDeliveryTest.clearingEqualTimeOverrideFollowsSubsequentAlarmChange | |
 | F02 | Resume the rest of the night after stop/replace (short-lived; no Turbo replay; never overrides a newer action) | W3 + W4 | in progress: runtime auto-verified; Task 5/6 presentation pending | `feat(runtime): own durable night commands and recovery` | RuntimeOwnershipTest.stopTrackingIsLocalAndResumeRestoresRemainingNight; newerCommandInvalidatesResumeOfferAcrossReload; interruptedLocalFinishKeepsDurableResumeOfferAndReconcilesWithoutHardware; RuntimeDeliveryTest.programmeReplacementPostsResumeActionLeadingToRealConfirmation | |
-| F03 | Bedtime reminders (opt-in, no duplicates, permission handling, opens the start preview) | W5 | open | | | |
-| F04 | Charger auto-start (opt-in, off by default, bedtime window, chosen BedJet, minimum night, once per night, suppressed when unsafe, easy to cancel) | W5 | open | | | supervised |
+| F03 | Bedtime reminders (opt-in, no duplicates, permission handling, opens the start preview) | W5 | auto-verified; Task 5 placement and device acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | PlatformPolicyTest; PlatformDeliveryTest; PlatformManifestTest | |
+| F04 | Charger auto-start (opt-in, off by default, bedtime window, chosen BedJet, minimum night, once per night, suppressed when unsafe, easy to cancel) | W5 | auto-verified; Task 5 placement and supervised acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | ChargerRunTest; PlatformPolicyTest; PlatformRestoreTest; PlatformAdapterTest | supervised |
 | F05 | Scheduled theme (time-based, overnight ranges, time zone/DST, equal start/end defined; widgets follow) | W4 | open | | | |
-| F06 | Quick Settings tile | W5 | open | | | |
-| F07 | Richer widget (name, confirmed next wake, current/last-known mode with freshness) | W5 | open | | | |
+| F06 | Quick Settings tile | W5 | auto-verified; Task 5 Tonight navigation integration pending | `feat(platform): add guarded bedtime and phone integrations` | PlatformDeliveryTest; PlatformAdapterTest; PlatformManifestTest | |
+| F07 | Richer widget (name, confirmed next wake, current/last-known mode with freshness) | W5 | auto-verified; device acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | WidgetFreshnessTest; DeviceNamesTest; GattVerifiedNameTest | |
 | F08 | First-run setup (permissions, Samsung guidance, explicit BedJet choice, separate demo, supervised check, re-check on return) | W4 + W1 | open | | | supervised |
 | F09 | Morning check-in with validated suggestions the user accepts | W4 + W3 | open | | | |
-| F10 | Health Connect sleep overlay (optional, minimum permissions, absence/revocation handled) | W5 | open | | | |
-| F11 | History CSV export (units, time zones, escaping, privacy) | W5 | open | | | |
-| F12 | Phone hand-over: explicit release, suspended auto-reconnect, reconcile on return; Lull-compatible request where supported | W5 + W1 | open | | | both directions |
+| F10 | Health Connect sleep overlay (optional, minimum permissions, absence/revocation handled) | W5 | auto-verified; Task 5 placement and provider acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | PlatformDataTest; FeatureUiTest; HealthTrustBoundaryTest; PlatformManifestTest | |
+| F11 | History CSV export (units, time zones, escaping, privacy) | W5 | auto-verified; Task 5 placement and SAF device acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | PlatformDataTest; FeatureUiTest | |
+| F12 | Phone hand-over: explicit release, suspended auto-reconnect, reconcile on return; Lull-compatible request where supported | W5 + W1 | auto-verified; Task 5 idle overflow placement and two-phone acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | PlatformPolicyTest; PlatformDeliveryTest; GattVerifiedNameTest; FeatureUiTest | both directions |
 | F13 | Haptics (restrained, respects system settings, accepted versus confirmed) | W4 | open | | | |
 | F14 | Translation readiness (= U11) | W4 | open | | | |
 | F15 | Second-slot profile pinning (explicit slot, preview, backup, readback/restore, active-programme protection) | W3 + W4 | in progress: runtime auto-verified; Task 5/6 presentation pending | `feat(runtime): own durable night commands and recovery` | RuntimeOwnershipTest.pinRefusesWorkingSlotAndRecordsOriginalBeforeWritingOtherSlot; pinAndBoostAbortWhenOriginalBackupFails; restoreRefusesTrackedNightEvenWhenFreshDeviceHasStopped | readback |

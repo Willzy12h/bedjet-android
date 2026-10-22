@@ -45,7 +45,7 @@ class SingleActionConfigActivity : ComponentActivity() {
                         Modifier.systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("What should this button do?", style = MaterialTheme.typography.titleLarge)
+                        Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.feature_widget_config), style = MaterialTheme.typography.titleLarge)
                         actions.forEach { action ->
                             FilledTonalButton(onClick = { choose(widgetId, action) }, modifier = Modifier.fillMaxWidth()) { Text(action.label) }
                         }

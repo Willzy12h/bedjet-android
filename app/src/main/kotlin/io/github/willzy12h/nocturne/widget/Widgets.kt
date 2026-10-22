@@ -19,7 +19,7 @@ import androidx.glance.LocalSize
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.action.actionStartService
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.provideContent
@@ -36,8 +36,10 @@ import androidx.glance.material3.ColorProviders as materialColors
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import io.github.willzy12h.nocturne.core.store.Settings
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.service.BedJetService
 import io.github.willzy12h.nocturne.ui.DaylightScheme
@@ -48,22 +50,21 @@ data class WidgetAction(val label: String, val command: Command, val profileId: 
 
 fun widgetActions(context: Context): List<WidgetAction> {
     val repo = context.graph.repository
-    val tonight = repo.tonightsProfile()
     val fixed = listOf(
-        WidgetAction("Start ${tonight?.name ?: "tonight"}", Command.START_NIGHT, tonight?.id),
-        WidgetAction("Boost", Command.BOOST),
-        WidgetAction("Turbo", Command.TURBO),
-        WidgetAction("Cool", Command.COOL),
-        WidgetAction("Warm", Command.WARM),
-        WidgetAction("Off", Command.OFF),
+        WidgetAction(context.getString(io.github.willzy12h.nocturne.R.string.feature_start_tonight), Command.START_NIGHT),
+        WidgetAction(context.getString(R.string.feature_boost), Command.BOOST),
+        WidgetAction(context.getString(R.string.feature_turbo), Command.TURBO),
+        WidgetAction(context.getString(R.string.feature_cool), Command.COOL),
+        WidgetAction(context.getString(R.string.feature_warm), Command.WARM),
+        WidgetAction(context.getString(R.string.feature_off), Command.OFF),
     )
-    val profiles = repo.profiles.value.filter { it.id != tonight?.id }.map { WidgetAction("Start ${it.name}", Command.START_NIGHT, it.id) }
+    val profiles = repo.profiles.value.map { WidgetAction(context.getString(R.string.feature_start_profile,it.name), Command.START_NIGHT, it.id) }
     return fixed + profiles
 }
 
 /** Same rule as the app's Settings screen: the demo unit's name, else the paired BedJet's, else a plain "BedJet". */
 fun widgetBedJetName(context: Context, settings: Settings): String =
-    if (settings.demoMode) "BEDJET-DEMO" else context.graph.bleLink.deviceName ?: "BedJet"
+    if (settings.demoMode) "BEDJET-DEMO" else settings.deviceId()?.let {context.graph.bleLink.deviceNameFor(it)} ?: "BedJet"
 
 /** The app's palettes, so widgets match it: Midnight Ink in dark, Daylight in light, following the theme setting. */
 fun widgetColors(settings: Settings, at: java.time.ZonedDateTime): ColorProviders =
@@ -79,7 +80,7 @@ private fun Caption(text: String, modifier: GlanceModifier = GlanceModifier) {
 private fun ActionButton(context: Context, action: WidgetAction, modifier: GlanceModifier = GlanceModifier) {
     Button(
         text = action.label,
-        onClick = actionStartService(BedJetService.intent(context, action.command, action.profileId), isForegroundService = true),
+        onClick = actionStartActivity(io.github.willzy12h.nocturne.platform.PlatformActionActivity.intent(context, widgetRequest(context, action))),
         modifier = modifier,
         colors = if (action.command == Command.OFF) ButtonDefaults.buttonColors(
             backgroundColor = GlanceTheme.colors.secondaryContainer, contentColor = GlanceTheme.colors.onSecondaryContainer,
@@ -101,6 +102,8 @@ class QuickControlsWidget : GlanceAppWidget() {
         provideContent {
             // Read as state so a running widget session redraws when these change; WidgetUpdater covers the rest.
             val settings by repo.settings.collectAsState()
+            val active by repo.activeNight.collectAsState()
+            val observed by repo.automation.collectAsState()
             val profiles by repo.profiles.collectAsState()
             GlanceTheme(colors = widgetColors(settings, context.graph.now())) {
                 val actions = remember(settings, profiles) { widgetActions(context) }
@@ -108,7 +111,11 @@ class QuickControlsWidget : GlanceAppWidget() {
                 val columns = when { size.width >= 250.dp -> 3; size.width >= 130.dp -> 2; else -> 1 }
                 val rows = when { size.height >= 220.dp -> 0; size.height >= 130.dp -> 2; else -> 1 }
                 Column(GlanceModifier.fillMaxSize().background(GlanceTheme.colors.background).cornerRadius(16.dp).padding(6.dp)) {
-                    if (rows != 1) Caption(widgetBedJetName(context, settings), GlanceModifier.padding(start = 6.dp, bottom = 2.dp))
+                    if (rows != 1) {
+                        Caption(widgetBedJetName(context, settings), GlanceModifier.padding(start = 6.dp, bottom = 2.dp))
+                        Caption(widgetWake(context, active))
+                        Caption(widgetMode(context, observed.observed))
+                    }
                     if (rows == 0) {
                         LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) {
                             items(actions.size) { i -> ActionButton(context, actions[i], GlanceModifier.fillMaxWidth().padding(vertical = 2.dp)) }
@@ -140,10 +147,12 @@ class SingleActionWidget : GlanceAppWidget() {
         val repo = context.graph.repository
         provideContent {
             val settings by repo.settings.collectAsState()
+            val active by repo.activeNight.collectAsState()
+            val observed by repo.automation.collectAsState()
             GlanceTheme(colors = widgetColors(settings, context.graph.now())) {
                 val prefs = currentState<Preferences>()
                 val command = prefs[KEY_COMMAND]?.let { runCatching { Command.valueOf(it) }.getOrNull() } ?: Command.START_NIGHT
-                val label = prefs[KEY_LABEL] ?: "Start tonight"
+                val label = prefs[KEY_LABEL] ?: context.getString(R.string.feature_start_tonight)
                 val name = widgetBedJetName(context, settings)
                 val roomy = LocalSize.current.height >= 100.dp
                 Column(
@@ -151,9 +160,10 @@ class SingleActionWidget : GlanceAppWidget() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val action = WidgetAction(if (roomy) label else "$label · $name", command, prefs[KEY_PROFILE])
+                    val configured = configuredWidgetAction(context, command, label, prefs[KEY_PROFILE])
+                    val action = configured.copy(label = if (roomy) configured.label else "${configured.label} · $name")
                     ActionButton(context, action, GlanceModifier.fillMaxWidth().defaultWeight())
-                    if (roomy) Caption(name, GlanceModifier.padding(top = 2.dp))
+                    if (roomy) { Caption(name, GlanceModifier.padding(top = 2.dp)); Caption(widgetWake(context,active)); Caption(widgetMode(context,observed.observed)) }
                 }
             }
         }

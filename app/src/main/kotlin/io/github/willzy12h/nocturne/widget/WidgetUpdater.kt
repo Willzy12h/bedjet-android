@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -23,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 object WidgetUpdater {
     private val started = AtomicBoolean(false)
 
-    private data class Shown(val profiles: List<Profile>, val settings: Settings, val name: String)
+    private data class Shown(val profiles: List<Profile>, val settings: Settings, val name: String, val runtime: Any?, val minute: Long, val dark: Boolean)
 
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
     fun start(context: Context) {
@@ -32,8 +34,12 @@ object WidgetUpdater {
         val graph = app.graph
         val repo = graph.repository
         val linkState = repo.settings.map { graph.link }.distinctUntilChanged().flatMapLatest { it.state }
+        val time = flow { while (true) { emit(graph.now()); delay(60_000) } }
+        val shownState = combine(repo.activeNight, repo.automation, repo.runtime, time) { active, observation, runtime, at ->
+            Triple(Triple(active,observation,runtime),at.toEpochSecond()/60,at)
+        }
         graph.scope.launch {
-            combine(repo.profiles, repo.settings, linkState) { profiles, settings, _ -> Shown(profiles, settings, widgetBedJetName(app, settings)) }
+            combine(repo.profiles, repo.settings, linkState, shownState) { profiles, settings, _, shown -> Shown(profiles, settings, widgetBedJetName(app, settings), shown.first, shown.second, settings.isDarkTheme(shown.third,false)) }
                 .distinctUntilChanged()
                 // A slider drag writes settings many times a second; widgets only need the result.
                 .debounce(500)

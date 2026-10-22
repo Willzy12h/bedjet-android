@@ -33,7 +33,7 @@ class BedJetService : Service() {
             startForeground(Notifications.WORKING_ID, Notifications.working(this), type)
         } catch (e: RuntimeException) {
             handoff?.result?.completeExceptionally(e)
-            failure(this, e); if (pending == 0) stopSelf(startId); return START_NOT_STICKY
+            failure(this, e, handoff?.notifyFailures ?: true); if (pending == 0) stopSelf(startId); return START_NOT_STICKY
         }
         pending++
         val operation = scope.launch {
@@ -51,9 +51,9 @@ class BedJetService : Service() {
                 if (!result.succeeded) Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
             } catch (e: CancellationException) {
                 handoff?.result?.cancel(e)
-                if (e is TimeoutCancellationException) failure(this@BedJetService, e)
+                if (e is TimeoutCancellationException) failure(this@BedJetService, e, handoff?.notifyFailures ?: true)
                 throw e
-            } catch (e: Exception) { handoff?.result?.completeExceptionally(e); failure(this@BedJetService, e)
+            } catch (e: Exception) { handoff?.result?.completeExceptionally(e); failure(this@BedJetService, e, handoff?.notifyFailures ?: true)
             } finally { pending--; if (pending == 0) stopSelf() }
         }
         handoff?.operation = operation
@@ -66,29 +66,33 @@ class BedJetService : Service() {
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
     companion object {
         private const val EXTRA_HANDOFF = "ownedUiOperation"
-        private class Handoff(val target: String?, val work: suspend () -> Any?) {
+        private class Handoff(val target: String?, val notifyFailures: Boolean, val work: suspend () -> Any?) {
             val result = CompletableDeferred<Any?>()
             @Volatile var operation: Job? = null
         }
         private val handoffs = java.util.concurrent.ConcurrentHashMap<String, Handoff>()
         /** In-process UI delivery only: no persistent closures or replay. Job/local callers stay separate.
          * Capture confirmed request identity before entering; the target is captured here before suspension
-         * and enforced by NightActions under its mutex, even for deferred pin/restore/setup calls. */
+         * and enforced by NightActions under its mutex, even for deferred pin/restore/setup calls.
+         * An origin that displays exceptions AND operation timeouts may disable duplicate error notifications;
+         * exception delivery, lastResult and ownership/cancellation are unchanged. */
         @Suppress("UNCHECKED_CAST")
-        suspend fun <T> runOwned(context: Context, work: suspend () -> T): T {
+        suspend fun <T> runOwned(context: Context, notifyFailures: Boolean = true, work: suspend () -> T): T {
             val submitted = currentCoroutineContext()[SubmissionTarget]
             val target = if (submitted != null) submitted.deviceId else context.graph.repository.settings.value.deviceId()
             if (context.graph.repository.settings.value.demoMode)
                 return withContext(SubmissionTarget(target)) { withTimeout(NightActions.OPERATION_MS) { work() } }
             val id = java.util.UUID.randomUUID().toString()
-            val handoff = Handoff(target, work)
+            val handoff = Handoff(target, notifyFailures, work)
             handoffs[id] = handoff
             try {
                 if (!permitted(context, NightActions.Command.START_NIGHT)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
                 context.startForegroundService(Intent(context, BedJetService::class.java).putExtra(EXTRA_HANDOFF, id))
                 return withTimeout(NightActions.OPERATION_MS) { handoff.result.await() } as T
-            } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { failure(context, e); throw e
+            } catch (e: CancellationException) {
+                if (e is TimeoutCancellationException) failure(context, e, notifyFailures)
+                throw e
+            } catch (e: Exception) { failure(context, e, notifyFailures); throw e
             } finally {
                 handoffs.remove(id)
                 handoff.result.cancel()
@@ -128,9 +132,9 @@ class BedJetService : Service() {
         private fun permitted(context: Context, command: NightActions.Command) =
             context.graph.repository.settings.value.demoMode || command == NightActions.Command.STOP_TRACKING ||
                 context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-        private fun failure(context: Context, e: Exception) {
+        private fun failure(context: Context, e: Exception, notifyFailures: Boolean = true) {
             lastResult = e.message ?: context.getString(R.string.runtime_failed)
-            Notifications.showError(context, context.getString(R.string.runtime_failed), lastResult.orEmpty())
+            if (notifyFailures) Notifications.showError(context, context.getString(R.string.runtime_failed), lastResult.orEmpty())
         }
         fun pendingIntent(context: Context, command: NightActions.Command, profileId: String? = null): PendingIntent {
             val captured = intent(context, command, profileId, requireIdentity = true)
