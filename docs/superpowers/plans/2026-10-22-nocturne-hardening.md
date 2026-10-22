@@ -370,6 +370,8 @@
 - Feature persistence contract for Tasks 5/6: Task 5 owns scheduled-theme/setup/check-in additions and Task 6 owns a new serialisable `PlatformSettings` (nested `Settings.platform` with defaults) in a separate core/store file. Both may minimally add their own Settings fields; lead resolves that one shared-file merge. Task 6 may persist its small durable automation journal through narrow Repository APIs; it must not invent a second command lock or bypass NightActions.
 
 - New runtime notification and command-outcome copy belongs in `res/values/strings_runtime.xml` (Task4 ownership extension), using UK English. Task5 moves remaining screen copy. Keep typed outcomes/confirmation separate from rendered text so haptics and status do not infer success by parsing an English sentence.
+- Freeze a pure shared theme resolver `Settings.isDarkTheme(at: ZonedDateTime, systemDark: Boolean): Boolean` for current System/Dark/Light behaviour, with a small behaviour test. Task5 will extend it for Scheduled and Task6 widgets consume it, so parallel branches need not duplicate or exhaustively switch the enum. This tiny shared-contract addition does not implement Task5 early.
+- Carried from Task3 independent review: `pendingNight` retains last applied/snapshot state, and PendingChange currently carries request metadata, not the full intended replacement/Reapply programme. Persist enough intended snapshot/applied steps to recover/reconcile after process death; never reconstruct a pending edited programme from a newly edited live profile. Minimal serialisable pending-state additions in core/night/ActiveNight.kt or NightChanges.kt are authorised for this runtime integration. Do not assume an in-memory PreparedChange survives restart, or automatically replay an uncertain partial upload.
 
 ### Task 5: UI, accessibility and in-app features, in the existing design (W4)
 
@@ -435,6 +437,7 @@
 - Morning check-in can use a typed history event linked to the completed record; minimal History/Repository support is permitted where needed. Reuse durable persistence, and keep user-approved suggestions separate from applying them to a running night.
 - Task4 supplies coordinator APIs for target/demo/forget/setup fan check, pin/restore, release/take-back and running/queued command status. Do not call hardware controllers directly from new UI, and do not change frozen NightActions without asking lead.
 - ScreenshotCapture is in scope: pin `Graph.clock` to a suitable evening instant, make setup state/permissions explicit, capture the existing Dark/Light/Simple flows plus320dp and200%font variants. Label render evidence accurately as Robolectric; no physical-device claims. Root will run SCREENSHOT_TAG=after after integration.
+- Carried from Task3 review: a screen held open across the temporary choice's noon expiry must refresh to the scheduled profile; recomputing only after another settings edit is insufficient. Headline and curve must both consume NightPreview for current time and show a start refusal truthfully.
 
 ### Task 6: Platform features: widgets, tile, reminders, auto-start, Health Connect, CSV, hand-over (W5)
 
