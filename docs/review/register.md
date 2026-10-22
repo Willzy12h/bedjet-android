@@ -112,3 +112,7 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 ## Task 3 integration checkpoint
 
 Task 3 implementation plus one fix round passed independent scoped re-review and the full merged gate: **140 core passes; 85 app passes, four screenshot skips; debug assembly; zero lint errors, two warnings**. The new temporal regressions in `NightTemporalEligibilityTest` cover resume at/after wake, slow upload/readback and the final start-command guard after clock synchronisation. Whole-app durability/ownership and UI items marked pending above remain Task 4–6 work. No hardware verification.
+
+## Task 4 integration checkpoint
+
+Task 4 implementation `dd0c365` plus fix `5cdb4a0` passed independent scoped re-review (five Important findings addressed, zero open). Merge `46c8e54` is verified at documentation head `c685f06` in a fresh checkout: **138 core passes; 145 app passes, four screenshot skips; debug assembly; zero lint errors, two baseline warnings**. The full gate took 3 min 29 s. Evidence and host-output limitations: `docs/review/task-4-integration.md`. UI/platform presentation remains Tasks 5–6. No hardware verification.
