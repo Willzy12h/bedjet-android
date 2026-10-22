@@ -357,6 +357,18 @@
 - **From Task 2:** with no target chosen, no original is saved. Make sure a target is set before any slot write.
 - **From Task 2:** migrated "unknown" originals are adopted by the first real BedJet (`originalsFor`). Use `originalSlot()` for restore.
 
+
+## Lead integration rulings (22 October, Astra continuation)
+
+- Task 3 retains legacy runner mutators only for interim source compatibility. Migrate all production callers to its prepared/typed transaction APIs and current persisted identity. Remove unsafe adapters when no production callers remain; do not preserve unsafe paths merely for old tests. Persist the command generation needed by resume offers, and report the exact public API for Tasks 5/6.
+- Ownership extends to minimal `Repository.kt`, core `store/Settings.kt` and `store/History.kt` additions needed for durable resume offers/command generation, revisions, quiet notification settings and new event kinds. This is runtime integration of Task 2's durable writer, not a redo of storage. All writes use the existing durable serial writer; do not add a second generic persistence framework.
+- Task 6 charger automation will run as a native charging-constrained JobScheduler job. Provide a bounded, cancellable **job-owned** command route that does not start an FGS. The job caller owns lifecycle/cancellation; no detached coroutine or automatic FGS fallback. The normal receiver path still only records/schedules, and normal service ownership still protects service-triggered operations. Cancellation after a possibly accepted hardware mutation must remain UNKNOWN durably; never replay a partial upload blindly.
+- Provide a serialised safe hand-over API / whole-operation busy gate for Task 6. `LinkSessions.suspendAutoConnect` must not run after a stale idle check and disconnect halfway through the coordinator's multi-packet transaction. Manual release waits for the mutex; a peer request may decline while busy. Take-back resumes and reconciles status. A per-packet lock is insufficient.
+- Provide the minimal coordinator methods Task 5 needs for selecting/forgetting a target, changing demo mode and supervised setup fan check. Target changes/forgetting must not bypass command ownership. The supervised check reads status, changes only the fan by a small supported amount, restores it in a bounded `finally`, and refuses active/unknown/manual takeover situations; it must never start a night or mode silently.
+- Commands capture the selected target when queued; when ownership is acquired, either run against that same target or refuse if settings changed. Do not silently switch a physical link to a newly selected unit.
+- Keep a documented running-command label / queued count and outcome stream for Task 5; truthful device-confirmed versus accepted/local results must remain distinguishable.
+- Feature persistence contract for Tasks 5/6: Task 5 owns scheduled-theme/setup/check-in additions and Task 6 owns a new serialisable `PlatformSettings` (nested `Settings.platform` with defaults) in a separate core/store file. Both may minimally add their own Settings fields; lead resolves that one shared-file merge. Task 6 may persist its small durable automation journal through narrow Repository APIs; it must not invent a second command lock or bypass NightActions.
+
 ### Task 5: UI, accessibility and in-app features, in the existing design (W4)
 
 **Register IDs:** U01, U02 (UI), U04–U07, U08 (in-app), U09 (display), U10, U11/F14, F05, F08, F09, F13, and the UI for F01, F02, F15 and F16.
@@ -414,6 +426,14 @@
 - **From Task 1 review:** "Forget this BedJet" must clear `Settings.targetDevice` (and the legacy address via `bleLink.forget()`), then send the person to BedJet selection. Truthful message: "Forgot this BedJet. Choose a BedJet to connect to."
 - **From Task 2:** surface `Repository.unreadable` with a calm banner ("Some saved data couldn't be read — restore from a snapshot or dismiss") with Restore and Dismiss (`dismissUnreadable()`).
 
+
+## Lead ownership rulings (22 October, Astra continuation)
+
+- Minimal core/store/Settings.kt additions and pure scheduled-theme helpers/tests are owned by Task5; Task6 owns a separate PlatformSettings file plus one defaulted Settings.platform insertion. Lead resolves this shared-file merge. Do not modify Task6 feature fields/composables/strings.
+- Morning check-in can use a typed history event linked to the completed record; minimal History/Repository support is permitted where needed. Reuse durable persistence, and keep user-approved suggestions separate from applying them to a running night.
+- Task4 supplies coordinator APIs for target/demo/forget/setup fan check, pin/restore, release/take-back and running/queued command status. Do not call hardware controllers directly from new UI, and do not change frozen NightActions without asking lead.
+- ScreenshotCapture is in scope: pin `Graph.clock` to a suitable evening instant, make setup state/permissions explicit, capture the existing Dark/Light/Simple flows plus320dp and200%font variants. Label render evidence accurately as Robolectric; no physical-device claims. Root will run SCREENSHOT_TAG=after after integration.
+
 ### Task 6: Platform features: widgets, tile, reminders, auto-start, Health Connect, CSV, hand-over (W5)
 
 **Register IDs:** U03, U08 (widget/shortcut side), F03, F04, F06, F07, F10, F11, F12.
@@ -464,6 +484,17 @@ Report every manifest change.
     Unit-test the UUID derivation against a fixed name. Don't claim shared state with Lull.
 
 **Tests required:** tap-time resolution, deleted-profile widget, tile state and actions, reminder duplicate suppression, auto-start eligibility matrix (every suppression case), Health Connect absence and revocation (fake client), CSV escaping, time zones and the privacy toggle, hand-over UUID derivation, and suspend/resume.
+
+
+## Lead platform rulings (22 October, Astra continuation)
+
+Read `docs/review/platform-preflight.md` in the integrated base. These amend implementation details that the original plan could not satisfy on current Android:
+
+- F04 is **best-effort while charging within the bedtime window**, not an exact power-connected edge. No manifest ACTION_POWER_CONNECTED receiver and no charger-triggered FGS. Use native charging-constrained JobScheduler and a bounded JobService-owned operation via Task 4's coordinator. `onStopJob` cancels work; no detached coroutine. Recheck all eligibility before countdown and write. A fresh 60 s cancellable grace is required after a stopped countdown; persist once-per-night attempt/cancel suppression. After a possibly accepted partial hardware write, retain UNKNOWN and require reconciliation, never automatic replay. Use a finite overall operation limit (120 s after grace unless transport evidence justifies a documented adjustment). Notification Cancel/Disable is durable. Explain timing honestly in Settings; no new WorkManager dependency is needed.
+- Health Connect stable 1.1.0's inspected Google Maven AAR requires compileSdk36/AGP>=8.9.1. Task 6 may change compileSdk to36 and AGP to8.10.1 (explicit API36 support), retaining target35/min31/Gradle8.14.3/Kotlin2.0.21/Compose versions. Report merged-manifest library services as well as app additions. Host SDK36 is installed.
+- Lull pinned SHA is721421664f45752ba23ff131f9f53cee589a0d90. Use first16 SHA256 bytes and exact GATT-derived device name through first NUL, without trimming/case changes. Advertisement payload is service UUID, not service data. Unknown name disables interoperability. Implement 8 s request and10 s peer-yield courtesy; explicit manual release remains until Take back. Whole coordinator transaction must gate yield (not merely pending packet). Android may not see background iOS overflow advertisements; show/document the limitation, no hardware interop claim.
+- API34+ tiles launch an explicit PendingIntent. Unknown state must still allow opening Tonight; do not use a disabled unavailable tile for navigable unknown state. Quick action is offered through the activity and shared replacement policy.
+- Settings ownership: introduce serialisable `PlatformSettings` in a new core/store file and a defaulted `Settings.platform` field for feature preferences. This keeps the simultaneous Task5 theme/setup edits disjoint except that single Settings insertion. Minimal Repository automation-journal methods and app Graph/platform lifecycle wiring are permitted; report all shared-file edits. NightActions itself is frozen after Task4: request needed coordinator changes from lead. New feature UI stays in ui/features and strings_features.xml.
 
 ### Task 7: Release signing and shrinking (V)
 
