@@ -5,6 +5,8 @@ import android.app.ForegroundServiceStartNotAllowedException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import io.github.willzy12h.nocturne.Graph
+import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.notify.Notifications
@@ -25,11 +27,23 @@ class NightAlarmReceiver : BroadcastReceiver() {
             NightAlarms.ACTION_NIGHT_END -> {
                 // Snoozes and extends push the end later; only finish once it has really come.
                 if (!context.graph.now().isBefore(ZonedDateTime.parse(night.endsAt).minusMinutes(1))) {
-                    graph.actions.finish(night, EventKind.ENDED, "Night finished")
+                    finishAsync(graph, night)
                 } else {
                     NightAlarms.schedule(context, night)
                 }
             }
+        }
+    }
+}
+
+/** Ends [night] in the app, keeping the broadcast alive until its history and state are saved. */
+private fun BroadcastReceiver.finishAsync(graph: Graph, night: ActiveNight) {
+    val pending = goAsync()
+    graph.scope.launch {
+        try {
+            graph.actions.finish(night, EventKind.ENDED, "Night finished")
+        } finally {
+            pending.finish()
         }
     }
 }
@@ -41,7 +55,7 @@ class BootReceiver : BroadcastReceiver() {
         val graph = context.graph
         val night = graph.repository.activeNight.value ?: return
         if (context.graph.now().isAfter(ZonedDateTime.parse(night.endsAt))) {
-            graph.actions.finish(night, EventKind.ENDED, "Night finished")
+            finishAsync(graph, night)
         } else {
             NightAlarms.schedule(context, night)
         }

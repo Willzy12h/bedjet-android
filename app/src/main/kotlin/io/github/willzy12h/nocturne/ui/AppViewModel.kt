@@ -19,6 +19,7 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.notify.Notifications
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -148,26 +149,44 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // Profiles, settings, backups
 
-    fun saveProfile(profile: Profile) = repo.saveProfile(profile)
-    fun deleteProfile(id: String) = repo.deleteProfile(id)
-    fun updateSettings(change: (Settings) -> Settings) = repo.updateSettings(change)
-    fun snapshotNow(label: String) { repo.snapshotNow(label); _messages.tryEmit("Snapshot saved.") }
-    fun deleteSnapshot(id: String) = repo.deleteSnapshot(id)
-    fun clearNotices() = repo.clearNotices()
-    fun restoreSnapshot(id: String) {
+    // Saving happens off the main thread; the screens update once it is on disk.
+
+    fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
+    fun deleteProfile(id: String) = save { repo.deleteProfile(id) }
+    fun updateSettings(change: (Settings) -> Settings) = save { repo.updateSettings(change) }
+    fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit("Snapshot saved.") }
+    fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
+    fun clearNotices() = save { repo.clearNotices() }
+    fun restoreSnapshot(id: String) = save {
         _messages.tryEmit(if (repo.restoreSnapshot(id)) "Restored. What you had before is saved as a snapshot." else "That snapshot couldn't be read.")
     }
 
     fun export(uri: android.net.Uri) {
-        runCatching { repo.exportTo(uri) }
-            .onSuccess { _messages.tryEmit("Backup saved.") }
-            .onFailure { _messages.tryEmit("Couldn't save the backup: ${it.message}") }
+        graph.scope.launch {
+            runCatching { repo.exportTo(uri) }
+                .onSuccess { _messages.tryEmit("Backup saved.") }
+                .onFailure { _messages.tryEmit("Couldn't save the backup: ${it.message}") }
+        }
     }
 
     fun import(uri: android.net.Uri) {
-        runCatching { repo.restore(repo.importFrom(uri)) }
-            .onSuccess { _messages.tryEmit("Backup restored. What you had before is saved as a snapshot.") }
-            .onFailure { _messages.tryEmit(it.message ?: "Couldn't read that file.") }
+        graph.scope.launch {
+            runCatching { repo.restore(repo.importFrom(uri)) }
+                .onSuccess { _messages.tryEmit("Backup restored. What you had before is saved as a snapshot.") }
+                .onFailure { _messages.tryEmit(it.message ?: "Couldn't read that file.") }
+        }
+    }
+
+    private fun save(work: suspend () -> Unit) {
+        graph.scope.launch {
+            try {
+                work()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _messages.tryEmit("Couldn't save: ${e.message ?: "something went wrong"}.")
+            }
+        }
     }
 
     fun forgetBedJet() {

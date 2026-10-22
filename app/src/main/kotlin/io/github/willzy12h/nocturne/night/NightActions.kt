@@ -10,7 +10,9 @@ import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
+import io.github.willzy12h.nocturne.core.store.Migrations
 import io.github.willzy12h.nocturne.core.store.WakeAction
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -109,10 +111,10 @@ class NightActions(private val graph: Graph) {
             ?: return "Add a profile first."
         val settings = repo.settings.value
         val previous = repo.activeNight.value
-        val result = graph.runner().start(profile, AlarmSource.next(context, settings), settings.workingSlot, repo.slotBackups.value)
+        val result = graph.runner().start(profile, AlarmSource.next(context, settings), settings.workingSlot, repo.slotBackups.value, settings.deviceId() ?: Migrations.UNKNOWN_DEVICE)
         // Only now that the new night is running is the old one over.
         previous?.let { finish(it, EventKind.STOPPED, "Replaced by ${profile.name}") }
-        result.slotBackup?.let(repo::addSlotBackup)
+        result.slotBackup?.let { repo.addSlotBackup(it) }
         repo.addRecord(result.record)
         repo.setActiveNight(result.night)
         NightAlarms.schedule(context, result.night)
@@ -150,7 +152,7 @@ class NightActions(private val graph: Graph) {
         return "Wake-up moved to ${clock(result.night.wakeAt)}."
     }
 
-    private fun retimeFailed(e: Exception, tryAgain: Boolean): String {
+    private suspend fun retimeFailed(e: Exception, tryAgain: Boolean): String {
         val night = repo.activeNight.value ?: return "No night running."
         val title = "Wake-up still at ${clock(night.wakeAt)} — couldn't reach BedJet"
         val later = if (tryAgain) " Nocturne will try again when you open it." else ""
@@ -195,7 +197,8 @@ class NightActions(private val graph: Graph) {
 
     private suspend fun boost(): String {
         val settings = repo.settings.value
-        graph.runner().boost(settings.boostMinutes, limits(), settings.workingSlot, repo.slotBackups.value)?.let(repo::addSlotBackup)
+        graph.runner().boost(settings.boostMinutes, limits(), settings.workingSlot, repo.slotBackups.value, settings.deviceId() ?: Migrations.UNKNOWN_DEVICE)
+            ?.let { repo.addSlotBackup(it) }
         repo.activeNight.value?.let { finish(it, EventKind.STOPPED, "Stopped for Boost") }
         return "Boost: Turbo, then Heat, for ${settings.boostMinutes} minutes."
     }
@@ -207,7 +210,7 @@ class NightActions(private val graph: Graph) {
     }
 
     /** Ends the night in the app without touching the BedJet: its plan has finished, or something replaced it. */
-    fun finish(night: ActiveNight, kind: EventKind, detail: String) {
+    suspend fun finish(night: ActiveNight, kind: EventKind, detail: String) {
         repo.addEvent(night.recordId, HistoryEvent(graph.now().toString(), kind, detail))
         repo.setActiveNight(null)
         NightAlarms.cancel(context)
@@ -238,7 +241,7 @@ class NightActions(private val graph: Graph) {
         if (retimePending != pending) prefs.edit().putBoolean(KEY_RETIME_PENDING, pending).apply()
     }
 
-    private fun recordError(detail: String) {
+    private suspend fun recordError(detail: String) {
         repo.activeNight.value?.let { repo.addEvent(it.recordId, HistoryEvent(graph.now().toString(), EventKind.ERROR, detail.trim())) }
     }
 

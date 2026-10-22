@@ -38,13 +38,13 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 | R16 | Serialise expiry, replacement, restore-slot, target change and commands; reject stale actions by night/revision id | brief; 2R m#5 | W3 | open | | | |
 | R17 | Local transitions (stop tracking, expiry) work without Bluetooth | brief | W3 | open | | | |
 | R18 | `exclusiveUntil` timeout race can leak the lock or a hold | 2R m#1 | W3 | open | | | |
-| R19 | Durable original device/slot backup, including an empty-slot marker, before any overwrite; abort if it can't be saved; covers Start, Boost, pinning and restore | brief | W2 + W3 | open | | | original-slot restore |
-| R20 | Separate demo and real state; in-flight command bound to its target; demo switch during a night | brief; 2R m#10 | W2 + W3 | open | | | |
+| R19 | Durable original device/slot backup, including an empty-slot marker, before any overwrite; abort if it can't be saved; covers Start, Boost, pinning and restore | brief | W2 + W3 | in progress: W2 storage side auto-verified (`recordOriginalSlot` / `originalSlot` keyed by device and slot, first original kept, empty-slot marker, throws when it can't save); W3 to call it before every slot write and abort | Task 2 storage commit | RepositoryTest (theFirstOriginalOfASlotIsKeptOnRetry, anEmptySlotIsRecordedAsEmpty, recordingAnOriginalThrowsWhenItCantBeSaved) | original-slot restore |
+| R20 | Separate demo and real state; in-flight command bound to its target; demo switch during a night | brief; 2R m#10 | W2 + W3 | in progress: W2 storage side auto-verified (slot backups and nights carry `deviceId`; demo and real backups never replace each other; `History.forDevice` / `withoutDemo`); W3 runtime binding open | Task 2 storage commit | RepositoryTest.demoAndRealOriginalsAreSeparate; HistoryTest.theDemoUnitsNightsCanBeFilteredOut; NightRunnerTest.anotherDevicesBackupOfTheSlotDoesNotCount | |
 | R21 | Explicit replacement-device selection; handle active work before a device change | brief | W1 + W4 | open | | | |
-| R22 | Import validation (schema, ranges, ids, durations, times, size) before any change; coherent restore with a pre-import snapshot; no hardware start or target change | brief | W2 | open | | | |
-| R23 | Publish state only after a durable write; I/O off the main thread; unreadable state exposed | brief; 2R m#9 | W2 | open | | | |
-| R24 | Update credentials kept out of exports, diagnostics, cloud backup and device transfer | brief; 2R m#12 | W2 | open | | | |
-| R25 | Tested migrations; 60-day history, 20 automatic snapshots, manual snapshots kept until deleted | brief | W2 | open | | | |
+| R22 | Import validation (schema, ranges, ids, durations, times, size) before any change; coherent restore with a pre-import snapshot; no hardware start or target change | brief | W2 | auto-verified | Task 2 storage commit | BackupValidatorTest; RepositoryTest (anInvalidImportIsRefusedBeforeAnythingChanges, aValidImportKeepsTheDeviceTokenAndNight, aFailedImportLeavesEverythingAsItWas, anOversizedFileIsRefusedBeforeDecoding); ImportTest | |
+| R23 | Publish state only after a durable write; I/O off the main thread; unreadable state exposed | brief; 2R m#9 | W2 | auto-verified | Task 2 storage commit | RepositoryTest (aFailedWriteKeepsTheOldValueAndThrows, theNewValueIsOnDiskBeforeItIsPublished, writesHappenOffTheMainThread, anUnreadableFileIsStillReportedAfterARestartUntilDismissed); SnapshotStoreTest.listingStopsAtTheHeader | |
+| R24 | Update credentials kept out of exports, diagnostics, cloud backup and device transfer | brief; 2R m#12 | W2 | auto-verified (there is no diagnostics export yet) | Task 2 storage commit | RepositoryTest.theUpdateTokenIsNeverExportedOrSnapshotted; BackupRulesTest | |
+| R25 | Tested migrations; 60-day history, 20 automatic snapshots, manual snapshots kept until deleted | brief | W2 | auto-verified | Task 2 storage commit | MigrationsTest; SnapshotStoreTest; BackupTest; HistoryTest.keepsSixtyDays; RepositoryTest (version1FilesOnDiskLoad, historyKeepsSixtyDays, importedHistoryOlderThanSixtyDaysIsDropped) | |
 | R26 | Persist the intended change before writing to the BedJet; confirmed / pending / failed / missed / unknown states | brief | W3 | open | | | interrupted writes |
 | R27 | Whole operation bounded under service ownership; no long rewrites inside a receiver | brief | W3 | open | | | screen-off / Doze |
 | R28 | One coalesced, durable pending re-time with request id and deadline; best-effort retry | brief; 2R #7 | W3 | open | | | screen-off / Doze |
@@ -103,7 +103,7 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 | ID | Item | Owner | Status |
 |---|---|---|---|
 | V01 | Injected clocks, controlled schedulers, transport/fault fakes across the regression scenarios in the brief | all | open |
-| V02 | Migration and backup round trips | W2 | open |
+| V02 | Migration and backup round trips | W2 | auto-verified (MigrationsTest, BackupTest.roundTrip, SnapshotStoreTest.aVersion1SnapshotLoads, RepositoryTest.aVersion1BackupImports) |
 | V03 | Before/after real-app renders: Dark, Light, Simple, narrow, large text | L / W4 | baseline captured |
 | V04 | Minified release build with a test signing key (not production) | L | open |
 | V05 | Samsung + BedJet 3 acceptance checklist | L | open |

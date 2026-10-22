@@ -21,6 +21,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.time.Duration
+import kotlinx.coroutines.runBlocking
 
 /**
  * Renders the real app's screens to PNG for before/after comparison. Off unless SCREENSHOT_TAG is set, e.g.
@@ -47,8 +48,10 @@ class ScreenshotCapture {
 
     private fun capture(look: String, theme: ThemeMode, simple: Boolean) {
         compose.runOnUiThread {
-            graph.repository.updateSettings { it.copy(demoMode = true, themeMode = theme, simpleView = simple) }
-            graph.repository.setActiveNight(null)
+            runBlocking {
+                graph.repository.updateSettings { it.copy(demoMode = true, themeMode = theme, simpleView = simple) }
+                graph.repository.setActiveNight(null)
+            }
         }
         settle()
         shot("$look-01-tonight")

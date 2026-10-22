@@ -26,4 +26,20 @@ class HistoryTest {
         assertEquals(1, updated.single { it.id == "n2" }.events.size)
         assertEquals(0, updated.single { it.id == "n1" }.events.size)
     }
+
+    @Test
+    fun recordsWithoutADeviceAreUnknown() {
+        assertEquals("unknown", night(1).deviceId)
+    }
+
+    @Test
+    fun theDemoUnitsNightsCanBeFilteredOut() {
+        val demo = night(1).copy(id = "demo", deviceId = "demo")
+        val real = night(2).copy(id = "real", deviceId = "ble:AA:BB")
+        val old = night(3)
+        val all = listOf(demo, real, old)
+        assertEquals(listOf("real", "n3"), History.withoutDemo(all).map { it.id })
+        assertEquals(listOf("demo"), History.forDevice(all, "demo").map { it.id })
+        assertEquals(listOf("real"), History.forDevice(all, "ble:AA:BB").map { it.id })
+    }
 }
