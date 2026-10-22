@@ -19,6 +19,11 @@ object PlanCompiler {
      * ends at the wake-up start measured on that clock.
      */
     fun compile(profile: Profile, startAt: ZonedDateTime, wake: ZonedDateTime): Plan {
+        if (Duration.between(startAt, wake) > WakeResolver.MAX_NIGHT) {
+            throw PlanException("A night can last at most 16 hours. Set a tonight-only wake time.")
+        }
+        (profile.start + profile.wake + profile.afterWake).forEach { temperatureFor(it.mode, it.temperature, profile.limits) }
+        temperatureFor(profile.middle.mode, profile.middle.tempStart, profile.limits)
         // The BedJet's clock is set to the minute, so the plan starts on that minute too.
         val start = startAt.truncatedTo(ChronoUnit.MINUTES)
         // Real minutes, not wall-clock minutes: a night across a clock change is an hour longer or shorter.
@@ -69,11 +74,11 @@ object PlanCompiler {
      */
     fun replan(profile: Profile, plan: Plan, now: ZonedDateTime, newWake: ZonedDateTime): Plan? {
         if (!now.isBefore(plan.wakeUpStart)) return null
-        val elapsed = Duration.between(plan.start, now).toMinutes().toInt()
-        val remainingStart = dropFront(plan.steps.filter { it.block == Block.START }.let { startSteps ->
-            // The compiled Start may already have been trimmed; rebuild it from the steps that ran.
-            profile.start.let { trimEnd(it, startSteps.sumOf { s -> s.minutes }) }
-        }, elapsed)
+        val remainingStart = plan.steps.filter { it.block == Block.START }.mapNotNull { s ->
+            if (!s.endsAt.isAfter(now) || (s.step.mode == Mode.TURBO && !s.startsAt.isAfter(now))) null
+            else Phase(s.step.mode, s.step.temperature, (s.step.fanStep + 1) * 5,
+                Duration.between(if (s.startsAt.isAfter(now)) s.startsAt else now, s.endsAt).toMinutes().toInt())
+        }
         return compile(profile.copy(start = remainingStart), now, newWake)
     }
 
@@ -97,6 +102,7 @@ object PlanCompiler {
     /** One phase becomes one or more steps: clamped to the limits, then split where the unit would stop it. */
     fun phaseSteps(phase: Phase, limits: ProfileLimits, turboChain: TurboChain): List<ProgramStep> {
         if (phase.minutes <= 0) return emptyList()
+        temperatureFor(phase.mode, phase.temperature, limits)
         val fanStep = fanStepFor(phase.fanPercent, limits)
         return when (phase.mode) {
             Mode.TURBO -> {
@@ -118,16 +124,23 @@ object PlanCompiler {
     }
 
     /** Fan percent held to the limits, as the BedJet's 0..19 fan step. */
-    fun fanStepFor(fanPercent: Int, limits: ProfileLimits): Int =
-        (fanPercent.coerceIn(limits.minFan, limits.maxFan).coerceIn(5, 100) / 5.0).roundToInt() - 1
+    fun fanStepFor(fanPercent: Int, limits: ProfileLimits): Int {
+        val low = (maxOf(5, limits.minFan) + 4) / 5
+        val high = minOf(100, limits.maxFan) / 5
+        if (low > high) throw PlanException("No BedJet fan setting fits this profile's limits")
+        return (fanPercent / 5.0).roundToInt().coerceIn(low, high) - 1
+    }
 
     /** A target held to the limits and to what the BedJet accepts for the mode. */
     fun temperatureFor(mode: Mode, requested: Int, limits: ProfileLimits): Int {
         val range = mode.temperatureRange
-        if (!mode.usesTemperature) return range.first
-        // The mode's own range wins when the profile's limits don't overlap it.
-        val low = maxOf(limits.minTemp, range.first).coerceAtMost(range.last)
-        val high = minOf(limits.maxTemp, range.last).coerceAtLeast(low)
+        if (mode == Mode.TURBO && limits.maxTemp < 86) {
+            throw PlanException("Turbo always runs at 43 °C, above this profile's limit")
+        }
+        if (mode == Mode.STANDBY || mode == Mode.WAIT) return range.first
+        val low = maxOf(limits.minTemp, range.first)
+        val high = minOf(limits.maxTemp, range.last)
+        if (low > high) throw PlanException("${mode.name.lowercase().replace('_', ' ')} cannot honour this profile's temperature limits")
         return requested.coerceIn(low, high)
     }
 

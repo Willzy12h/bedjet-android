@@ -24,6 +24,17 @@ import org.robolectric.annotation.Config
 class ImportTest {
     private val context: Context = RuntimeEnvironment.getApplication()
     private val graph get() = context.graph
+    private var previousClock: java.time.Clock? = null
+
+    @org.junit.Before
+    fun fixedNightClock() {
+        previousClock = graph.clock
+        graph.clock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-21T22:30:00Z"), java.time.ZoneOffset.UTC)
+    }
+
+    @org.junit.After
+    fun restoreClock() { previousClock?.let { graph.clock = it } }
+
 
     @Test
     fun anImportLeavesTheBedJetAndTheNightAlone() = runBlocking {

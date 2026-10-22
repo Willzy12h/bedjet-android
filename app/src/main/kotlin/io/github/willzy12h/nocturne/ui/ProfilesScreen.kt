@@ -45,7 +45,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(profile.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            if (settings.selectedProfileId == profile.id) Text("Tonight", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                            if (settings.resolveTonightChoice(model.now())?.profileId == profile.id) Text("Tonight", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                         }
                         val wake = model.wakePreview(profile)
                         Text(
@@ -55,7 +55,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                         Text(describe(profile), style = MaterialTheme.typography.bodySmall)
                         model.previewPlan(profile).getOrNull()?.let { NightCurve(it) }
                         Row {
-                            TextButton(onClick = { model.updateSettings { it.copy(selectedProfileId = profile.id) } }) { Text("Use tonight") }
+                            TextButton(onClick = { model.updateSettings { it.chooseTonight(profile.id, model.now()) } }) { Text("Use tonight") }
                             TextButton(onClick = { onEdit(profile) }) { Text("Edit") }
                             TextButton(onClick = { model.saveProfile(profile.copy(id = UUID.randomUUID().toString(), name = "${profile.name} copy")) }) { Text("Copy") }
                             TextButton(onClick = { deleting = profile }) { Text("Delete") }

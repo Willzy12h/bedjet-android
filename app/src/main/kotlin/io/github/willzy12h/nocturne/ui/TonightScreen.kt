@@ -114,7 +114,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             OutlinedButton(onClick = { model.run(Command.RETIME) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Re-check alarm") }
             plan?.let { PlanCard(it, settings, running.wakeFromAlarm, now = now) }
         } else {
-            var chosen by remember(settings.selectedProfileId, profiles) { mutableStateOf(model.tonightsProfile()) }
+            var chosen by remember(settings.tonightChoice, profiles) { mutableStateOf(model.tonightsProfile()) }
             val profile = chosen
             val wake = profile?.let { model.wakePreview(it, now) }
             if (wake != null && !simple) {
@@ -125,7 +125,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 profiles.forEach { p ->
                     FilterChip(
                         selected = profile?.id == p.id,
-                        onClick = { chosen = p; model.updateSettings { it.copy(selectedProfileId = p.id) } },
+                        onClick = { chosen = p; model.updateSettings { it.chooseTonight(p.id, model.now()) } },
                         label = { Text(p.name) },
                     )
                 }

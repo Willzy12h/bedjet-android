@@ -81,6 +81,7 @@ class Repository(
 
     private val _profiles = MutableStateFlow(load(PROFILES) { decode(ListSerializer(Profile.serializer()), it) } ?: Presets.all)
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
+    private val settingsLoadedAt = now()
     private val _settings = MutableStateFlow(load(SETTINGS) { decode(Settings.serializer(), it) } ?: Settings())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
     private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now()))
@@ -107,6 +108,9 @@ class Repository(
         // Moving the unreadable files aside and saving the report are writes, so they wait for the writer. Every
         // later write queues behind this one, so nothing can be written over an unreadable file before it is moved.
         if (toSetAside.isNotEmpty()) scope.launch(writer) { serially { setAsidePending() } }
+        if (_settings.value.selectedProfileId != null) scope.launch {
+            updateSettings { it.migrateTonightChoice(settingsLoadedAt) }
+        }
         scope.launch {
             combine(_profiles, _settings) { _, _ -> }.drop(1).debounce(30_000).collect { autoSnapshot() }
         }
@@ -122,9 +126,7 @@ class Repository(
 
     /** The profile for tonight: the one picked, else the one set for today's weekday, else the first. */
     fun tonightsProfile(now: ZonedDateTime = now()): Profile? =
-        profile(_settings.value.selectedProfileId)
-            ?: _profiles.value.firstOrNull { now.dayOfWeek.value in it.days }
-            ?: _profiles.value.firstOrNull()
+        _settings.value.migrateTonightChoice(settingsLoadedAt).resolveProfile(_profiles.value, now)
 
     suspend fun saveProfile(profile: Profile) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list ->
         if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it } else list + profile
@@ -132,7 +134,9 @@ class Repository(
 
     suspend fun deleteProfile(id: String) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list -> list.filterNot { it.id == id } }
 
-    suspend fun updateSettings(change: (Settings) -> Settings) = update(_settings, SETTINGS, Settings.serializer(), change)
+    suspend fun updateSettings(change: (Settings) -> Settings) = update(_settings, SETTINGS, Settings.serializer()) {
+        change(it).migrateTonightChoice(now())
+    }
 
     // Night state
 

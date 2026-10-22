@@ -128,9 +128,9 @@ class NightRunnerTest {
     @Test
     fun boostRunsTurboThenHeatFromTheWorkingSlot() = runTest {
         link.connect()
-        runner.boost(minutes = 15, limits = ProfileLimits(maxTemp = 76), slot = 2)
+        runner.boost(minutes = 15, limits = ProfileLimits(maxTemp = 86), slot = 2)
         assertEquals(listOf(Mode.TURBO to 10, Mode.HEAT to 5), link.slots[2]!!.steps.map { it.mode to it.durationMinutes })
-        assertEquals(76, link.slots[2]!!.steps[1].temperature)
+        assertEquals(80, link.slots[2]!!.steps[1].temperature)
         assertEquals(Mode.TURBO, link.status.value!!.mode)
     }
 }

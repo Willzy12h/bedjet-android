@@ -14,8 +14,7 @@ object AlarmSource {
     fun describe(context: Context, settings: Settings): NextAlarm? {
         val info = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock ?: return null
         val creator = info.showIntent?.creatorPackage
-        // An alarm whose creator can't be told is assumed to be the clock's.
-        val counts = creator == null || creator in settings.alarmPackages
+        val counts = io.github.willzy12h.nocturne.core.plan.AlarmPolicy(settings).acceptsSource(creator)
         return NextAlarm(Instant.ofEpochMilli(info.triggerTime).atZone(ZoneId.systemDefault()), creator, counts)
     }
 

@@ -1,10 +1,11 @@
 package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.night.AppliedProgram
 import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.protocol.Mode
-import kotlinx.serialization.Serializable
 import java.time.ZonedDateTime
+import kotlinx.serialization.Serializable
 
 @Serializable
 enum class EventKind { STARTED, RETIMED, SNOOZED, EXTENDED, STOPPED, ENDED, UNIT_NOTICE, ERROR, REMOTE_CHANGE }
@@ -33,6 +34,7 @@ data class NightRecord(
     val temperatures: List<TempSample> = emptyList(),
     /** The BedJet the night ran on, as a [DeviceId]; [Migrations.UNKNOWN_DEVICE] for nights saved before this was recorded. */
     val deviceId: String = Migrations.UNKNOWN_DEVICE,
+    val revisions: List<AppliedProgram> = emptyList(),
 )
 
 object History {

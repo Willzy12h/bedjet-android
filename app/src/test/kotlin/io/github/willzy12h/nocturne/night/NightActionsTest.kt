@@ -36,6 +36,17 @@ import java.time.ZonedDateTime
 class NightActionsTest {
     private val context: Context = RuntimeEnvironment.getApplication()
     private val graph get() = context.graph
+    private var previousClock: java.time.Clock? = null
+
+    @org.junit.Before
+    fun fixedNightClock() {
+        previousClock = graph.clock
+        graph.clock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-21T22:30:00Z"), java.time.ZoneOffset.UTC)
+    }
+
+    @org.junit.After
+    fun restoreClock() { previousClock?.let { graph.clock = it } }
+
 
     @Before
     fun demoMode() = runBlocking {
@@ -44,7 +55,7 @@ class NightActionsTest {
     }
 
     private suspend fun runningNight(): ActiveNight {
-        val start = ZonedDateTime.now().minusHours(1)
+        val start = graph.now().minusHours(1)
         val profile = graph.repository.profiles.value.first()
         val night = ActiveNight(
             recordId = "night-test", profileId = profile.id, startedAt = start.toString(),
@@ -68,7 +79,7 @@ class NightActionsTest {
         val before = graph.repository.activeNight.value!!
         // No creator package, so it counts as the clock app's alarm.
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
-        val at = ZonedDateTime.now().plusHours(5).withSecond(0).withNano(0)
+        val at = graph.now().plusHours(5).withSecond(0).withNano(0)
         context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), null), fire)
 
         graph.actions.perform(Command.RETIME)
@@ -94,7 +105,7 @@ class NightActionsTest {
         // Created by this app, which isn't one of the allowed clock apps.
         val show = PendingIntent.getActivity(context, 0, Intent(), PendingIntent.FLAG_IMMUTABLE)
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
-        val at = ZonedDateTime.now().plusHours(3).toInstant().toEpochMilli()
+        val at = graph.now().plusHours(3).toInstant().toEpochMilli()
         context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at, show), fire)
         assertEquals(false, AlarmSource.describe(context, graph.repository.settings.value)?.counts)
 
