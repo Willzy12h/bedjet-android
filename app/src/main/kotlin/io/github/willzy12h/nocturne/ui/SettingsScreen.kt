@@ -83,9 +83,11 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
                 (0..2).forEach { slot -> FilterChip(settings.workingSlot == slot, { model.updateSettings { it.copy(workingSlot = slot) } }, label = { Text("Slot ${slot + 1}") }) }
             }
             slotBackups.forEach { backup ->
+                // An empty-slot marker has nothing to put back yet.
+                val program = backup.program ?: return@forEach
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Saved from slot ${backup.slot + 1}: ${backup.program.name} (${backup.program.steps.size} steps)", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { model.restoreSlot(backup.slot, backup.program) }) { Text("Put back") }
+                    Text("Saved from slot ${backup.slot + 1}: ${program.name} (${program.steps.size} steps)", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { model.restoreSlot(backup.slot, program) }) { Text("Put back") }
                 }
             }
             SwitchRow("Show °F", null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
@@ -124,7 +126,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (next?.creator != null && !next.counts) {
-                FilledTonalButton(onClick = { model.updateSettings { it.copy(alarmPackages = it.alarmPackages + next.creator!!) }; model.refreshAlarm() }) {
+                FilledTonalButton(onClick = { model.useAlarmsFrom(next.creator!!) }) {
                     Text("Use alarms from ${next.creator}")
                 }
             }

@@ -19,6 +19,7 @@ import org.robolectric.Shadows.shadowOf
 import android.os.Looper
 import java.time.Duration
 import org.robolectric.annotation.Config
+import kotlinx.coroutines.runBlocking
 
 /** Launches the real app on Robolectric with the simulated BedJet, and walks every screen. */
 @RunWith(RobolectricTestRunner::class)
@@ -31,8 +32,10 @@ class AppSmokeTest {
     @Before
     fun demoMode() {
         compose.runOnUiThread {
-            graph.repository.updateSettings { it.copy(demoMode = true) }
-            graph.repository.setActiveNight(null)
+            runBlocking {
+                graph.repository.updateSettings { it.copy(demoMode = true) }
+                graph.repository.setActiveNight(null)
+            }
         }
     }
 

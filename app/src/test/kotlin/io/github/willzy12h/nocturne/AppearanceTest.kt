@@ -19,6 +19,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import java.time.Duration
 import org.robolectric.annotation.Config
+import kotlinx.coroutines.runBlocking
 
 /** The theme choice and simple view, on the real app over the demo BedJet. */
 @RunWith(RobolectricTestRunner::class)
@@ -31,8 +32,10 @@ class AppearanceTest {
     @Before
     fun demoMode() {
         compose.runOnUiThread {
-            graph.repository.updateSettings { it.copy(demoMode = true, simpleView = false, themeMode = ThemeMode.SYSTEM) }
-            graph.repository.setActiveNight(null)
+            runBlocking {
+                graph.repository.updateSettings { it.copy(demoMode = true, simpleView = false, themeMode = ThemeMode.SYSTEM) }
+                graph.repository.setActiveNight(null)
+            }
         }
     }
 
@@ -47,7 +50,7 @@ class AppearanceTest {
 
     @Test
     fun simpleViewListsTheNightAndEndsAtTheWakeTime() {
-        compose.runOnUiThread { graph.repository.updateSettings { it.copy(simpleView = true) } }
+        compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } } }
         waitFor(hasText("Wake time") or hasText("Your alarm"))
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Boost").performScrollTo().assertIsDisplayed()
@@ -58,9 +61,12 @@ class AppearanceTest {
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Light").performScrollTo().performClick()
         waitForText("Simple view")
+        // Settings are saved off the main thread and show once they are on disk.
+        compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.SYSTEM }
         assertEquals(ThemeMode.LIGHT, graph.repository.settings.value.themeMode)
         compose.onNodeWithText("Dark").performScrollTo().performClick()
         waitForText("Simple view")
+        compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.LIGHT }
         assertEquals(ThemeMode.DARK, graph.repository.settings.value.themeMode)
     }
 }

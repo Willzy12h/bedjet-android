@@ -32,7 +32,7 @@ class NightRunnerTest {
     fun startWritesPlanToWorkingSlotAndBacksUpWhatWasThere() = runTest {
         link.connect()
         val result = runner.start(profile, alarm, slot = 2, alreadyBackedUp = emptyList())
-        assertEquals(SlotBackup(2, mine, now.toString()), result.slotBackup)
+        assertEquals(SlotBackup("unknown", 2, mine, now.toString()), result.slotBackup)
         assertEquals(alarm.toString(), result.night.wakeAt)
         assertTrue(result.night.wakeFromAlarm)
         assertEquals(profile.name, link.slots[2]!!.name)
@@ -45,8 +45,16 @@ class NightRunnerTest {
     @Test
     fun startDoesNotBackUpTheSameSlotTwice() = runTest {
         link.connect()
-        val result = runner.start(profile, alarm, slot = 2, alreadyBackedUp = listOf(SlotBackup(2, mine, "earlier")))
+        val result = runner.start(profile, alarm, slot = 2, alreadyBackedUp = listOf(SlotBackup("unknown", 2, mine, "earlier")))
         assertNull(result.slotBackup)
+    }
+
+    @Test
+    fun anotherDevicesBackupOfTheSlotDoesNotCount() = runTest {
+        link.connect()
+        val result = runner.start(profile, alarm, slot = 2, alreadyBackedUp = listOf(SlotBackup("demo", 2, mine, "earlier")), deviceId = "ble:AA:BB")
+        assertEquals(SlotBackup("ble:AA:BB", 2, mine, now.toString()), result.slotBackup)
+        assertEquals("ble:AA:BB", result.record.deviceId)
     }
 
     @Test

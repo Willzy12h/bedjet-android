@@ -17,6 +17,7 @@ import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.service.BedJetService
 import io.github.willzy12h.nocturne.ui.MainActivity
+import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -127,8 +128,11 @@ object Notifications {
     }
 
     /** Kept even when notifications are off, so Settings can show what would have been said. */
-    private fun log(context: Context, kind: NoticeKind, title: String, text: String) =
-        context.graph.repository.addNotice(LoggedNotice(context.graph.now().toString(), kind, title, text))
+    private fun log(context: Context, kind: NoticeKind, title: String, text: String) {
+        val graph = context.graph
+        val notice = LoggedNotice(graph.now().toString(), kind, title, text)
+        graph.scope.launch { runCatching { graph.repository.addNotice(notice) } }
+    }
 
     private fun openApp(context: Context) = PendingIntent.getActivity(
         context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,

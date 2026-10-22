@@ -13,6 +13,7 @@ import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
+import io.github.willzy12h.nocturne.core.store.Migrations
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.core.store.RecordedStep
 import io.github.willzy12h.nocturne.core.store.SlotBackup
@@ -39,12 +40,21 @@ data class RetimeResult(val plan: Plan, val night: ActiveNight, val event: Histo
 /** Starts, re-times and interrupts nights on a BedJet. Everything here is what the buttons, widgets and alarms do. */
 class NightRunner(private val controller: BedJetController, private val now: () -> ZonedDateTime) {
 
-    /** Plans tonight around [alarm] (or the profile's wake time), writes it to [slot] and starts it. */
-    suspend fun start(profile: Profile, alarm: ZonedDateTime?, slot: Int, alreadyBackedUp: List<SlotBackup>): StartResult {
+    /**
+     * Plans tonight around [alarm] (or the profile's wake time), writes it to [slot] of the BedJet named [deviceId] and
+     * starts it.
+     */
+    suspend fun start(
+        profile: Profile,
+        alarm: ZonedDateTime?,
+        slot: Int,
+        alreadyBackedUp: List<SlotBackup>,
+        deviceId: String = Migrations.UNKNOWN_DEVICE,
+    ): StartResult {
         val time = now()
         val wake = WakeResolver.resolve(profile, time, alarm)
         val plan = PlanCompiler.compile(profile, time, wake.time)
-        val backup = backupIfNeeded(slot, alreadyBackedUp)
+        val backup = backupIfNeeded(deviceId, slot, alreadyBackedUp)
         controller.store(StoredProgram(profile.name, plan.programSteps), slot)
         controller.startProgram(slot)
         val night = ActiveNight(
@@ -63,6 +73,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             startedAt = night.startedAt, wakeAt = night.wakeAt, wakeFromAlarm = wake.fromAlarm,
             steps = recordedSteps(plan),
             events = listOf(HistoryEvent(time.toString(), EventKind.STARTED, "Started ${profile.name}, waking at ${wake.time.toLocalTime()} ($source)")),
+            deviceId = deviceId,
         )
         return StartResult(plan, night, record, backup)
     }
@@ -101,9 +112,15 @@ class NightRunner(private val controller: BedJetController, private val now: () 
     }
 
     /** Turbo for its 10 minutes then Heat at the hottest the limits allow, written to [slot] so the BedJet chains them. */
-    suspend fun boost(minutes: Int, limits: ProfileLimits, slot: Int, alreadyBackedUp: List<SlotBackup> = emptyList()): SlotBackup? {
+    suspend fun boost(
+        minutes: Int,
+        limits: ProfileLimits,
+        slot: Int,
+        alreadyBackedUp: List<SlotBackup> = emptyList(),
+        deviceId: String = Migrations.UNKNOWN_DEVICE,
+    ): SlotBackup? {
         val steps = PlanCompiler.phaseSteps(Phase(Mode.TURBO, 86, 100, minutes), limits, TurboChain.TURBO_THEN_HEAT)
-        val backup = backupIfNeeded(slot, alreadyBackedUp)
+        val backup = backupIfNeeded(deviceId, slot, alreadyBackedUp)
         controller.store(StoredProgram("Boost", steps), slot)
         controller.startProgram(slot)
         return backup
@@ -111,11 +128,11 @@ class NightRunner(private val controller: BedJetController, private val now: () 
 
     suspend fun stop() = controller.stop()
 
-    /** Keeps a copy of a program the app didn't write, the first time a slot is overwritten. */
-    private suspend fun backupIfNeeded(slot: Int, alreadyBackedUp: List<SlotBackup>): SlotBackup? {
-        if (alreadyBackedUp.any { it.slot == slot }) return null
+    /** Keeps a copy of a program the app didn't write, the first time a slot of this device is overwritten. */
+    private suspend fun backupIfNeeded(deviceId: String, slot: Int, alreadyBackedUp: List<SlotBackup>): SlotBackup? {
+        if (alreadyBackedUp.any { it.deviceId == deviceId && it.slot == slot }) return null
         val existing = controller.storedPrograms().getOrNull(slot) ?: return null
-        return SlotBackup(slot, existing, now().toString())
+        return SlotBackup(deviceId, slot, existing, now().toString())
     }
 
     private fun recordedSteps(plan: Plan) = plan.steps.map {

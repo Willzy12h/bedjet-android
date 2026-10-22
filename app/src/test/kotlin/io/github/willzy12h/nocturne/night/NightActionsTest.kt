@@ -13,7 +13,9 @@ import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -36,12 +38,12 @@ class NightActionsTest {
     private val graph get() = context.graph
 
     @Before
-    fun demoMode() {
+    fun demoMode() = runBlocking {
         graph.repository.updateSettings { it.copy(demoMode = true) }
         graph.repository.setActiveNight(null)
     }
 
-    private fun runningNight(): ActiveNight {
+    private suspend fun runningNight(): ActiveNight {
         val start = ZonedDateTime.now().minusHours(1)
         val profile = graph.repository.profiles.value.first()
         val night = ActiveNight(
@@ -73,7 +75,8 @@ class NightActionsTest {
 
         val after = graph.repository.activeNight.value!!
         assertEquals(at.toInstant(), ZonedDateTime.parse(after.wakeAt).toInstant())
-        val notice = graph.repository.notices.value.first()
+        // The notification log is saved in the background.
+        val notice = withTimeout(5_000) { graph.repository.notices.first { it.firstOrNull()?.kind == io.github.willzy12h.nocturne.core.store.NoticeKind.INFO } }.first()
         assertEquals(io.github.willzy12h.nocturne.core.store.NoticeKind.INFO, notice.kind)
         assertEquals(true, notice.title.startsWith("Wake-up moved to"))
         assertEquals(true, notice.text.contains(java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(ZonedDateTime.parse(before.wakeAt))))
@@ -117,7 +120,7 @@ class NightActionsTest {
     }
 
     @Test
-    fun endingTheNightClearsAPendingRetime() {
+    fun endingTheNightClearsAPendingRetime() = runBlocking {
         val night = runningNight()
         context.getSharedPreferences("night-actions", Context.MODE_PRIVATE).edit().putBoolean("retimePending", true).commit()
         graph.actions.finish(night, EventKind.ENDED, "Night finished")

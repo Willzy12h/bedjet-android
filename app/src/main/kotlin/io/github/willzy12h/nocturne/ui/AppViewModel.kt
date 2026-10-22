@@ -19,8 +19,10 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.notify.Notifications
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -137,8 +139,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         "Put \"${program.name}\" back in slot ${slot + 1}."
     }
 
+    /** Commands wait for saves asked for before them, so they act on what the person just saved. */
     private fun act(work: suspend () -> String) {
+        val pending = lastSave
         graph.scope.launch {
+            pending?.join()
             _busy.value = true
             val message = try { work() } catch (e: Exception) { e.message ?: "Something went wrong." }
             _busy.value = false
@@ -148,26 +153,61 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // Profiles, settings, backups
 
-    fun saveProfile(profile: Profile) = repo.saveProfile(profile)
-    fun deleteProfile(id: String) = repo.deleteProfile(id)
-    fun updateSettings(change: (Settings) -> Settings) = repo.updateSettings(change)
-    fun snapshotNow(label: String) { repo.snapshotNow(label); _messages.tryEmit("Snapshot saved.") }
-    fun deleteSnapshot(id: String) = repo.deleteSnapshot(id)
-    fun clearNotices() = repo.clearNotices()
-    fun restoreSnapshot(id: String) {
+    // Saving happens off the main thread; the screens update once it is on disk.
+
+    fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
+    fun deleteProfile(id: String) = save { repo.deleteProfile(id) }
+    fun updateSettings(change: (Settings) -> Settings) = save { repo.updateSettings(change) }
+
+    /** "Update tonight": the edited profile is saved before the rest of the night is rewritten from it. */
+    fun saveProfileThenReapply(profile: Profile) = act {
+        repo.saveProfile(profile)
+        graph.actions.perform(NightActions.Command.REAPPLY)
+    }
+
+    /** Lets [creator]'s alarms move the wake-up, and shows the next alarm under the saved setting. */
+    fun useAlarmsFrom(creator: String) = save {
+        repo.updateSettings { it.copy(alarmPackages = it.alarmPackages + creator) }
+        refreshAlarm()
+    }
+    fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit("Snapshot saved.") }
+    fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
+    fun clearNotices() = save { repo.clearNotices() }
+    fun restoreSnapshot(id: String) = save {
         _messages.tryEmit(if (repo.restoreSnapshot(id)) "Restored. What you had before is saved as a snapshot." else "That snapshot couldn't be read.")
     }
 
     fun export(uri: android.net.Uri) {
-        runCatching { repo.exportTo(uri) }
-            .onSuccess { _messages.tryEmit("Backup saved.") }
-            .onFailure { _messages.tryEmit("Couldn't save the backup: ${it.message}") }
+        graph.scope.launch {
+            runCatching { repo.exportTo(uri) }
+                .onSuccess { _messages.tryEmit("Backup saved.") }
+                .onFailure { _messages.tryEmit("Couldn't save the backup: ${it.message}") }
+        }
     }
 
     fun import(uri: android.net.Uri) {
-        runCatching { repo.restore(repo.importFrom(uri)) }
-            .onSuccess { _messages.tryEmit("Backup restored. What you had before is saved as a snapshot.") }
-            .onFailure { _messages.tryEmit(it.message ?: "Couldn't read that file.") }
+        graph.scope.launch {
+            runCatching { repo.restore(repo.importFrom(uri)) }
+                .onSuccess { _messages.tryEmit("Backup restored. What you had before is saved as a snapshot.") }
+                .onFailure { _messages.tryEmit(it.message ?: "Couldn't read that file.") }
+        }
+    }
+
+    /** The latest save, which later saves and commands wait for. Only touched on the main thread. */
+    private var lastSave: Job? = null
+
+    private fun save(work: suspend () -> Unit) {
+        val previous = lastSave
+        lastSave = graph.scope.launch {
+            previous?.join()
+            try {
+                work()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _messages.tryEmit("Couldn't save: ${e.message ?: "something went wrong"}.")
+            }
+        }
     }
 
     fun forgetBedJet() {
