@@ -40,9 +40,9 @@ import java.time.ZonedDateTime
  * automatically (debounced), and on the first launch of each day.
  */
 @OptIn(FlowPreview::class)
-class Repository(private val context: Context, scope: CoroutineScope) {
+class Repository(private val context: Context, scope: CoroutineScope, private val now: () -> ZonedDateTime = { ZonedDateTime.now() }) {
     private val dir = context.filesDir
-    val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { ZonedDateTime.now() }
+    val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { now() }
 
     // Declared before the loads below, which fill it.
     private val _unreadable = MutableStateFlow<List<String>>(emptyList())
@@ -56,7 +56,7 @@ class Repository(private val context: Context, scope: CoroutineScope) {
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
     private val _settings = MutableStateFlow(load("settings.json", Settings.serializer()) ?: Settings())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
-    private val _history = MutableStateFlow(History.prune(load("history.json", ListSerializer(NightRecord.serializer())).orEmpty(), ZonedDateTime.now()))
+    private val _history = MutableStateFlow(History.prune(load("history.json", ListSerializer(NightRecord.serializer())).orEmpty(), now()))
     val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     private val _slotBackups = MutableStateFlow(load("slot-backups.json", ListSerializer(SlotBackup.serializer())).orEmpty())
     val slotBackups: StateFlow<List<SlotBackup>> = _slotBackups.asStateFlow()
@@ -80,7 +80,7 @@ class Repository(private val context: Context, scope: CoroutineScope) {
         }
         scope.launch {
             val latest = snapshots.list().firstOrNull { !it.manual }?.createdAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
-            if (latest == null || latest.isBefore(ZonedDateTime.now().minusDays(1))) autoSnapshot()
+            if (latest == null || latest.isBefore(now().minusDays(1))) autoSnapshot()
         }
     }
 
@@ -89,7 +89,7 @@ class Repository(private val context: Context, scope: CoroutineScope) {
     fun profile(id: String?): Profile? = _profiles.value.firstOrNull { it.id == id }
 
     /** The profile for tonight: the one picked, else the one set for today's weekday, else the first. */
-    fun tonightsProfile(now: ZonedDateTime = ZonedDateTime.now()): Profile? =
+    fun tonightsProfile(now: ZonedDateTime = now()): Profile? =
         profile(_settings.value.selectedProfileId)
             ?: _profiles.value.firstOrNull { now.dayOfWeek.value in it.days }
             ?: _profiles.value.firstOrNull()
@@ -107,7 +107,7 @@ class Repository(private val context: Context, scope: CoroutineScope) {
     fun setActiveNight(night: ActiveNight?) = update(_activeNight, "active-night.json", ActiveNight.serializer().nullable) { night }
 
     fun addRecord(record: NightRecord) = update(_history, "history.json", ListSerializer(NightRecord.serializer())) { list ->
-        History.prune(list.filterNot { it.id == record.id } + record, ZonedDateTime.now())
+        History.prune(list.filterNot { it.id == record.id } + record, now())
     }
 
     fun addEvent(recordId: String, event: HistoryEvent) =
@@ -124,7 +124,7 @@ class Repository(private val context: Context, scope: CoroutineScope) {
     // Backups
 
     fun bundle(): BackupBundle = BackupBundle(
-        createdAt = ZonedDateTime.now().toString(),
+        createdAt = now().toString(),
         profiles = _profiles.value,
         settings = _settings.value,
         slotBackups = _slotBackups.value,

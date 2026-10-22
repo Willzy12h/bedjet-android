@@ -172,9 +172,9 @@ class NightActions(private val graph: Graph) {
         graph.runner().quickAction(preset, limits())
         val text = "$label ${preset.minutes} min"
         repo.activeNight.value?.let { night ->
-            repo.addEvent(night.recordId, HistoryEvent(ZonedDateTime.now().toString(), kind, text))
+            repo.addEvent(night.recordId, HistoryEvent(graph.now().toString(), kind, text))
             // The notification stays until the extra time is over.
-            val until = ZonedDateTime.now().plusMinutes(preset.minutes.toLong())
+            val until = graph.now().plusMinutes(preset.minutes.toLong())
             if (until.isAfter(ZonedDateTime.parse(night.endsAt))) {
                 val extended = night.copy(endsAt = until.toString())
                 repo.setActiveNight(extended)
@@ -208,7 +208,7 @@ class NightActions(private val graph: Graph) {
 
     /** Ends the night in the app without touching the BedJet: its plan has finished, or something replaced it. */
     fun finish(night: ActiveNight, kind: EventKind, detail: String) {
-        repo.addEvent(night.recordId, HistoryEvent(ZonedDateTime.now().toString(), kind, detail))
+        repo.addEvent(night.recordId, HistoryEvent(graph.now().toString(), kind, detail))
         repo.setActiveNight(null)
         NightAlarms.cancel(context)
         Notifications.cancelWakeUp(context)
@@ -239,7 +239,7 @@ class NightActions(private val graph: Graph) {
     }
 
     private fun recordError(detail: String) {
-        repo.activeNight.value?.let { repo.addEvent(it.recordId, HistoryEvent(ZonedDateTime.now().toString(), EventKind.ERROR, detail.trim())) }
+        repo.activeNight.value?.let { repo.addEvent(it.recordId, HistoryEvent(graph.now().toString(), EventKind.ERROR, detail.trim())) }
     }
 
     private fun label(command: Command) = command.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }

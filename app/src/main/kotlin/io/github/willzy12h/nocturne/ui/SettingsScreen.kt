@@ -140,7 +140,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
                 FilledTonalButton(onClick = { model.snapshotNow(snapshotLabel); snapshotLabel = "" }) { Text("Snapshot now") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { exporter.launch("nocturne-backup-${LocalDate.now()}.json") }) { Text("Export file") }
+                OutlinedButton(onClick = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }) { Text("Export file") }
                 OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Restore from file") }
             }
             snapshots.forEach { snap ->

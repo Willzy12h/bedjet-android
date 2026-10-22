@@ -24,7 +24,7 @@ class NightAlarmReceiver : BroadcastReceiver() {
             NightAlarms.ACTION_WAKE_UP -> Notifications.showWakeUp(context, night, graph.repository.settings.value)
             NightAlarms.ACTION_NIGHT_END -> {
                 // Snoozes and extends push the end later; only finish once it has really come.
-                if (!ZonedDateTime.now().isBefore(ZonedDateTime.parse(night.endsAt).minusMinutes(1))) {
+                if (!context.graph.now().isBefore(ZonedDateTime.parse(night.endsAt).minusMinutes(1))) {
                     graph.actions.finish(night, EventKind.ENDED, "Night finished")
                 } else {
                     NightAlarms.schedule(context, night)
@@ -40,7 +40,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         val graph = context.graph
         val night = graph.repository.activeNight.value ?: return
-        if (ZonedDateTime.now().isAfter(ZonedDateTime.parse(night.endsAt))) {
+        if (context.graph.now().isAfter(ZonedDateTime.parse(night.endsAt))) {
             graph.actions.finish(night, EventKind.ENDED, "Night finished")
         } else {
             NightAlarms.schedule(context, night)

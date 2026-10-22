@@ -66,8 +66,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val alarm by model.nextAlarm.collectAsState()
     val busy by model.busy.collectAsState()
     val release by model.release.collectAsState()
-    var now by remember { mutableStateOf(ZonedDateTime.now()) }
-    LaunchedEffect(Unit) { while (true) { delay(30_000); now = ZonedDateTime.now(); model.refreshAlarm() } }
+    var now by remember { mutableStateOf(model.now()) }
+    LaunchedEffect(Unit) { while (true) { delay(30_000); now = model.now(); model.refreshAlarm() } }
     val guard = rememberNightGuard(model)
     val dark = nocturneColors.dark
     val simple = settings.simpleView

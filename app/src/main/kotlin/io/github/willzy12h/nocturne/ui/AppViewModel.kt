@@ -66,6 +66,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val release: StateFlow<Release?> = _release.asStateFlow()
 
     val version: String = BuildConfig.VERSION_NAME
+
+    /** The app clock's current time. */
+    fun now(): ZonedDateTime = graph.now()
     var updateToken: String
         get() = repo.updateToken
         set(value) { repo.updateToken = value }
@@ -96,14 +99,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun tonightsProfile(): Profile? = repo.tonightsProfile()
 
     /** When a profile would wake you if it ran tonight, and whether that's from the alarm. */
-    fun wakePreview(profile: Profile, now: ZonedDateTime = ZonedDateTime.now()): WakeChoice {
+    fun wakePreview(profile: Profile, now: ZonedDateTime = graph.now()): WakeChoice {
         val bedtime = WakeResolver.nextBedtime(profile, now)
         return WakeResolver.resolve(profile, bedtime, nextAlarm.value?.takeIf { it.counts }?.time)
     }
 
     /** The plan a profile would run tonight, or the reason it can't. */
     fun previewPlan(profile: Profile, startNow: Boolean = false): Result<Plan> = runCatching {
-        val now = ZonedDateTime.now()
+        val now = graph.now()
         val start = if (startNow) now else WakeResolver.nextBedtime(profile, now)
         PlanCompiler.compile(profile, start, WakeResolver.resolve(profile, start, nextAlarm.value?.takeIf { it.counts }?.time).time)
     }
@@ -192,7 +195,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             }
-            getApplication<Application>().getSharedPreferences("updates", 0).edit().putLong("lastCheck", System.currentTimeMillis()).apply()
+            getApplication<Application>().getSharedPreferences("updates", 0).edit().putLong("lastCheck", graph.clock.millis()).apply()
             result.onSuccess { latest ->
                 if (latest != null && UpdateChecker.isNewer(latest.tag, version)) {
                     _release.value = latest
@@ -207,6 +210,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun maybeAutoCheckUpdates() {
         if (!settings.value.autoUpdateCheck) return
         val last = getApplication<Application>().getSharedPreferences("updates", 0).getLong("lastCheck", 0)
-        if (System.currentTimeMillis() - last > 7 * 24 * 3600 * 1000L) checkForUpdates(quiet = true)
+        if (graph.clock.millis() - last > 7 * 24 * 3600 * 1000L) checkForUpdates(quiet = true)
     }
 }

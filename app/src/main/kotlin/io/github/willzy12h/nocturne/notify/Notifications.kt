@@ -128,7 +128,7 @@ object Notifications {
 
     /** Kept even when notifications are off, so Settings can show what would have been said. */
     private fun log(context: Context, kind: NoticeKind, title: String, text: String) =
-        context.graph.repository.addNotice(LoggedNotice(ZonedDateTime.now().toString(), kind, title, text))
+        context.graph.repository.addNotice(LoggedNotice(context.graph.now().toString(), kind, title, text))
 
     private fun openApp(context: Context) = PendingIntent.getActivity(
         context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
