@@ -351,6 +351,12 @@
 - resume offer flow;
 - pinning refuses the working slot.
 
+**Carried from Tasks 1–2 (added at integration):**
+- **From Task 1:** the link connects only to `Settings.deviceId()` and refuses when there is no target. At app start, if `Settings.targetDevice == null` and `bleLink.rememberedAddress() != null`, adopt it: set `targetDevice = DeviceId.ble(address)` durably, once, logged as a notice. Never pick a nearby unit silently.
+- **From Task 2:** `NightRunner.start` still writes the slot BEFORE NightActions saves the backup. Replace this with `Repository.recordOriginalSlot(deviceId, slot, program)` (or `originalsFor(deviceId)`) before `controller.store`, for Start, Boost, re-time, pin and restore. Abort the write if it throws. Then deprecate and remove `addSlotBackup`.
+- **From Task 2:** with no target chosen, no original is saved. Make sure a target is set before any slot write.
+- **From Task 2:** migrated "unknown" originals are adopted by the first real BedJet (`originalsFor`). Use `originalSlot()` for restore.
+
 ### Task 5: UI, accessibility and in-app features, in the existing design (W4)
 
 **Register IDs:** U01, U02 (UI), U04–U07, U08 (in-app), U09 (display), U10, U11/F14, F05, F08, F09, F13, and the UI for F01, F02, F15 and F16.
@@ -402,6 +408,11 @@
   - Quiet status notification toggle.
 
 **Tests required:** Robolectric tests per item, semantics checks (distinct from real TalkBack testing), saved-state recreation, scheduled theme boundaries, setup flow re-check, check-in suggestion acceptance, and the narrow-width plus large-font layouts having no clipped primary actions.
+
+**Carried from Tasks 1–2 (added at integration):**
+- **From Task 1:** BedJet selection UI. When no target is chosen, Tonight and Remote show "Choose your BedJet", leading to setup (F08) with `bleLink.discover()`.
+- **From Task 1 review:** "Forget this BedJet" must clear `Settings.targetDevice` (and the legacy address via `bleLink.forget()`), then send the person to BedJet selection. Truthful message: "Forgot this BedJet. Choose a BedJet to connect to."
+- **From Task 2:** surface `Repository.unreadable` with a calm banner ("Some saved data couldn't be read — restore from a snapshot or dismiss") with Restore and Dismiss (`dismissUnreadable()`).
 
 ### Task 6: Platform features: widgets, tile, reminders, auto-start, Health Connect, CSV, hand-over (W5)
 
