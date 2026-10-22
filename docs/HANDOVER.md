@@ -2,7 +2,7 @@
 
 **Updated:** 2026-10-22, Astra continuation from `83e6efa`. Tasks 1–4 are integrated, independently reviewed and verified automatically. Tasks 5 and 6 are in progress in parallel isolated worktrees (Astra medium; base `9bc63a2`). No hardware has been tested.
 
-- **Branch:** `claude/nocturne-hardening`, published through Task4 and current dispatch documentation at `2b4b57a`. The earlier connector rejection is resolved: after renewed instruction, a normal retry succeeded with expected-head/non-force checks and identical-tree verification. Base: `claude/lucid-mayer-i1h2gy` @ `22766fd`.
+- **Branch:** `claude/nocturne-hardening`, published through Task4 and active-worktree continuity documentation at `0204d45`. The earlier connector rejection is resolved: after renewed instruction, a normal retry succeeded with expected-head/non-force checks and identical-tree verification. Base: `claude/lucid-mayer-i1h2gy` @ `22766fd`.
 - **Plan and task briefs:** `docs/superpowers/plans/2026-10-22-nocturne-hardening.md` (Tasks 1–7, global constraints, carried items).
 - **Register:** `docs/review/register.md`.
 - **Ledger** (rulings, deferred minors, review outcomes): `docs/review/sdd-ledger.md`.
