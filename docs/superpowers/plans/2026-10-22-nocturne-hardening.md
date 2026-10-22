@@ -531,3 +531,5 @@ Read `docs/review/release-preflight.md` for the host's exact tools, signing/publ
   - Then check that `apkanalyzer`/`aapt2` lists all manifest components.
   - Then a JVM test (in `app/src/test`) that runs a decode/encode round trip of a BackupBundle and Settings JSON against the minified classes. If that's impractical, document precisely why, and instead verify the serializer classes are present in the minified dex with `apkanalyzer dex packages`.
   - Record the APK size before and after.
+
+Ruling: the requested test-signed candidate will use versionName `0.2.0-hardening-test.1` and versionCode `2` through build overrides. GitHub had no published releases or open hardening PR when checked on 22 October 2026. This selects test artefact metadata only, not a production release or signing-key change; cost if wrong: rebuild the test candidate with revised metadata. Keep its throwaway key outside Git for the final post-review rebuild.
