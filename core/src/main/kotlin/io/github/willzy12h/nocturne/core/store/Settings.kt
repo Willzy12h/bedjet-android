@@ -1,7 +1,11 @@
 package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.core.plan.TonightChoice
+import io.github.willzy12h.nocturne.core.plan.TonightOverride
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import java.time.ZonedDateTime
 import kotlinx.serialization.Serializable
 
 /** A button on the wake-up notification. */
@@ -20,7 +24,12 @@ enum class ThemeMode { SYSTEM, DARK, LIGHT }
 data class Settings(
     /** BedJet slot (0-based) that tonight's plan is written into. */
     val workingSlot: Int = 2,
+    /** v1 read bridge; migrate once with an injected clock before saving or resolving. */
     val selectedProfileId: String? = null,
+    val tonightChoice: TonightChoice? = null,
+    val tonightOverride: TonightOverride? = null,
+    /** Android sometimes omits the alarm creator; accepted by default for backwards compatibility. */
+    val acceptUnknownAlarmSource: Boolean = true,
     /** Up to three, in the order they appear on the notification. */
     val notificationActions: List<WakeAction> = listOf(WakeAction.SNOOZE_WARM, WakeAction.EXTEND_COOL, WakeAction.OFF),
     val snoozeWarm: ActionPreset = ActionPreset(Mode.HEAT, 66, 40, 10),
@@ -42,7 +51,29 @@ data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** Tonight shows the night as a list of steps instead of the bar curve. */
     val simpleView: Boolean = false,
-)
+) {
+    fun setWakeOverride(wakeAt: ZonedDateTime, at: ZonedDateTime): Settings =
+        copy(tonightOverride = TonightOverride(wakeAt.toString(), at.toString()))
+    fun clearWakeOverride(): Settings = copy(tonightOverride = null)
+    fun resolveWakeOverride(at: ZonedDateTime): TonightOverride? =
+        tonightOverride?.takeIf { at.isBefore(ZonedDateTime.parse(it.wakeAt)) }
+    /** Today's bedtime window ends at the next noon, including the morning after midnight. */
+    fun chooseTonight(profileId: String, at: ZonedDateTime): Settings {
+        val noon = at.toLocalDate().atTime(12, 0).atZone(at.zone)
+        val end = if (at.isBefore(noon)) noon else noon.plusDays(1)
+        return copy(selectedProfileId = null, tonightChoice = TonightChoice(profileId, end.toString()))
+    }
+    fun followSchedule(): Settings = copy(selectedProfileId = null, tonightChoice = null)
+    /** Call once on load and persist: repeatedly migrating v1 would extend its expiry. */
+    fun migrateTonightChoice(at: ZonedDateTime): Settings =
+        if (tonightChoice == null && selectedProfileId != null) chooseTonight(selectedProfileId, at) else copy(selectedProfileId = null)
+    fun resolveTonightChoice(at: ZonedDateTime): TonightChoice? =
+        tonightChoice?.takeIf { at.isBefore(ZonedDateTime.parse(it.expiresAt)) }
+    fun resolveProfile(profiles: List<Profile>, at: ZonedDateTime): Profile? =
+        profiles.firstOrNull { it.id == resolveTonightChoice(at)?.profileId }
+            ?: profiles.firstOrNull { at.dayOfWeek.value in it.days } ?: profiles.firstOrNull()
+
+}
 
 /** The BedJet commands go to: the demo unit, the chosen real one, or null when none is chosen yet. */
 fun Settings.deviceId(): String? = if (demoMode) DeviceId.DEMO else targetDevice

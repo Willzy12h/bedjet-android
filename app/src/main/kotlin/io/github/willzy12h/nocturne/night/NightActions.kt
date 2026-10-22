@@ -112,7 +112,7 @@ class NightActions(private val graph: Graph) {
         val settings = repo.settings.value
         val previous = repo.activeNight.value
         val device = settings.deviceId()
-        val result = graph.runner().start(profile, AlarmSource.next(context, settings), settings.workingSlot, repo.originalsFor(device), device ?: Migrations.UNKNOWN_DEVICE)
+        val result = graph.runner().start(profile, AlarmSource.next(context, settings), settings.workingSlot, repo.originalsFor(device), device ?: Migrations.UNKNOWN_DEVICE, override = settings.resolveWakeOverride(graph.now()))
         // Only now that the new night is running is the old one over.
         previous?.let { finish(it, EventKind.STOPPED, "Replaced by ${profile.name}") }
         // With no BedJet chosen there is no device to keep an original for.
@@ -131,6 +131,9 @@ class NightActions(private val graph: Graph) {
         val result = graph.runner().retime(profile, night, ZonedDateTime.parse(night.wakeAt), force = true)
             ?: return "Tonight's wake-up has already started, so it's left as it is."
         repo.setActiveNight(result.night)
+        repo.history.value.firstOrNull { it.id == night.recordId }?.let {
+            repo.addRecord(io.github.willzy12h.nocturne.core.night.NightMutation.Applied(result.plan, result.night).recordRevision(it))
+        }
         repo.addEvent(night.recordId, result.event)
         NightAlarms.schedule(context, result.night)
         return "Changes applied to the rest of tonight. Waking you at ${clock(result.night.wakeAt)}."
@@ -138,11 +141,14 @@ class NightActions(private val graph: Graph) {
 
     private suspend fun retime(): String {
         val night = repo.activeNight.value ?: return "No night running."
-        val profile = repo.profile(night.profileId) ?: return "The night's profile was deleted."
+        val profile = night.profile ?: repo.profile(night.profileId) ?: return "The night's profile was deleted."
         // A calendar reminder or another app's alarm is next; the clock alarm may still be set behind it.
         if (alarmIgnored()) return UNCHANGED
         val result = graph.runner().retime(profile, night, AlarmSource.next(context, repo.settings.value)) ?: return UNCHANGED
         repo.setActiveNight(result.night)
+        repo.history.value.firstOrNull { it.id == night.recordId }?.let {
+            repo.addRecord(io.github.willzy12h.nocturne.core.night.NightMutation.Applied(result.plan, result.night).recordRevision(it))
+        }
         repo.addEvent(night.recordId, result.event)
         NightAlarms.schedule(context, result.night)
         // The person changed their alarm, not the night, so say what followed from it.
@@ -216,6 +222,7 @@ class NightActions(private val graph: Graph) {
     suspend fun finish(night: ActiveNight, kind: EventKind, detail: String) {
         repo.addEvent(night.recordId, HistoryEvent(graph.now().toString(), kind, detail))
         repo.setActiveNight(null)
+        repo.updateSettings { it.clearWakeOverride() }
         NightAlarms.cancel(context)
         Notifications.cancelWakeUp(context)
         setRetimePending(false)
@@ -251,7 +258,7 @@ class NightActions(private val graph: Graph) {
     private fun label(command: Command) = command.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
 
     private fun limits(): ProfileLimits =
-        (repo.activeNight.value?.let { repo.profile(it.profileId) } ?: repo.tonightsProfile())?.limits ?: ProfileLimits()
+        (repo.activeNight.value?.let { it.profile ?: repo.profile(it.profileId) } ?: repo.tonightsProfile())?.limits ?: ProfileLimits()
 
     private fun clock(iso: String) = ZonedDateTime.parse(iso).format(DateTimeFormatter.ofPattern("HH:mm"))
 

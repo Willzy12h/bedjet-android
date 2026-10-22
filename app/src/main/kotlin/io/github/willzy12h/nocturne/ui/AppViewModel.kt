@@ -116,8 +116,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** The running night's plan, rebuilt from what was stored when it started. */
     fun activePlan(): Plan? {
         val night = activeNight.value ?: return null
-        val profile = repo.profile(night.profileId) ?: return null
-        return runCatching { PlanCompiler.compile(profile, ZonedDateTime.parse(night.startedAt), ZonedDateTime.parse(night.wakeAt)) }.getOrNull()
+        return runCatching { night.activePlan(repo.profile(night.profileId)) }.getOrNull()
     }
 
     // Commands
