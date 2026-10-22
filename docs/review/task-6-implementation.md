@@ -182,3 +182,37 @@ Final task HEAD: `7b3e0ea4e2ea6efa022e5d620e8241c041ef0032` (`feat(platform): ad
 ## Lead metadata alignment before review
 
 The clean implementation commit above was preserved as local branch `backup/task6-pre-published-alignment` and mechanically rebased from local base `9bc63a2c324996e3236245be0aa6ff13a25f8dbe` onto its published identical-tree equivalent `d7368a9b915f3fea1d46a293d7b2ee6351f5a57a`. Review HEAD is now `4131eaa445c1dc4960a68ae7d338cacc7a14b9d9`; before/after task tree is exactly `155332cbf71cd8faecea34c91518c649a830f4af`. Worktree stayed clean. No source changed, so the recorded exact-tree gate remains applicable.
+
+## Review fix round 1/5 — I1 and I2
+
+Started from clean aligned HEAD `4131eaa445c1dc4960a68ae7d338cacc7a14b9d9`; no reset, dependency/manifest change, subagent or push. Both Important findings were reproduced before behavioural correction. Parked minor findings remain unchanged.
+
+### I1: job stop ownership
+
+`ChargerJobService.onStopJob` now matches the running job's logical ID, rather than reference equality of separately unmarshalled JobParameters. The service accepts only its reserved charger ID. It marks the retained Running owner stopped and cancels its coroutine. That owner remains installed until operation cancellation cleanup completes, so a replacement start is rejected during delayed cleanup. Notification cancellation, clearing running and jobFinished are all guarded by the same Running-generation identity; a stopped run never calls jobFinished. Framework start/stop callbacks are main-thread ordered; this does not invent an overlapping-execution protocol or permit two command owners. A small internal injectable operation boundary retains the same service-owned coroutine and production ChargerRun path.
+
+Three new adapter-boundary regressions use distinct same-ID JobParameters objects: cancellation during grace; cancellation during injected in-flight owned work; delayed cancellation cleanup rejecting replacement followed by a fresh grace/notification, with no stopped jobFinished and no cancellation for an unrelated ID. Existing ChargerRun tests additionally verify actual runner grace/eligibility/coordinator behaviour. These are JVM/Robolectric boundary tests, not physical JobScheduler/BedJet execution.
+
+### I2: visible CSV text policy
+
+CSV encoding applies privacy redaction, then a text-cell policy, then RFC4180 quoting. Text beginning with ASCII `= + - @`, full-width `＝ ＋ － ＠`, whitespace, ISO control or Unicode FORMAT characters (including BOM) is prefixed with literal visible `Text: `. Examples: `=1+1` becomes `Text: =1+1`; a leading tab remains after the visible prefix. Mixed whitespace/control/BOM prefixes are therefore inert under this explicit exported representation. Ordinary text, including embedded quotes/commas/newlines, remains unchanged. Generated revision, temperature, fan and duration cells are explicitly numeric and bypass the text prefix, preserving negative numbers. Identifiers on/off remain supported and address redaction still precedes quoting. Export help now documents the visible representation change. This does not promise universal consumer safety after downstream spreadsheet transformations or rely on hidden apostrophe/tab conventions. Source basis supplied/verified by lead: https://community.owasp.org/attacks/CSV_Injection.
+
+Tests parse RFC4180 cells before comparing their values, covering formula signs/at-sign, full-width equivalents, tab/CR/LF/NUL, mixed space+tab+BOM, BOM, quotes/separators, profile/night-ID/fallback-time/device text, both privacy choices, ordinary quoted multiline text and generated negative numeric cells. No spreadsheet execution or external-content exploit was performed.
+
+### Exact RED/GREEN evidence
+
+From `/workspace/scratch/ad4eb857ceea/nocturne-wt-task6`:
+
+```sh
+bash /workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/run-gradle.sh :app:testDebugUnitTest --tests '*ChargerJobServiceTest' --tests '*PlatformDataTest' --offline
+```
+
+`task6-fix1-red.log`: BUILD FAILED in45s,8 tests completed,4 failed. The three adapter tests failed waiting for cancellation after a distinct same-ID stop; CSV comparison expected `Text: =1+1` but observed `=1+1`. Remaining4 tests passed. The internal operation injection seam was extracted before RED; job-ID matching and cleanup/CSV behaviours were still unchanged. No compile/scaffolding failure is counted as this RED.
+
+```sh
+bash /workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/run-gradle.sh :app:testDebugUnitTest --tests '*ChargerJobServiceTest' --tests '*ChargerRunTest' --tests '*PlatformDataTest' --tests '*FeatureUiTest' --offline
+```
+
+`task6-fix1-green.log`: BUILD SUCCESSFUL in38s,15 tests passed,0 failures/errors/skips (3 adapter,4 runner,5 data,3 feature UI). XML snapshot: `/workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/task6-fix1-test-results/`. Final whitespace check passed. F04/F11 register evidence updated. No duplicate full gate run: lead explicitly owns the required integration gate after scoped re-review approval. Previous full gate remains evidence only for its recorded pre-fix tree. UI placement and physical acceptance limits remain unchanged.
+
+Fix-round HEAD: `b973d1f29109c7c760aa25d444f38ac2a132a0a0` (`fix(platform): cancel stopped jobs and encode inert CSV text`). Clean worktree after commit; Implemented-By: GPT-6 Astra; no push. Only an explanatory Binder-identity comment was added after the GREEN run; executable source is the tested tree.
