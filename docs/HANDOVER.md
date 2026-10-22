@@ -1,6 +1,6 @@
 # Handover
 
-**Updated:** 2026-10-22, Astra continuation from `83e6efa`. Tasks 1–4 are integrated, independently reviewed and verified automatically. Tasks 5 and 6 are next, in parallel isolated worktrees. No hardware has been tested.
+**Updated:** 2026-10-22, Astra continuation from `83e6efa`. Tasks 1–4 are integrated, independently reviewed and verified automatically. Tasks 5 and 6 are in progress in parallel isolated worktrees (Astra medium; base `9bc63a2`). No hardware has been tested.
 
 - **Branch:** `claude/nocturne-hardening`. The Task4 checkpoint is committed locally; its connector publish was rejected with "user rejected MCP tool call". Do not retry GitHub writes without renewed authorisation. The last successful remote checkpoint is `a5d01c1`. The base is `claude/lucid-mayer-i1h2gy` @ `22766fd`.
 - **Plan and task briefs:** `docs/superpowers/plans/2026-10-22-nocturne-hardening.md` (Tasks 1–7, global constraints, carried items).
