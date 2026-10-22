@@ -7,8 +7,10 @@ import kotlinx.serialization.Serializable
 /** Local runtime journal, intentionally excluded from portable profile backups. */
 @Serializable data class RuntimeState(
     val generation: Long = 0,
+    val localDeliveries: List<LocalDelivery> = emptyList(),
     val alarmInbox: AlarmObservation? = null,
     val ending: PendingEnd? = null,
+    val wakeSourceChange: WakeSourceChange? = null,
     val resumeOffer: ResumeOffer? = null,
     val retime: PendingRetime? = null,
     val slotWrite: SlotWrite? = null,
@@ -18,7 +20,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class PendingRetime(val id: String, val expected: NightIdentity, val deviceId: String,
     val alarmAt: String?, val alarmOrigin: String?, val deadline: String)
 @Serializable data class SlotWrite(val deviceId: String, val slot: Int, val intended: StoredProgram?,
-    val confidence: Confidence = Confidence.PENDING, val label: String)
+    val confidence: Confidence = Confidence.PENDING, val label: String,
+    val startRequested: Boolean = false, val displaced: NightIdentity? = null)
 
 data class CommandRequest(val command: NightActions.Command, val profileId: String?, val deviceId: String?,
     val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false)
@@ -50,3 +53,7 @@ object ReplacementPolicy {
 internal class SubmissionTarget(val deviceId: String?) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<SubmissionTarget>
 }
+
+@Serializable data class LocalDelivery(val id: String, val action: String, val expected: NightIdentity, val receivedAt: String)
+
+@Serializable data class WakeSourceChange(val expected: NightIdentity, val origin: WakeOrigin)

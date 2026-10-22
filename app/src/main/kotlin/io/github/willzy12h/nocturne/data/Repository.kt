@@ -85,6 +85,9 @@ class Repository(
     private val settingsLoadedAt = now()
     private val _settings = MutableStateFlow(load(SETTINGS) { decode(Settings.serializer(), it) } ?: Settings())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
+    // Publication signal, not persisted state: equal-value restores must still reconcile side effects.
+    private val _settingsPublication = MutableStateFlow(0L)
+    internal val settingsPublication: StateFlow<Long> = _settingsPublication.asStateFlow()
     private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now()))
     val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     private val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
@@ -246,6 +249,7 @@ class Repository(
             writeAllOrNone(writes)
             _profiles.value = profiles
             _settings.value = settings
+            _settingsPublication.value += 1
             _history.value = history
             _slotBackups.value = slotBackups
             clearUnreadable()
@@ -290,6 +294,7 @@ class Repository(
         val value = change(flow.value)
         writeValue(name, serializer, value)
         flow.value = value
+        if (name == SETTINGS) _settingsPublication.value += 1
     }
 
     private fun <T> writeValue(name: String, serializer: KSerializer<T>, value: T) = writeFile(File(dir, name), encode(serializer, value))

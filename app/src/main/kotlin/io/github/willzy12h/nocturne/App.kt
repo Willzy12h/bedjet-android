@@ -62,6 +62,11 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     fun startRuntime() {
         scope.launch { actions.initialise() }
         scope.launch {
+            combine(repository.settingsPublication, repository.activeNight) { _, _ -> Unit }.collect {
+                actions.refreshQuietNotification()
+            }
+        }
+        scope.launch {
             repository.settings.map { it.deviceId() }.distinctUntilChanged().flatMapLatest { target ->
                 link.status.map { target to it }
             }.collect { (target, status) -> if (status != null) actions.observeStatus(status, target, now()) }

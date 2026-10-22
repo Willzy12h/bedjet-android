@@ -13,8 +13,10 @@ class NightAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val graph = context.graph
         when (intent.action) {
-            NightAlarms.ACTION_WAKE_UP -> local(context) { graph.actions.wakeUp(NightAlarms.identity(intent)) }
-            NightAlarms.ACTION_NIGHT_END -> local(context) { graph.actions.expire(NightAlarms.identity(intent)) }
+            NightAlarms.ACTION_WAKE_UP, NightAlarms.ACTION_NIGHT_END -> local(context) {
+                graph.actions.submitLocalDelivery(intent.action!!, NightAlarms.identity(intent))
+            }
+            NightAlarms.ACTION_LOCAL_RETRY -> local(context) { graph.actions.drainLocalDeliveries() }
             NightAlarms.ACTION_RETRY -> {
                 if (!graph.actions.retimePending) return
                 NightAlarms.scheduleObservation(context, graph.now())

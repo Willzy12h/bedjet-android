@@ -51,6 +51,27 @@ class RuntimeOwnershipTest {
         return graph.repository.activeNight.value!!
     }
     private fun advance(minutes: Long) { graph.clock = Clock.offset(graph.clock, Duration.ofMinutes(minutes)); context.graph.clock = graph.clock }
+    @Test fun interruptedBoostPendingUploadCannotReplayDisplacedNightAfterRestart() = runBlocking {
+        assertInterruptedBoostCannotReplay(Confidence.PENDING)
+    }
+    @Test fun interruptedBoostConfirmedSlotCannotReplayDisplacedNightAfterRestart() = runBlocking {
+        assertInterruptedBoostCannotReplay(Confidence.CONFIRMED)
+    }
+    private suspend fun assertInterruptedBoostCannotReplay(confidence: Confidence) {
+        val n = start()
+        graph.repository.updateRuntime { it.copy(
+            slotWrite = SlotWrite("demo", n.slot, StoredProgram("Boost", emptyList()), confidence, "Boost", true, n.identity),
+            alarmInbox = AlarmObservation("alarm", n.recordId, "demo", graph.now().toString())) }
+        val restarted = Graph(context, graph.link)
+        restarted.clock = graph.clock
+        val count = sent.size
+        restarted.actions.reconcile()
+        restarted.actions.retryPendingRetime()
+        assertEquals(count, sent.size)
+        assertEquals(Confidence.UNKNOWN, restarted.repository.activeNight.value?.confidence)
+        assertNull(restarted.repository.runtime.value.alarmInbox)
+        assertNull(restarted.repository.runtime.value.retime)
+    }
     @Test fun endAlarmQueuedBehindExtendCannotExpireItsNewRevision() = runBlocking {
         val original = start()
         graph.clock = Clock.fixed(ZonedDateTime.parse(original.endsAt).toInstant(), ZoneOffset.UTC)

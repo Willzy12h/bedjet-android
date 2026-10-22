@@ -88,4 +88,5 @@
     <string name="runtime_command_keep_tracking">Keep tracking</string>
     <string name="runtime_export_failed">Could not open the diagnostics file.</string>
     <string name="runtime_restore_active">End the night or stop tracking before restoring a slot.</string>
+    <string name="runtime_override_cleared">Following the alarm or profile wake time again. The wake time is unchanged.</string>
 </resources>

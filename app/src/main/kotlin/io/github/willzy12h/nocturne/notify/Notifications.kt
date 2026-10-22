@@ -76,7 +76,7 @@ object Notifications {
     }
 
     fun showQuiet(context: Context, night: ActiveNight, settings: Settings) {
-        if (!settings.quietNightNotification || night.confidence != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED) { cancelQuiet(context); return }
+        if (!settings.quietNightNotification || night.trackingManual || night.confidence != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED) { cancelQuiet(context); return }
         if (!canPost(context)) return
         val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
         val notification = Notification.Builder(context, CHANNEL_WORKING).setSmallIcon(R.drawable.ic_notification)
@@ -88,9 +88,13 @@ object Notifications {
     fun cancelQuiet(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(6)
     fun showResume(context: Context) {
         if (!canPost(context)) return
+        val captured = context.graph.actions.capture(NightActions.Command.RESUME, requireIdentity = true)
+        val confirm = PendingIntent.getActivity(context, ("resume:${captured.expected}").hashCode(),
+            io.github.willzy12h.nocturne.ui.ShortcutActivity.confirmationIntent(context, captured),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification = Notification.Builder(context, CHANNEL_ALERTS).setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.runtime_resume_title)).setContentIntent(openApp(context)).setAutoCancel(true)
-            .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_resume_title), BedJetService.pendingIntent(context, NightActions.Command.RESUME)).build())
+            .setContentTitle(context.getString(R.string.runtime_resume_title)).setContentIntent(confirm).setAutoCancel(true)
+            .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_resume_title), confirm).build())
             .build()
         context.getSystemService(NotificationManager::class.java).notify(7, notification)
     }

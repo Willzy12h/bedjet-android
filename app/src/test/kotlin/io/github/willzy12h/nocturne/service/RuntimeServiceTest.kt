@@ -29,9 +29,11 @@ class RuntimeServiceTest {
     private lateinit var graph: Graph
     private var beforeSend: suspend (ByteArray) -> Unit = {}
     private var writes = 0
+    private var connects = 0
     @Before fun setup() = runBlocking {
         val demo = DemoBedJet(now = { graph.now() })
         val link = object : BedJetLink by demo {
+            override suspend fun connect() { connects++; demo.connect() }
             override suspend fun send(command: ByteArray) { writes++; beforeSend(command); demo.send(command) }
         }
         graph = Graph(app, link)
@@ -44,6 +46,70 @@ class RuntimeServiceTest {
         val deadline = System.nanoTime() + 5_000_000_000L
         while (!check() && System.nanoTime() < deadline) { shadowOf(Looper.getMainLooper()).idle(); Thread.yield() }
         assertTrue("Timed out pumping main looper", check())
+    }
+    @Test fun wakeReceiverRetainsDeliveryBeyondItsBudgetWhileOwnerIsBusy() = runBlocking {
+        graph.actions.perform(NightActions.Command.START_NIGHT)
+        val n = graph.repository.activeNight.value!!
+        graph.clock = Clock.fixed(ZonedDateTime.parse(n.wakeUpStart).toInstant(), ZoneOffset.UTC)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.actions.exclusive { entered.complete(Unit); release.await() } }
+        until { entered.isCompleted }
+        val count = writes; val connectsBefore = connects
+        val receiver = NightAlarmReceiver()
+        app.registerReceiver(receiver, IntentFilter(NightAlarms.ACTION_WAKE_UP), Context.RECEIVER_NOT_EXPORTED)
+        try {
+            val wake = Intent(NightAlarms.ACTION_WAKE_UP).putExtra(NightAlarms.EXTRA_NIGHT, n.recordId).putExtra(NightAlarms.EXTRA_REVISION, n.revision)
+            app.sendBroadcast(wake)
+            until { graph.repository.runtime.value.localDeliveries.isNotEmpty() }
+            assertTrue(java.io.File(app.filesDir, "runtime.json").readText().contains(n.recordId))
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(10))
+            assertEquals(count, writes)
+            release.complete(Unit); until { held.isCompleted }
+            until { graph.repository.runtime.value.wakeShown == n.identity }
+            app.sendBroadcast(wake); shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(n.identity, graph.repository.runtime.value.wakeShown)
+            assertEquals(count, writes)
+            assertEquals(connectsBefore, connects)
+            until { graph.repository.notices.value.count { it.kind == io.github.willzy12h.nocturne.core.store.NoticeKind.WAKE_UP } == 1 }
+        } finally { release.complete(Unit); app.unregisterReceiver(receiver) }
+    }
+    @Test fun endReceiverRetainsDeliveryBeyondItsBudgetWithoutHardware() = runBlocking {
+        graph.actions.perform(NightActions.Command.START_NIGHT)
+        val n = graph.repository.activeNight.value!!
+        graph.clock = Clock.fixed(ZonedDateTime.parse(n.endsAt).toInstant(), ZoneOffset.UTC)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.actions.exclusive { entered.complete(Unit); release.await() } }
+        until { entered.isCompleted }; val count = writes; val connectsBefore = connects
+        val receiver = NightAlarmReceiver()
+        app.registerReceiver(receiver, IntentFilter(NightAlarms.ACTION_NIGHT_END), Context.RECEIVER_NOT_EXPORTED)
+        try {
+            app.sendBroadcast(Intent(NightAlarms.ACTION_NIGHT_END).putExtra(NightAlarms.EXTRA_NIGHT, n.recordId).putExtra(NightAlarms.EXTRA_REVISION, n.revision))
+            until { graph.repository.runtime.value.localDeliveries.isNotEmpty() }
+            assertTrue(java.io.File(app.filesDir, "runtime.json").readText().contains(n.recordId))
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(10))
+            release.complete(Unit); until { held.isCompleted }
+            until { graph.repository.activeNight.value == null }
+            assertEquals(count, writes); assertEquals(connectsBefore, connects)
+        } finally { release.complete(Unit); app.unregisterReceiver(receiver) }
+    }
+    @Test fun delayedWakeReceiverRejectsRevisionChangedByItsOwner() = runBlocking {
+        graph.actions.perform(NightActions.Command.START_NIGHT)
+        val n = graph.repository.activeNight.value!!
+        graph.clock = Clock.fixed(ZonedDateTime.parse(n.wakeUpStart).toInstant(), ZoneOffset.UTC)
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.actions.exclusive { entered.complete(Unit); release.await() } }
+        until { entered.isCompleted }
+        val receiver = NightAlarmReceiver()
+        app.registerReceiver(receiver, IntentFilter(NightAlarms.ACTION_WAKE_UP), Context.RECEIVER_NOT_EXPORTED)
+        try {
+            app.sendBroadcast(Intent(NightAlarms.ACTION_WAKE_UP).putExtra(NightAlarms.EXTRA_NIGHT, n.recordId).putExtra(NightAlarms.EXTRA_REVISION, n.revision))
+            until { graph.repository.runtime.value.localDeliveries.isNotEmpty() }
+            graph.repository.setActiveNight(n.copy(revision = n.revision + 1))
+            release.complete(Unit); until { held.isCompleted }
+            assertNull(graph.repository.runtime.value.wakeShown)
+            assertTrue(graph.repository.runtime.value.localDeliveries.isEmpty())
+            assertEquals(n.revision + 1, graph.repository.activeNight.value!!.revision)
+        } finally { release.complete(Unit); app.unregisterReceiver(receiver) }
     }
     @Test fun cancelledUiDeliveryCannotExecuteLater() {
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
