@@ -106,5 +106,9 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 | V02 | Migration and backup round trips | W2 | auto-verified (MigrationsTest, BackupTest.roundTrip, SnapshotStoreTest.aVersion1SnapshotLoads, RepositoryTest.aVersion1BackupImports) |
 | V03 | Before/after real-app renders: Dark, Light, Simple, narrow, large text | L / W4 | baseline captured |
 | V04 | Minified release build with a test signing key (not production) | L | open |
-| V05 | Samsung + BedJet 3 acceptance checklist | L | open |
+| V05 | Samsung + BedJet 3 acceptance checklist | L | implemented: docs/review/samsung-bedjet-acceptance.md; all physical checks NOT RUN |
 | V06 | Independent review (W6) and fix pass | W6 / L | open |
+
+## Task 3 integration checkpoint
+
+Task 3 implementation plus one fix round passed independent scoped re-review and the full merged gate: **140 core passes; 85 app passes, four screenshot skips; debug assembly; zero lint errors, two warnings**. The new temporal regressions in `NightTemporalEligibilityTest` cover resume at/after wake, slow upload/readback and the final start-command guard after clock synchronisation. Whole-app durability/ownership and UI items marked pending above remain Task 4–6 work. No hardware verification.
