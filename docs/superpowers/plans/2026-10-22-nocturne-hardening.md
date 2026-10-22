@@ -540,6 +540,8 @@ Ruling: Task5 may mechanically migrate `widget/SingleActionConfigActivity.kt`'s 
 
 ## Additional Task 5 review requirements (22 October integration)
 
+Ruling: Task5 may change only the successful null-target message in NightActions.selectTarget and add its UK English resource, so Forget says “Forgot this BedJet. Choose a BedJet to connect to.” The existing target clearing, refusal policy, ownership and single emitted outcome remain unchanged; test the real coordinator's null-versus-selected result — cost if wrong: misleading success feedback, caught by the targeted outcome regression.
+
 - Supply representative real-app renders (Dark Tonight, Light Tonight, Simple and320dp at200% text) with Graph.clock pinned before composition before the task review. The lead captures the full final after set later.
 - Accept a morning suggestion against the current reusable profile, preserving unrelated edits; refuse/refresh if deleted or materially changed. Never replace the reusable profile with the saved night snapshot or silently reapply a suggestion to a running night. Cover acceptance after edit/deletion.
 
