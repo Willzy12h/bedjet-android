@@ -88,4 +88,8 @@ Ruling: execute Task 3, then 4, then Tasks 5 and 6 in parallel isolated worktree
 | T6 × T7 | Health Connect dependency, manifest components and R8 | T7 starts after T6 merge and includes new components in release checks |
 | T7 self | No production-key fallback; test key is deliberately separate | Produce a test-signed APK without committing keys or publishing a release |
 
-Task 3: pending dispatch.
+Task 3: dispatched (GPT-6 Astra medium; agent /root/hardening_task3; worktree nocturne-wt-task3; BASE a8cbaba).
+
+Ruling: Task 3 may mechanically update AppViewModel.activePlan and Repository.tonightsProfile to use its new snapshot/temporary-selection helpers, plus dependent selectedProfileId callers — the model must actually govern existing displays and resolution — cost if wrong: compatibility edits need review before Task 4.
+
+Continuation baseline gate: BUILD SUCCESSFUL (1m46s); 99 core passed; app 89 total = 85 passed + 4 screenshot captures skipped; zero failures/errors; debug APK 60,022,556 bytes; lint zero errors and one ObsoleteSdkInt warning. Complete JDK 17 + cached dependencies (--offline); no physical checks.

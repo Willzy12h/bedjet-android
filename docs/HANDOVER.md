@@ -1,6 +1,6 @@
 # Handover
 
-**Updated:** 2026-10-22, checkpoint after Tasks 1–2. Paused here at the owner's request (token budget).
+**Updated:** 2026-10-22, Astra continuation from `83e6efa`. Tasks 1–2 remain integrated; Task 3 is in progress in an isolated worktree.
 
 - **Branch:** `claude/nocturne-hardening`, pushed. The base is `claude/lucid-mayer-i1h2gy` @ `22766fd`.
 - **Plan and task briefs:** `docs/superpowers/plans/2026-10-22-nocturne-hardening.md` (Tasks 1–7, global constraints, carried items).
@@ -24,8 +24,8 @@
   - Task review, then fix round 1 (2 Important plus 1 spec gap fixed), then re-review: clean.
 - **Verification at the checkpoint:** `./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug` passes: core 99/99, app 89/89 (4 screenshot tests skipped by design), lint 0 errors. This is automated only; no hardware has been tested.
 
-## Not started (briefs ready in the plan)
-1. **Task 3:** night state and planning core.
+## Remaining tasks (briefs ready in the plan)
+1. **Task 3 — in progress:** night state and planning core.
    - Immutable active-night snapshot and revisions.
    - A guard refusing nights over 16 h (the 06:34 → 24.5 h finding).
    - One alarm policy and one start-now preview.
@@ -53,6 +53,12 @@
 - "Forget this BedJet" shows an untrue message until Task 5.
 - No original slot backup is saved while no BedJet is chosen.
 
+## Continuation verification
+
+Fresh full baseline gate on this host passed: **99 core passed; 89 app tests total, 85 passed and four screenshot tests skipped; zero lint errors, one ObsoleteSdkInt warning**. The original handover's “89/89” included the four skipped captures. No hardware was tested.
+
+Build environment on this host: a full JDK 17 is required (the system Java is a JRE). `JAVA_HOME=/workspace/scratch/ad4eb857ceea/nocturne-jdk17/jdk-17.0.20.1+1`, `GRADLE_USER_HOME=/workspace/scratch/ad4eb857ceea/gradle-cache`, SDK `/workspace/scratch/ad4eb857ceea/android-sdk`. Gradle requires approved elevated execution for local coordination sockets; existing dependencies are cached and the baseline ran with `--offline`. These paths are host-specific, not project configuration.
+
 ## Reproduce
 ```bash
 echo "sdk.dir=/path/to/android-sdk" > local.properties
@@ -61,4 +67,4 @@ SCREENSHOT_TAG=after ./gradlew :app:testDebugUnitTest --tests '*ScreenshotCaptur
 ```
 
 ## Continuation prompt
-> Continue the Nocturne hardening in `Willzy12h/bedjet-android` on branch `claude/nocturne-hardening`. Read `docs/HANDOVER.md`, `docs/superpowers/plans/2026-10-22-nocturne-hardening.md` (global constraints and Tasks 3–7, including the "Carried from Tasks 1–2" notes), `docs/review/register.md` and `docs/review/sdd-ledger.md`. Use superpowers:subagent-driven-development with Opus at medium effort. Run Task 3, then Task 4, then Tasks 5 and 6 in parallel worktrees, then Task 7. Each task gets an implementer, a task review, fix rounds and a scoped re-review before merging. Keep the existing UI design. Update the register, the ledger and this handover after each task. Finish with a final whole-branch review, after-screenshots, the acceptance checklist, a draft PR to `claude/lucid-mayer-i1h2gy` and a test APK with its SHA-256.
+> Continue the Nocturne hardening in `Willzy12h/bedjet-android` on branch `claude/nocturne-hardening`. Read `docs/HANDOVER.md`, `docs/superpowers/plans/2026-10-22-nocturne-hardening.md` (global constraints and Tasks 3–7, including the "Carried from Tasks 1–2" notes), `docs/review/register.md` and `docs/review/sdd-ledger.md`. Use superpowers:subagent-driven-development with GPT-6 Astra at medium effort (owner substitution on 22 October). Run Task 3, then Task 4, then Tasks 5 and 6 in parallel worktrees, then Task 7. Each task gets an implementer, a task review, fix rounds and a scoped re-review before merging. Keep the existing UI design. Update the register, the ledger and this handover after each task. Finish with a final whole-branch review, after-screenshots, the acceptance checklist, a draft PR to `claude/lucid-mayer-i1h2gy` and a test APK with its SHA-256.
