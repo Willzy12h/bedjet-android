@@ -56,8 +56,10 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
     /**
      * Sets the unit's clock and starts a slot, then waits for the unit to report the first step running.
      * A unit that can't run the program stays off and raises a notification instead, which is cleared here.
+     * [beforeStart] can reject an expired request after clock sync/status preparation, immediately before sending
+     * the start command. If it throws, this scope cancels the confirmation waiter without issuing a start.
      */
-    suspend fun startProgram(slot: Int) = coroutineScope {
+    suspend fun startProgram(slot: Int, beforeStart: () -> Unit = {}) = coroutineScope {
         syncClock()
         // Only reports that arrive after this count: a program already running would otherwise look like this one
         // starting, and a refusal that follows would be missed. The link forgets the progress it last saw first.
@@ -70,6 +72,7 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
                 }
             }
         }
+        beforeStart()
         link.send(Codec.startProgram(slot))
         var outcome = reply.await() ?: throw BedJetError.Timeout()
         if (outcome.extra?.notification !in REFUSALS) {

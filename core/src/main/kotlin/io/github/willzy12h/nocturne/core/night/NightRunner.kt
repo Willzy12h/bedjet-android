@@ -146,7 +146,9 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             val revision = offer.night.revision + 1
             val intended = offer.night.copy(revision = revision, applied = AppliedProgram.from(plan, revision),
                 wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(), confidence = Confidence.CONFIRMED, actualEnd = null, pending = null)
-            val request = PendingChange(UUID.randomUUID().toString(), ChangeKind.RESUME, intended.wakeAt, now.toString(), offer.expiresAt, null)
+            // The offer may outlive tonight's wake; execution must satisfy both boundaries too.
+            val deadline = minOf(ZonedDateTime.parse(offer.expiresAt), wake)
+            val request = PendingChange(UUID.randomUUID().toString(), ChangeKind.RESUME, intended.wakeAt, now.toString(), deadline.toString(), null)
             Preparation.Ready(PreparedChange(plan, intended, null, request, offer.commandVersion))
         } catch (e: PlanException) { Preparation.Refused(e.message.orEmpty()) }
     }
@@ -175,11 +177,11 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             if (latest?.identity != expectedIdentity && !ownPendingStart) return NightMutation.Stale(expectedIdentity, latest?.identity)
             if (change.expectedCommand != null && change.expectedCommand != commandVersion()) return NightMutation.Stale(expectedIdentity, latest?.identity)
             // Backing up/persisting may have consumed the remaining request lifetime.
-            if (!now().isBefore(ZonedDateTime.parse(change.request.deadline))) throw PlanException("This request has expired.")
-            if ((change.request.kind == ChangeKind.RETIME || change.request.kind == ChangeKind.REAPPLY) && change.previous != null && !now().isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) throw PlanException("Tonight's wake-up has already started.")
+            checkExecutionTime(change)
             writeMayHaveHappened = true
             controller.store(StoredProgram(change.intended.profile!!.name, change.plan.programSteps), change.intended.slot)
-            controller.startProgram(change.intended.slot)
+            checkExecutionTime(change)
+            controller.startProgram(change.intended.slot) { checkExecutionTime(change) }
             publish(change.intended)
             return NightMutation.Applied(change.plan, change.intended)
         } catch (e: Exception) {
@@ -187,6 +189,16 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             withContext(NonCancellable) { publish(failed) }
             if (e is CancellationException) throw e
             return NightMutation.Failed(failed, e)
+        }
+    }
+
+    /** Repeated after every pre-start suspension; the same strict boundary applies at the final send. */
+    private fun checkExecutionTime(change: PreparedChange) {
+        val time = now()
+        if (!time.isBefore(ZonedDateTime.parse(change.request.deadline))) throw PlanException("This request has expired.")
+        if ((change.request.kind == ChangeKind.RETIME || change.request.kind == ChangeKind.REAPPLY) &&
+            change.previous != null && !time.isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) {
+            throw PlanException("Tonight's wake-up has already started.")
         }
     }
 
