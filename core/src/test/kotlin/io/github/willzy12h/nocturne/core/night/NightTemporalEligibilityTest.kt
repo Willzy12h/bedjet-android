@@ -16,14 +16,16 @@ class NightTemporalEligibilityTest {
         var now = ZonedDateTime.parse("2026-10-21T22:30:00Z")
         val wake = ZonedDateTime.parse("2026-10-22T07:00:00Z")
         val link = DemoBedJet { now }
-        val runner = NightRunner(BedJetController(link) { now }) { now }
+        val controller = BedJetController(link) { now }
+    val runner = NightRunner(controller) { now }
+    private val fixture = NightFixture(runner, controller) { now }
         var writes = 0
         var starts = 0
         val published = mutableListOf<ActiveNight>()
 
         suspend fun night(): ActiveNight {
             link.connect()
-            return runner.start(Presets.springAutumn, wake, 2, emptyList(), "demo").night
+            return fixture.start(Presets.springAutumn, wake, 2, emptyList(), "demo").night
         }
         suspend fun resume(): PreparedChange {
             val night = night()
@@ -86,7 +88,7 @@ class NightTemporalEligibilityTest {
             assertTrue(result is NightMutation.Failed, "Published pending request must terminate truthfully: $result")
             assertEquals(Confidence.FAILED, (result as NightMutation.Failed).night.confidence)
             assertEquals(listOf(Confidence.PENDING, Confidence.FAILED), f.published.map { it.confidence })
-            assertEquals(change.request, result.night.pending)
+            assertEquals(change.request.copy(intended = change.intended), result.night.pending)
             assertEquals(0, f.writes)
             assertEquals(0, f.starts)
             assertEquals(originalSlot, f.link.slots[2])
@@ -96,7 +98,7 @@ class NightTemporalEligibilityTest {
         assertTrue(result is NightMutation.Failed, "Expired upload must not be confirmed: $result")
         assertEquals(Confidence.UNKNOWN, (result as NightMutation.Failed).night.confidence)
         assertEquals(listOf(Confidence.PENDING, Confidence.UNKNOWN), f.published.map { it.confidence })
-        assertEquals(change.request, result.night.pending)
+        assertEquals(change.request.copy(intended = change.intended), result.night.pending)
         assertTrue(f.writes > 0, "Exercise the window after a slot write really happened")
         assertEquals(change.plan.programSteps, f.link.slots[2]!!.steps)
         assertEquals(0, f.starts, "No start command may be issued once temporal eligibility is lost")

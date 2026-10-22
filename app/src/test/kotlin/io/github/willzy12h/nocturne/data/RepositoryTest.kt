@@ -89,7 +89,7 @@ class RepositoryTest {
     private val program = StoredProgram("original", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0)))
 
     private fun backup(slot: Int, name: String, device: String = "ble:AA:BB") =
-        SlotBackup(device, slot, StoredProgram(name, listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), "2026-10-21T22:30Z")
+        SlotBackup(device, slot, StoredProgram(name, listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now.toString())
 
     @Test
     fun valuesSurviveARestart() = runBlocking {
@@ -97,7 +97,7 @@ class RepositoryTest {
         val mine = Presets.summerCool.copy(id = "mine", name = "Mine")
         first.saveProfile(mine)
         first.updateSettings { it.copy(fahrenheit = true, workingSlot = 2) }
-        first.addSlotBackup(backup(1, "original"))
+        backup(1, "original").let { first.recordOriginalSlot(it.deviceId, it.slot, it.program) }
 
         val second = repository()
         assertEquals(mine, second.profile("mine"))
@@ -152,7 +152,7 @@ class RepositoryTest {
     @Test
     fun restoreKeepsCurrentSlotBackupsAndAddsMissingOnes() = runBlocking {
         val repo = repository()
-        repo.addSlotBackup(backup(1, "user's own"))
+        backup(1, "user's own").let { repo.recordOriginalSlot(it.deviceId, it.slot, it.program) }
         val older = repo.bundle().copy(slotBackups = listOf(backup(1, "nocturne's"), backup(2, "slot two"), backup(1, "demo's", "demo")))
 
         repo.restore(older)
@@ -288,7 +288,7 @@ class RepositoryTest {
         assertEquals(real, repo.originalSlot("ble:AA:BB", 2))
         assertNull(repo.originalSlot("ble:CC:DD", 2))
 
-        repo.addSlotBackup(backup(2, "another demo", "demo"))
+        backup(2, "another demo", "demo").let { repo.recordOriginalSlot(it.deviceId, it.slot, it.program) }
         assertEquals(real, repo.originalSlot("ble:AA:BB", 2))
     }
 
@@ -310,9 +310,11 @@ class RepositoryTest {
         link.connect()
         val runner = NightRunner(BedJetController(link) { now }) { now }
 
-        val result = runner.start(Presets.springAutumn, null, 2, repo.originalsFor("ble:AA:BB"), "ble:AA:BB")
-
-        assertNull(result.slotBackup)
+        repo.originalsFor("ble:AA:BB")
+        val change = (runner.prepareStart(Presets.springAutumn, null, 2, "ble:AA:BB", null, null) as io.github.willzy12h.nocturne.core.night.Preparation.Ready).change
+        runner.apply(change, { repo.activeNight.value }, publish = { repo.setActiveNight(it) }, beforeWrite = {
+            repo.recordOriginalSlot("ble:AA:BB", 2, BedJetController(link) { now }.storedPrograms()[2])
+        })
         val adopted = migrated.copy(deviceId = "ble:AA:BB")
         assertEquals(adopted, repo.originalSlot("ble:AA:BB", 2))
         assertEquals(listOf(adopted), repo.slotBackups.value)

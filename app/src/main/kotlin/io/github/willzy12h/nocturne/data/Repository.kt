@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.data
 
+import io.github.willzy12h.nocturne.night.RuntimeState
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -84,6 +85,9 @@ class Repository(
     private val settingsLoadedAt = now()
     private val _settings = MutableStateFlow(load(SETTINGS) { decode(Settings.serializer(), it) } ?: Settings())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
+    // Publication signal, not persisted state: equal-value restores must still reconcile side effects.
+    private val _settingsPublication = MutableStateFlow(0L)
+    internal val settingsPublication: StateFlow<Long> = _settingsPublication.asStateFlow()
     private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now()))
     val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     private val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
@@ -96,6 +100,10 @@ class Repository(
     val notices: StateFlow<List<LoggedNotice>> = _notices.asStateFlow()
     private val _snapshotList = MutableStateFlow(snapshots.list())
     val snapshotList: StateFlow<List<SnapshotInfo>> = _snapshotList.asStateFlow()
+
+    private val _runtime = MutableStateFlow(load(RUNTIME) { decode(RuntimeState.serializer(), it) } ?: RuntimeState())
+    val runtime: StateFlow<RuntimeState> = _runtime.asStateFlow()
+    suspend fun updateRuntime(change: (RuntimeState) -> RuntimeState) = update(_runtime, RUNTIME, RuntimeState.serializer(), change)
 
     // Excluded from cloud backup and device transfer by res/xml/data_extraction_rules.xml and backup_rules.xml.
     private val secrets = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
@@ -181,11 +189,6 @@ class Repository(
         return _slotBackups.value.filter { it.deviceId == deviceId }
     }
 
-    /** Saves [backup], replacing any for the same device and slot. */
-    suspend fun addSlotBackup(backup: SlotBackup) = update(_slotBackups, SLOT_BACKUPS, ListSerializer(SlotBackup.serializer())) { list ->
-        list.filterNot { it.deviceId == backup.deviceId && it.slot == backup.slot } + backup
-    }
-
     suspend fun addNotice(notice: LoggedNotice) =
         update(_notices, NOTICES, ListSerializer(LoggedNotice.serializer())) { NotificationLog.add(it, notice) }
 
@@ -246,6 +249,7 @@ class Repository(
             writeAllOrNone(writes)
             _profiles.value = profiles
             _settings.value = settings
+            _settingsPublication.value += 1
             _history.value = history
             _slotBackups.value = slotBackups
             clearUnreadable()
@@ -290,6 +294,7 @@ class Repository(
         val value = change(flow.value)
         writeValue(name, serializer, value)
         flow.value = value
+        if (name == SETTINGS) _settingsPublication.value += 1
     }
 
     private fun <T> writeValue(name: String, serializer: KSerializer<T>, value: T) = writeFile(File(dir, name), encode(serializer, value))
@@ -383,6 +388,7 @@ class Repository(
         private const val SETTINGS = "settings.json"
         private const val HISTORY = "history.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
+        private const val RUNTIME = "runtime.json"
         private const val ACTIVE_NIGHT = "active-night.json"
         private const val NOTICES = "notices.json"
         /** Lists the files in [unreadable], so the report survives a restart. */

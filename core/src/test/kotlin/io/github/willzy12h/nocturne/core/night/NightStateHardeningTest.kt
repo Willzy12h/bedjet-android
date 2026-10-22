@@ -13,7 +13,9 @@ class NightStateHardeningTest {
     private var now = ZonedDateTime.parse("2026-10-21T22:30:00Z")
     private val alarm = now.plusHours(8)
     private val link = DemoBedJet { now }
-    private val runner = NightRunner(BedJetController(link) { now }) { now }
+    private val controller = BedJetController(link) { now }
+    private val runner = NightRunner(controller) { now }
+    private val fixture = NightFixture(runner, controller) { now }
     private val json = Json { encodeDefaults = true }
 
     @Test fun `v1 night gains unknown confidence and alarm origin`() {
@@ -27,22 +29,22 @@ class NightStateHardeningTest {
     @Test fun `next night edits cannot affect automatic retiming`() = runTest {
         link.connect()
         val p = Presets.springAutumn
-        val night = runner.start(p, alarm, 2, emptyList()).night
+        val night = fixture.start(p, alarm, 2, emptyList()).night
         now = now.plusHours(2)
         val edited = p.copy(middle = p.middle.copy(fanStart = 100, fanEnd = 100))
-        val result = runner.retime(edited, night, alarm.plusMinutes(30))!!
+        val result = fixture.retime(edited, night, alarm.plusMinutes(30))!!
         assertTrue(result.plan.steps.filter { it.block == Block.MIDDLE }.all { it.step.fanStep < 10 })
     }
     @Test fun `edited wake phases cannot move the confirmed boundary`() = runTest {
         link.connect()
         val p = Presets.springAutumn
-        val night = runner.start(p, alarm, 2, emptyList()).night
+        val night = fixture.start(p, alarm, 2, emptyList()).night
         now = ZonedDateTime.parse(night.wakeUpStart)
-        assertNull(runner.retime(p.copy(wake = emptyList()), night, alarm.plusHours(1)))
+        assertNull(fixture.retime(p.copy(wake = emptyList()), night, alarm.plusHours(1)))
     }
     @Test fun `start stores its device snapshot and first applied revision`() = runTest {
         link.connect()
-        val result = runner.start(Presets.springAutumn, alarm, 2, emptyList(), "demo")
+        val result = fixture.start(Presets.springAutumn, alarm, 2, emptyList(), "demo")
         val saved = json.encodeToJsonElement(result.night).jsonObject
         assertEquals(JsonPrimitive("demo"), saved["deviceId"])
         assertEquals(json.encodeToJsonElement(Presets.springAutumn), saved["profile"])

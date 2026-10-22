@@ -57,9 +57,9 @@ object Notifications {
             .build()
 
     /** The wake-up notification. It stays until the night ends or Off is pressed. */
-    fun showWakeUp(context: Context, night: ActiveNight, settings: Settings, status: String? = null) {
+    fun showWakeUp(context: Context, night: ActiveNight, settings: Settings, status: String? = null, logNotice: Boolean = true) {
         val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
-        log(context, NoticeKind.WAKE_UP, "Waking you at $wake", status ?: "Your BedJet is getting you ready to wake up.")
+        if (logNotice) log(context, NoticeKind.WAKE_UP, "Waking you at $wake", status ?: "Your BedJet is getting you ready to wake up.")
         if (!canPost(context)) return
         val builder = Notification.Builder(context, CHANNEL_WAKE)
             .setSmallIcon(R.drawable.ic_notification)
@@ -73,6 +73,30 @@ object Notifications {
             builder.addAction(Notification.Action.Builder(null, title(action, settings), BedJetService.pendingIntent(context, command(action))).build())
         }
         context.getSystemService(NotificationManager::class.java).notify(WAKE_ID, builder.build())
+    }
+
+    fun showQuiet(context: Context, night: ActiveNight, settings: Settings) {
+        if (!settings.quietNightNotification || night.trackingManual || night.confidence != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED) { cancelQuiet(context); return }
+        if (!canPost(context)) return
+        val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
+        val notification = Notification.Builder(context, CHANNEL_WORKING).setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.runtime_quiet, wake)).setContentIntent(openApp(context)).setOngoing(true).setOnlyAlertOnce(true)
+            .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_end), BedJetService.pendingIntent(context, NightActions.Command.END_NIGHT)).build())
+            .build()
+        context.getSystemService(NotificationManager::class.java).notify(6, notification)
+    }
+    fun cancelQuiet(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(6)
+    fun showResume(context: Context) {
+        if (!canPost(context)) return
+        val captured = context.graph.actions.capture(NightActions.Command.RESUME, requireIdentity = true)
+        val confirm = PendingIntent.getActivity(context, ("resume:${captured.expected}").hashCode(),
+            io.github.willzy12h.nocturne.ui.ShortcutActivity.confirmationIntent(context, captured),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val notification = Notification.Builder(context, CHANNEL_ALERTS).setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.runtime_resume_title)).setContentIntent(confirm).setAutoCancel(true)
+            .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_resume_title), confirm).build())
+            .build()
+        context.getSystemService(NotificationManager::class.java).notify(7, notification)
     }
 
     fun cancelWakeUp(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(WAKE_ID)

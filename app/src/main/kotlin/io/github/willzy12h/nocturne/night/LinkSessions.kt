@@ -116,13 +116,13 @@ class LinkSessions(
      * Lets go of the BedJet now so another phone can connect, and refuses [acquire] until [resumeAutoConnect] or,
      * when [untilMs] is given, until that time.
      */
-    fun suspendAutoConnect(untilMs: Long?) {
+    fun suspendAutoConnect(untilMs: Long?): Job {
         releasedUntil = untilMs ?: Long.MAX_VALUE
         _released.value = true
         releaseEnds?.cancel()
         // Checking once the time has come ends the release.
         releaseEnds = untilMs?.let { scope.launch { delay(it - now()); isReleased() } }
-        scope.launch {
+        return scope.launch {
             lock.withLock {
                 connects.forEach { it.cancel() }
                 (held ?: currentLink()).disconnect()

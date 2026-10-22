@@ -19,6 +19,14 @@ class AndroidBedJetLinkTest {
     private val context: Context = RuntimeEnvironment.getApplication()
     private val prefs = context.getSharedPreferences("ble", Context.MODE_PRIVATE)
 
+    @Test fun outerAdapterForwardsFreshStatusPreparation() = runBlocking {
+        val demo = io.github.willzy12h.nocturne.core.link.DemoBedJet()
+        demo.connect()
+        val adapter = AndroidBedJetLink(context, demo) { null }
+        adapter.prepareForStart()
+        assertNull(demo.status.value!!.extra)
+    }
+
     @Test
     fun exposesTheAddressRememberedBeforeTargetsExisted() {
         prefs.edit().putString("address", "AA:BB:CC:DD:EE:01").putString("name", "BEDJET 3").commit()

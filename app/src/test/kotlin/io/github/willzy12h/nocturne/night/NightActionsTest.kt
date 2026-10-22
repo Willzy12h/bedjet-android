@@ -119,7 +119,7 @@ class NightActionsTest {
         val started = graph.actions.perform(Command.START_NIGHT, graph.repository.profiles.value.first().id)
         val night = graph.repository.activeNight.value
         assertNotNull(started, night)
-        assertEquals("Turbo for 10 minutes.", graph.actions.perform(Command.TURBO))
+        assertEquals("Turbo for 10 minutes.", graph.actions.perform(Command.TURBO, replacementConfirmed = true))
         assertNull(graph.repository.activeNight.value)
         val events = graph.repository.history.value.first { it.id == night!!.recordId }.events
         assertEquals(EventKind.STOPPED, events.last().kind)

@@ -14,6 +14,8 @@ import java.time.ZonedDateTime
 @Serializable data class PendingChange(
     val requestId: String, val kind: ChangeKind, val requestedWake: String?,
     val requestedAt: String, val deadline: String, val expected: NightIdentity? = null,
+    /** Complete immutable intention; never rebuilt from a subsequently edited live profile. */
+    val intended: ActiveNight? = null,
 )
 
 /** One confirmed write, including the clock-time flags actually sent to the unit. */
@@ -48,6 +50,7 @@ import java.time.ZonedDateTime
     val confidence: Confidence = Confidence.UNKNOWN,
     val pending: PendingChange? = null,
     val actualEnd: String? = null,
+    val trackingManual: Boolean = false,
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)
     val usesLiveProfileFallback: Boolean get() = profile == null

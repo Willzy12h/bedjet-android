@@ -46,7 +46,7 @@
         </activity>
 
         <service android:name=".service.BedJetService" android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|shortService" />
 
         <!-- The night's own alarms, sent only by this app. -->
         <receiver android:name=".night.NightAlarmReceiver" android:exported="false" />
@@ -55,6 +55,9 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
         <receiver android:name=".night.AlarmChangedReceiver" android:exported="true">

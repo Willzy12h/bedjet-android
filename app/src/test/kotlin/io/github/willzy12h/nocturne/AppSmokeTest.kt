@@ -57,6 +57,27 @@ class AppSmokeTest {
             compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty()
         }
 
+    private fun waitForConfirmedNight() = compose.waitUntil(10_000) {
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+        graph.repository.activeNight.value?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED &&
+            graph.repository.history.value.isNotEmpty() && graph.actions.busy.value.runningLabel == null
+    }
+
+    @Test
+    fun confirmationCannotStopANightThatChangedWhileDialogWasOpen() {
+        compose.onNodeWithText("Start night now").performScrollTo().performClick()
+        waitForConfirmedNight()
+        compose.onNodeWithText("End night").performScrollTo().performClick()
+        val original = graph.repository.activeNight.value!!
+        val replacement = original.copy(revision = original.revision + 1)
+        runBlocking { graph.repository.setActiveNight(replacement) }
+        compose.waitForIdle()
+        compose.onNodeWithText("Stop night and continue").performClick()
+        compose.waitForIdle()
+        waitForText(compose.activity.getString(R.string.runtime_stale))
+        assertEquals(replacement.identity, graph.repository.activeNight.value?.identity)
+    }
+
     @Test
     fun everyTabOpens() {
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
@@ -76,7 +97,7 @@ class AppSmokeTest {
     fun startingANightOnTheDemoBedJetShowsItRunning() {
         compose.onNodeWithText("Start night now").performScrollTo().performClick()
         // Waiting on what is shown lets Robolectric run the main thread, where the work happens.
-        waitForText("End night")
+        waitForConfirmedNight()
         assertNotNull(graph.repository.activeNight.value)
         assertEquals(1, graph.repository.history.value.size)
         assertEquals(1, graph.link.status.value?.extra?.programStep)
@@ -90,7 +111,7 @@ class AppSmokeTest {
     @Test
     fun aStrayTapDuringANightAsksBeforeStoppingIt() {
         compose.onNodeWithText("Start night now").performScrollTo().performClick()
-        waitForText("End night")
+        waitForConfirmedNight()
         // Let the "started" message bar time out; it sits over the bottom of the screen.
         compose.waitUntil(10_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
