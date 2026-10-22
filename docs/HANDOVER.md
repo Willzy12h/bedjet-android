@@ -1,6 +1,6 @@
 # Handover
 
-**Updated:** 2026-10-22, Astra continuation from `83e6efa`. Tasks 1–3 are integrated and verified automatically. Task 4 is in progress in an isolated worktree; no hardware has been tested.
+**Updated:** 2026-10-22, Astra continuation from `83e6efa`. Tasks 1–3 are integrated and verified automatically. Task 4 implementation `dd0c365` has passed its full gate and is under independent review in an isolated worktree; no hardware has been tested.
 
 - **Branch:** `claude/nocturne-hardening`, pushed. The base is `claude/lucid-mayer-i1h2gy` @ `22766fd`.
 - **Plan and task briefs:** `docs/superpowers/plans/2026-10-22-nocturne-hardening.md` (Tasks 1–7, global constraints, carried items).
@@ -35,7 +35,7 @@
 
 ## Remaining tasks (briefs ready in the plan)
 
-1. **Task 4 — in progress:** app runtime, alarms, service and command ownership. Read its expanded lead integration rulings as well as the carried notes: durable complete mutation intent, original-slot backup before writes, pending retries/expiry, identity/target binding, takeover/recovery, shortcut security, pin/restore/resume, job-owned operations and a whole-command hand-over gate.
+1. **Task 4 — independent review:** app runtime, alarms, service and command ownership. Implementation report and the frozen UI/platform contracts are in `docs/review/task-4-implementation.md`; the final implementer gate passed 138 core and 133 app tests, with four screenshot skips and zero lint errors/two baseline warnings. This is not the merged gate. Read its expanded lead integration rulings as well as the carried notes: durable complete mutation intent, original-slot backup before writes, pending retries/expiry, identity/target binding, takeover/recovery, shortcut security, pin/restore/resume, job-owned operations and a whole-command hand-over gate.
 2. **Task 5:** UI/accessibility in the existing Midnight Ink, Daylight and Simple design; scheduled theme, setup/device selection, morning check-in, strings/haptics, drafts, recovery and feature controls. Choice expiry must refresh an open screen.
 3. **Task 6:** platform features in parallel with Task 5. Richer widgets/tile, reminders, best-effort charger jobs (off by default), Health Connect, CSV and pinned Lull hand-over. Read `docs/review/platform-preflight.md` and the plan's platform rulings; do not implement an unsupported manifest charger receiver/FGS path.
 4. **Task 7:** release signing and shrinking. Then a final whole-branch review and one fix wave, after-screenshots with `Graph.clock`, completed screenshot comparison, draft PR to `claude/lucid-mayer-i1h2gy` and a test-signed release APK with version/SHA-256.
@@ -53,7 +53,7 @@ The supervised Samsung + BedJet 3 checklist is drafted at `docs/review/samsung-b
 
 Historical baseline gate on this host passed: **99 core passed; 89 app tests total, 85 passed and four screenshot tests skipped; zero lint errors, one ObsoleteSdkInt warning**. The original handover's “89/89” included the four skipped captures. No hardware was tested.
 
-Build environment on this host: a full JDK 17 is required (the system Java is a JRE). `JAVA_HOME=/workspace/scratch/ad4eb857ceea/nocturne-jdk17/jdk-17.0.20.1+1`, `GRADLE_USER_HOME=/workspace/scratch/ad4eb857ceea/gradle-cache`, SDK `/workspace/scratch/ad4eb857ceea/android-sdk`. Gradle requires approved elevated execution for local coordination sockets; existing dependencies are cached and the baseline ran with `--offline`. These paths are host-specific, not project configuration.
+Build environment on this host: a full JDK 17 is required (the system Java is a JRE). `JAVA_HOME=/workspace/scratch/ad4eb857ceea/nocturne-jdk17/jdk-17.0.20.1+1`, `GRADLE_USER_HOME=/workspace/scratch/ad4eb857ceea/gradle-cache`, SDK `/workspace/scratch/ad4eb857ceea/android-sdk`. Gradle requires approved elevated execution for local coordination sockets; existing dependencies are cached and the baseline ran with `--offline`. This host has an 8 GiB memory limit: use the scratch `run-gradle.sh` wrapper (shared flock, 2 GiB heap, two workers) to serialise heavy builds while implementation stays parallel. These paths are host-specific, not project configuration.
 
 ## Reproduce
 ```bash
