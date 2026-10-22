@@ -369,6 +369,8 @@
 - Keep a documented running-command label / queued count and outcome stream for Task 5; truthful device-confirmed versus accepted/local results must remain distinguishable.
 - Feature persistence contract for Tasks 5/6: Task 5 owns scheduled-theme/setup/check-in additions and Task 6 owns a new serialisable `PlatformSettings` (nested `Settings.platform` with defaults) in a separate core/store file. Both may minimally add their own Settings fields; lead resolves that one shared-file merge. Task 6 may persist its small durable automation journal through narrow Repository APIs; it must not invent a second command lock or bypass NightActions.
 
+- New runtime notification and command-outcome copy belongs in `res/values/strings_runtime.xml` (Task4 ownership extension), using UK English. Task5 moves remaining screen copy. Keep typed outcomes/confirmation separate from rendered text so haptics and status do not infer success by parsing an English sentence.
+
 ### Task 5: UI, accessibility and in-app features, in the existing design (W4)
 
 **Register IDs:** U01, U02 (UI), U04–U07, U08 (in-app), U09 (display), U10, U11/F14, F05, F08, F09, F13, and the UI for F01, F02, F15 and F16.
