@@ -1,0 +1,313 @@
+package io.github.willzy12h.nocturne.ble
+
+import io.github.willzy12h.nocturne.core.link.BedJetError
+import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.protocol.Codec
+import io.github.willzy12h.nocturne.core.link.BedJetController
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import java.time.ZonedDateTime
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Test
+
+/** [GattLink] driven through a fake adapter, with short timings so failures show quickly. */
+class GattLinkTest {
+    private val fake = FakeRadio()
+    private var target: String? = DeviceId.ble(ADDRESS)
+    @Volatile private var name: String? = null
+    private val link = GattLink(fake.radio, { target }, TIMINGS, onName = { name = it })
+
+    @After
+    fun close() = link.shutdown()
+
+    // Connecting
+
+    @Test
+    fun connectsToTheTargetAndAnswersQueries() = runBlocking {
+        link.connect()
+        assertEquals(LinkState.READY, link.state.value)
+        assertEquals(listOf(ADDRESS), fake.connects)
+        assertEquals("BEDJET 3", name)
+        assertEquals("BEDJET 3", Codec.parseText(link.query(Codec.Query.DEVICE_NAME)))
+        link.send(Codec.setFan(5))
+        assertTrue(fake.ports.single().writes.any { it.contentEquals(Codec.setFan(5)) })
+    }
+
+    @Test
+    fun withNoTargetConnectAsksForSetup() = runBlocking {
+        target = null
+        val error = assertThrows<BedJetError.NotConnected> { link.connect() }
+        assertEquals("No BedJet chosen yet. Choose yours in Setup.", error.message)
+        assertTrue(fake.connects.isEmpty())
+    }
+
+    @Test
+    fun theDemoTargetIsNoBluetoothTarget() = runBlocking {
+        target = DeviceId.DEMO
+        assertThrows<BedJetError.NotConnected> { link.connect() }
+        assertTrue(fake.connects.isEmpty())
+    }
+
+    @Test
+    fun status133RetriesTheSameAddressThenFailsWithoutTryingAnotherBedJet() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(connectStatus = 133)
+        fake.advertisements = mapOf(ScanSpec.Service to listOf(ScanHit(OTHER, "BEDJET", -40, true)))
+        assertThrows<BedJetError.NotConnected> { link.connect() }
+        assertEquals(listOf(ADDRESS, ADDRESS, ADDRESS), fake.connects)
+        assertTrue(fake.ports.all { it.closed })
+        assertEquals(LinkState.SEARCHING, link.state.value)
+    }
+
+    @Test
+    fun aLateConnectionTimeoutIsRetriedOnTheSameAddress() = runBlocking {
+        fake.upcoming += FakeRadio.Behaviour(connectStatus = null)
+        link.connect()
+        assertEquals(listOf(ADDRESS, ADDRESS), fake.connects)
+        assertTrue(fake.ports[0].closed)
+        assertEquals(LinkState.READY, link.state.value)
+    }
+
+    @Test
+    fun aConnectionCallbackBeforeConnectReturnsStillCarriesOn() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(connectsInline = true)
+        link.connect()
+        assertEquals(listOf(ADDRESS), fake.connects)
+        assertEquals(LinkState.READY, link.state.value)
+    }
+
+    @Test
+    fun permissionsAndBluetoothOffAreReported() = runBlocking {
+        fake.availability = Radio.UNAUTHORIZED
+        assertThrows<BedJetError.NotConnected> { link.connect() }
+        assertEquals(LinkState.UNAUTHORIZED, link.state.value)
+        fake.availability = Radio.OFF
+        assertThrows<BedJetError.NotConnected> { link.connect() }
+        assertEquals(LinkState.BLUETOOTH_OFF, link.state.value)
+        assertTrue(fake.connects.isEmpty())
+    }
+
+    // Sessions (R01, R02, R04)
+
+    @Test
+    fun aLateWriteCallbackFromAPreviousSessionDoesNotCompleteTheCurrentWrite() = runBlocking {
+        link.connect()
+        val first = fake.ports.single()
+        first.drop()
+        eventually { link.state.value == LinkState.SEARCHING }
+        assertTrue(first.closed)
+        link.send(Codec.setFan(3))
+        val second = fake.ports[1]
+        second.holdWrites = true
+        val next = async { runCatching { link.send(Codec.setFan(4)) } }
+        eventually { second.writes.any { it.contentEquals(Codec.setFan(4)) } }
+        // The first session's late answer must not complete the write outstanding on the second.
+        first.ackWrite()
+        fake.drain()
+        delay(50)
+        assertFalse(next.isCompleted)
+        second.ackWrite()
+        next.await().getOrThrow()
+    }
+
+    @Test
+    fun aRetiredSessionsLateConnectionCallbackIsIgnored() = runBlocking {
+        link.connect()
+        val first = fake.ports.single()
+        val asked = first.mtuRequests
+        link.disconnect()
+        assertTrue(first.closed)
+        first.connected()
+        fake.drain()
+        assertEquals(asked, first.mtuRequests)
+        assertEquals(LinkState.SEARCHING, link.state.value)
+    }
+
+    @Test
+    fun aTimeoutRetiresTheSessionAndTheNextOperationReconnects() = runBlocking {
+        link.connect()
+        val first = fake.ports.single()
+        first.holdWrites = true
+        assertThrows<BedJetError.Timeout> { link.send(Codec.setFan(3)) }
+        assertTrue(first.closed)
+        assertEquals(LinkState.SEARCHING, link.state.value)
+        // The unit's answer turns up late; it belongs to nothing now.
+        first.ackWrite()
+        link.send(Codec.setFan(4))
+        assertEquals(2, fake.connects.size)
+        assertTrue(fake.ports[1].writes.any { it.contentEquals(Codec.setFan(4)) })
+        assertEquals(LinkState.READY, link.state.value)
+    }
+
+    @Test
+    fun cancellingAnOperationInFlightRetiresTheSession() = runBlocking {
+        link.connect()
+        val first = fake.ports.single()
+        first.holdWrites = true
+        val sending = launch { link.send(Codec.setFan(3)) }
+        eventually { first.writes.any { it.contentEquals(Codec.setFan(3)) } }
+        sending.cancelAndJoin()
+        assertTrue(first.closed)
+        first.ackWrite()
+        link.send(Codec.setFan(4))
+        assertEquals(2, fake.connects.size)
+    }
+
+    @Test
+    fun aCancelledAttachClosesItsGatt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(connectStatus = null)
+        val connecting = launch { link.connect() }
+        eventually { fake.ports.isNotEmpty() }
+        connecting.cancelAndJoin()
+        assertTrue(fake.ports.single().closed)
+        assertEquals(LinkState.SEARCHING, link.state.value)
+    }
+
+    @Test
+    fun aCallbackForTheWrongCharacteristicFailsTheOperation() = runBlocking {
+        link.connect()
+        val port = fake.ports.single()
+        port.holdWrites = true
+        val sending = async { runCatching { link.send(Codec.setFan(3)) } }
+        eventually { port.writes.any { it.contentEquals(Codec.setFan(3)) } }
+        port.ackWrite(Attr.REPLY)
+        val error = withTimeout(200) { sending.await() }.exceptionOrNull()
+        assertTrue("$error", error is BedJetError.BadResponse)
+        // The real answer may still be on its way, so the session can't be trusted.
+        assertTrue(port.closed)
+    }
+
+    @Test
+    fun failedServiceDiscoveryFailsTheConnection() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(servicesStatus = 129)
+        assertThrows<BedJetError.NotConnected> { link.connect() }
+        assertEquals(3, fake.connects.size)
+        assertTrue(fake.ports.all { it.closed })
+    }
+
+    // Split status (R06)
+
+    @Test
+    fun anOldProgramStepDoesNotConfirmANewStartButAFreshOneDoes() = runBlocking {
+        // The unit was already running a program when we connected.
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val start = async { runCatching { controller.startProgram(2) } }
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        fake.drain()
+        delay(50)
+        port.notify(Status.head())
+        eventually { port.reads.contains(Attr.STATUS) }
+        delay(100)
+        assertFalse("A stale program step confirmed the start", start.isCompleted)
+        assertEquals(null, link.status.value?.extra)
+        port.answerStatusRead(Status.remainder(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    // Platform exceptions (R07)
+
+    @Test
+    fun aSecurityExceptionFromAWriteBecomesNotConnectedAndLeavesNothingPending() = runBlocking {
+        link.connect()
+        val first = fake.ports.single()
+        first.writeThrows = SecurityException("BLUETOOTH_CONNECT revoked")
+        assertThrows<BedJetError.NotConnected> { link.send(Codec.setFan(3)) }
+        assertEquals(LinkState.UNAUTHORIZED, link.state.value)
+        assertTrue(first.closed)
+        // Nothing is left waiting: the queue is free and a stray answer changes nothing.
+        first.ackWrite()
+        link.send(Codec.setFan(4))
+        assertEquals(LinkState.READY, link.state.value)
+        assertEquals(2, fake.connects.size)
+    }
+
+    @Test
+    fun aSecurityExceptionFromConnectingOrScanningBecomesNotConnected() = runBlocking {
+        fake.connectThrows = SecurityException("revoked")
+        assertThrows<BedJetError.NotConnected> { link.connect() }
+        assertEquals(LinkState.UNAUTHORIZED, link.state.value)
+        fake.scanThrows = SecurityException("revoked")
+        assertThrows<BedJetError.NotConnected> { link.discover(100) }
+        assertEquals(LinkState.UNAUTHORIZED, link.state.value)
+    }
+
+    @Test
+    fun theBackgroundRemainderReadSwallowsPlatformExceptions() = runBlocking {
+        val uncaught = mutableListOf<Throwable>()
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, e -> synchronized(uncaught) { uncaught += e } }
+        try {
+            link.connect()
+            val port = fake.ports.single()
+            port.statusReadThrows = IllegalStateException("GATT gone")
+            port.notify(Status.head())
+            fake.drain()
+            delay(100)
+            link.send(Codec.setFan(4))
+            assertEquals(emptyList<Throwable>(), synchronized(uncaught) { uncaught.toList() })
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(previous)
+        }
+    }
+
+    // Discovery
+
+    @Test
+    fun discoverListsBedJetsWithoutConnecting() = runBlocking {
+        fake.advertisements = mapOf(
+            ScanSpec.Service to listOf(ScanHit(ADDRESS, "BEDJET_V3", -60, true), ScanHit(ADDRESS, "BEDJET_V3", -50, true)),
+            ScanSpec.Unfiltered to listOf(
+                ScanHit(OTHER, "BedJet 3", -70, false),
+                ScanHit("11:22:33:44:55:66", "Kettle", -30, false),
+                ScanHit(ADDRESS, "BEDJET_V3", -55, true),
+            ),
+        )
+        val found = link.discover(timeoutMs = 200)
+        assertEquals(
+            listOf(FoundBedJet(ADDRESS, "BEDJET_V3", -50), FoundBedJet(OTHER, "BedJet 3", -70)),
+            found,
+        )
+        assertEquals(listOf(ScanSpec.Service, ScanSpec.Unfiltered), fake.scans)
+        assertTrue(fake.connects.isEmpty())
+    }
+
+    companion object {
+        const val ADDRESS = "AA:BB:CC:DD:EE:01"
+        const val OTHER = "AA:BB:CC:DD:EE:02"
+        val TIMINGS = GattLink.Timings(
+            operationMs = 300, connectMs = 500, mtuFallbackMs = 50, firstStatusMs = 300,
+            retryBackoffMs = listOf(20, 40), queryRetryMs = 10, remainderEveryMs = 2_000,
+        )
+    }
+}
+
+inline fun <reified T : Throwable> assertThrows(block: () -> Unit): T {
+    try {
+        block()
+    } catch (e: Throwable) {
+        if (e is T) return e
+        throw AssertionError("Expected ${T::class.simpleName}, got $e", e)
+    }
+    fail("Expected ${T::class.simpleName}, nothing was thrown")
+    throw IllegalStateException()
+}
+
+/** Polls until [condition] holds, for things that happen on the fake's callback thread. */
+suspend fun eventually(timeoutMs: Long = 2_000, condition: () -> Boolean) {
+    val end = System.currentTimeMillis() + timeoutMs
+    while (!condition()) {
+        if (System.currentTimeMillis() > end) fail("Condition not met in $timeoutMs ms")
+        delay(5)
+    }
+}
