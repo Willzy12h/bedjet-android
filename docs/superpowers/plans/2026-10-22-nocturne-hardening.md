@@ -540,6 +540,10 @@ Ruling: Task5 may mechanically migrate `widget/SingleActionConfigActivity.kt`'s 
 
 ## Additional Task 5 review requirements (22 October integration)
 
+Ruling: Task5 may repair the identified test-fixture lifetime/clock defects exposed by its full gate: use a true outer screenshot opt-in rule, pin Graph.clock before Activity composition in existing smoke/appearance tests, and cancel/join owned or replaced RuntimeServiceTest graph work before Robolectric removes storage. Preserve behavioural assertions and failing XML/log evidence; do not suppress uncaught exceptions or alter production storage to hide a fixture leak — cost if wrong: a test could conceal a real lifecycle regression, so the task review must inspect the narrowed fixture changes.
+
+Ruling: Task5's explicit real-device selection in setup must leave Demo through one existing coordinator-owned transaction, durably saving the selected real target and demoMode=false together. Add only a narrow explicit option/method, preserve current callers by default, retain active-night refusal/disconnection and emit one outcome. Cover successful transition, active-night refusal and failed persistence. Its widget configuration theme adapter may also use the existing held-open clock/timer pattern — cost if wrong: an unintended target/mode transition or stale theme; targeted ownership/persistence and boundary tests are required.
+
 Ruling: Task5 may change only the successful null-target message in NightActions.selectTarget and add its UK English resource, so Forget says “Forgot this BedJet. Choose a BedJet to connect to.” The existing target clearing, refusal policy, ownership and single emitted outcome remain unchanged; test the real coordinator's null-versus-selected result — cost if wrong: misleading success feedback, caught by the targeted outcome regression.
 
 - Supply representative real-app renders (Dark Tonight, Light Tonight, Simple and320dp at200% text) with Graph.clock pinned before composition before the task review. The lead captures the full final after set later.
