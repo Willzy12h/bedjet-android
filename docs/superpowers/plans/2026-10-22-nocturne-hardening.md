@@ -483,6 +483,7 @@ Report every manifest change.
   - Export nights, revisions and events through the system file picker.
   - Header with units: temperatures in °C (with °F in parallel columns if the setting is on), timestamps in ISO 8601 with offset, plus a zone column. RFC 4180 escaping.
   - No device addresses unless the user ticks "Include device identifiers".
+  - Make dangerous imported/user-authored text visibly inert before CSV syntax escaping, with a documented `Text: ` prefix for formula/control/whitespace-prefix risks. Preserve generated numeric cells and unaffected text; test identifiers on/off and quoting. This is the Task6 independent-review fix policy recorded in the ledger.
 - **F12 phone hand-over.**
   - "Release BedJet for another phone" in the overflow menu calls `LinkSessions.suspendAutoConnect` from Task 1, which suspends auto-reconnect and re-time.
   - On return ("Take back"), resume and reconcile from status.
