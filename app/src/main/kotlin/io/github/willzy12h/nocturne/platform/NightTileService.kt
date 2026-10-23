@@ -10,23 +10,31 @@ import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.link.latestStatusFrom
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.ui.MainActivity
+import kotlinx.coroutines.launch
 
 /** Navigation never takes a radio lease. Tonight's existing controls own the quick action and confirmation. */
 class NightTileService : TileService() {
     override fun onStartListening() {
         super.onStartListening()
-        val night=graph.repository.activeNight.value
-        val knownIdle=graph.link.state.value == LinkState.READY && graph.link.status.value?.isRunning == false
-        qsTile?.apply {
-            state=state(night,knownIdle)
-            subtitle=getString(when {
-                night?.confidence == Confidence.CONFIRMED -> R.string.feature_running
-                night == null && knownIdle -> R.string.feature_idle
-                else -> R.string.feature_unknown
-            })
-            updateTile()
+        // Runs at once on the main thread: the latest report is already held.
+        graph.scope.launch {
+            val night=graph.repository.activeNight.value
+            // Only the chosen BedJet's own report can show it idle; one from another unit leaves it unknown.
+            val target=graph.repository.settings.value.deviceId()
+            val knownIdle=graph.link.state.value == LinkState.READY && graph.link.latestStatusFrom(target)?.isRunning == false
+            qsTile?.apply {
+                state=state(night,knownIdle)
+                subtitle=getString(when {
+                    night?.confidence == Confidence.CONFIRMED -> R.string.feature_running
+                    night == null && knownIdle -> R.string.feature_idle
+                    else -> R.string.feature_unknown
+                })
+                updateTile()
+            }
         }
     }
     // The PendingIntent overload exists only on API34+. The deprecated call is limited to API31–33.

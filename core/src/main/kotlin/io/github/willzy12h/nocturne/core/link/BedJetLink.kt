@@ -3,6 +3,7 @@ package io.github.willzy12h.nocturne.core.link
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 enum class LinkState { BLUETOOTH_OFF, UNAUTHORIZED, SEARCHING, CONNECTING, READY }
@@ -37,6 +38,14 @@ interface BedJetLink {
      */
     suspend fun prepareForStart() {}
 }
+
+/**
+ * The latest status that [target] itself reported, or null when there is none or the last report came from another
+ * BedJet (a session still on the previous target). Returns at once: every link's [BedJetLink.sourcedStatus] holds
+ * its latest value.
+ */
+suspend fun BedJetLink.latestStatusFrom(target: String?): DeviceStatus? =
+    sourcedStatus.first()?.takeIf { it.isFrom(target) }?.status
 
 sealed class BedJetError(message: String) : Exception(message) {
     class NotConnected(

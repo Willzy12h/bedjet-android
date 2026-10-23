@@ -2,7 +2,12 @@ package io.github.willzy12h.nocturne.platform
 
 import android.content.Context
 import io.github.willzy12h.nocturne.Graph
+import io.github.willzy12h.nocturne.core.link.BedJetLink
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
+import io.github.willzy12h.nocturne.core.link.SourcedStatus
+import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
+import io.github.willzy12h.nocturne.core.protocol.Mode
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -16,10 +21,10 @@ import java.time.ZoneOffset
 
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[34])
 class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixture() {
-    private suspend fun graph(): Graph {
+    private suspend fun graph(link: (DemoBedJet) -> BedJetLink = { it }): Graph {
         val context: Context=RuntimeEnvironment.getApplication()
         lateinit var graph: Graph
-        graph=own(Graph(context,DemoBedJet(now={graph.now()})))
+        graph=own(Graph(context,link(DemoBedJet(now={graph.now()}))))
         graph.clock=Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"),ZoneOffset.UTC)
         graph.repository.updateSettings { it.copy(targetDevice="ble:AA:BB:CC:DD:EE:FF",demoMode=false,
             platform=it.platform.copy(chargerAutoStart=true,chargerDevice="ble:AA:BB:CC:DD:EE:FF")) }
@@ -57,5 +62,27 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
         ChargerRun(graph,{true},{_,_->notices++;true},{},{true}).execute()
         assertNull(graph.repository.activeNight.value)
         assertEquals(1,notices)
+    }
+    @Test fun aRunningReportFromAnotherBedJetIsNotTheTargetsManualRun() = runBlocking {
+        // The last report came from a session still on another unit: it says nothing about the chosen BedJet.
+        val graph=graph { OtherUnitReport(it,"ble:AA:BB:CC:DD:EE:01") }; var notices=0
+        ChargerRun(graph,{true},{_,_->notices++;true},{graph.repository.updateSettings { it.copy(platform=it.platform.copy(chargerAutoStart=false)) }},{true}).execute()
+        assertEquals(1,notices)
+    }
+    @Test fun aRunningReportFromTheTargetStillBlocksTheStart() = runBlocking {
+        val graph=graph { OtherUnitReport(it,"ble:AA:BB:CC:DD:EE:FF") }; var notices=0
+        ChargerRun(graph,{true},{_,_->notices++;true},{},{true}).execute()
+        assertEquals(0,notices)
+        assertNull(graph.repository.activeNight.value)
+    }
+
+    /** A demo unit whose last report is a manual run, attributed to [source]. */
+    private class OtherUnitReport(demo: DemoBedJet, source: String) : BedJetLink by demo {
+        private val running = DeviceStatus(remainingSeconds = 600, actualTemperature = 60, targetTemperature = 70,
+            mode = Mode.HEAT, fanStep = 7, maxRuntimeMinutes = 600, minTemperature = 38, maxTemperature = 80,
+            ambientTemperature = 45, lastShutdownReason = 0,
+            extra = DeviceStatus.Extra(ledEnabled = true, beepsMuted = false, programStep = 0, notification = 0))
+        override val status = MutableStateFlow<DeviceStatus?>(running)
+        override val sourcedStatus = MutableStateFlow<SourcedStatus?>(SourcedStatus(source, running))
     }
 }
