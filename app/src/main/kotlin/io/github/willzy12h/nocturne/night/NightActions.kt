@@ -535,11 +535,13 @@ class NightActions(private val graph: Graph) {
         repo.updateRuntime { it.copy(wakeShown = n.identity, manualWakeShown = false) }
         Notifications.showWakeUp(context, n, repo.settings.value)
     }
-    suspend fun observeStatus(status: DeviceStatus, target: String?, receivedAt: ZonedDateTime = graph.now()) {
+    suspend fun observeStatus(status: DeviceStatus, target: String?, receivedAt: ZonedDateTime = graph.now(), source: String? = target) {
         // Intermediate reports during our own upload/manual packets must not become a takeover after queuing.
         if (lock.isLocked) return
         lock.withLock {
-            if (target != repo.settings.value.deviceId() || graph.link.state.value != LinkState.READY) return@withLock
+            // [source] is the unit that reported [status]; one from another BedJet is never this target's state.
+            if (target != repo.settings.value.deviceId() || !DeviceId.same(source, target) ||
+                graph.link.state.value != LinkState.READY) return@withLock
             val n = repo.activeNight.value ?: return@withLock
             val extra = status.extra ?: return@withLock
             if (extra.notification != 0 && lastNotice != (n.recordId to extra.notification)) {

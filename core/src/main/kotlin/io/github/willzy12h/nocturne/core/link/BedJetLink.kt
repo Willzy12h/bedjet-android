@@ -1,15 +1,30 @@
 package io.github.willzy12h.nocturne.core.link
 
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 
 enum class LinkState { BLUETOOTH_OFF, UNAUTHORIZED, SEARCHING, CONNECTING, READY }
+
+/**
+ * A status and the [DeviceId] of the unit that reported it. A null [source] comes from a link that only ever talks
+ * to one unit, such as [DemoBedJet].
+ */
+data class SourcedStatus(val source: String?, val status: DeviceStatus) {
+    /** Whether this report may stand for [target]'s state: a report from another BedJet never does. */
+    fun isFrom(target: String?): Boolean = source == null || DeviceId.same(source, target)
+}
 
 /** A connection to one BedJet 3. The Android transport talks to hardware; [DemoBedJet] simulates a unit. */
 interface BedJetLink {
     val state: StateFlow<LinkState>
     /** The most recent status the unit reported. */
     val status: StateFlow<DeviceStatus?>
+    /** [status] with the unit that reported it. A link that can reach more than one BedJet must override this. */
+    val sourcedStatus: Flow<SourcedStatus?> get() = status.map { it?.let { s -> SourcedStatus(null, s) } }
+    /** The latest [sourcedStatus], at once. Overridden together with [sourcedStatus]. */
+    fun latestSourcedStatus(): SourcedStatus? = status.value?.let { SourcedStatus(null, it) }
 
     /** Suspends until the unit is ready for commands, or throws [BedJetError.NotConnected]. */
     suspend fun connect()
@@ -31,6 +46,12 @@ interface BedJetLink {
     /** Releases preparation if the start is withheld or interrupted before the link completes its write. */
     fun cancelPreparedStart() {}
 }
+
+/**
+ * The latest status that [target] itself reported, or null when there is none or the last report came from another
+ * BedJet (a session still on the previous target).
+ */
+fun BedJetLink.latestStatusFrom(target: String?): DeviceStatus? = latestSourcedStatus()?.takeIf { it.isFrom(target) }?.status
 
 sealed class BedJetError(message: String) : Exception(message) {
     class NotConnected(

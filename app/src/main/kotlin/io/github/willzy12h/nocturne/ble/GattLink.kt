@@ -4,6 +4,7 @@ import io.github.willzy12h.nocturne.core.link.BedJetError
 import io.github.willzy12h.nocturne.core.link.BedJetLink
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.link.SourcedStatus
 import io.github.willzy12h.nocturne.core.protocol.Codec
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Limits
@@ -58,6 +59,10 @@ class GattLink(
     override val state: StateFlow<LinkState> = _state.asStateFlow()
     private val _status = MutableStateFlow<DeviceStatus?>(null)
     override val status: StateFlow<DeviceStatus?> = _status.asStateFlow()
+    private val _sourcedStatus = MutableStateFlow<SourcedStatus?>(null)
+    /** [status] with the BedJet whose session reported it, so a report from a previous target is never taken for the new one's. */
+    override val sourcedStatus: StateFlow<SourcedStatus?> = _sourcedStatus.asStateFlow()
+    override fun latestSourcedStatus(): SourcedStatus? = _sourcedStatus.value
 
     private val operations = Mutex()
     private val connecting = Mutex()
@@ -144,7 +149,7 @@ class GattLink(
                 startPending = true
                 preparedSession = current
                 current?.forgetExtra()
-                _status.value = _status.value?.copy(extra = null)
+                publish(current, _status.value?.copy(extra = null))
             }
         }
     }
@@ -231,7 +236,7 @@ class GattLink(
         current = session
         // A new session invalidates old interop metadata, including after a name-read timeout.
         onVerifiedName(DeviceId.ble(address), null)
-        _status.value = null
+        publish(null, null)
         _state.value = LinkState.CONNECTING
         var attached = false
         try {
@@ -268,13 +273,23 @@ class GattLink(
         }
     }
 
+    /**
+     * Every status goes out with the session that reported it; see [sourcedStatus]. Without a session there is no
+     * status, so [status] is never left set while [sourcedStatus] is empty.
+     */
+    private fun publish(session: Session?, value: DeviceStatus?) {
+        val shown = value?.takeIf { session != null }
+        _sourcedStatus.value = if (session == null || shown == null) null else SourcedStatus(DeviceId.ble(session.address), shown)
+        _status.value = shown
+    }
+
     private fun retire(session: Session) {
         val wasCurrent = synchronized(this) {
             (current === session).also { if (it) current = null }
         }
         session.shut()
         if (wasCurrent) {
-            _status.value = null
+            publish(null, null)
             if (_state.value == LinkState.READY || _state.value == LinkState.CONNECTING) _state.value = LinkState.SEARCHING
         }
     }
@@ -358,7 +373,7 @@ class GattLink(
                     if (current !== session || !selected(session.address)) return
                     if (startPending) return
                     session.lastExtra = extra
-                    _status.value = _status.value?.copy(extra = extra)
+                    publish(session, _status.value?.copy(extra = extra))
                 }
             }
             return
@@ -369,10 +384,10 @@ class GattLink(
                 if (current !== session || !selected(session.address)) return
                 if (startPending) {
                     session.lastExtra = null
-                    _status.value = parsed.copy(extra = null)
+                    publish(session, parsed.copy(extra = null))
                 } else {
                     session.lastExtra = parsed.extra
-                    _status.value = parsed
+                    publish(session, parsed)
                 }
             }
             return
@@ -380,7 +395,7 @@ class GattLink(
         synchronized(startStatusLock) {
             if (current !== session || !selected(session.address)) return
             session.lastHead = chunk
-            _status.value = parsed.copy(extra = if (startPending) null else session.lastExtra)
+            publish(session, parsed.copy(extra = if (startPending) null else session.lastExtra))
         }
         // While a start is pending a remainder read would only be dropped, and would hold up the start.
         if (startPending) return

@@ -20,6 +20,7 @@ import android.os.Build
 import android.os.ParcelUuid
 import io.github.willzy12h.nocturne.core.link.BedJetLink
 import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.link.SourcedStatus
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
@@ -38,6 +39,8 @@ class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, 
 
     override val state: StateFlow<LinkState> get() = engine.state
     override val status: StateFlow<DeviceStatus?> get() = engine.status
+    override val sourcedStatus: StateFlow<SourcedStatus?> get() = engine.sourcedStatus
+    override fun latestSourcedStatus(): SourcedStatus? = engine.latestSourcedStatus()
 
     /** The unit's name, once read; shown in settings. */
     val deviceName: String? get() = names.displayName()

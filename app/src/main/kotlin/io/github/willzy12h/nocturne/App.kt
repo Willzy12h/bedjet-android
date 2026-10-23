@@ -73,8 +73,14 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
         scope.launch { Notifications.observeWakeResume(context) }
         scope.launch {
             repository.settings.map { it.deviceId() }.distinctUntilChanged().flatMapLatest { target ->
-                link.status.map { target to it }
-            }.collect { (target, status) -> if (status != null) { actions.observeStatus(status, target, now()); platform.observe(status,target) } }
+                link.sourcedStatus.map { target to it }
+            }.collect { (target, report) ->
+                // A report from a session still on the previous BedJet says nothing about the chosen one.
+                if (report != null && report.isFrom(target)) {
+                    actions.observeStatus(report.status, target, now(), report.source ?: target)
+                    platform.observe(report.status, target)
+                }
+            }
         }
     }
 

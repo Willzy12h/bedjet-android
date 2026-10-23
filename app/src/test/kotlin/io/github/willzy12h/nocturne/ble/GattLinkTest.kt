@@ -3,11 +3,13 @@ package io.github.willzy12h.nocturne.ble
 import io.github.willzy12h.nocturne.core.link.BedJetError
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.link.latestStatusFrom
 import io.github.willzy12h.nocturne.core.protocol.Codec
 import io.github.willzy12h.nocturne.core.link.BedJetController
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -114,6 +116,37 @@ class GattLinkTest {
         first.await()
         assertEquals("expired before GATT write", start.await().exceptionOrNull()?.message)
         assertFalse(port.writes.any { it.contentEquals(Codec.startProgram(2)) })
+    }
+
+    @Test
+    fun eachStatusCarriesTheBedJetThatReportedIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val old = fake.ports.single()
+        val report = link.latestSourcedStatus()!!
+        assertEquals(DeviceId.ble(ADDRESS), report.source)
+        assertEquals(link.status.value, report.status)
+        assertEquals(report, link.sourcedStatus.first())
+        assertTrue(report.isFrom(DeviceId.ble(ADDRESS)))
+        assertFalse(report.isFrom(DeviceId.ble(OTHER)))
+        assertEquals(1, link.latestStatusFrom(DeviceId.ble(ADDRESS))?.extra?.programStep)
+        assertEquals(null, link.latestStatusFrom(DeviceId.ble(OTHER)))
+        // Once the target changes, nothing the old unit reports stands for the new one.
+        target = DeviceId.ble(OTHER)
+        old.notify(Status.full(programStep = 1))
+        fake.drain()
+        assertEquals(null, link.latestStatusFrom(DeviceId.ble(OTHER)))
+    }
+
+    @Test
+    fun preparingWithNoSessionLeavesNoUnattributedStatus() = runBlocking {
+        link.prepareForStart()
+        assertEquals(null, link.status.value)
+        assertEquals(null, link.latestSourcedStatus())
+        link.connect()
+        link.prepareForStart()
+        assertEquals(DeviceId.ble(ADDRESS), link.latestSourcedStatus()?.source)
+        assertEquals(link.status.value, link.latestSourcedStatus()?.status)
     }
 
     @Test

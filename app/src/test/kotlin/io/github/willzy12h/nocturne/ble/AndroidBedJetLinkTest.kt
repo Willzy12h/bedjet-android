@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.willzy12h.nocturne.core.link.BedJetError
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.link.LinkState
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import io.github.willzy12h.nocturne.core.protocol.Codec
 import org.junit.Assert.assertEquals
@@ -27,6 +28,9 @@ class AndroidBedJetLinkTest {
         val adapter = AndroidBedJetLink(context, radio = fake.radio) { DeviceId.ble("AA:BB:CC:DD:EE:01") }
         adapter.connect()
         assertEquals(1, adapter.status.value?.extra?.programStep)
+        // The source comes from the engine too, not the interface's unattributed default.
+        assertEquals(DeviceId.ble("AA:BB:CC:DD:EE:01"), adapter.latestSourcedStatus()?.source)
+        assertEquals(DeviceId.ble("AA:BB:CC:DD:EE:01"), adapter.sourcedStatus.first()?.source)
         adapter.prepareForStart()
         assertNull(adapter.status.value!!.extra)
         adapter.disconnect()
