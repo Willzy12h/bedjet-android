@@ -13,10 +13,13 @@ import io.github.willzy12h.nocturne.ui.MainActivity
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.RuntimeEnvironment
 import java.time.Duration
 import org.robolectric.annotation.Config
 import kotlinx.coroutines.runBlocking
@@ -25,19 +28,20 @@ import kotlinx.coroutines.runBlocking
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class AppearanceTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    private val compose = createAndroidComposeRule<MainActivity>()
+    private val pinClock = TestRule { base, _ ->
+        object : org.junit.runners.model.Statement() {
+            override fun evaluate() {
+                val app = RuntimeEnvironment.getApplication() as App
+                val oldClock = app.graph.clock
+                app.graph.clock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-21T22:30:00Z"), java.time.ZoneOffset.UTC)
+                try { base.evaluate() } finally { app.graph.clock = oldClock }
+            }
+        }
+    }
+    @get:Rule val rules: TestRule = RuleChain.outerRule(pinClock).around(compose)
 
     private val graph get() = compose.activity.graph
-    private var previousClock: java.time.Clock? = null
-
-    @org.junit.Before
-    fun fixedNightClock() {
-        previousClock = graph.clock
-        graph.clock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-21T22:30:00Z"), java.time.ZoneOffset.UTC)
-    }
-
-    @org.junit.After
-    fun restoreClock() { previousClock?.let { graph.clock = it } }
 
 
     @Before

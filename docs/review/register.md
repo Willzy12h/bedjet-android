@@ -8,7 +8,7 @@
 | R39–R40, V04 | Fail-safe signing configuration and R8/resource shrinking implemented. Unsigned shrunk release passed (4,217,595 bytes); shrunk test-signed APK version `0.2.0-hardening-test.1` / code `2` was signed and v2 signature verified (4,229,883 bytes) | Physical installation and upgrade **NOT RUN** |
 | U01–U10, F01–F16 | Task 5 placements and feature controls reconstructed and integrated, including explicit setup, pinning and recovery; automated UI/feature coverage in completion gate | TalkBack, narrow-device layout, Bluetooth, optional providers and two-phone hand-over **NOT RUN** |
 | U11/F14 | New copy uses UK English resources | Migration of all older literal UI strings remains incomplete |
-| V01–V02 | Full current gate: 148 core and 244 app tests passed, six app capture tests skipped, zero failures; debug assembly passed; lint zero errors, 22 warnings and one hint | Automated/fake-device evidence only |
+| V01–V02 | Full current gate: 148 core and 238 of 244 app tests passed, six app capture tests skipped, zero failures; debug assembly passed; lint zero errors, 22 warnings and one hint | Automated/fake-device evidence only |
 | V03 | Fixed-clock Robolectric before/after captures documented in completion review | Actual phone screenshots **NOT RUN** |
 | V05–V06 | Physical checklist prepared; independent review and scoped fix waves incorporated into completion review | Every physical result **NOT RUN** |
 

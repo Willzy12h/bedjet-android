@@ -20,7 +20,7 @@ Task 7 configures fail-safe release signing and enables R8/resource shrinking. A
 
 ## Verification recorded for this completion source
 
-The full local Gradle gate passed **148 core tests and 244 app tests**, with **six app screenshot tests skipped** and **zero failures**. Debug assembly passed. Lint reported **zero errors, 22 warnings and one hint**. The unsigned shrunk release build passed and measured **4,217,595 bytes**. Fixed-clock Robolectric before/after captures are rendered-app evidence; they do not establish BedJet hardware or Samsung behaviour.
+The full local Gradle gate passed **148 core tests and 238 of 244 app tests**, with **six app screenshot tests skipped** and **zero failures**. Debug assembly passed. Lint reported **zero errors, 22 warnings and one hint**. The unsigned shrunk release build passed and measured **4,217,595 bytes**. Fixed-clock Robolectric before/after captures are rendered-app evidence; they do not establish BedJet hardware or Samsung behaviour.
 
 The shrunk test candidate is `outputs/nocturne-0.2.0-hardening-test.1.apk`: version name `0.2.0-hardening-test.1`, version code `2`, **4,229,883 bytes**. APK SHA-256: `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d`. Throwaway test signer certificate SHA-256: `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67` (RSA 3072, APK Signature Scheme v2 verified with `apksigner`). Its key is outside Git. This is not a production signing identity; same-signer upgrade and installation on a phone are **NOT RUN**.
 
