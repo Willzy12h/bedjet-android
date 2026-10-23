@@ -217,6 +217,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissUnreadable() = save { repo.dismissUnreadable() }
 
+    /** IR-03: true while slots with no saved original are refused because the saved originals were unreadable. */
+    val originalsBlocked = repo.originalsBlocked
+
+    /**
+     * Lifts [originalsBlocked]. Call only after the person has confirmed, in a dialog that says so plainly, that the
+     * saved originals of those slots are lost and that what the slots hold now will be kept as their originals.
+     */
+    fun acceptLostOriginals() = save { repo.dismissUnreadable(acceptLostOriginals = true) }
+
     /** Commands wait for saves asked for before them, so they act on what the person just saved. */
     private fun act(hardware: Boolean = true, work: suspend () -> String) {
         val pending = lastSave

@@ -326,6 +326,49 @@ class RepositoryTest {
     }
 
     @Test
+    fun acceptingTheLossOfUnreadableOriginalsLiftsTheBarrierAndMarksLaterOnesUncertain() = runBlocking {
+        File(dir, "slot-backups.json").writeText("[{ broken")
+        val repo = repository()
+        assertTrue(repo.originalsBlocked.value)
+        // A plain dismissal only hides the notice.
+        repo.dismissUnreadable()
+        assertTrue(repo.originalsBlocked.value)
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
+
+        repo.dismissUnreadable(acceptLostOriginals = true)
+        assertFalse(repo.originalsBlocked.value)
+        assertFalse(File(dir, "slot-backups-integrity.json").exists())
+        assertEquals("\"$now\"", File(dir, "slot-backups-loss-accepted.json").readText())
+        // What the slot holds now is saved, marked as possibly the app's own programme.
+        val recorded = repo.recordOriginalSlot("ble:AA:BB", 2, program)
+        assertEquals(SlotBackup("ble:AA:BB", 2, program, now.toString(), uncertain = true), recorded)
+
+        val restarted = repository()
+        assertFalse(restarted.originalsBlocked.value)
+        assertEquals(recorded, restarted.originalSlot("ble:AA:BB", 2))
+        assertTrue(restarted.recordOriginalSlot("ble:AA:BB", 1, null).uncertain)
+    }
+
+    @Test
+    fun acceptingTheLossChangesNothingWhileTheOriginalsAreReadable() = runBlocking {
+        val repo = repository()
+        repo.dismissUnreadable(acceptLostOriginals = true)
+        assertFalse(File(dir, "slot-backups-loss-accepted.json").exists())
+        assertFalse(repo.recordOriginalSlot("ble:AA:BB", 2, program).uncertain)
+    }
+
+    @Test
+    fun aLossThatCantBeRecordedKeepsTheBarrierAndTheNotice() {
+        File(dir, "slot-backups.json").writeText("[{ broken")
+        val repo = repository(writeFile = failingFor("slot-backups-loss-accepted.json"))
+        assertThrows(IOException::class.java) { runBlocking { repo.dismissUnreadable(acceptLostOriginals = true) } }
+        assertTrue(repo.originalsBlocked.value)
+        assertEquals(listOf("slot-backups.json"), repo.unreadable.value)
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertTrue(repository().originalsBlocked.value)
+    }
+
+    @Test
     fun demoAndRealOriginalsAreSeparate() = runBlocking {
         val repo = repository()
         val demo = repo.recordOriginalSlot("demo", 2, StoredProgram("demo", emptyList()))

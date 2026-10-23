@@ -115,7 +115,19 @@ class Repository(
     private val journalDamaged = recoverPendingRestore()
     private val _unreadable = MutableStateFlow((readUnreadableMarker() + listOfNotNull(RESTORE_JOURNAL.takeIf { journalDamaged })).distinct())
     // Dismissing the unreadable-file notice must not make an unknown slot original safe to overwrite.
-    private var originalsIntegrityBlocked = File(dir, SLOT_BACKUPS_BLOCK).exists()
+    private val _originalsBlocked = MutableStateFlow(File(dir, SLOT_BACKUPS_BLOCK).exists())
+    /**
+     * True while the saved slot originals are known to have been unreadable (IR-03): a slot with no saved original
+     * must not be written, whatever the notice in [unreadable] says. It stays true across restarts and a plain
+     * [dismissUnreadable], and is lifted only when the person accepts the loss with
+     * `dismissUnreadable(acceptLostOriginals = true)`.
+     */
+    val originalsBlocked: StateFlow<Boolean> = _originalsBlocked.asStateFlow()
+    private var originalsIntegrityBlocked: Boolean
+        get() = _originalsBlocked.value
+        set(value) { _originalsBlocked.value = value }
+    /** Whether the loss of unreadable originals was accepted; originals saved since are marked uncertain. */
+    private var originalsLossAccepted = File(dir, SLOT_BACKUPS_LOSS).exists()
     /**
      * Files that couldn't be read, so their defaults are showing instead. Each was moved aside as
      * `<name>.corrupt-<millis>`. Kept across restarts until a restore or [dismissUnreadable]; automatic snapshots are
@@ -303,7 +315,8 @@ class Repository(
             throw SlotBackupsUnreadable()
         }
         adoptMigrated(deviceId)
-        originalSlot(deviceId, slot) ?: SlotBackup(deviceId, slot, program, now().toString()).also { backup ->
+        // After the loss was accepted the slot may hold the app's own programme, so the record says it may.
+        originalSlot(deviceId, slot) ?: SlotBackup(deviceId, slot, program, now().toString(), uncertain = originalsLossAccepted).also { backup ->
             val list = _slotBackups.value + backup
             writeValue(SLOT_BACKUPS, ListSerializer(SlotBackup.serializer()), list)
             _slotBackups.value = list
@@ -337,8 +350,34 @@ class Repository(
 
     suspend fun clearNotices() = update(_notices, NOTICES, ListSerializer(LoggedNotice.serializer())) { emptyList() }
 
-    /** Stops reporting the files listed in [unreadable]. Their set-aside copies stay where they are. */
-    suspend fun dismissUnreadable() = serially { clearUnreadable() }
+    /**
+     * Stops reporting the files listed in [unreadable]. Their set-aside copies stay where they are.
+     *
+     * A plain dismissal leaves [originalsBlocked] as it is. With [acceptLostOriginals], asked only after the person
+     * has explicitly confirmed that the saved originals of the slots with none are lost, it also lifts that barrier
+     * (IR-03): the acceptance is recorded durably first (`slot-backups-loss-accepted.json`, its time), then the
+     * barrier file is removed. From then on a slot with no saved original can be written; what it holds then is
+     * saved as its original, marked [SlotBackup.uncertain], as it may be one of the app's own programmes. Throws,
+     * changing nothing it hasn't recorded, when that can't be saved. Does nothing extra while the originals are
+     * readable.
+     */
+    suspend fun dismissUnreadable(acceptLostOriginals: Boolean = false) = serially {
+        if (acceptLostOriginals && originalsIntegrityBlocked) acceptOriginalsLoss()
+        clearUnreadable()
+    }
+
+    /** Records the accepted loss, then lifts the barrier. Call on the writer. */
+    private fun acceptOriginalsLoss() {
+        // With no barrier file the unreadable file couldn't be set aside yet; the next start tries again first.
+        if (!File(dir, SLOT_BACKUPS_BLOCK).exists()) {
+            throw IOException("The unreadable saved originals haven't been set aside yet. Reopen Nocturne, then try again.")
+        }
+        writeValue(SLOT_BACKUPS_LOSS, String.serializer(), now().toString())
+        originalsLossAccepted = true
+        AtomicFile(File(dir, SLOT_BACKUPS_BLOCK)).delete()
+        if (File(dir, SLOT_BACKUPS_BLOCK).exists()) throw IOException("Couldn't lift the block on slots with no saved original.")
+        originalsIntegrityBlocked = false
+    }
 
     // Backups
 
@@ -666,6 +705,8 @@ class Repository(
         private const val HISTORY = "history.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
         private const val SLOT_BACKUPS_BLOCK = "slot-backups-integrity.json"
+        /** When the loss of unreadable originals was accepted. Device-local: not in the backup allowlist. */
+        private const val SLOT_BACKUPS_LOSS = "slot-backups-loss-accepted.json"
         private const val RESTORE_JOURNAL = "restore-pending.json"
         private const val RUNTIME = "runtime.json"
         private const val AUTOMATION = "automation.json"
