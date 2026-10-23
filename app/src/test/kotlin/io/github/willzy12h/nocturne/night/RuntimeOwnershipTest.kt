@@ -106,7 +106,7 @@ class RuntimeOwnershipTest {
         val extend = async(start = CoroutineStart.UNDISPATCHED) { graph.actions.execute(graph.actions.capture(NightActions.Command.EXTEND_WARM)) }
         val oldEnd = async(start = CoroutineStart.UNDISPATCHED) { graph.actions.expire(original.identity) }
         release.complete(Unit); holder.await()
-        assertEquals(OutcomeKind.ACCEPTED, extend.await().kind)
+        assertEquals(OutcomeKind.CONFIRMED, extend.await().kind)
         assertFalse(oldEnd.await())
         val extended = graph.repository.activeNight.value!!
         assertEquals(original.revision + 1, extended.revision)
@@ -286,7 +286,7 @@ class RuntimeOwnershipTest {
     }
     @Test fun remoteOffEndsNightAndLaterAlarmCannotRestartIt() = runBlocking {
         start()
-        graph.actions.remote("Off", endsNight = true) { it.stop() }
+        graph.actions.remote("Off", endsNight = true, confirms = { it.mode == Mode.STANDBY }) { it.stop() }
         sent.clear(); graph.actions.perform(NightActions.Command.RETIME)
         assertNull(graph.repository.activeNight.value); assertTrue(sent.isEmpty())
     }
@@ -518,7 +518,7 @@ class RuntimeOwnershipTest {
         assertEquals(OutcomeKind.CONFIRMATION_REQUIRED, outcome.kind)
         assertEquals(original.identity, graph.repository.activeNight.value!!.identity)
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(request.copy(replacementConfirmed = true)).kind)
-        assertEquals(OutcomeKind.ACCEPTED, graph.actions.execute(graph.actions.capture(NightActions.Command.OFF)).kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(NightActions.Command.OFF)).kind)
     }
     @Test fun reapplyHonoursNewTonightOverrideAndFinishClearsIt() = runBlocking {
         start()
@@ -546,7 +546,7 @@ class RuntimeOwnershipTest {
     @Test fun setupCheckOnlyTouchesFanAndRestoresItAndRejectsRunningUnit() = runBlocking {
         demo.connect()
         val original = demo.status.value!!.fanStep
-        assertEquals(OutcomeKind.ACCEPTED, graph.actions.setupFanCheck().kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.setupFanCheck().kind)
         assertEquals(original, demo.status.value!!.fanStep)
         assertEquals(2, sent.size); assertTrue(sent.all { it[0] == 0x07.toByte() })
         demo.send(Codec.setMode(Mode.COOL)!!); sent.clear()
@@ -586,7 +586,7 @@ class RuntimeOwnershipTest {
     }
     @Test fun snoozeStoresTheAcceptedManualProgrammeInsteadOfTheOldNightCurve() = runBlocking {
         val original = start()
-        assertEquals(OutcomeKind.ACCEPTED, graph.actions.execute(graph.actions.capture(NightActions.Command.SNOOZE_WARM)).kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(NightActions.Command.SNOOZE_WARM)).kind)
         val n = graph.repository.activeNight.value!!
         assertEquals(Confidence.UNKNOWN, n.confidence)
         assertTrue(n.trackingManual)

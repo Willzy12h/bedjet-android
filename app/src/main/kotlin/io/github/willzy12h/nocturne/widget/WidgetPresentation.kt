@@ -16,6 +16,11 @@ fun widgetWake(context: Context, night: io.github.willzy12h.nocturne.core.night.
     if (night.confidence != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED || night.pending != null ||
         context.graph.repository.runtime.value.retime != null || context.graph.repository.runtime.value.alarmInbox != null)
         return context.getString(io.github.willzy12h.nocturne.R.string.feature_pending_wake)
+    // A kept manual run has no wake programme; it runs until its own end.
+    if (night.trackingManual) return if (!java.time.ZonedDateTime.parse(night.endsAt).isAfter(context.graph.now()))
+        context.getString(io.github.willzy12h.nocturne.R.string.feature_no_wake)
+        else context.getString(io.github.willzy12h.nocturne.R.string.feature_manual_until,
+            java.time.ZonedDateTime.parse(night.endsAt).format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm")))
     if (!java.time.ZonedDateTime.parse(night.wakeAt).isAfter(context.graph.now()))
         return context.getString(io.github.willzy12h.nocturne.R.string.feature_no_wake)
     return context.getString(io.github.willzy12h.nocturne.R.string.feature_wake,

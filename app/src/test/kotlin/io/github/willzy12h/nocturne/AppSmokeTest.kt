@@ -165,6 +165,37 @@ class AppSmokeTest {
     }
 
     @Test
+    fun aReplacedNightCanBeResumedFromTonightWhileItsOfferLasts() {
+        compose.onNodeWithText("Start night now").performScrollTo().performClick()
+        waitForConfirmedNight()
+        runBlocking { graph.actions.execute(graph.actions.capture(io.github.willzy12h.nocturne.night.NightActions.Command.START_NIGHT,
+            requireIdentity = true).copy(replacementConfirmed = true)) }
+        assertNotNull(graph.repository.runtime.value.resumeOffer)
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+            compose.onAllNodes(hasText("Resume previous night")).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Resume previous night").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun aKeptManualRunShowsItsEndNotAWakeUp() {
+        compose.onNodeWithText("Start night now").performScrollTo().performClick()
+        waitForConfirmedNight()
+        runBlocking {
+            graph.actions.execute(graph.actions.capture(io.github.willzy12h.nocturne.night.NightActions.Command.SNOOZE_WARM))
+            graph.actions.execute(graph.actions.capture(io.github.willzy12h.nocturne.night.NightActions.Command.KEEP_TRACKING))
+        }
+        assertTrue(graph.repository.activeNight.value!!.trackingManual)
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+            compose.onAllNodes(hasText("Manual run until")).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(compose.onAllNodes(hasText("Waking you at")).fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithText("Resume programme").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
     fun completedNightCheckInRecordsComfortWithoutChangingAProfile() {
         compose.onNodeWithText("Start night now").performScrollTo().performClick()
         waitForConfirmedNight()

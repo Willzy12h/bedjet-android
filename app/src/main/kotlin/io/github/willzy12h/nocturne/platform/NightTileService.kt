@@ -25,11 +25,7 @@ class NightTileService : TileService() {
         val knownIdle=graph.link.state.value == LinkState.READY && graph.link.latestStatusFrom(target)?.isRunning == false
         qsTile?.apply {
             state=state(night,knownIdle)
-            subtitle=getString(when {
-                night?.confidence == Confidence.CONFIRMED -> R.string.feature_running
-                night == null && knownIdle -> R.string.feature_idle
-                else -> R.string.feature_unknown
-            })
+            subtitle=getString(subtitle(night,knownIdle))
             updateTile()
         }
     }
@@ -43,6 +39,13 @@ class NightTileService : TileService() {
         else startActivityAndCollapse(intent)
     }
     companion object {
+        fun subtitle(night: ActiveNight?, knownIdle: Boolean): Int = when {
+            // A kept manual run is not a night programme waking anyone.
+            night?.confidence == Confidence.CONFIRMED && night.trackingManual -> R.string.feature_manual_running
+            night?.confidence == Confidence.CONFIRMED -> R.string.feature_running
+            night == null && knownIdle -> R.string.feature_idle
+            else -> R.string.feature_unknown
+        }
         fun state(night: ActiveNight?, knownIdle: Boolean): Int =
             if (night?.confidence == Confidence.CONFIRMED) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         fun openIntent(context: Context) = Intent(context, MainActivity::class.java)

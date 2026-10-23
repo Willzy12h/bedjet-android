@@ -47,11 +47,16 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
             if (night != null) {
                 OutlinedButton(onClick = { stopTracking = true }) { Text("Stop tracking") }
             }
-            if (night?.trackingManual == true) {
+            // The offer is for this night's own programme, which a manual run left (P3b).
+            if (night?.trackingManual == true && offer?.night?.recordId == night.recordId) {
                 OutlinedButton(onClick = { guard.confirm("resume the saved programme") { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text("Resume programme") }
             }
             if (night == null && offer != null) {
                 OutlinedButton(onClick = { model.run(Command.RESUME) }) { Text("Resume previous night") }
+            }
+            // A night replaced by this one can still be resumed while its offer lasts.
+            if (night != null && offer != null && offer.night.recordId != night.recordId) {
+                OutlinedButton(onClick = { guard.confirm("resume the previous night") { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text("Resume previous night") }
             }
         }
         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {

@@ -118,8 +118,13 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 }
                 Note(state + (nightStatus.reason?.let { " $it" } ?: ""))
             }
+            // A kept manual run has no wake programme: it runs until its own end, so that is what is shown.
+            val manualUntil = if (running.trackingManual) stringResource(R.string.tonight_manual_until) else null
             when {
                 simple -> Unit // The timeline below ends with the wake time.
+                manualUntil != null && dark -> WakeHeadline(manualUntil, Format.clock(running.endsAt), null)
+                manualUntil != null -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", if (confirmed) "Started" else "Planned start",
+                    Format.clock(running.endsAt), null, waking = confirmed, planned = !confirmed, wakeLabel = manualUntil)
                 dark -> WakeHeadline(if (confirmed) "Waking you at" else "Planned wake", Format.clock(running.wakeAt), running.wakeOrigin)
                 else -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", if (confirmed) "Started" else "Planned start", Format.clock(running.wakeAt), running.wakeOrigin, waking = confirmed, planned = !confirmed)
             }
@@ -185,11 +190,11 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
 
 /** Midnight Ink's lead: the wake time, large. */
 @Composable
-private fun WakeHeadline(label: String, time: String, origin: WakeOrigin) {
+private fun WakeHeadline(label: String, time: String, origin: WakeOrigin?) {
     Column(Modifier.semantics(mergeDescendants = true) {}) {
         Text(label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(time, fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.Light, color = MaterialTheme.colorScheme.onSurface)
-        Text(when (origin) {
+        if (origin != null) Text(when (origin) {
             WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm_headline)
             WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
             WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_origin_profile)
@@ -199,13 +204,15 @@ private fun WakeHeadline(label: String, time: String, origin: WakeOrigin) {
 
 /** Daylight's lead: start and wake side by side. */
 @Composable
-private fun StatTiles(startTime: String, startLabel: String, wakeTime: String, origin: WakeOrigin, waking: Boolean, planned: Boolean = false) {
+private fun StatTiles(startTime: String, startLabel: String, wakeTime: String, origin: WakeOrigin?, waking: Boolean, planned: Boolean = false,
+    wakeLabel: String? = null) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         StatTile(startLabel, startTime, null, Modifier.weight(1f))
-        StatTile(if (planned) "Planned wake" else if (waking) "Waking you at" else "Wakes you at", wakeTime, when (origin) {
+        StatTile(wakeLabel ?: if (planned) "Planned wake" else if (waking) "Waking you at" else "Wakes you at", wakeTime, when (origin) {
             WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm)
             WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
             WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_origin_profile)
+            null -> null
         }, Modifier.weight(1f))
     }
 }

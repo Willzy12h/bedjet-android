@@ -57,7 +57,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.TURBO, Mode.DRY, Mode.STANDBY).forEach { mode ->
-                FilterChip(s.mode == mode, { guard.confirm(if (mode == Mode.STANDBY) "turn the BedJet off" else "switch to ${Format.modeName(mode)}") { model.remote(Format.modeName(mode), endsNight = true) { it.setMode(mode) } } }, label = { Text(Format.modeName(mode)) })
+                FilterChip(s.mode == mode, { guard.confirm(if (mode == Mode.STANDBY) "turn the BedJet off" else "switch to ${Format.modeName(mode)}") { model.remote(Format.modeName(mode), endsNight = true, confirms = { it.mode == mode }) { it.setMode(mode) } } }, label = { Text(Format.modeName(mode)) })
             }
         }
         if (s.isRunning && s.mode.usesTemperature) {
@@ -66,7 +66,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Slider(
                 temp, { temp = it }, valueRange = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
                 steps = (s.maxTemperature - s.minTemperature - 1).coerceAtLeast(0),
-                onValueChangeFinished = { model.remote("Temperature set", affectsProgramme = true) { it.setTemperature(temp.roundToInt()) } },
+                onValueChangeFinished = { val t = temp.roundToInt(); model.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == t }) { it.setTemperature(t) } },
             )
         }
         if (s.isRunning && s.mode.usesFan) {
@@ -74,14 +74,14 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Text("Fan ${fan.roundToInt()}%")
             Slider(
                 fan, { fan = it }, valueRange = 5f..100f, steps = 18,
-                onValueChangeFinished = { model.remote("Fan set", affectsProgramme = true) { it.setFan((fan / 5).roundToInt() - 1) } },
+                onValueChangeFinished = { val step = (fan / 5).roundToInt() - 1; model.remote("Fan set", affectsProgramme = true, confirms = { it.fanStep == step }) { it.setFan(step) } },
             )
         }
         if (s.isRunning) {
             Text("Run for", style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60, 120, 240, 480).forEach { minutes ->
-                    AssistChip({ model.remote("Timer set", affectsProgramme = true) { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
+                    AssistChip({ model.remote("Timer set", affectsProgramme = true, confirms = { kotlin.math.abs(it.remainingSeconds - minutes * 60) <= 90 }) { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
                 }
             }
         }
@@ -89,10 +89,10 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             FilledTonalButton({ guard.confirm("start Boost") { model.run(Command.BOOST, replacementConfirmed = true) } }) { Text("Boost ${settings.boostMinutes}m") }
         }
         s.extra?.let { extra ->
-            SwitchRow("Lights", null, extra.ledEnabled) { on -> model.remote("Lights ${if (on) "on" else "off"}") { it.setLed(on) } }
-            SwitchRow("Beeps", null, !extra.beepsMuted) { on -> model.remote("Beeps ${if (on) "on" else "off"}") { it.setMuted(!on) } }
+            SwitchRow("Lights", null, extra.ledEnabled) { on -> model.remote("Lights ${if (on) "on" else "off"}", confirms = { it.extra?.ledEnabled == on }) { it.setLed(on) } }
+            SwitchRow("Beeps", null, !extra.beepsMuted) { on -> model.remote("Beeps ${if (on) "on" else "off"}", confirms = { it.extra?.beepsMuted == !on }) { it.setMuted(!on) } }
             if (extra.notification == 1) {
-                FilledTonalButton({ model.remote("Reminder cleared") { it.acknowledge() } }) { Text("Filter cleaned — clear reminder") }
+                FilledTonalButton({ model.remote("Reminder cleared", confirms = { it.extra?.notification == 0 }) { it.acknowledge() } }) { Text("Filter cleaned — clear reminder") }
             }
         }
     }

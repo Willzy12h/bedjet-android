@@ -7,6 +7,9 @@
     <string name="feature_mode_age">Last known %1$s · %2$d min ago at refresh · seen %3$s</string>
     <string name="feature_unknown">Unknown</string>
     <string name="feature_running">Night running</string>
+    <string name="feature_manual_running">Manual run</string>
+    <string name="feature_manual_until">Manual run until %1$s</string>
+    <string name="tonight_manual_until">Manual run until</string>
     <string name="feature_idle">Idle</string>
     <string name="feature_open_tonight">Open Tonight</string>
     <string name="feature_preview">Start preview</string>

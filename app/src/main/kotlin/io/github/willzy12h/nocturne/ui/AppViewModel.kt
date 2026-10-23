@@ -196,11 +196,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** A Remote control: sent straight to the BedJet. */
     fun remote(label: String, endsNight: Boolean = false, affectsProgramme: Boolean = false,
+        confirms: ((io.github.willzy12h.nocturne.core.protocol.DeviceStatus) -> Boolean)? = null,
         work: suspend (BedJetController) -> Unit) {
         val captured = graph.actions.capture(NightActions.Command.OFF)
         val expected = confirmedNight ?: captured.expected
         act { graph.actions.remote(label, endsNight = endsNight, affectsProgramme = affectsProgramme,
-            target = captured.deviceId, expected = expected, work = work).message }
+            target = captured.deviceId, expected = expected, confirms = confirms, work = work).message }
     }
 
     fun restoreSlot(backup: SlotBackup) = act {

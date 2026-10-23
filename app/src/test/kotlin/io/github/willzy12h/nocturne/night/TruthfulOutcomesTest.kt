@@ -149,6 +149,40 @@ class TruthfulOutcomesTest {
         assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
         assertFalse("a change that can never apply is not retried", graph.actions.retimePending)
         assertFalse(retryScheduled())
+        assertTrue("the refusal is still on the night's record", events(n).any { it.kind == EventKind.ERROR && it.detail == outcome.message })
+        assertEquals(outcome.message, graph.repository.runtime.value.reason)
+    }
+
+    @Test fun aRetimeWhoseClockOffsetChangesBeforeItsWriteFailsAndIsTriedAgain() = runBlocking {
+        val n = start(); advance(30)
+        forgetOriginals()
+        moveAlarm(5)
+        assertEquals(OutcomeKind.LOCAL, graph.actions.submitAlarmChange().kind)
+        val count = sent.size
+        // The phone's time zone moves while the slot is read: only this moment rules the plan out.
+        beforeQuery = { if (it == Codec.Query.PROGRAM_NAMES) {
+            graph.clock = Clock.fixed(graph.now().toInstant(), ZoneOffset.ofHours(1)); context.graph.clock = graph.clock } }
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        beforeQuery = {}
+        assertEquals(outcome.message, OutcomeKind.FAILED, outcome.kind)
+        assertEquals("nothing written", count, sent.count())
+        assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
+        assertTrue("a change only this moment ruled out is tried again", graph.actions.retimePending)
+        assertTrue(retryScheduled())
+        assertTrue(events(n).any { it.kind == EventKind.ERROR && it.detail == outcome.message })
+    }
+
+    @Test fun aFirstStartRefusedByItsFinalCheckKeepsItsError() = runBlocking {
+        forgetOriginals()
+        // The slot read takes so long that the start request has expired by the final check.
+        beforeQuery = { if (it == Codec.Query.PROGRAM_NAMES) {
+            graph.clock = Clock.fixed(graph.now().plusHours(2).toInstant(), ZoneOffset.UTC); context.graph.clock = graph.clock } }
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT))
+        beforeQuery = {}
+        assertEquals(outcome.message, OutcomeKind.REFUSED, outcome.kind)
+        val record = graph.repository.history.value.single()
+        assertTrue("the start's record keeps why it didn't run", record.events.any { it.kind == EventKind.ERROR && it.detail == outcome.message })
+        assertEquals(outcome.message, graph.repository.runtime.value.reason)
     }
 
     @Test fun aBoostWhoseBackupFailsLeavesTheNightConfirmedAndReconcileLeavesItAlone() = runBlocking {
