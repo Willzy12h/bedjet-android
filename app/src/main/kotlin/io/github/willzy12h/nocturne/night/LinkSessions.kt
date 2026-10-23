@@ -124,7 +124,7 @@ class LinkSessions(
         // wall-clock time, so it checks again until the wall clock has really passed it: a clock moved back during
         // the release would otherwise leave it released for good.
         releaseEnds = untilMs?.let { until ->
-            scope.launch { while (isReleased()) delay((until - now()).coerceAtLeast(RECHECK_MIN_MS)) }
+            scope.launch { while (isReleased()) delay((until - now()).coerceIn(RECHECK_MIN_MS, RECHECK_MAX_MS)) }
         }
         return scope.launch {
             lock.withLock {
@@ -195,6 +195,11 @@ class LinkSessions(
         const val GRACE_MS = 5_000L
         /** The shortest wait between checks of a timed release, so a deadline a moment away is no busy loop. */
         const val RECHECK_MIN_MS = 250L
+        /**
+         * The longest, so a clock moved far back and then corrected (network time) is noticed within a minute rather
+         * than after the whole stale remainder.
+         */
+        const val RECHECK_MAX_MS = 60_000L
         const val RELEASED = "Released for another phone"
     }
 }

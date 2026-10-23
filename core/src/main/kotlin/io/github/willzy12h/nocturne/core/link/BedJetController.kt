@@ -6,10 +6,12 @@ import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.ZonedDateTime
 
@@ -61,19 +63,25 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
      */
     suspend fun startProgram(slot: Int, beforeStart: () -> Unit = {}) = coroutineScope {
         syncClock()
-        // Only reports that arrive after this count: a program already running would otherwise look like this one
-        // starting, and a refusal that follows would be missed. The link forgets the progress it last saw first.
-        link.prepareForStart()
-        val reply = async(start = CoroutineStart.UNDISPATCHED) {
-            withTimeoutOrNull(START_CONFIRMATION_MS) {
-                link.status.drop(1).first { status ->
-                    val extra = status?.extra ?: return@first false
-                    extra.programStep == 1 || extra.notification in REFUSALS
+        val reply = try {
+            // Only reports that arrive after this count: a program already running would otherwise look like this
+            // one starting, and a refusal that follows would be missed. The link forgets the progress it last saw.
+            link.prepareForStart()
+            val reply = async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeoutOrNull(START_CONFIRMATION_MS) {
+                    link.status.drop(1).first { status ->
+                        val extra = status?.extra ?: return@first false
+                        extra.programStep == 1 || extra.notification in REFUSALS
+                    }
                 }
             }
+            beforeStart()
+            link.send(Codec.startProgram(slot))
+            reply
+        } finally {
+            // Sent, refused by the final check or cancelled: either way the link reports progress again.
+            withContext(NonCancellable) { link.endStartPreparation() }
         }
-        beforeStart()
-        link.send(Codec.startProgram(slot))
         var outcome = reply.await() ?: throw BedJetError.Timeout()
         if (outcome.extra?.notification !in REFUSALS) {
             // A refusal can follow the first report; give it a moment.

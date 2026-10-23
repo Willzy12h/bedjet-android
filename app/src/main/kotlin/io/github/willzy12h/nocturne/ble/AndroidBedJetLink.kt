@@ -55,6 +55,7 @@ class AndroidBedJetLink internal constructor(
 
     override suspend fun connect() = engine.connect()
     override suspend fun prepareForStart() = engine.prepareForStart()
+    override suspend fun endStartPreparation() = engine.endStartPreparation()
     override suspend fun disconnect() = engine.disconnect()
     override suspend fun send(command: ByteArray) = engine.send(command)
     override suspend fun query(request: Int): ByteArray = engine.query(request)

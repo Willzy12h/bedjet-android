@@ -453,6 +453,34 @@ class GattLinkTest {
         assertFalse(fake.ports.any { p -> p.writes.any { it.contentEquals(Codec.startProgram(2)) } })
     }
 
+    @Test
+    fun aStartRefusedByItsFinalCheckLeavesProgressReportedAgain() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val result = runCatching { controller.startProgram(2) { throw IllegalStateException("too late") } }
+        assertTrue("$result", result.exceptionOrNull() is IllegalStateException)
+        assertFalse(port.writes.any { it.contentEquals(Codec.startProgram(2)) })
+        // The session lives on; its reports must carry the program again, or takeovers would go unseen.
+        port.notify(Status.full(programStep = 1))
+        eventually { link.status.value?.extra?.programStep == 1 }
+    }
+
+    @Test
+    fun endingAPreparationWithoutAStartBringsProgressBack() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        link.prepareForStart()
+        link.endStartPreparation()
+        port.notify(Status.full(programStep = 1))
+        eventually { link.status.value?.extra?.programStep == 1 }
+        // And a head-only report asks for the remainder again.
+        port.notify(Status.head())
+        eventually { port.reads.contains(Attr.STATUS) }
+    }
+
     // A start is sent without reconnecting (IR-11)
 
     @Test

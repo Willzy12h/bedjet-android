@@ -20,7 +20,8 @@ import kotlinx.coroutines.launch
 class NightTileService : TileService() {
     override fun onStartListening() {
         super.onStartListening()
-        // Runs at once on the main thread: the latest report is already held.
+        // graph.scope is Main.immediate and latestStatusFrom never suspends (the latest report is already held), so
+        // this runs at once, inside onStartListening, while qsTile is still ours to update.
         graph.scope.launch {
             val night=graph.repository.activeNight.value
             // Only the chosen BedJet's own report can show it idle; one from another unit leaves it unknown.

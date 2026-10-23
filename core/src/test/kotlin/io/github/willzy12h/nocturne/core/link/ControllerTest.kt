@@ -150,14 +150,35 @@ class ControllerTest {
     fun startingPreparesTheLinkAfterTheClockAndListensOnlyAfterThat() = runTest {
         val link = ScriptedLink()
         assertThrows<BedJetError.Timeout> { BedJetController(link) { now }.startProgram(2) }
+        // The preparation ends however the start does, here by timing out.
+        assertEquals(listOf("send 08", "prepare", "send 01", "end"), link.calls)
+    }
+
+    @Test
+    fun aStartRefusedByItsFinalCheckEndsThePreparation() = runTest {
+        val link = ScriptedLink()
+        assertThrows<IllegalStateException> {
+            BedJetController(link) { now }.startProgram(2) { throw IllegalStateException("too late") }
+        }
+        assertEquals(listOf("send 08", "prepare", "end"), link.calls)
+    }
+
+    @Test
+    fun aStartCancelledAfterThePreparationEndsIt() = runTest {
+        val link = ScriptedLink(holdStart = true)
+        val starting = launch { BedJetController(link) { now }.startProgram(2) }
+        testScheduler.advanceUntilIdle()
         assertEquals(listOf("send 08", "prepare", "send 01"), link.calls)
+        starting.cancel()
+        starting.join()
+        assertEquals(listOf("send 08", "prepare", "send 01", "end"), link.calls)
     }
 
     /**
      * Records what the controller asks for and never confirms a start. Preparing publishes a stale program step, as
      * a report racing the start would: a controller already listening would take it as confirmation.
      */
-    private class ScriptedLink : BedJetLink {
+    private class ScriptedLink(private val holdStart: Boolean = false) : BedJetLink {
         val calls = mutableListOf<String>()
         private val stale = io.github.willzy12h.nocturne.core.protocol.DeviceStatus(
             remainingSeconds = 0, actualTemperature = 46, targetTemperature = 60, mode = Mode.COOL, fanStep = 7,
@@ -170,10 +191,14 @@ class ControllerTest {
         override suspend fun disconnect() = Unit
         override suspend fun send(command: ByteArray) {
             calls += "send %02x".format(command[0])
+            if (holdStart && command[0].toInt() == 0x01) kotlinx.coroutines.awaitCancellation()
         }
         override suspend fun prepareForStart() {
             calls += "prepare"
             status.value = stale
+        }
+        override suspend fun endStartPreparation() {
+            calls += "end"
         }
         override suspend fun query(request: Int) = ByteArray(0)
     }

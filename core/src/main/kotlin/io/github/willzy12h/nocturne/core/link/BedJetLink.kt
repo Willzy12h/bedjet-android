@@ -34,9 +34,15 @@ interface BedJetLink {
     suspend fun query(request: Int): ByteArray
     /**
      * Called before a program start is sent: forget the program progress last reported, so only a report that
-     * arrives afterwards can confirm the start. Links without split status reports need do nothing.
+     * arrives afterwards can confirm the start. Links without split status reports need do nothing. On Bluetooth a
+     * start without a preceding prepare on the same connection fails with [BedJetError.NotConnected].
      */
     suspend fun prepareForStart() {}
+    /**
+     * Called once the start that [prepareForStart] prepared for has been sent, or will not be: a final check refused it
+     * or the command was cancelled. Reports from now on carry program progress again. Safe to call more than once.
+     */
+    suspend fun endStartPreparation() {}
 }
 
 /**

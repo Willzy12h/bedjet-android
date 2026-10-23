@@ -153,14 +153,27 @@ class GattLink(
      * Forgets the program progress last reported and ignores any reported from now until the start command has been
      * written, whether it comes in a full status, a head-only one or a remainder read, so only a report from after
      * the start can confirm it. Taking [operations] waits for a remainder read already under way, so none can merge
-     * an older step afterwards. Progress stays unknown on this session until the start is written or another
-     * command is sent.
+     * an older step afterwards. Progress stays unknown on this session until the start is written,
+     * [endStartPreparation] is called or another command is sent.
      */
     override suspend fun prepareForStart() = operations.withLock {
         val session = current
         session?.forgetExtra()
         session?.startPending = true
         publish(session, _status.value?.copy(extra = null))
+    }
+
+    /**
+     * Ends a preparation whose start was sent or will not be: progress is reported again and the next head-only
+     * report reads the remainder at once. Without this, a start refused by its final check would leave the session
+     * reporting no progress, and takeovers of the running night would go unseen.
+     */
+    override suspend fun endStartPreparation() = operations.withLock {
+        current?.let { session ->
+            if (session.startPending) session.lastRemainderRead = null
+            session.startPending = false
+        }
+        Unit
     }
 
     /**
