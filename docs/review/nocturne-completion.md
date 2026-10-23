@@ -20,7 +20,7 @@ This table disposes of every finding in `independent-review-tasks-1-4.md`, using
 | IR-12 | Implemented with strict stale identities retained for other actions: app-level widget updates and target-bound Off resolution; background widget regression. |
 | IR-13 | Implemented: durable multi-file import and check-in journals recover after process death; repository fault regressions. Directory durability is best effort on Android and needs physical acceptance. |
 | IR-14 | Implemented: unreadable-data banner with View, Dismiss and Restore; UI/repository regressions. |
-| IR-15 | Implemented: external picker I/O runs outside the serial repository writer; slow-provider concurrency regression. |
+| IR-15 | Implemented: external picker I/O runs outside the serial repository writer; slow-provider concurrency regressions for import (`slowExternalImportDoesNotHoldTheNightStateWriter`) and, since P4, export (`slowExternalExportDoesNotHoldTheNightStateWriter`). |
 | IR-16 | Implemented: imported slot programmes are validated, provenance is retained, and unknown imported originals are not adopted for a newly selected device; migration/import regressions. |
 | IR-17 | Implemented: one shared start preview drives Tonight headline and curve, including override and noon expiry; UI/core regressions. |
 | IR-18 | Implemented: outer Android BLE adapter is exercised with FakeRadio rather than a prepared demo link. |

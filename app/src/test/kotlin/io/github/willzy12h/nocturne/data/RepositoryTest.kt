@@ -680,6 +680,33 @@ class RepositoryTest {
         assertEquals(importable().profiles, import.await().profiles)
     }
 
+    /** IR-15: only taking the bundle waits for the writer; a slow document provider doesn't hold up the app's saves. */
+    @Test
+    fun slowExternalExportDoesNotHoldTheNightStateWriter() = runBlocking {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val saved = java.io.ByteArrayOutputStream()
+        val gated = object : java.io.OutputStream() {
+            override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                entered.countDown()
+                check(release.await(10, TimeUnit.SECONDS))
+                saved.write(b, off, len)
+            }
+        }
+        val repo = repository(writer = Repository.defaultWriter(), openOutput = { gated })
+        val export = async(Dispatchers.IO) { repo.exportTo(Uri.parse("content://slow-provider/export")) }
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS))
+            withTimeout(3_000) { repo.updateRuntime { it.copy(reason = "night state saved") } }
+            assertEquals("night state saved", repo.runtime.value.reason)
+        } finally {
+            release.countDown()
+        }
+        export.await()
+        assertTrue(saved.toString().contains("\"schema\""))
+    }
+
     @Test
     fun aFailedImportLeavesEverythingAsItWas() {
         val repo = repository(writeFile = failingFor("history.json"))
