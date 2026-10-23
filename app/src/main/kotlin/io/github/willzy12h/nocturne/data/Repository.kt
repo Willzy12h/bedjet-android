@@ -3,6 +3,8 @@ package io.github.willzy12h.nocturne.data
 import io.github.willzy12h.nocturne.night.RuntimeState
 import android.content.Context
 import android.net.Uri
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import androidx.core.util.AtomicFile
 import io.github.willzy12h.nocturne.core.link.DeviceId
@@ -53,7 +55,9 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.channels.FileChannel
 import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.security.MessageDigest
@@ -719,8 +723,11 @@ class Repository(
         @OptIn(ExperimentalCoroutinesApi::class)
         fun defaultWriter(): CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
 
-        /** AtomicFile syncs before replacing the old file, so a power cut leaves either the old or the new one. */
-        fun writeDurably(file: File, bytes: ByteArray) {
+        /**
+         * AtomicFile syncs before replacing the old file, so a power cut leaves either the old or the new one. The
+         * directory is synced after the rename ([syncDirectory]), so the replacement itself is durable too (IR-29).
+         */
+        fun writeDurably(file: File, bytes: ByteArray, syncDirectory: (File) -> Unit = ::syncDirectory) {
             val atomic = AtomicFile(file)
             val out = atomic.startWrite()
             try {
@@ -735,6 +742,27 @@ class Repository(
                 atomic.failWrite(out)
                 throw e
             }
+            file.absoluteFile.parentFile?.let(syncDirectory)
+        }
+
+        /**
+         * Syncs [dir] so a rename in it survives a power cut, as far as the platform allows: fsync on the directory,
+         * else forcing it as a channel, else nothing. Best effort; it never fails a write that is already on disk.
+         */
+        fun syncDirectory(dir: File) {
+            try {
+                val fd = Os.open(dir.path, OsConstants.O_RDONLY, 0)
+                try { Os.fsync(fd) } finally { Os.close(fd) }
+            } catch (e: Exception) {
+                forceDirectory(dir)
+            } catch (e: LinkageError) {
+                forceDirectory(dir)
+            }
+        }
+
+        private fun forceDirectory(dir: File) {
+            try { FileChannel.open(dir.toPath(), StandardOpenOption.READ).use { it.force(true) } }
+            catch (e: Exception) { Log.w(TAG, "Couldn't sync ${dir.name}", e) }
         }
     }
 }

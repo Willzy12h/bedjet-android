@@ -118,6 +118,18 @@ class RepositoryTest {
         assertEquals(emptyList<String>(), second.unreadable.value)
     }
 
+    /** IR-29: the rename that replaces a file is itself made durable by syncing the directory after it. */
+    @Test
+    fun aDurableWriteSyncsTheDirectoryAfterTheRename() {
+        val file = File(dir, "settings.json")
+        val synced = mutableListOf<Pair<File, String>>()
+        Repository.writeDurably(file, "new".toByteArray()) { d -> synced += d to file.readText() }
+        assertEquals(listOf(dir.absoluteFile to "new"), synced)
+        // The real sync works here too.
+        Repository.writeDurably(file, "newer".toByteArray())
+        assertEquals("newer", file.readText())
+    }
+
     @Test
     fun corruptProfilesAreKeptAsideAndReportedNotOverwritten() = runBlocking {
         val garbage = """[{"id":"mine","name":"Mine","steps":[{"mode":"PLASMA"""
