@@ -13,7 +13,7 @@
 | 3 | IR-03: unreadable slot backups block slot writes | `1fa356b`, `db1b902` | Approved after fix round 1 |
 | 4 | IR-04, IR-11 (transport), IR-18, IR-19, IR-02 follow-ups | `02b2797`, `d02463a`, `0798307`, `6d51b4f`, `a46dfc5` | Approved after fix round 1 |
 | 5 | IR-05, 06, 08, 09, 10, 11 (admission), 20, 21, 23 | `7cf2c1f`, `19e967a`, `0af58e3`, `4f08ceb`, `ba0dcb0`, `fa2f1e1` | Approved after fix round 1 |
-| 6 | IR-13, 15, 16, 28–32 (storage) | `35565f4` | **Review in progress when paused; not yet approved** |
+| 6 | IR-13, 15, 16, 28–32 (storage) | `35565f4` | **Needs fixes: 2 Important (see Resume). Fix round not started.** |
 | 7 | IR-07, 12, 22, 24–27 (runtime noise, platform) | — | Not started |
 | 8–10 | Task 5 UI rebuild (Astra's unpublished commits are not recoverable) | — | Not started |
 | 11 | Register/ledger/handover/acceptance updates | — | Not started |
@@ -22,7 +22,10 @@
 At `35565f4` (implementer run): core 155/155; app 286 (282 passed, 4 screenshot skips); assembleDebug OK; lint 0 errors, 23 warnings (the count includes online dependency-version checks).
 
 ## Resume
-1. Get the Task 6 review verdict. Run any fix round and scoped re-review.
+1. **Task 6, fix round 1** (resume here). Both items are Important:
+   - **Snapshot restores can fail.** `BackupValidator.kt:122` checks slot programmes against the mode temperature ranges, so the app's own snapshots can become unrestorable. Validate against the codec limit (0..255), or apply the mode range to imports only. Test: a snapshot holding an out-of-range recorded original still restores.
+   - **Originals can be lost after a failed rollback.** While `restore-pending.json` remains after a failed in-process rollback, slot writes are still allowed, and the next start rolls `slot-backups.json` back, losing the originals recorded in between. Refuse slot writes while the marker exists, or rewrite the marker to list only the stuck files. Add a test.
+   - Then run a scoped re-review.
 2. Then Tasks 7 to 11 per the plan, then the final whole-branch review.
 3. Commits: committer is `Claude <noreply@anthropic.com>` (repo config), and the author is passed with `--author`.
 4. Commits pushed before this rule took effect (`629f8f7` to `db1b902`) show the old committer.
@@ -86,4 +89,6 @@ Task 5: complete (commits a46dfc5..fa2f1e1, review clean after fix round 1)
 Task 5: minor (deferred → Task 8 UI): second Remote adjust tapped during first's send returns STALE (revision in identity) — UI should show busy/disable or re-capture.
 Task 6: dispatched implementer (opus) BASE=fa2f1e1
 Task 6: implementer DONE (fa2f1e1..35565f4); review dispatched. Owner asked to finish current work and pause before next task (GPT prompt to review incoming).
+Task 6: review (fa2f1e1..35565f4) Needs fixes — 2 Important: (1) BackupValidator.kt:122 mode-temperature range check can make the app's own snapshots unrestorable (use codec 0..255 limit, or mode-range only for imports, + test); (2) after an in-process failed rollback (restore-pending marker kept) slot writes stay allowed and the next start rolls slot-backups.json back, losing originals (refuse slot writes while restore-pending exists, or shrink marker to stuck files, + test). Fix round NOT dispatched — owner asked to stop.
+Task 6: minor (deferred): start-up marker.delete() result unchecked; markSlotBackupsLost before marker write; start-up rollback on main thread (document); no crash-during-rollback test; deleting the named snapshot while marker pending; SnapshotStoreTest message wording; savedSlotLabel hard-coded copy.
 ```
