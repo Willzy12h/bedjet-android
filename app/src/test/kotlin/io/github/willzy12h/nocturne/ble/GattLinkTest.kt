@@ -94,6 +94,8 @@ class GattLinkTest {
     fun aStartQueuedBehindAnotherGattWriteIsRejectedAtTheWriteBoundary() = runBlocking {
         link.connect()
         val port = fake.ports.single()
+        // A start goes out only on the session prepared for it, as BedJetController.startProgram does.
+        link.prepareForStart()
         port.holdWrites = true
         val first = async { link.send(Codec.setFan(4)) }
         eventually { port.writes.any { it.contentEquals(Codec.setFan(4)) } }
@@ -380,24 +382,66 @@ class GattLinkTest {
     }
 
     @Test
-    fun reconnectsOldStatusBeforeTheStartWriteCannotConfirmIt() = runBlocking {
+    fun aReconnectBetweenPrepareAndStartNeverConfirmsFromTheNewSession() = runBlocking {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val first = fake.ports.single()
         val controller = BedJetController(link) { ZonedDateTime.now() }
-        val start = async {
+        var dropped = false
+        val result = withTimeout(5_000) {
             runCatching {
                 controller.startProgram(2) {
-                    first.drop()
-                    fake.drain()
+                    if (!dropped) {
+                        dropped = true
+                        // The unit drops after the prepare and another holder reconnects before the start goes out.
+                        first.drop()
+                        fake.drain()
+                        runBlocking { eventually { link.state.value == LinkState.SEARCHING }; link.connect() }
+                    }
                 }
             }
         }
-        eventually { fake.ports.size == 2 && fake.ports.last().writes.any { it.contentEquals(Codec.startProgram(2)) } }
-        delay(1_800)
-        assertFalse("Reconnect's old status confirmed the new start", start.isCompleted)
-        fake.ports.last().notify(Status.full(programStep = 1))
-        withTimeout(4_000) { start.await() }.getOrThrow()
+        assertEquals(2, fake.connects.size)
+        assertTrue("$result", result.exceptionOrNull() is BedJetError.NotConnected)
+        assertFalse(fake.ports.any { p -> p.writes.any { it.contentEquals(Codec.startProgram(2)) } })
+    }
+
+    // A start is sent without reconnecting (IR-11)
+
+    @Test
+    fun aStartWithNoLiveSessionFailsRatherThanReconnecting() = runBlocking {
+        link.connect()
+        val first = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        var dropped = false
+        val result = withTimeout(5_000) {
+            runCatching {
+                controller.startProgram(2) {
+                    if (!dropped) {
+                        dropped = true
+                        first.drop()
+                        fake.drain()
+                        runBlocking { eventually { link.state.value == LinkState.SEARCHING } }
+                    }
+                }
+            }
+        }
+        assertTrue("$result", result.exceptionOrNull() is BedJetError.NotConnected)
+        assertEquals(listOf(ADDRESS), fake.connects)
+        assertFalse(first.writes.any { it.contentEquals(Codec.startProgram(2)) })
+        // Other commands still reconnect as before.
+        link.send(Codec.setFan(4))
+        assertEquals(2, fake.connects.size)
+    }
+
+    @Test
+    fun aStartThatWasNeverPreparedIsNotWrittenAndItsGuardDoesNotRun() = runBlocking {
+        link.connect()
+        val port = fake.ports.single()
+        var guarded = false
+        assertThrows<BedJetError.NotConnected> { link.sendGuarded(Codec.startProgram(2)) { guarded = true } }
+        assertFalse("The final check ran for a start that could not go out", guarded)
+        assertFalse(port.writes.any { it.contentEquals(Codec.startProgram(2)) })
     }
 
     // Platform exceptions (R07)

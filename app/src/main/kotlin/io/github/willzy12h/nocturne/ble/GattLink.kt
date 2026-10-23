@@ -66,6 +66,8 @@ class GattLink(
     @Volatile private var wanted = false
     /** Progress from a previous programme must not confirm a newly prepared start, even across reconnects. */
     @Volatile private var startPending = false
+    /** The session [prepareForStart] ran on: the only one a start may go out on. */
+    @Volatile private var preparedSession: Session? = null
     private val startStatusLock = Any()
     private var tag = 0
 
@@ -101,16 +103,30 @@ class GattLink(
 
     override suspend fun send(command: ByteArray) = sendGuarded(command) {}
 
+    /**
+     * Writes [command] once [beforeWrite] passes, at the write boundary. A program start (told apart by its bytes,
+     * see [isStart]) never reconnects: it goes out only on the live session [prepareForStart] ran on, or fails with
+     * [BedJetError.NotConnected] before [beforeWrite] runs. A reconnect could use up the time its caller has left,
+     * and a new session's first report could be taken for its confirmation.
+     */
     override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+        if (isStart(command)) return sendStart(command, beforeWrite)
         ensureConnected()
         operations.withLock {
             val session = live()
             beforeWrite()
-            // Only reports that arrive after the start may confirm it: an older program step must not.
-            if (isStart(command)) session.forgetExtra()
             write(session, command)
-            if (isStart(command)) synchronized(startStatusLock) { startPending = false }
         }
+    }
+
+    private suspend fun sendStart(command: ByteArray, beforeWrite: () -> Unit) = operations.withLock {
+        val session = live()
+        if (!startPending || preparedSession !== session) throw BedJetError.NotConnected()
+        beforeWrite()
+        // Only reports that arrive after the start may confirm it: an older program step must not.
+        session.forgetExtra()
+        write(session, command)
+        synchronized(startStatusLock) { startPending = false; preparedSession = null }
     }
 
     override suspend fun query(request: Int): ByteArray {
@@ -126,13 +142,14 @@ class GattLink(
         operations.withLock {
             synchronized(startStatusLock) {
                 startPending = true
+                preparedSession = current
                 current?.forgetExtra()
                 _status.value = _status.value?.copy(extra = null)
             }
         }
     }
 
-    override fun cancelPreparedStart() { synchronized(startStatusLock) { startPending = false } }
+    override fun cancelPreparedStart() { synchronized(startStatusLock) { startPending = false; preparedSession = null } }
 
     /**
      * Lists the BedJets advertising nearby, strongest first, without connecting to any: first by the BedJet service
