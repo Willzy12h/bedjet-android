@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 11 and earlier, and adb backups. The update token (shared preferences "secrets") is never backed up. -->
+<!--
+    Android 11 and earlier, and adb backups. The update token (shared preferences "secrets") is never backed up, nor
+    are the device-local files listed in data_extraction_rules.xml.
+-->
 <full-backup-content>
     <exclude domain="sharedpref" path="secrets.xml" />
+    <exclude domain="file" path="runtime.json" />
+    <exclude domain="file" path="active-night.json" />
+    <exclude domain="file" path="automation.json" />
+    <exclude domain="file" path="unreadable.json" />
+    <exclude domain="file" path="slot-backups-lost.txt" />
+    <exclude domain="file" path="restore-pending.json" />
+    <exclude domain="file" path="set-aside" />
 </full-backup-content>

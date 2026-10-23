@@ -11,7 +11,6 @@ import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.WakeChoice
 import io.github.willzy12h.nocturne.core.plan.WakeResolver
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
-import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.Release
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.UpdateChecker
@@ -158,8 +157,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         act { graph.actions.adjust(label, change, captured.deviceId, expected).message }
     }
 
-    fun restoreSlot(slot: Int, program: StoredProgram) = act {
-        graph.actions.restoreOriginal(slot).message
+    /** Puts [backup] back in its slot; one from an imported backup only because it is chosen here. */
+    fun restoreSlot(backup: io.github.willzy12h.nocturne.core.store.SlotBackup) = act {
+        graph.actions.restoreOriginal(backup.slot, backup).message
     }
 
     /** Commands wait for saves asked for before them, so they act on what the person just saved. */

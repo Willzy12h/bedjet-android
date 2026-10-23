@@ -14,6 +14,12 @@ import kotlinx.serialization.json.jsonPrimitive
  * What a BedJet's slot held before the app first overwrote it, on the device named by [deviceId] (a
  * [io.github.willzy12h.nocturne.core.link.DeviceId], or [Migrations.UNKNOWN_DEVICE] for one saved before devices were
  * recorded). [empty] marks a slot that held nothing, so putting it back means leaving it empty.
+ *
+ * [uncertain] marks one migrated from version 1. That version never recorded empty slots, so its records are
+ * the best there is, but a slot it used may by then have held one of its own programmes: restore copy says so.
+ * [fromBackup] marks one read from an imported backup with no known BedJet (an "unknown" or version 1 device). It
+ * may come from another unit, so no BedJet adopts it and it never counts as a slot's original; it is put back only
+ * when the person chooses it.
  */
 @Serializable
 data class SlotBackup(
@@ -22,7 +28,16 @@ data class SlotBackup(
     val program: StoredProgram?,
     val savedAt: String,
     val empty: Boolean = program == null,
+    val uncertain: Boolean = false,
+    val fromBackup: Boolean = false,
 )
+
+/**
+ * [this] as read from a backup file rather than from the app's own snapshots: every original with no known BedJet
+ * becomes a [SlotBackup.fromBackup] record, whatever the file says.
+ */
+fun BackupBundle.asImported(): BackupBundle =
+    copy(slotBackups = slotBackups.map { if (it.deviceId == Migrations.UNKNOWN_DEVICE) it.copy(fromBackup = true) else it })
 
 @Serializable
 data class BackupBundle(

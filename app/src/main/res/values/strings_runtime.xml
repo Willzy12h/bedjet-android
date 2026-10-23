@@ -44,6 +44,8 @@
     <string name="runtime_slot_backups_unreadable">Your saved BedJet slot backups couldn\'t be read. Restore a snapshot or dismiss the warning before changing BedJet slots.</string>
     <string name="runtime_retime_refused">The wake-up change wasn\'t applied.</string>
     <string name="runtime_restored">Original restored to slot %1$d. Readback verified.</string>
+    <string name="runtime_restored_uncertain">Saved programme put back in slot %1$d. Readback verified. An older version of Nocturne saved it, so it may be one of Nocturne\'s own nights rather than yours.</string>
+    <string name="runtime_restored_from_backup">Programme from the imported backup put back in slot %1$d. Readback verified.</string>
     <string name="runtime_target_label">Select BedJet</string>
     <string name="runtime_active_target">Stop tracking the current night before changing the BedJet or demo mode.</string>
     <string name="runtime_invalid_target">Choose a valid BedJet address.</string>

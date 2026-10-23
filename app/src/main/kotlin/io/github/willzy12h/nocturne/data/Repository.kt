@@ -3,6 +3,8 @@ package io.github.willzy12h.nocturne.data
 import io.github.willzy12h.nocturne.night.RuntimeState
 import android.content.Context
 import android.net.Uri
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import androidx.core.util.AtomicFile
 import io.github.willzy12h.nocturne.core.link.DeviceId
@@ -24,6 +26,8 @@ import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
 import io.github.willzy12h.nocturne.core.store.SnapshotStore
+import io.github.willzy12h.nocturne.core.store.NoticeKind
+import io.github.willzy12h.nocturne.core.store.asImported
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +44,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
@@ -56,6 +61,10 @@ import java.time.ZonedDateTime
  * Every change is written durably, off the main thread and one at a time on [writer], before its new value is
  * published: a flow never shows something that a power cut could take back. When the write fails the old value stays
  * and the error is thrown to the caller. [writeFile] is how a file is written; tests replace it to make writes fail.
+ *
+ * A restore replaces several files, so before the first one it saves `restore-pending.json` naming the snapshot of
+ * what was there; that marker is deleted only once every file is written. A Repository that finds the marker on
+ * start-up (the process died part-way) puts the snapshot back before loading anything, and leaves a notice.
  */
 @OptIn(FlowPreview::class)
 class Repository(
@@ -66,8 +75,11 @@ class Repository(
     private val now: () -> ZonedDateTime = { ZonedDateTime.now() },
 ) {
     private val dir = context.filesDir
-    val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { now() }
+    val snapshots = SnapshotStore(File(dir, "snapshots").toPath(), syncDirectory = { syncDirectory(it.toFile()) }) { now() }
     private val lock = Mutex()
+
+    /** Runs before the loads below, so they read the files as they were before an interrupted restore. */
+    private val interruptedRestore: LoggedNotice? = recoverInterruptedRestore()
 
     // Declared before the loads below, which add to them.
     /** Files found unreadable while loading, moved aside by the writer once the Repository is made. */
@@ -94,8 +106,9 @@ class Repository(
     /** What each device's slots held before the app first wrote them. See [recordOriginalSlot]. */
     val slotBackups: StateFlow<List<SlotBackup>> = _slotBackups.asStateFlow()
     /**
-     * When the loss of an unreadable `slot-backups.json` was accepted with [dismissUnreadable], or null. Originals
-     * saved from then on may be the app's own programs, so a restore lets a snapshot's originals win over them.
+     * When the loss of an unreadable `slot-backups.json` was accepted, with [dismissUnreadable] or by a [restore] while
+     * it was unreadable, or null. Originals saved from then on may be the app's own programs, so a restore lets a
+     * snapshot's originals win over them.
      */
     private var slotBackupsLostAt: ZonedDateTime? = readSlotBackupsLostAt()
     private val _activeNight = MutableStateFlow(load(ACTIVE_NIGHT) { decode(ActiveNight.serializer().nullable, it) })
@@ -136,7 +149,14 @@ class Repository(
     init {
         // Moving the unreadable files aside and saving the report are writes, so they wait for the writer. Every
         // later write queues behind this one, so nothing can be written over an unreadable file before it is moved.
-        if (toSetAside.isNotEmpty()) scope.launch(writer) { serially { setAsidePending() } }
+        // Tidying the files is a write too, and runs before any snapshot is saved.
+        scope.launch(writer) {
+            serially {
+                if (toSetAside.isNotEmpty()) setAsidePending()
+                tidyFiles()
+            }
+        }
+        interruptedRestore?.let { notice -> scope.launch { runCatching { addNotice(notice) }.onFailure { Log.e(TAG, "Couldn't log the notice", it) } } }
         if (_settings.value.selectedProfileId != null) scope.launch {
             updateSettings { it.migrateTonightChoice(settingsLoadedAt) }
         }
@@ -196,21 +216,22 @@ class Repository(
 
     /** What [deviceId]'s [slot] held before the app first wrote to it, or null when that wasn't recorded. */
     fun originalSlot(deviceId: String, slot: Int): SlotBackup? =
-        _slotBackups.value.firstOrNull { it.deviceId == deviceId && it.slot == slot }
-            ?: _slotBackups.value.firstOrNull { it.slot == slot && adopts(deviceId, it.deviceId) }
+        _slotBackups.value.firstOrNull { !it.fromBackup && it.deviceId == deviceId && it.slot == slot }
+            ?: _slotBackups.value.firstOrNull { it.slot == slot && adopts(deviceId, it) }
 
     /**
      * The slot backups that count for [deviceId], to tell NightRunner which slots are already backed up. A real
      * BedJet first adopts, durably, any original saved before devices were recorded for a slot it has none for: that
      * original came from the BedJet the app was used with, while the slot may by now hold the app's own program. With
      * no BedJet chosen (null) those migrated originals are returned as they are, so nothing is saved over them. The
-     * demo unit never adopts them. Throws [SlotBackupsUnreadable] while the saved originals can't be read.
+     * demo unit never adopts them. Records from an imported backup ([SlotBackup.fromBackup]) never count.
+     * Throws [SlotBackupsUnreadable] while the saved originals can't be read.
      */
     suspend fun originalsFor(deviceId: String?): List<SlotBackup> {
         requireSlotBackupsReadable()
-        if (deviceId == null) return _slotBackups.value.filter { it.deviceId == Migrations.UNKNOWN_DEVICE }
+        if (deviceId == null) return _slotBackups.value.filter { !it.fromBackup && it.deviceId == Migrations.UNKNOWN_DEVICE }
         serially { adoptMigrated(deviceId) }
-        return _slotBackups.value.filter { it.deviceId == deviceId }
+        return _slotBackups.value.filter { !it.fromBackup && it.deviceId == deviceId }
     }
 
     suspend fun addNotice(notice: LoggedNotice) =
@@ -262,43 +283,62 @@ class Repository(
      * [label]. An invalid bundle is refused with [BackupException], listing every problem, before anything changes.
      *
      * The chosen BedJet, demo mode, the update token and the night under way are kept: a restore changes what the app
-     * knows, never which BedJet it talks to or what that BedJet is doing. Slot backups are merged, current ones
-     * winning: an older bundle's backup of a slot may be one of the app's own programs, not the user's original. The
-     * exception is a current one saved after the loss of an unreadable slot-backups file was accepted (dismissed, or
-     * a restore while it was unreadable): that may be the app's own program, so the bundle's backup of the same slot
-     * wins.
-     * Everything is written before anything is published; if a write fails the files already written are put back.
+     * knows, never which BedJet it talks to or what that BedJet is doing. So tonight's choice and wake-up override
+     * stay as they are (a version 1 selected profile in [bundle] becomes tonight's choice only when there is none),
+     * and the history record of the night under way, or being ended, is kept with its events. Slot backups are
+     * merged, current ones winning: an older bundle's backup of a slot may be one of the app's own programs, not the
+     * user's original. The exception is a current one saved after the loss of an unreadable slot-backups file was
+     * accepted (dismissed, or a restore while it was unreadable): that may be the app's own program, so the bundle's
+     * backup of the same slot wins. Records from an imported backup ([SlotBackup.fromBackup]) are kept beside the
+     * BedJets' own originals, never in their place.
+     *
+     * Everything is written before anything is published. If a write fails the files already written are put back;
+     * if putting one back fails too, what is shown follows what is on disk and the next start finishes the job. If
+     * the process dies part-way, the next start puts the snapshot back (see the class comment).
      */
     suspend fun restore(bundle: BackupBundle, label: String = "Before import") {
         val errors = BackupValidator.validate(bundle)
         if (errors.isNotEmpty()) throw BackupException(errors)
         serially {
-            snapshots.save(bundle(), label, manual = true)
+            // A restore whose undo is still owed keeps its marker until the next start finishes the undo.
+            if (File(dir, RESTORE_PENDING).exists()) throw IOException("An earlier restore didn't finish. Close and reopen the app, then try again.")
+            val before = snapshots.save(bundle(), label, manual = true)
             _snapshotList.value = snapshots.list()
             val current = _settings.value
             val profiles = bundle.profiles
-            val settings = bundle.settings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
-                platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null))
-            val history = History.prune(bundle.history, now())
+            val settings = bundle.settings.copy(
+                demoMode = current.demoMode, targetDevice = current.targetDevice,
+                platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null),
+                tonightChoice = current.tonightChoice, tonightOverride = current.tonightOverride,
+            ).migrateTonightChoice(now())
+            val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
+            val carried = _history.value.filter { it.id in tonight }
+            val history = History.prune(bundle.history.filterNot { restored -> carried.any { it.id == restored.id } } + carried, now())
             val slotBackups = _slotBackups.value.let { list ->
                 val kept = list.filterNot { current -> savedAfterLoss(current) && bundle.slotBackups.any { current.covers(it) } }
                 kept + bundle.slotBackups.filter { restored -> kept.none { it.covers(restored) } }
             }
             val writes = listOf(
-                Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)),
-                Write(SETTINGS, encode(Settings.serializer(), current), encode(Settings.serializer(), settings)),
-                Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)),
-                Write(SLOT_BACKUPS, encode(ListSerializer(SlotBackup.serializer()), _slotBackups.value), encode(ListSerializer(SlotBackup.serializer()), slotBackups)),
+                Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)) {
+                    _profiles.value = profiles
+                },
+                Write(SETTINGS, encode(Settings.serializer(), current), encode(Settings.serializer(), settings)) {
+                    _settings.value = settings
+                    _settingsPublication.value += 1
+                },
+                Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)) {
+                    _history.value = history
+                },
+                Write(SLOT_BACKUPS, encode(ListSerializer(SlotBackup.serializer()), _slotBackups.value), encode(ListSerializer(SlotBackup.serializer()), slotBackups)) {
+                    _slotBackups.value = slotBackups
+                },
             )
             // Restoring while the originals are unreadable accepts their loss, as a dismiss does: a snapshot taken
             // meanwhile holds none, and originals recorded after this one must not outrank an older good snapshot's.
             if (slotBackupsUnreadable) markSlotBackupsLost()
+            writeValue(RESTORE_PENDING, PendingRestore.serializer(), PendingRestore(before.id, writes.map { it.name }))
             writeAllOrNone(writes)
-            _profiles.value = profiles
-            _settings.value = settings
-            _settingsPublication.value += 1
-            _history.value = history
-            _slotBackups.value = slotBackups
+            writes.forEach { it.publish() }
             clearUnreadable()
         }
     }
@@ -310,21 +350,30 @@ class Repository(
         return true
     }
 
-    suspend fun exportTo(uri: Uri) = withContext(writer) {
-        val bytes = BackupCodec.encode(bundle()).toByteArray()
-        context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: throw IOException("Couldn't open the file to save to.")
+    /**
+     * Saves a backup to [uri]. Only taking the [bundle] waits for the writer: the file itself, which a cloud document
+     * provider can take a long time over, is written on another IO thread, so the app's own saves carry on meanwhile.
+     */
+    suspend fun exportTo(uri: Uri) {
+        val bytes = serially { BackupCodec.encode(bundle()).toByteArray() }
+        withContext(Dispatchers.IO) {
+            context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: throw IOException("Couldn't open the file to save to.")
+        }
     }
 
     /**
      * Reads a backup file; throws [BackupException] when it isn't one or is over [BackupValidator.MAX_BYTES]. Check it
-     * with [restore], which validates it before changing anything.
+     * with [restore], which validates it before changing anything. Read off the writer, as [exportTo] writes.
      */
-    suspend fun importFrom(uri: Uri): BackupBundle = withContext(writer) {
+    suspend fun importFrom(uri: Uri): BackupBundle = withContext(Dispatchers.IO) {
         context.contentResolver.openInputStream(uri)?.use { importFrom(it) } ?: throw IOException("Couldn't open that file.")
     }
 
-    /** As [importFrom], from a stream. The size is checked before any decoding. */
-    fun importFrom(input: InputStream): BackupBundle = BackupCodec.decode(BackupValidator.readWithinLimit(input))
+    /**
+     * As [importFrom], from a stream. The size is checked before any decoding. Originals in it with no known BedJet
+     * become read-only records from the backup ([asImported]): no BedJet adopts them.
+     */
+    fun importFrom(input: InputStream): BackupBundle = BackupCodec.decode(BackupValidator.readWithinLimit(input)).asImported()
 
     private suspend fun autoSnapshot() = serially {
         // Snapshots of the defaults standing in for an unreadable file would push the good ones out.
@@ -346,19 +395,93 @@ class Repository(
 
     private fun <T> writeValue(name: String, serializer: KSerializer<T>, value: T) = writeFile(File(dir, name), encode(serializer, value))
 
-    private class Write(val name: String, val old: ByteArray, val new: ByteArray)
+    /** One file of a [restore]: its bytes before and after, and how to show the new value once it is on disk. */
+    private class Write(val name: String, val old: ByteArray, val new: ByteArray, val publish: () -> Unit)
 
+    /** What a [restore] under way saves before its first file, so the next start can undo it if the process dies. */
+    @Serializable
+    private data class PendingRestore(val snapshotId: String, val files: List<String>)
+
+    /**
+     * Writes every file of a restore, then deletes the [RESTORE_PENDING] marker. On a failure the files already
+     * written are put back and the marker deleted. Any that can't be put back are shown as they are on disk and the
+     * marker stays, for the next start to finish putting things back. Call on the writer.
+     */
     private fun writeAllOrNone(writes: List<Write>) {
         writes.forEachIndexed { i, write ->
             try {
                 writeFile(File(dir, write.name), write.new)
-            } catch (e: Exception) {
-                writes.take(i).forEach { done ->
-                    runCatching { writeFile(File(dir, done.name), done.old) }.onFailure { e.addSuppressed(it) }
-                }
-                throw e
+            } catch (e: Throwable) {
+                // Also for an Error, which would otherwise leave the files mixed until the next start.
+                throw undo(writes.take(i), e)
             }
         }
+        if (!deletePendingRestore()) throw undo(writes, IOException("Couldn't finish the restore."))
+    }
+
+    /** Puts [done] back; returns [e], or a [RestoreInterrupted] for it when a file couldn't be put back. */
+    private fun undo(done: List<Write>, e: Throwable): Throwable {
+        val stuck = done.filter { write ->
+            runCatching { writeFile(File(dir, write.name), write.old) }.onFailure { e.addSuppressed(it) }.isFailure
+        }
+        if (stuck.isEmpty()) {
+            // Left behind, it only makes the next start put back the same old files.
+            deletePendingRestore()
+            return e
+        }
+        stuck.forEach { it.publish() }
+        return if (e is Exception) RestoreInterrupted(e) else e
+    }
+
+    private fun deletePendingRestore(): Boolean {
+        AtomicFile(File(dir, RESTORE_PENDING)).delete()
+        return !File(dir, RESTORE_PENDING).exists()
+    }
+
+    /**
+     * Before anything is loaded: when [RESTORE_PENDING] is there a restore was cut short, so the snapshot it names
+     * is written back over the files it lists. Returns the notice to leave, or null when there was nothing to do.
+     * Written on the calling thread, as the loads that follow read these files.
+     */
+    private fun recoverInterruptedRestore(): LoggedNotice? {
+        val marker = AtomicFile(File(dir, RESTORE_PENDING))
+        val text = try {
+            marker.readFully().decodeToString()
+        } catch (_: FileNotFoundException) {
+            return null
+        } catch (e: IOException) {
+            Log.e(TAG, "Couldn't read $RESTORE_PENDING", e)
+            null
+        }
+        val pending = text?.let { runCatching { decode(PendingRestore.serializer(), it) }.getOrNull() }
+        val before = pending?.let { snapshots.load(it.snapshotId) }
+        if (pending == null || before == null) {
+            // Nothing to put back: keep what is on disk, say so once, and don't try again.
+            marker.delete()
+            return restoreNotice(
+                "The app closed part-way through a restore, and what you had before couldn't be read back. Some of " +
+                    "the backup may have been restored. Check your profiles and settings, or restore a snapshot.",
+            )
+        }
+        return try {
+            pending.files.forEach { name -> encoded(name, before)?.let { writeFile(File(dir, name), it) } }
+            marker.delete()
+            restoreNotice("The app closed part-way through a restore, so everything was put back as it was before. Import the backup again to restore it.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Couldn't undo the interrupted restore", e)
+            restoreNotice("The app closed part-way through a restore, and putting things back as they were failed. It will be tried again when the app next starts.")
+        }
+    }
+
+    private fun restoreNotice(text: String) = LoggedNotice(now().toString(), NoticeKind.PROBLEM, "The restore didn't finish", text)
+
+    /** [name]'s contents as [bundle] holds them. */
+    private fun encoded(name: String, bundle: BackupBundle): ByteArray? = when (name) {
+        PROFILES -> encode(ListSerializer(Profile.serializer()), bundle.profiles)
+        SETTINGS -> encode(Settings.serializer(), bundle.settings)
+        HISTORY -> encode(ListSerializer(NightRecord.serializer()), bundle.history)
+        SLOT_BACKUPS -> encode(ListSerializer(SlotBackup.serializer()), bundle.slotBackups)
+        else -> null
     }
 
     private fun <T> encode(serializer: KSerializer<T>, value: T) = BackupCodec.json.encodeToString(serializer, value).toByteArray()
@@ -390,8 +513,9 @@ class Repository(
 
     /** Runs on the writer. A report that can't be saved is shown as unreadable too, rather than lost on a restart. */
     private fun setAsidePending() {
+        val asideDir = File(dir, SET_ASIDE_DIR).apply { mkdirs() }
         toSetAside.forEach { file ->
-            val aside = File(dir, "${file.name}.corrupt-${System.currentTimeMillis()}")
+            val aside = File(asideDir, "${file.name}.corrupt-${System.currentTimeMillis()}")
             // If it can't be moved, a copy still keeps the original from being lost on the next write.
             if (!file.renameTo(aside)) runCatching { file.copyTo(aside) }.onFailure { Log.e(TAG, "Couldn't keep ${file.name}", it) }
         }
@@ -403,18 +527,36 @@ class Repository(
         }
     }
 
+    /**
+     * Runs on the writer at start-up: deletes half-written snapshots, and moves copies an earlier version set aside
+     * next to the files into [SET_ASIDE_DIR], which backups and device transfer leave out.
+     */
+    private fun tidyFiles() {
+        runCatching { snapshots.removeLeftovers() }.onFailure { Log.w(TAG, "Couldn't remove leftover snapshot files", it) }
+        val earlier = dir.listFiles { file -> file.isFile && ".corrupt-" in file.name }.orEmpty()
+        if (earlier.isEmpty()) return
+        val asideDir = File(dir, SET_ASIDE_DIR).apply { mkdirs() }
+        earlier.forEach { file -> if (!file.renameTo(File(asideDir, file.name))) Log.w(TAG, "Couldn't move ${file.name}") }
+    }
+
     /** True when [deviceId] takes over an original saved with [recordedFor] before devices were recorded. */
     private fun adopts(deviceId: String, recordedFor: String) = recordedFor == Migrations.UNKNOWN_DEVICE && DeviceId.address(deviceId) != null
 
-    /** Two backups of the same slot of the same BedJet, counting a migrated one as the real BedJet's. */
-    private fun SlotBackup.covers(other: SlotBackup) =
-        slot == other.slot && (deviceId == other.deviceId || adopts(deviceId, other.deviceId) || adopts(other.deviceId, deviceId))
+    /** As above for [backup]; never one from an imported backup, which may come from another BedJet. */
+    private fun adopts(deviceId: String, backup: SlotBackup) = !backup.fromBackup && adopts(deviceId, backup.deviceId)
+
+    /**
+     * Two backups of the same slot of the same BedJet, counting a migrated one as the real BedJet's. A record from an
+     * imported backup only covers another such record.
+     */
+    private fun SlotBackup.covers(other: SlotBackup) = slot == other.slot && fromBackup == other.fromBackup &&
+        (deviceId == other.deviceId || adopts(deviceId, other.deviceId) || adopts(other.deviceId, deviceId))
 
     /** Re-tags, durably, the migrated originals of slots [deviceId] has none for. Call on the writer. */
     private fun adoptMigrated(deviceId: String) {
         val list = _slotBackups.value
         val adopted = list.map { backup ->
-            if (adopts(deviceId, backup.deviceId) && list.none { it.deviceId == deviceId && it.slot == backup.slot }) backup.copy(deviceId = deviceId) else backup
+            if (adopts(deviceId, backup) && list.none { !it.fromBackup && it.deviceId == deviceId && it.slot == backup.slot }) backup.copy(deviceId = deviceId) else backup
         }
         if (adopted == list) return
         writeValue(SLOT_BACKUPS, ListSerializer(SlotBackup.serializer()), adopted)
@@ -452,7 +594,10 @@ class Repository(
         private const val SETTINGS = "settings.json"
         private const val HISTORY = "history.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
-        /** When an unreadable [SLOT_BACKUPS] was dismissed. Device-local, like [UNREADABLE]. */
+        /**
+         * When the loss of an unreadable [SLOT_BACKUPS] was accepted. Device-local, like [UNREADABLE]: the backup rules
+         * keep it and the other device-local files below off other phones (res/xml/data_extraction_rules.xml).
+         */
         private const val SLOT_BACKUPS_LOST = "slot-backups-lost.txt"
         private const val RUNTIME = "runtime.json"
         private const val AUTOMATION = "automation.json"
@@ -460,13 +605,20 @@ class Repository(
         private const val NOTICES = "notices.json"
         /** Lists the files in [unreadable], so the report survives a restart. */
         private const val UNREADABLE = "unreadable.json"
+        /** Marks a restore under way; see the class comment. Device-local. */
+        private const val RESTORE_PENDING = "restore-pending.json"
+        /** Where unreadable files are moved aside, as `<name>.corrupt-<millis>`. Device-local. */
+        const val SET_ASIDE_DIR = "set-aside"
 
         /** One write at a time, on an IO thread. */
         @OptIn(ExperimentalCoroutinesApi::class)
         fun defaultWriter(): CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
 
-        /** AtomicFile syncs before replacing the old file, so a power cut leaves either the old or the new one. */
-        fun writeDurably(file: File, bytes: ByteArray) {
+        /**
+         * AtomicFile syncs before replacing the old file, so a power cut leaves either the old or the new one. The
+         * directory is synced after the rename ([syncDirectory]), so the replacement itself is durable too.
+         */
+        fun writeDurably(file: File, bytes: ByteArray, syncDirectory: (File) -> Unit = ::syncDirectory) {
             val atomic = AtomicFile(file)
             val out = atomic.startWrite()
             try {
@@ -475,6 +627,19 @@ class Repository(
             } catch (e: IOException) {
                 atomic.failWrite(out)
                 throw e
+            }
+            file.absoluteFile.parentFile?.let(syncDirectory)
+        }
+
+        /** Syncs [dir] so renames in it survive a power cut, where the platform allows; otherwise does nothing. */
+        fun syncDirectory(dir: File) {
+            try {
+                val fd = Os.open(dir.path, OsConstants.O_RDONLY, 0)
+                try { Os.fsync(fd) } finally { Os.close(fd) }
+            } catch (e: Exception) {
+                SnapshotStore.forceDirectory(dir.toPath())
+            } catch (e: LinkageError) {
+                SnapshotStore.forceDirectory(dir.toPath())
             }
         }
     }

@@ -55,4 +55,24 @@ class BackupRulesTest {
         assertTrue(application.contains("""android:dataExtractionRules="@xml/data_extraction_rules""""))
         assertTrue(application.contains("""android:fullBackupContent="@xml/backup_rules""""))
     }
+
+    // IR-32: what describes this phone's own BedJet session, and set-aside copies, never travel to another phone.
+
+    private val deviceLocal = listOf(
+        "runtime.json", "active-night.json", "automation.json", "unreadable.json", "slot-backups-lost.txt", "restore-pending.json",
+    )
+
+    @Test
+    fun deviceLocalFilesAreKeptOutOfCloudBackupAndDeviceTransfer() {
+        val rules = excludes(R.xml.data_extraction_rules)
+        listOf("cloud-backup", "device-transfer").forEach { section ->
+            (deviceLocal + Repository.SET_ASIDE_DIR).forEach { name -> assertTrue("$section $name in $rules", "$section/file/$name" in rules) }
+        }
+    }
+
+    @Test
+    fun deviceLocalFilesAreKeptOutOfOlderAndroidBackups() {
+        val rules = excludes(R.xml.backup_rules)
+        (deviceLocal + Repository.SET_ASIDE_DIR).forEach { name -> assertTrue("$name in $rules", "full-backup-content/file/$name" in rules) }
+    }
 }

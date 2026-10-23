@@ -124,4 +124,43 @@ class BackupValidatorTest {
         val text = BackupCodec.encode(good)
         assertEquals(text, BackupValidator.readWithinLimit(ByteArrayInputStream(text.toByteArray())))
     }
+
+    // IR-16: a saved programme goes back onto a real BedJet, so it must be one the codec can write as it is.
+
+    private fun withSlotProgram(vararg steps: ProgramStep) =
+        good.copy(slotBackups = listOf(SlotBackup("ble:AA:BB", 1, StoredProgram("saved", steps.toList()), now)))
+
+    @Test
+    fun slotBackupProgramOutOfRangeIsRefused() {
+        assertRejected(withSlotProgram(ProgramStep(Mode.DRY, 40, 60, 1, 0)), "slot 2", "fan")
+        assertRejected(withSlotProgram(ProgramStep(Mode.HEAT, 5, 200, 1, 0)), "slot 2", "100 °C")
+        assertRejected(withSlotProgram(ProgramStep(Mode.TURBO, 5, 300, 0, 10)), "slot 2", "temperature")
+        assertRejected(withSlotProgram(ProgramStep(Mode.COOL, 5, 44, 0, 75)), "slot 2", "minutes")
+        assertRejected(withSlotProgram(ProgramStep(Mode.COOL, 5, 44, 12, 0)), "slot 2", "12 hours")
+        assertRejected(withSlotProgram(ProgramStep(Mode.COOL, 5, 44, 24, 0, endsAtClockTime = true)), "slot 2", "time of day")
+        assertRejected(withSlotProgram(*Array(33) { ProgramStep(Mode.COOL, 5, 44, 0, 10) }), "slot 2", "33 steps")
+    }
+
+    @Test
+    fun aSlotBackupProgramWithinTheCodecsLimitsPasses() {
+        assertEquals(emptyList<String>(), errors(withSlotProgram(*Array(32) { ProgramStep(Mode.HEAT, 19, 80, 11, 59) })))
+        assertEquals(emptyList<String>(), errors(withSlotProgram(ProgramStep(Mode.TURBO, 0, 86, 0, 10), ProgramStep(Mode.COOL, 0, 44, 6, 30, endsAtClockTime = true))))
+        // Version 1 kept programmes with no steps; they still restore.
+        assertEquals(emptyList<String>(), errors(withSlotProgram()))
+    }
+
+    @Test
+    fun aSlotBackupMustBeConsistentAndNameABedJet() {
+        assertRejected(good.copy(slotBackups = listOf(SlotBackup("ble:AA:BB", 1, null, now, empty = false))), "slot 2", "empty")
+        assertRejected(good.copy(slotBackups = listOf(SlotBackup("ble:AA:BB", 1, StoredProgram("x", emptyList()), now, empty = true))), "slot 2", "empty")
+        assertRejected(good.copy(slotBackups = listOf(SlotBackup("toaster", 1, null, now))), "slot 2", "toaster")
+        assertRejected(good.copy(slotBackups = listOf(SlotBackup("ble:", 1, null, now))), "slot 2", "ble:")
+        assertEquals(emptyList<String>(), errors(good.copy(slotBackups = listOf(SlotBackup("unknown", 1, null, now)))))
+    }
+
+    @Test
+    fun uncertainAndFromBackupOriginalsAreAccepted() {
+        val flagged = good.slotBackups.map { it.copy(uncertain = true, fromBackup = true) }
+        assertEquals(emptyList<String>(), errors(good.copy(slotBackups = flagged)))
+    }
 }

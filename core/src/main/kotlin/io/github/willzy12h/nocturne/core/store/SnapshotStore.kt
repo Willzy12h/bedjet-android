@@ -4,9 +4,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.jsonObject
 import java.io.FileOutputStream
 import java.io.Reader
+import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
 import java.time.ZonedDateTime
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.deleteIfExists
@@ -17,8 +19,15 @@ import kotlin.io.path.readText
 
 data class SnapshotInfo(val id: String, val createdAt: String, val label: String?, val manual: Boolean)
 
-/** Point-in-time copies of everything, to restore from. Manual ones are kept; the last [KEEP_AUTOMATIC] automatic ones too. */
-class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime) {
+/**
+ * Point-in-time copies of everything, to restore from. Manual ones are kept; the last [KEEP_AUTOMATIC] automatic ones
+ * too. [syncDirectory] makes a rename in the directory durable; the default does that where the JVM allows it.
+ */
+class SnapshotStore(
+    private val dir: Path,
+    private val syncDirectory: (Path) -> Unit = ::forceDirectory,
+    private val now: () -> ZonedDateTime,
+) {
 
     /** Written header first, so [list] can stop reading before the bundle. */
     @Serializable
@@ -26,7 +35,10 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
 
     private data class Header(val createdAt: String, val label: String?, val manual: Boolean)
 
-    /** Writes the snapshot durably: a power cut leaves either no snapshot or the whole of it. */
+    /**
+     * Writes the snapshot durably: a power cut leaves either no snapshot or the whole of it. The content is synced
+     * before the rename and the directory after it, so the rename itself survives too where the platform allows.
+     */
     fun save(bundle: BackupBundle, label: String?, manual: Boolean): SnapshotInfo {
         Files.createDirectories(dir)
         val time = now()
@@ -39,6 +51,7 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
             out.fd.sync()
         }
         Files.move(temp, dir.resolve("$id.json"), StandardCopyOption.ATOMIC_MOVE)
+        syncDirectory(dir)
         prune()
         return SnapshotInfo(id, file.createdAt, label, manual)
     }
@@ -68,6 +81,12 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
         val file = BackupCodec.json.parseToJsonElement(dir.resolve("$id.json").readText()).jsonObject
         BackupCodec.decode(file.getValue("bundle").jsonObject)
     }.getOrNull()
+
+    /** Deletes half-written snapshots (`*.tmp`) left by a save that never finished. Call before any save. */
+    fun removeLeftovers() {
+        if (!dir.exists()) return
+        dir.listDirectoryEntries("*.tmp").forEach { it.deleteIfExists() }
+    }
 
     fun delete(id: String) {
         dir.resolve("$id.json").deleteIfExists()
@@ -146,5 +165,10 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
 
     companion object {
         const val KEEP_AUTOMATIC = 20
+
+        /** Syncs [dir] itself, so renames in it survive a power cut. Does nothing where the platform can't. */
+        fun forceDirectory(dir: Path) {
+            runCatching { FileChannel.open(dir, StandardOpenOption.READ).use { it.force(true) } }
+        }
     }
 }

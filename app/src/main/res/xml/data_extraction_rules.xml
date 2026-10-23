@@ -1,10 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12 and later. The update token (shared preferences "secrets") never leaves the phone. -->
+<!--
+    Android 12 and later. The update token (shared preferences "secrets") never leaves the phone. Nor do the files that
+    describe this phone's own BedJet session (the runtime journal, the night under way, automation claims, the
+    unreadable report, the slot-backups loss time, a restore under way) or the set-aside copies of unreadable files.
+    Profiles, settings, history, slot originals and snapshots still travel.
+-->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="secrets.xml" />
+        <exclude domain="file" path="runtime.json" />
+        <exclude domain="file" path="active-night.json" />
+        <exclude domain="file" path="automation.json" />
+        <exclude domain="file" path="unreadable.json" />
+        <exclude domain="file" path="slot-backups-lost.txt" />
+        <exclude domain="file" path="restore-pending.json" />
+        <exclude domain="file" path="set-aside" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="secrets.xml" />
+        <exclude domain="file" path="runtime.json" />
+        <exclude domain="file" path="active-night.json" />
+        <exclude domain="file" path="automation.json" />
+        <exclude domain="file" path="unreadable.json" />
+        <exclude domain="file" path="slot-backups-lost.txt" />
+        <exclude domain="file" path="restore-pending.json" />
+        <exclude domain="file" path="set-aside" />
     </device-transfer>
 </data-extraction-rules>

@@ -668,18 +668,33 @@ class NightActions(private val graph: Graph) {
             writeSlotLocked(slot, StoredProgram(profile.name, steps), text(R.string.runtime_pinned, slot + 1))
         }
     }
-    suspend fun restoreOriginal(slot: Int): CommandOutcome = owned(text(R.string.runtime_restore_label), repo.settings.value.deviceId()) {
+    /**
+     * Puts back what [slot] of the chosen BedJet held before the app first wrote it. A record from an imported
+     * backup ([SlotBackup.fromBackup]) is never that BedJet's original; it is put back only when the person picks it
+     * as [chosen], and the slot's real content is backed up first as for any slot write.
+     */
+    suspend fun restoreOriginal(slot: Int, chosen: SlotBackup? = null): CommandOutcome = owned(text(R.string.runtime_restore_label), repo.settings.value.deviceId()) {
         if (!ReplacementPolicy.permitsSlotRestore(repo.activeNight.value)) return@owned refused(R.string.runtime_restore_active)
         if (slot !in 0..2) return@owned refused(R.string.runtime_pin_slot)
         val target = repo.settings.value.deviceId() ?: return@owned refused(R.string.runtime_choose_target)
         slotBackupsRefusal()?.let { return@owned it }
         repo.originalsFor(target)
-        val original = repo.originalSlot(target, slot) ?: return@owned refused(R.string.runtime_no_original)
+        val original = if (chosen?.fromBackup == true) {
+            chosen.takeIf { it.slot == slot && it.program != null && it in repo.slotBackups.value } ?: return@owned refused(R.string.runtime_no_original)
+        } else {
+            repo.originalSlot(target, slot) ?: return@owned refused(R.string.runtime_no_original)
+        }
         connected {
             if (freshStatus().extra?.programStep != 0) return@connected refused(R.string.runtime_slot_running)
             advanceGeneration()
-            writeSlotLocked(slot, original.program, text(R.string.runtime_restored, slot + 1))
+            writeSlotLocked(slot, original.program, restoredMessage(original))
         }
+    }
+    /** IR-31: a programme an older version saved, or one from an imported backup, says so when it is put back. */
+    private fun restoredMessage(original: SlotBackup): String = when {
+        original.fromBackup -> text(R.string.runtime_restored_from_backup, original.slot + 1)
+        original.uncertain -> text(R.string.runtime_restored_uncertain, original.slot + 1)
+        else -> text(R.string.runtime_restored, original.slot + 1)
     }
     private suspend fun writeSlotLocked(slot: Int, program: StoredProgram?, label: String, start: Boolean = false): CommandOutcome {
         val target = repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target)

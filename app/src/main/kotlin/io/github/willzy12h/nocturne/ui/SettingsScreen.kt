@@ -37,7 +37,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ActionPreset
+import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
+import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.notify.Notifications
@@ -86,8 +88,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
                 // An empty-slot marker has nothing to put back yet.
                 val program = backup.program ?: return@forEach
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Saved from slot ${backup.slot + 1}: ${program.name} (${program.steps.size} steps)", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { model.restoreSlot(backup.slot, program) }) { Text("Put back") }
+                    Text(savedSlotLabel(backup, program), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { model.restoreSlot(backup) }) { Text("Put back") }
                 }
             }
             SwitchRow("Show °F", null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
@@ -251,3 +253,13 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, onChan
 
 private fun noticeDay(iso: String): String =
     runCatching { java.time.ZonedDateTime.parse(iso).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM")) }.getOrDefault("")
+
+/** A saved slot programme as listed under BedJet, saying when it came from an import or an older version (IR-16, IR-31). */
+internal fun savedSlotLabel(backup: SlotBackup, program: StoredProgram): String {
+    val label = "Saved from slot ${backup.slot + 1}: ${program.name} (${program.steps.size} steps)"
+    return when {
+        backup.fromBackup -> "$label, from an imported backup. It may come from another BedJet."
+        backup.uncertain -> "$label, saved by an older version of Nocturne. It may be one of Nocturne's own nights."
+        else -> label
+    }
+}

@@ -33,7 +33,7 @@ class MigrationsTest {
         val bundle = BackupCodec.decode(v1)
         assertEquals(2, BackupCodec.SCHEMA)
         assertEquals(BackupCodec.SCHEMA, bundle.schema)
-        assertEquals(listOf(SlotBackup("unknown", 0, program, "2026-10-20T22:30Z", empty = false)), bundle.slotBackups)
+        assertEquals(listOf(SlotBackup("unknown", 0, program, "2026-10-20T22:30Z", empty = false, uncertain = true)), bundle.slotBackups)
         assertEquals("unknown", bundle.history.single().deviceId)
     }
 
@@ -49,7 +49,7 @@ class MigrationsTest {
     fun version1SlotBackupFileLoads() {
         val onDisk = """[{"slot": 1, "program": {"name": "old", "steps": [{"mode": "DRY", "fanStep": 1, "temperature": 60, "hours": 1, "minutes": 0}]}, "savedAt": "x"}]"""
         val list = Migrations.decodeSlotBackups(onDisk)
-        assertEquals(listOf(SlotBackup("unknown", 1, program, "x")), list)
+        assertEquals(listOf(SlotBackup("unknown", 1, program, "x", uncertain = true)), list)
         assertFalse(list.single().empty)
     }
 
@@ -65,5 +65,24 @@ class MigrationsTest {
         val text = BackupCodec.json.encodeToString(ListSerializer(SlotBackup.serializer()), backups)
         assertEquals(backups, Migrations.decodeSlotBackups(text))
         assertTrue(backups.first().empty)
+    }
+
+    // IR-31: version 1 never recorded empty slots, so a slot it used may by now hold one of its own programmes.
+
+    @Test
+    fun version1OriginalsAreMarkedUncertain() {
+        assertTrue(BackupCodec.decode(v1).slotBackups.single().uncertain)
+        val onDisk = """[{"slot": 1, "program": null, "savedAt": "x"}]"""
+        assertTrue(Migrations.decodeSlotBackups(onDisk).single().uncertain)
+    }
+
+    @Test
+    fun currentOriginalsAreNotUncertainAndTheFlagIsKept() {
+        val current = """[{"deviceId": "ble:AA", "slot": 1, "program": null, "savedAt": "x", "empty": true}]"""
+        assertFalse(Migrations.decodeSlotBackups(current).single().uncertain)
+        // An adopted one keeps the flag it was migrated with, however often it is loaded.
+        val adopted = listOf(SlotBackup("ble:AA", 1, program, "x", uncertain = true))
+        val text = BackupCodec.json.encodeToString(ListSerializer(SlotBackup.serializer()), adopted)
+        assertEquals(adopted, Migrations.decodeSlotBackups(text))
     }
 }

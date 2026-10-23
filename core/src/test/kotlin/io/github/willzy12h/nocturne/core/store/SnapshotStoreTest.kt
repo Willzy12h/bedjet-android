@@ -70,4 +70,27 @@ class SnapshotStoreTest {
         assertEquals(3, store.list().count { it.manual })
         assertEquals(20, store.list().count { !it.manual })
     }
+
+    // IR-29
+
+    @Test
+    fun saveSyncsTheDirectoryAfterTheMove(@TempDir dir: Path) {
+        val synced = mutableListOf<List<String>>()
+        val store = SnapshotStore(dir, syncDirectory = { d -> synced += d.listDirectoryEntries().map { it.name }.sorted() }) { now }
+        val info = store.save(bundle(), "Mine", manual = true)
+        assertTrue(synced.isNotEmpty(), "the directory was never synced")
+        assertEquals(listOf("${info.id}.json"), synced.first(), "synced before the rename was in place")
+    }
+
+    @Test
+    fun leftoverTempFilesAreRemoved(@TempDir dir: Path) {
+        val store = SnapshotStore(dir) { now }
+        val kept = store.save(bundle(), "Mine", manual = true)
+        dir.resolve("snap-1000-a.json.tmp").toFile().writeText("half a snapshot")
+        store.removeLeftovers()
+        assertEquals(listOf("${kept.id}.json"), dir.listDirectoryEntries().map { it.name })
+        assertEquals(listOf(kept.id), store.list().map { it.id })
+        // Nothing to do without a directory yet.
+        SnapshotStore(dir.resolve("none")) { now }.removeLeftovers()
+    }
 }

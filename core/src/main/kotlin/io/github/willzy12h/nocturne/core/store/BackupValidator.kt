@@ -1,9 +1,11 @@
 package io.github.willzy12h.nocturne.core.store
 
+import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.time.ZonedDateTime
@@ -26,6 +28,11 @@ object BackupValidator {
     private val MINUTE_OF_DAY = 0 until 24 * 60
     private val DAYS = 1..7
     private const val MAX_NOTIFICATION_ACTIONS = 3
+    /** A programme step's fan: `(fanStep + 1) * 5` percent. */
+    private val FAN_STEPS = 0..19
+    private val BYTE = 0..255
+    private val MINUTES = 0..59
+    private val HOURS_OF_DAY = 0..23
     /** Every temperature any mode allows, Turbo's included. */
     private val allTemps = Mode.entries.minOf { it.temperatureRange.first }..Mode.entries.maxOf { it.temperatureRange.last }
 
@@ -55,10 +62,7 @@ object BackupValidator {
         bundle.profiles.forEach { profile(it) }
         settings(bundle.settings)
 
-        bundle.slotBackups.forEach { backup ->
-            if (backup.slot !in SLOTS) add("A saved slot is numbered ${backup.slot + 1}; it must be 1 to ${Limits.SLOTS}.")
-            time("The time slot ${backup.slot + 1} was saved", backup.savedAt)
-        }
+        bundle.slotBackups.forEach { backup -> slotBackup(backup) }
 
         bundle.history.forEach { night ->
             val what = "The night \"${night.profileName}\""
@@ -91,6 +95,39 @@ object BackupValidator {
         if (profile.wakeSource.defaultWakeMinute !in MINUTE_OF_DAY) add("$name: the wake-up time of day is out of range.")
         if (profile.bedtimeMinute !in MINUTE_OF_DAY) add("$name: the bedtime time of day is out of range.")
         if (profile.days.any { it !in DAYS }) add("$name: the days of the week must be Monday to Sunday.")
+    }
+
+    private fun MutableList<String>.slotBackup(backup: SlotBackup) {
+        val slot = backup.slot + 1
+        if (backup.slot !in SLOTS) add("A saved slot is numbered $slot; it must be 1 to ${Limits.SLOTS}.")
+        time("The time slot $slot was saved", backup.savedAt)
+        val device = backup.deviceId
+        if (device != DeviceId.DEMO && device != Migrations.UNKNOWN_DEVICE && DeviceId.address(device).isNullOrBlank()) {
+            add("The original of slot $slot was saved for \"$device\", which isn't a BedJet this app knows.")
+        }
+        if (backup.empty != (backup.program == null)) {
+            add("The original of slot $slot ${if (backup.empty) "is marked empty but has a programme" else "isn't marked empty but has no programme"}.")
+        }
+        backup.program?.let { program(it, "The programme saved from slot $slot") }
+    }
+
+    /** IR-16: a saved programme can be written back to a BedJet, so it must be within what the codec writes as it is. */
+    private fun MutableList<String>.program(program: StoredProgram, what: String) {
+        if (program.steps.size > Limits.STEPS_PER_PROGRAM) {
+            add("$what has ${program.steps.size} steps; a BedJet holds up to ${Limits.STEPS_PER_PROGRAM}.")
+        }
+        program.steps.forEachIndexed { i, step ->
+            val at = "$what, step ${i + 1}"
+            if (step.fanStep !in FAN_STEPS) add("$at: the fan setting is ${step.fanStep}; it must be ${FAN_STEPS.first} to ${FAN_STEPS.last}.")
+            if (step.mode.usesTemperature) temperature("$at: the temperature", step.mode, step.temperature)
+            else if (step.temperature !in BYTE) add("$at: the temperature value ${step.temperature} is out of range.")
+            if (step.minutes !in MINUTES) add("$at runs for ${step.minutes} minutes past the hour; it must be 0 to 59.")
+            if (step.endsAtClockTime) {
+                if (step.hours !in HOURS_OF_DAY) add("$at ends at hour ${step.hours}, which isn't a time of day.")
+            } else if (step.hours < 0 || step.durationMinutes > Limits.MAX_STEP_MINUTES) {
+                add("$at runs for ${step.hours} h ${step.minutes} min; a BedJet step must be shorter than 12 hours.")
+            }
+        }
     }
 
     private fun MutableList<String>.phase(phase: Phase, what: String) {

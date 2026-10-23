@@ -114,7 +114,7 @@ class RepositoryTest {
 
         val repo = repository()
         assertEquals(listOf("profiles.json"), repo.unreadable.value)
-        val aside = dir.listFiles().orEmpty().filter { it.name.startsWith("profiles.json.corrupt-") }
+        val aside = File(dir, Repository.SET_ASIDE_DIR).listFiles().orEmpty().filter { it.name.startsWith("profiles.json.corrupt-") }
         assertEquals(1, aside.size)
         assertEquals(garbage, aside.single().readText())
 
@@ -131,7 +131,7 @@ class RepositoryTest {
 
         val repo = repository()
         assertEquals(listOf("profiles.json"), repo.unreadable.value)
-        assertEquals(text, dir.listFiles().orEmpty().single { it.name.startsWith("profiles.json.corrupt-") }.readText())
+        assertEquals(text, File(dir, Repository.SET_ASIDE_DIR).listFiles().orEmpty().single { it.name.startsWith("profiles.json.corrupt-") }.readText())
         assertNull(repo.profile("mine"))
     }
 
@@ -208,7 +208,7 @@ class RepositoryTest {
 
         val second = repository()
         assertEquals(listOf("history.json"), second.unreadable.value)
-        assertEquals(1, dir.listFiles().orEmpty().count { it.name.startsWith("history.json.corrupt-") })
+        assertEquals(1, File(dir, Repository.SET_ASIDE_DIR).listFiles().orEmpty().count { it.name.startsWith("history.json.corrupt-") })
 
         second.dismissUnreadable()
         assertEquals(emptyList<String>(), second.unreadable.value)
@@ -361,7 +361,7 @@ class RepositoryTest {
 
     // Originals saved before devices were recorded
 
-    private val migrated = SlotBackup("unknown", 2, program, "2026-10-20T22:30Z")
+    private val migrated = SlotBackup("unknown", 2, program, "2026-10-20T22:30Z", uncertain = true)
 
     /** A version 1 backup of slot 3 (index 2), as an upgrade finds it. */
     private fun version1Original() = File(dir, "slot-backups.json").writeText(
@@ -522,7 +522,7 @@ class RepositoryTest {
         )
         val repo = repository()
         assertEquals(emptyList<String>(), repo.unreadable.value)
-        assertEquals(SlotBackup("unknown", 2, program, "2026-10-20T22:30Z"), repo.slotBackups.value.single())
+        assertEquals(SlotBackup("unknown", 2, program, "2026-10-20T22:30Z", uncertain = true), repo.slotBackups.value.single())
         assertEquals("unknown", repo.history.value.single().deviceId)
     }
 
