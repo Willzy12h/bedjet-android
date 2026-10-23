@@ -40,13 +40,13 @@ class BedJetService : Service() {
             try {
                 if (handoff != null) {
                     if (!handoff.result.isActive) return@launch
-                    val value = withTimeout(NightActions.OPERATION_MS) {
+                    val value = withTimeout(SERVICE_MS) {
                         withContext(SubmissionTarget(handoff.target)) { handoff.work() }
                     }
                     handoff.result.complete(value)
                     return@launch
                 }
-                val result = withTimeout(NightActions.OPERATION_MS) { graph.actions.execute(request!!) }
+                val result = withTimeout(SERVICE_MS) { graph.actions.execute(request!!) }
                 lastResult = result.message
                 if (!result.succeeded && !result.notified) Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
             } catch (e: CancellationException) {
@@ -66,6 +66,13 @@ class BedJetService : Service() {
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
     companion object {
         private const val EXTRA_HANDOFF = "ownedUiOperation"
+        /**
+         * IR-11: each wait outlasts the one inside it, so the owner's own budget ([NightActions.OPERATION_MS]) runs
+         * out first and its clean-up (UNKNOWN journalled for a possible partial write) is never cut short by an outer
+         * cancellation. The service bound adds a margin; the UI's wait adds the foreground-service start as well.
+         */
+        const val SERVICE_MS = NightActions.OPERATION_MS + 10_000L
+        const val RUN_OWNED_MS = SERVICE_MS + 15_000L
         private class Handoff(val target: String?, val notifyFailures: Boolean, val work: suspend () -> Any?) {
             val result = CompletableDeferred<Any?>()
             @Volatile var operation: Job? = null
@@ -81,14 +88,14 @@ class BedJetService : Service() {
             val submitted = currentCoroutineContext()[SubmissionTarget]
             val target = if (submitted != null) submitted.deviceId else context.graph.repository.settings.value.deviceId()
             if (context.graph.repository.settings.value.demoMode)
-                return withContext(SubmissionTarget(target)) { withTimeout(NightActions.OPERATION_MS) { work() } }
+                return withContext(SubmissionTarget(target)) { withTimeout(SERVICE_MS) { work() } }
             val id = java.util.UUID.randomUUID().toString()
             val handoff = Handoff(target, notifyFailures, work)
             handoffs[id] = handoff
             try {
                 if (!permitted(context, NightActions.Command.START_NIGHT)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
                 context.startForegroundService(Intent(context, BedJetService::class.java).putExtra(EXTRA_HANDOFF, id))
-                return withTimeout(NightActions.OPERATION_MS) { handoff.result.await() } as T
+                return withTimeout(RUN_OWNED_MS) { handoff.result.await() } as T
             } catch (e: CancellationException) {
                 if (e is TimeoutCancellationException) failure(context, e, notifyFailures)
                 throw e

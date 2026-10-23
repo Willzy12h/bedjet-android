@@ -23,6 +23,8 @@ class NightActions(private val graph: Graph) {
     internal val repo get() = graph.repository
     private val context get() = graph.context
     private val lock = Mutex()
+    /** Monotonic milliseconds for the admission check; tests move it by hand. */
+    internal var elapsedMs: () -> Long = { System.nanoTime() / 1_000_000 }
     private val _busy = MutableStateFlow(BusyState())
     val busy: StateFlow<BusyState> = _busy.asStateFlow()
     private val _outcomes = MutableSharedFlow<CommandOutcome>(extraBufferCapacity = 16)
@@ -41,7 +43,8 @@ class NightActions(private val graph: Graph) {
     /** Fresh explicit Off follows a queued Start. Only old notification/widget identities are rejected. */
     suspend fun perform(command: Command, profileId: String? = null, replacementConfirmed: Boolean = false): String =
         execute(capture(command, profileId, requireIdentity = replacementConfirmed).copy(replacementConfirmed = replacementConfirmed)).message
-    suspend fun execute(request: CommandRequest): CommandOutcome = owned(label(request.command), request.deviceId) {
+    suspend fun execute(request: CommandRequest): CommandOutcome = owned(label(request.command), request.deviceId,
+        admit = request.command != Command.STOP_TRACKING) {
         if (request.requireIdentity && request.expected != repo.activeNight.value?.identity) return@owned stale()
         if (ReplacementPolicy.decide(request.command, repo.activeNight.value).needsConfirmation && !request.replacementConfirmed)
             return@owned CommandOutcome(OutcomeKind.CONFIRMATION_REQUIRED, text(R.string.runtime_replace_confirmation))
@@ -71,10 +74,12 @@ class NightActions(private val graph: Graph) {
         finally { drainLocalSafely() }
     }
 
-    private suspend fun owned(label: String, target: String?, work: suspend () -> CommandOutcome): CommandOutcome {
+    /** [admit]: refuse, before any write, a request left with less than [MIN_BUDGET_MS] after waiting for the lock (IR-11). */
+    private suspend fun owned(label: String, target: String?, admit: Boolean = true, work: suspend () -> CommandOutcome): CommandOutcome {
         _busy.update { it.copy(queuedCount = it.queuedCount + 1) }
         var acquired = false
         val owner = Any()
+        val queued = elapsedMs()
         try {
             return withTimeout(OPERATION_MS) {
                 lock.lock(owner)
@@ -82,7 +87,10 @@ class NightActions(private val graph: Graph) {
                 _busy.update { it.copy(runningLabel = label, queuedCount = it.queuedCount - 1) }
                 val submitted = currentCoroutineContext()[SubmissionTarget]
                 val result = if (target != repo.settings.value.deviceId() ||
-                    (submitted != null && submitted.deviceId != repo.settings.value.deviceId())) stale(R.string.runtime_target_changed) else work()
+                    (submitted != null && submitted.deviceId != repo.settings.value.deviceId())) stale(R.string.runtime_target_changed)
+                    // The budget includes the wait; too little left would be cut off partway through a write.
+                    else if (admit && OPERATION_MS - (elapsedMs() - queued) < MIN_BUDGET_MS) refused(R.string.runtime_waited_too_long)
+                    else work()
                 _outcomes.emit(result)
                 result
             }
@@ -499,8 +507,7 @@ class NightActions(private val graph: Graph) {
      * Reads the BedJet first. Null means it still runs the tracked night and the rewrite may go ahead. */
     private suspend fun takeoverBeforeRewrite(n: ActiveNight): CommandOutcome? {
         if (n.confidence != Confidence.CONFIRMED || n.trackingManual) return null
-        // A status that never arrives is a failed attempt with nothing written, not a cancellation.
-        val status = try { freshStatus() } catch (_: TimeoutCancellationException) { throw BedJetError.Timeout() }
+        val status = freshStatus()
         if (runsNight(n, status, graph.now(), grace = true)) return null
         recordTakeover(n)
         return CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover), notified = true)
@@ -516,8 +523,12 @@ class NightActions(private val graph: Graph) {
         // Reconnect under whole-command ownership. Existing READY status may predate this operation.
         graph.link.disconnect()
         graph.link.connect()
-        return withTimeout(10_000) { graph.link.status.filterNotNull().first { it.extra != null } }
+        // A status that never arrives is a failed attempt with nothing written. Only this wait's own timeout is turned
+        // into that: a cancellation from outside, such as the owner's budget running out, still cancels.
+        return withTimeoutOrNull(freshStatusMs) { graph.link.status.filterNotNull().first { it.extra != null } } ?: throw BedJetError.Timeout()
     }
+    /** How long [freshStatus] waits for a report with program progress; tests shorten it. */
+    internal var freshStatusMs = 10_000L
     /** Actual received wake/end signals only. Startup never invents historical deliveries. */
     suspend fun submitLocalDelivery(action: String, expected: NightIdentity?) {
         if (expected == null || action !in setOf(NightAlarms.ACTION_WAKE_UP, NightAlarms.ACTION_NIGHT_END)) return
@@ -741,7 +752,7 @@ class NightActions(private val graph: Graph) {
         }
         repo.updateRuntime { if (it.wakeSourceChange == change) it.copy(wakeSourceChange = null) else it }
     }
-    suspend fun updateSettings(change: (Settings) -> Settings): CommandOutcome = owned(text(R.string.runtime_target_label), repo.settings.value.deviceId()) {
+    suspend fun updateSettings(change: (Settings) -> Settings): CommandOutcome = owned(text(R.string.runtime_target_label), repo.settings.value.deviceId(), admit = false) {
         val old = repo.settings.value
         val updated = change(old)
         if (updated.deviceId() != old.deviceId() || updated.targetDevice != old.targetDevice) {
@@ -752,7 +763,7 @@ class NightActions(private val graph: Graph) {
         refreshQuietNotification()
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_settings_saved))
     }
-    suspend fun selectTarget(deviceId: String?): CommandOutcome = owned(text(R.string.runtime_target_label), repo.settings.value.deviceId()) {
+    suspend fun selectTarget(deviceId: String?): CommandOutcome = owned(text(R.string.runtime_target_label), repo.settings.value.deviceId(), admit = false) {
         if (repo.activeNight.value != null) return@owned refused(R.string.runtime_active_target)
         if (deviceId != null && DeviceId.address(deviceId)?.matches(Regex("[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}")) != true) return@owned refused(R.string.runtime_invalid_target)
         advanceGeneration()
@@ -761,7 +772,7 @@ class NightActions(private val graph: Graph) {
         if (deviceId == null) graph.bleLink.forget()
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_target_saved))
     }
-    suspend fun setDemoMode(enabled: Boolean): CommandOutcome = owned(text(R.string.runtime_demo_label), repo.settings.value.deviceId()) {
+    suspend fun setDemoMode(enabled: Boolean): CommandOutcome = owned(text(R.string.runtime_demo_label), repo.settings.value.deviceId(), admit = false) {
         if (repo.activeNight.value != null && enabled != repo.settings.value.demoMode) return@owned refused(R.string.runtime_active_target)
         advanceGeneration()
         graph.link.disconnect()
@@ -782,7 +793,7 @@ class NightActions(private val graph: Graph) {
     }
     suspend fun releaseForOtherPhone(untilMs: Long? = null, declineIfBusy: Boolean = false): CommandOutcome {
         if (declineIfBusy && lock.isLocked) return refused(R.string.runtime_busy)
-        return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId()) {
+        return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId(), admit = false) {
             advanceGeneration()
             graph.sessions.suspendAutoConnect(untilMs).join()
             CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_released))
@@ -879,6 +890,8 @@ class NightActions(private val graph: Graph) {
     private fun clock(iso: String) = ZonedDateTime.parse(iso).format(DateTimeFormatter.ofPattern("HH:mm"))
     companion object {
         const val OPERATION_MS = 90_000L
+        /** The least of [OPERATION_MS] a request must have left once it holds the lock (IR-11). */
+        const val MIN_BUDGET_MS = 30_000L
         /** Commands that may write a slot, refused while the saved slot originals can't be read (IR-03). */
         private val SLOT_WRITES = setOf(Command.START_NIGHT, Command.REAPPLY, Command.BOOST, Command.RESUME)
         /** A step boundary is not a takeover: the unit's report may lag the planned boundary briefly. */

@@ -39,6 +39,7 @@
     <string name="runtime_restore_label">Restore original slot</string>
     <string name="runtime_no_original">No original was saved for this slot.</string>
     <string name="runtime_manual_pending">%1$s Waiting for your BedJet to confirm it.</string>
+    <string name="runtime_waited_too_long">This waited too long for the BedJet to be free, so nothing was changed. Try again.</string>
     <string name="runtime_slot_write_acknowledged">Marked as checked.</string>
     <string name="runtime_slot_backups_unreadable">Your saved BedJet slot backups couldn\'t be read. Restore a snapshot or dismiss the warning before changing BedJet slots.</string>
     <string name="runtime_retime_refused">The wake-up change wasn\'t applied.</string>

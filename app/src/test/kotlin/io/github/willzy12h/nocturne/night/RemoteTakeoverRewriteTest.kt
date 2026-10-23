@@ -15,6 +15,7 @@ import io.github.willzy12h.nocturne.graph
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -33,12 +34,17 @@ class RemoteTakeoverRewriteTest {
     private lateinit var graph: Graph
     private lateinit var demo: DemoBedJet
     private val sent = mutableListOf<ByteArray>()
+    /** The unit's reports never carry program progress (the second half of the status never arrives). */
+    private var noProgress = false
+    private var beforeSend: (ByteArray) -> Unit = {}
 
     @Before fun setup() = runBlocking {
         demo = DemoBedJet(now = { graph.now() })
         // Only app-owned writes are counted. The physical remote below talks to the demo unit directly.
         val link = object : BedJetLink by demo {
-            override suspend fun send(command: ByteArray) { sent += command; demo.send(command) }
+            override val status: kotlinx.coroutines.flow.StateFlow<DeviceStatus?>
+                get() = if (noProgress) kotlinx.coroutines.flow.MutableStateFlow(demo.status.value?.copy(extra = null)) else demo.status
+            override suspend fun send(command: ByteArray) { beforeSend(command); sent += command; demo.send(command) }
         }
         graph = Graph(context, link) { scope, now -> Repository(context, scope, now = now) }
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
@@ -184,6 +190,83 @@ class RemoteTakeoverRewriteTest {
         val count = sent.size
         assertEquals(OutcomeKind.UNKNOWN, graph.actions.execute(graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)).kind)
         assertEquals(count, sent.size)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
+    }
+
+    // Carried from the IR-01 review: only the status wait's own timeout is a failed attempt.
+
+    @Test fun aRetimeRetryWhoseStatusNeverArrivesWritesNothingAndIsTriedAgain() = runBlocking {
+        val n = start(); advance(30)
+        queueAlarmChange()
+        noProgress = true
+        graph.actions.freshStatusMs = 300
+        val slot = demo.slots[n.slot]; val count = sent.size
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        assertEquals(OutcomeKind.FAILED, outcome.kind)
+        assertEquals(count, sent.size)
+        assertEquals(slot, demo.slots[n.slot])
+        assertEquals(n, graph.repository.activeNight.value)
+        assertTrue("still to be tried again", retryScheduled())
+        assertNotNull(graph.repository.runtime.value.retime)
+    }
+
+    @Test fun aCancellationDuringTheStatusWaitStillCancels() = runBlocking {
+        val n = start(); advance(30)
+        queueAlarmChange()
+        noProgress = true
+        graph.actions.freshStatusMs = 60_000
+        val count = sent.size
+        // The caller gives up while the status wait is under way: that is a cancellation, not a BedJet timeout.
+        assertNull(withTimeoutOrNull(500) { graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME)) })
+        assertEquals(count, sent.size)
+        assertEquals(n.identity, graph.repository.activeNight.value!!.identity)
+        assertTrue("no error recorded for a cancellation", graph.repository.history.value.first { it.id == n.recordId }.events
+            .none { it.kind == EventKind.ERROR })
+    }
+
+    @Test fun clearingTheWakeOverrideIsRefusedWhileTakenOver() = runBlocking {
+        val wake = graph.now().plusHours(7)
+        assertEquals(OutcomeKind.LOCAL, graph.actions.setWakeOverride(wake).kind)
+        val n = start()
+        assertEquals(WakeOrigin.OVERRIDE, n.wakeOrigin)
+        advance(30)
+        physicalRemote(Codec.setMode(Mode.STANDBY)!!)
+        val slot = demo.slots[n.slot]; val count = sent.size
+        val outcome = graph.actions.setWakeOverride(null)
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
+        assertTakenOver(n, slot, count)
+        assertNotNull("the override stays: the night was not rewritten", graph.repository.settings.value.tonightOverride)
+    }
+
+    // Carried from the IR-04 review: a start that fails NotConnected after its upload leaves the night UNKNOWN, and
+    // nothing retries, replays or loops on it.
+
+    @Test fun aRetimeWhoseStartFailsAfterUploadIsNeverReplayed() = runBlocking {
+        val n = start(); advance(30)
+        queueAlarmChange()
+        beforeSend = { if (it[0] == 0x01.toByte() && it[1].toInt() and 0xff in 0x80..0x82) throw BedJetError.NotConnected() }
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
+        val after = graph.repository.activeNight.value!!
+        assertEquals(n.identity, after.identity)
+        assertEquals(Confidence.UNKNOWN, after.confidence)
+        assertNull(graph.repository.runtime.value.retime)
+        assertFalse(graph.actions.retimePending)
+        assertFalse("no retry alarm", retryScheduled())
+        beforeSend = {}
+        val count = sent.size
+        assertNull("nothing pending to retry", graph.actions.retryPendingRetime())
+        // A later alarm change, Reapply or wake override each refuse a night that must be checked first.
+        moveAlarm(6)
+        graph.actions.submitAlarmChange()
+        assertFalse(graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME)).succeeded)
+        assertFalse(graph.actions.execute(graph.actions.capture(NightActions.Command.REAPPLY)).succeeded)
+        assertFalse(graph.actions.setWakeOverride(graph.now().plusHours(6)).succeeded)
+        // The alarm change's own observation alarm may still fire once; it finds nothing to do and writes nothing.
+        assertFalse(graph.actions.retimePending)
+        assertNull(graph.actions.retryPendingRetime())
+        assertFalse(graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME)).succeeded)
+        assertEquals("no write, no start", count, sent.size)
         assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
     }
 }
