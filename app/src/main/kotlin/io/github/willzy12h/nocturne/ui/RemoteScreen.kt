@@ -57,7 +57,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.TURBO, Mode.DRY, Mode.STANDBY).forEach { mode ->
-                FilterChip(s.mode == mode, { guard.confirm(if (mode == Mode.STANDBY) "turn the BedJet off" else "switch to ${Format.modeName(mode)}") { model.remote(Format.modeName(mode)) { it.setMode(mode) } } }, label = { Text(Format.modeName(mode)) })
+                FilterChip(s.mode == mode, { guard.confirm(if (mode == Mode.STANDBY) "turn the BedJet off" else "switch to ${Format.modeName(mode)}") { model.remote(Format.modeName(mode), endsNight = true) { it.setMode(mode) } } }, label = { Text(Format.modeName(mode)) })
             }
         }
         if (s.isRunning && s.mode.usesTemperature) {
@@ -66,7 +66,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Slider(
                 temp, { temp = it }, valueRange = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
                 steps = (s.maxTemperature - s.minTemperature - 1).coerceAtLeast(0),
-                onValueChangeFinished = { model.remote("Temperature set") { it.setTemperature(temp.roundToInt()) } },
+                onValueChangeFinished = { model.remote("Temperature set", affectsProgramme = true) { it.setTemperature(temp.roundToInt()) } },
             )
         }
         if (s.isRunning && s.mode.usesFan) {
@@ -74,19 +74,19 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Text("Fan ${fan.roundToInt()}%")
             Slider(
                 fan, { fan = it }, valueRange = 5f..100f, steps = 18,
-                onValueChangeFinished = { model.remote("Fan set") { it.setFan((fan / 5).roundToInt() - 1) } },
+                onValueChangeFinished = { model.remote("Fan set", affectsProgramme = true) { it.setFan((fan / 5).roundToInt() - 1) } },
             )
         }
         if (s.isRunning) {
             Text("Run for", style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60, 120, 240, 480).forEach { minutes ->
-                    AssistChip({ model.remote("Timer set") { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
+                    AssistChip({ model.remote("Timer set", affectsProgramme = true) { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
                 }
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton({ guard.confirm("start Boost") { model.run(Command.BOOST) } }) { Text("Boost ${settings.boostMinutes}m") }
+            FilledTonalButton({ guard.confirm("start Boost") { model.run(Command.BOOST, replacementConfirmed = true) } }) { Text("Boost ${settings.boostMinutes}m") }
         }
         s.extra?.let { extra ->
             SwitchRow("Lights", null, extra.ledEnabled) { on -> model.remote("Lights ${if (on) "on" else "off"}") { it.setLed(on) } }

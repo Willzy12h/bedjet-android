@@ -13,26 +13,44 @@ import io.github.willzy12h.nocturne.ui.MainActivity
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.RuntimeEnvironment
 import java.time.Duration
 import org.robolectric.annotation.Config
+import kotlinx.coroutines.runBlocking
 
 /** The theme choice and simple view, on the real app over the demo BedJet. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class AppearanceTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    private val compose = createAndroidComposeRule<MainActivity>()
+    private val pinClock = TestRule { base, _ ->
+        object : org.junit.runners.model.Statement() {
+            override fun evaluate() {
+                val app = RuntimeEnvironment.getApplication() as App
+                val oldClock = app.graph.clock
+                app.graph.clock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-21T22:30:00Z"), java.time.ZoneOffset.UTC)
+                try { base.evaluate() } finally { app.graph.clock = oldClock }
+            }
+        }
+    }
+    @get:Rule val rules: TestRule = RuleChain.outerRule(pinClock).around(compose)
 
     private val graph get() = compose.activity.graph
+
 
     @Before
     fun demoMode() {
         compose.runOnUiThread {
-            graph.repository.updateSettings { it.copy(demoMode = true, simpleView = false, themeMode = ThemeMode.SYSTEM) }
-            graph.repository.setActiveNight(null)
+            runBlocking {
+                graph.repository.updateSettings { it.copy(demoMode = true, simpleView = false, themeMode = ThemeMode.SYSTEM) }
+                graph.repository.setActiveNight(null)
+            }
         }
     }
 
@@ -47,7 +65,7 @@ class AppearanceTest {
 
     @Test
     fun simpleViewListsTheNightAndEndsAtTheWakeTime() {
-        compose.runOnUiThread { graph.repository.updateSettings { it.copy(simpleView = true) } }
+        compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } } }
         waitFor(hasText("Wake time") or hasText("Your alarm"))
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Boost").performScrollTo().assertIsDisplayed()
@@ -58,9 +76,12 @@ class AppearanceTest {
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Light").performScrollTo().performClick()
         waitForText("Simple view")
+        // Settings are saved off the main thread and show once they are on disk.
+        compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.SYSTEM }
         assertEquals(ThemeMode.LIGHT, graph.repository.settings.value.themeMode)
         compose.onNodeWithText("Dark").performScrollTo().performClick()
         waitForText("Simple view")
+        compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.LIGHT }
         assertEquals(ThemeMode.DARK, graph.repository.settings.value.themeMode)
     }
 }

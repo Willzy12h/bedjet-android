@@ -1,0 +1,64 @@
+package io.github.willzy12h.nocturne.ble
+
+import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.protocol.Codec
+import kotlinx.coroutines.*
+import org.junit.Assert.*
+import org.junit.Test
+
+class GattVerifiedNameTest {
+    private val address="AA:BB:CC:DD:EE:FF"
+    private val timings=GattLink.Timings(operationMs=300,connectMs=500,mtuFallbackMs=100,firstStatusMs=100,retryBackoffMs=listOf(1),remainderEveryMs=10_000)
+    @Test fun verifiedNameComesFromExactCharacteristicNotQueryDisplayName() = runBlocking {
+        val fake=FakeRadio();fake.behaviour=FakeRadio.Behaviour(nameBytes=" BedJet Ω \u0000ignored".toByteArray())
+        val names=mutableListOf<Pair<String,String?>>()
+        val link=GattLink(fake.radio,{DeviceId.ble(address)},timings,onVerifiedName={device,name->names+=device to name})
+        try {
+            link.connect()
+            assertEquals(DeviceId.ble(address) to " BedJet Ω ",names.lastOrNull())
+            assertTrue(fake.ports.single().reads.contains(Attr.NAME))
+            assertEquals("BEDJET 3",Codec.parseText(link.query(Codec.Query.DEVICE_NAME)))
+        } finally {link.shutdown()}
+    }
+    @Test fun targetChangeDuringNameQueryRetiresOldSessionWithoutPublishingItsVerifiedName() = runBlocking {
+        val fake=FakeRadio();fake.behaviour=FakeRadio.Behaviour(nameBytes="Original unit".toByteArray())
+        var target=DeviceId.ble(address)
+        val next=DeviceId.ble("11:22:33:44:55:66")
+        val names=mutableListOf<Pair<String,String?>>()
+        val link=GattLink(fake.radio,{target},timings,onName={_,_->target=next},
+            onVerifiedName={device,name->names+=device to name})
+        try {
+            assertThrows<io.github.willzy12h.nocturne.core.link.BedJetError.NotConnected> { link.connect() }
+            assertEquals(listOf(address), fake.connects)
+            assertTrue(fake.ports.single().closed)
+            assertFalse(names.any { it.first == DeviceId.ble(address) && it.second != null })
+            link.connect()
+            assertEquals(next to "Original unit", names.last())
+        }
+        finally {link.shutdown()}
+    }
+    @Test fun unknownNameDoesNotPreventOrdinaryControl() = runBlocking {
+        val fake=FakeRadio();val names=mutableListOf<Pair<String,String?>>()
+        val link=GattLink(fake.radio,{DeviceId.ble(address)},timings,onVerifiedName={device,name->names+=device to name})
+        try {
+            link.connect();link.send(Codec.setFan(4))
+            assertEquals(LinkState.READY,link.state.value)
+            assertEquals(DeviceId.ble(address) to null,names.lastOrNull())
+        } finally {link.shutdown()}
+    }
+    @Test fun timedOutOptionalReadRetiresSessionAndLateNameCannotBindToRetry() = runBlocking {
+        val fake=FakeRadio();fake.behaviour=FakeRadio.Behaviour(nameBytes="unverified".toByteArray(),answersNames=false)
+        val names=mutableListOf<Pair<String,String?>>()
+        val link=GattLink(fake.radio,{DeviceId.ble(address)},timings,onVerifiedName={device,name->names+=device to name})
+        try {
+            link.connect()
+            assertEquals(2,fake.ports.size)
+            assertTrue(fake.ports.first().closed)
+            assertEquals(LinkState.READY,link.state.value)
+            fake.ports.first().sink.onRead(Attr.NAME,"late".toByteArray(),GATT_SUCCESS)
+            fake.drain()
+            assertFalse(names.any {it.second!=null})
+        } finally {link.shutdown()}
+    }
+}

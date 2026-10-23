@@ -38,9 +38,12 @@ import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
+import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.core.store.WakeAction
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.notify.Notifications
+import io.github.willzy12h.nocturne.ui.features.PlatformSettingsSection
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -50,9 +53,11 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
     val settings by model.settings.collectAsState()
     val snapshots by model.snapshots.collectAsState()
     val slotBackups by model.slotBackups.collectAsState()
+    val unreadable by model.unreadable.collectAsState()
     val alarm by model.nextAlarm.collectAsState()
     val f = settings.fahrenheit
     var restoring by remember { mutableStateOf<SnapshotInfo?>(null) }
+    var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
     var snapshotLabel by remember { mutableStateOf("") }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
@@ -62,9 +67,18 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
 
         Group("Appearance") {
             Text("Theme", style = MaterialTheme.typography.bodyLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(settings.themeMode == mode, { model.updateSettings { it.copy(themeMode = mode) } }, label = { Text(themeName(mode)) })
+                }
+            }
+            if (settings.themeMode == ThemeMode.SCHEDULED) {
+                Text("Use Midnight Ink at night and Daylight during the day. Equal times keep Midnight Ink all day.", style = MaterialTheme.typography.bodySmall)
+                TimeRow("Midnight Ink from", settings.scheduledDarkMinute) { minute ->
+                    model.updateSettings { it.copy(scheduledDarkMinute = minute) }
+                }
+                TimeRow("Daylight from", settings.scheduledLightMinute) { minute ->
+                    model.updateSettings { it.copy(scheduledLightMinute = minute) }
                 }
             }
             SwitchRow("Simple view", "Show tonight as a list of steps instead of the curve.", settings.simpleView) { on ->
@@ -82,10 +96,12 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 (0..2).forEach { slot -> FilterChip(settings.workingSlot == slot, { model.updateSettings { it.copy(workingSlot = slot) } }, label = { Text("Slot ${slot + 1}") }) }
             }
-            slotBackups.forEach { backup ->
+            slotBackups.filter { it.deviceId == settings.deviceId() }.forEach { backup ->
+                // An empty-slot marker has nothing to put back yet.
+                val program = backup.program ?: return@forEach
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Saved from slot ${backup.slot + 1}: ${backup.program.name} (${backup.program.steps.size} steps)", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { model.restoreSlot(backup.slot, backup.program) }) { Text("Put back") }
+                    Text("Saved from slot ${backup.slot + 1}: ${program.name} (${program.steps.size} steps)", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { restoringSlot = backup }) { Text("Preview & put back") }
                 }
             }
             SwitchRow("Show °F", null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
@@ -124,23 +140,37 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (next?.creator != null && !next.counts) {
-                FilledTonalButton(onClick = { model.updateSettings { it.copy(alarmPackages = it.alarmPackages + next.creator!!) }; model.refreshAlarm() }) {
+                FilledTonalButton(onClick = { model.useAlarmsFrom(next.creator!!) }) {
                     Text("Use alarms from ${next.creator}")
                 }
             }
             Text("Used from: ${settings.alarmPackages.joinToString()}", style = MaterialTheme.typography.bodySmall)
         }
 
-        Group("Phone setup") { SetupChecks(showAll = true) }
+        Group("Phone setup") {
+            SetupChecks(showAll = true)
+            SetupFlow(model)
+        }
+
+        PlatformSettingsSection(model.graph)
 
         Group("Backups and snapshots") {
+            if (unreadable.isNotEmpty()) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Some saved data could not be read", style = MaterialTheme.typography.titleSmall)
+                        Text("Copies have been set aside: ${unreadable.joinToString()}. Check your backup before restoring. Dismissing this notice does not make an unknown slot safe to overwrite.")
+                        TextButton(onClick = model::dismissUnreadable) { Text("Dismiss notice") }
+                    }
+                }
+            }
             Text("A snapshot is taken automatically when you change profiles or settings (the last 20 are kept) and once a day. Your own snapshots are kept until you delete them.", style = MaterialTheme.typography.bodySmall)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(snapshotLabel, { snapshotLabel = it.take(40) }, label = { Text("Label") }, singleLine = true, modifier = Modifier.weight(1f))
                 FilledTonalButton(onClick = { model.snapshotNow(snapshotLabel); snapshotLabel = "" }) { Text("Snapshot now") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { exporter.launch("nocturne-backup-${LocalDate.now()}.json") }) { Text("Export file") }
+                OutlinedButton(onClick = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }) { Text("Export file") }
                 OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Restore from file") }
             }
             snapshots.forEach { snap ->
@@ -209,12 +239,34 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
             dismissButton = { TextButton(onClick = { restoring = null }) { Text("Cancel") } },
         )
     }
+    restoringSlot?.let { backup ->
+        val program = backup.program
+        AlertDialog(
+            onDismissRequest = { restoringSlot = null },
+            title = { Text("Restore original slot ${backup.slot + 1}?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This writes the saved original back to slot ${backup.slot + 1} on the selected BedJet 3. It does not start a night. An active night must be ended first.")
+                    if (program != null) {
+                        Text("Saved programme: ${program.name} · ${program.steps.size} steps")
+                        program.steps.forEachIndexed { index, step ->
+                            val duration = if (step.endsAtClockTime) "ends at ${Format.clockOfDay(step.hours * 60 + step.minutes)}" else "${step.durationMinutes} min"
+                            Text("${index + 1}. ${Format.modeName(step.mode)}, fan ${(step.fanStep + 1) * 5}%, $duration", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { model.restoreSlot(backup); restoringSlot = null }) { Text("Put original back") } },
+            dismissButton = { TextButton(onClick = { restoringSlot = null }) { Text("Cancel") } },
+        )
+    }
 }
 
 private fun themeName(mode: ThemeMode) = when (mode) {
     ThemeMode.SYSTEM -> "System"
     ThemeMode.DARK -> "Dark"
     ThemeMode.LIGHT -> "Light"
+    ThemeMode.SCHEDULED -> "Scheduled"
 }
 
 @Composable

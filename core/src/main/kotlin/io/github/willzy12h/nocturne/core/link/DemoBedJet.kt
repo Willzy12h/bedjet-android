@@ -51,6 +51,11 @@ class DemoBedJet(
         _state.value = LinkState.SEARCHING
     }
 
+    /** StateFlow conflates equal values: forget progress so even an identical first step confirms freshly. */
+    override suspend fun prepareForStart() {
+        _status.value = _status.value?.copy(extra = null)
+    }
+
     override suspend fun send(command: ByteArray) {
         if (_state.value != LinkState.READY) throw BedJetError.NotConnected()
         val b = command.map { it.toInt() and 0xff }

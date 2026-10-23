@@ -16,9 +16,15 @@
     <!-- Only for the update check. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <queries><package android:name="com.google.android.apps.healthdata" /></queries>
+
     <application
         android:name=".App"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.Nocturne"
@@ -29,10 +35,41 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
-        <!-- App shortcuts (and Samsung Routines / Bixby) land here; it hands the command to the service and closes. -->
+        <activity android:name=".platform.PlatformActionActivity" android:exported="false" />
+        <activity android:name=".platform.HealthRationaleActivity" android:exported="true">
+            <intent-filter><action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" /></intent-filter>
+        </activity>
+        <activity-alias android:name=".platform.HealthPermissionUsageActivity" android:exported="true"
+            android:targetActivity=".platform.HealthRationaleActivity" android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+        <service android:name=".platform.ChargerJobService" android:exported="true" android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service android:name=".platform.NightTileService" android:exported="true" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:icon="@drawable/ic_notification" android:label="@string/app_name">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
+        </service>
+        <receiver android:name=".platform.PlatformClockReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".platform.AutomationCancelReceiver" android:exported="false" />
+        <receiver android:name=".platform.BedtimeReminderReceiver" android:exported="false" />
+
+        <!-- App shortcuts (and Samsung Routines / Bixby) land here for visible confirmation before the service owns the command. -->
         <activity android:name=".ui.ShortcutActivity" android:exported="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true"
             android:noHistory="true" />
@@ -44,7 +81,7 @@
         </activity>
 
         <service android:name=".service.BedJetService" android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
+            android:foregroundServiceType="connectedDevice|shortService" />
 
         <!-- The night's own alarms, sent only by this app. -->
         <receiver android:name=".night.NightAlarmReceiver" android:exported="false" />
@@ -53,6 +90,9 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
         <receiver android:name=".night.AlarmChangedReceiver" android:exported="true">
@@ -61,13 +101,13 @@
             </intent-filter>
         </receiver>
 
-        <receiver android:name=".widget.QuickControlsReceiver" android:exported="true" android:label="Nocturne controls">
+        <receiver android:name=".widget.QuickControlsReceiver" android:exported="true" android:label="@string/feature_widget_controls">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/quick_controls_widget" />
         </receiver>
-        <receiver android:name=".widget.SingleActionReceiver" android:exported="true" android:label="Nocturne button">
+        <receiver android:name=".widget.SingleActionReceiver" android:exported="true" android:label="@string/feature_widget_button">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

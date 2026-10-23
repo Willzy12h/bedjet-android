@@ -20,10 +20,9 @@ fun interface NightGuard {
 fun rememberNightGuard(model: AppViewModel): NightGuard {
     val night by model.activeNight.collectAsState()
     val profiles by model.profiles.collectAsState()
-    var pending by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+    var pending by remember { mutableStateOf<Triple<String, io.github.willzy12h.nocturne.core.night.ActiveNight, () -> Unit>?>(null) }
 
-    pending?.let { (what, action) ->
-        val running = night
+    pending?.let { (what, running, action) ->
         val name = profiles.firstOrNull { it.id == running?.profileId }?.name ?: "Tonight's night"
         AlertDialog(
             onDismissRequest = { pending = null },
@@ -34,9 +33,9 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
                         ". This will $what, and the night won't continue.",
                 )
             },
-            confirmButton = { TextButton(onClick = { pending = null; action() }) { Text("Stop night and continue") } },
+            confirmButton = { TextButton(onClick = { pending = null; model.withConfirmedNight(running.identity, action) }) { Text("Stop night and continue") } },
             dismissButton = { TextButton(onClick = { pending = null }) { Text("Keep tonight") } },
         )
     }
-    return NightGuard { what, action -> if (night == null) action() else pending = what to action }
+    return NightGuard { what, action -> if (night == null) action() else pending = Triple(what, night!!, action) }
 }

@@ -13,7 +13,9 @@ import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -34,15 +36,26 @@ import java.time.ZonedDateTime
 class NightActionsTest {
     private val context: Context = RuntimeEnvironment.getApplication()
     private val graph get() = context.graph
+    private var previousClock: java.time.Clock? = null
+
+    @org.junit.Before
+    fun fixedNightClock() {
+        previousClock = graph.clock
+        graph.clock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-21T22:30:00Z"), java.time.ZoneOffset.UTC)
+    }
+
+    @org.junit.After
+    fun restoreClock() { previousClock?.let { graph.clock = it } }
+
 
     @Before
-    fun demoMode() {
+    fun demoMode() = runBlocking {
         graph.repository.updateSettings { it.copy(demoMode = true) }
         graph.repository.setActiveNight(null)
     }
 
-    private fun runningNight(): ActiveNight {
-        val start = ZonedDateTime.now().minusHours(1)
+    private suspend fun runningNight(): ActiveNight {
+        val start = graph.now().minusHours(1)
         val profile = graph.repository.profiles.value.first()
         val night = ActiveNight(
             recordId = "night-test", profileId = profile.id, startedAt = start.toString(),
@@ -66,14 +79,15 @@ class NightActionsTest {
         val before = graph.repository.activeNight.value!!
         // No creator package, so it counts as the clock app's alarm.
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
-        val at = ZonedDateTime.now().plusHours(5).withSecond(0).withNano(0)
+        val at = graph.now().plusHours(5).withSecond(0).withNano(0)
         context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), null), fire)
 
         graph.actions.perform(Command.RETIME)
 
         val after = graph.repository.activeNight.value!!
         assertEquals(at.toInstant(), ZonedDateTime.parse(after.wakeAt).toInstant())
-        val notice = graph.repository.notices.value.first()
+        // The notification log is saved in the background.
+        val notice = withTimeout(5_000) { graph.repository.notices.first { it.firstOrNull()?.kind == io.github.willzy12h.nocturne.core.store.NoticeKind.INFO } }.first()
         assertEquals(io.github.willzy12h.nocturne.core.store.NoticeKind.INFO, notice.kind)
         assertEquals(true, notice.title.startsWith("Wake-up moved to"))
         assertEquals(true, notice.text.contains(java.time.format.DateTimeFormatter.ofPattern("HH:mm").format(ZonedDateTime.parse(before.wakeAt))))
@@ -91,7 +105,7 @@ class NightActionsTest {
         // Created by this app, which isn't one of the allowed clock apps.
         val show = PendingIntent.getActivity(context, 0, Intent(), PendingIntent.FLAG_IMMUTABLE)
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
-        val at = ZonedDateTime.now().plusHours(3).toInstant().toEpochMilli()
+        val at = graph.now().plusHours(3).toInstant().toEpochMilli()
         context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at, show), fire)
         assertEquals(false, AlarmSource.describe(context, graph.repository.settings.value)?.counts)
 
@@ -105,7 +119,7 @@ class NightActionsTest {
         val started = graph.actions.perform(Command.START_NIGHT, graph.repository.profiles.value.first().id)
         val night = graph.repository.activeNight.value
         assertNotNull(started, night)
-        assertEquals("Turbo for 10 minutes.", graph.actions.perform(Command.TURBO))
+        assertEquals("Turbo for 10 minutes.", graph.actions.perform(Command.TURBO, replacementConfirmed = true))
         assertNull(graph.repository.activeNight.value)
         val events = graph.repository.history.value.first { it.id == night!!.recordId }.events
         assertEquals(EventKind.STOPPED, events.last().kind)
@@ -117,7 +131,7 @@ class NightActionsTest {
     }
 
     @Test
-    fun endingTheNightClearsAPendingRetime() {
+    fun endingTheNightClearsAPendingRetime() = runBlocking {
         val night = runningNight()
         context.getSharedPreferences("night-actions", Context.MODE_PRIVATE).edit().putBoolean("retimePending", true).commit()
         graph.actions.finish(night, EventKind.ENDED, "Night finished")

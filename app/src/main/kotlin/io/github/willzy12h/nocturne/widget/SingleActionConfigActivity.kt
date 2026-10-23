@@ -19,6 +19,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.glance.appwidget.GlanceAppWidgetManager
@@ -27,6 +31,7 @@ import androidx.lifecycle.lifecycleScope
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.ui.NocturneTheme
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 /** Picks what a single-button widget does. */
 class SingleActionConfigActivity : ComponentActivity() {
@@ -39,13 +44,15 @@ class SingleActionConfigActivity : ComponentActivity() {
         val actions = widgetActions(this)
         setContent {
             val settings by graph.repository.settings.collectAsState()
-            NocturneTheme(settings.themeMode) {
+            var now by remember { mutableStateOf(graph.now()) }
+            LaunchedEffect(Unit) { while (true) { delay(1_000); now = graph.now() } }
+            NocturneTheme(settings, now) {
                 Surface(Modifier.fillMaxSize()) {
                     Column(
                         Modifier.systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("What should this button do?", style = MaterialTheme.typography.titleLarge)
+                        Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.feature_widget_config), style = MaterialTheme.typography.titleLarge)
                         actions.forEach { action ->
                             FilledTonalButton(onClick = { choose(widgetId, action) }, modifier = Modifier.fillMaxWidth()) { Text(action.label) }
                         }

@@ -1,10 +1,11 @@
 package io.github.willzy12h.nocturne.core.plan
 
+import io.github.willzy12h.nocturne.core.night.WakeOrigin
 import java.time.Duration
 import java.time.LocalTime
 import java.time.ZonedDateTime
 
-data class WakeChoice(val time: ZonedDateTime, val fromAlarm: Boolean)
+data class WakeChoice(val time: ZonedDateTime, val fromAlarm: Boolean, val origin: WakeOrigin = if (fromAlarm) WakeOrigin.ALARM else WakeOrigin.PROFILE_DEFAULT)
 
 /** Decides when a night ends: the next alarm when it fits the night, otherwise the profile's own wake time. */
 object WakeResolver {
@@ -17,10 +18,7 @@ object WakeResolver {
     private val BEDTIME_GRACE: Duration = Duration.ofHours(3)
 
     fun resolve(profile: Profile, now: ZonedDateTime, alarm: ZonedDateTime?): WakeChoice {
-        if (profile.wakeSource.useAlarm && alarm != null) {
-            val away = Duration.between(now, alarm)
-            if (away >= MIN_NIGHT && away <= MAX_NIGHT) return WakeChoice(alarm, fromAlarm = true)
-        }
+        if (profile.wakeSource.useAlarm && AlarmPolicy().accept(alarm, null, now)) return WakeChoice(alarm!!, true)
         return WakeChoice(nextOccurrence(profile.wakeSource.defaultWakeMinute, now.plus(MIN_NIGHT)), fromAlarm = false)
     }
 

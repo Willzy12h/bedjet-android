@@ -1,53 +1,30 @@
 package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.plan.Profile
-import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
-/** A button on the wake-up notification. */
+/**
+ * What a BedJet's slot held before the app first overwrote it, on the device named by [deviceId] (a
+ * [io.github.willzy12h.nocturne.core.link.DeviceId], or [Migrations.UNKNOWN_DEVICE] for one saved before devices were
+ * recorded). [empty] marks a slot that held nothing, so putting it back means leaving it empty.
+ */
 @Serializable
-enum class WakeAction { SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL, OFF }
-
-/** What a quick action runs: a mode at a temperature (half °C) and fan for a number of minutes. */
-@Serializable
-data class ActionPreset(val mode: Mode, val temperature: Int, val fanPercent: Int, val minutes: Int)
-
-/** Which palette the app and widgets use. SYSTEM follows the phone's dark theme setting. */
-@Serializable
-enum class ThemeMode { SYSTEM, DARK, LIGHT }
-
-@Serializable
-data class Settings(
-    /** BedJet slot (0-based) that tonight's plan is written into. */
-    val workingSlot: Int = 2,
-    val selectedProfileId: String? = null,
-    /** Up to three, in the order they appear on the notification. */
-    val notificationActions: List<WakeAction> = listOf(WakeAction.SNOOZE_WARM, WakeAction.EXTEND_COOL, WakeAction.OFF),
-    val snoozeWarm: ActionPreset = ActionPreset(Mode.HEAT, 66, 40, 10),
-    val snoozeCool: ActionPreset = ActionPreset(Mode.COOL, 44, 50, 10),
-    val extendWarm: ActionPreset = ActionPreset(Mode.HEAT, 64, 30, 30),
-    val extendCool: ActionPreset = ActionPreset(Mode.COOL, 44, 40, 30),
-    /** Boost: Turbo for its 10 minutes, then Heat for the rest. */
-    val boostMinutes: Int = 15,
-    val fahrenheit: Boolean = false,
-    val demoMode: Boolean = false,
-    /** GitHub `owner/repo` whose latest release is checked for updates. The token is kept outside backups. */
-    val updateRepo: String = "Willzy12h/bedjet-android",
-    val autoUpdateCheck: Boolean = false,
-    /** Alarms set by these apps move the wake-up; others (calendar reminders, timers) don't. */
-    val alarmPackages: Set<String> = setOf("com.google.android.deskclock", "com.sec.android.app.clockpackage"),
-    // Appearance. Defaults keep older saved settings and backups loading unchanged.
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    /** Tonight shows the night as a list of steps instead of the bar curve. */
-    val simpleView: Boolean = false,
+data class SlotBackup(
+    val deviceId: String,
+    val slot: Int,
+    val program: StoredProgram?,
+    val savedAt: String,
+    val empty: Boolean = program == null,
+    /** Imported unknown-device records cannot identify the BedJet whose original they contain. */
+    val imported: Boolean = false,
 )
-
-/** A program the app found in a BedJet slot before it first overwrote it. */
-@Serializable
-data class SlotBackup(val slot: Int, val program: StoredProgram, val savedAt: String)
 
 @Serializable
 data class BackupBundle(
@@ -59,10 +36,14 @@ data class BackupBundle(
     val history: List<NightRecord> = emptyList(),
 )
 
-class BackupException(message: String) : Exception(message)
+/** A backup that can't be used. [errors] lists every problem found, each a sentence a person can act on. */
+class BackupException(message: String, val errors: List<String> = listOf(message)) : Exception(message) {
+    constructor(errors: List<String>) : this(errors.joinToString("\n"), errors)
+}
 
 object BackupCodec {
-    const val SCHEMA = 1
+    /** 2 added the device to slot backups and nights, and the empty-slot marker. See [Migrations]. */
+    const val SCHEMA = 2
 
     val json = Json {
         ignoreUnknownKeys = true
@@ -70,17 +51,24 @@ object BackupCodec {
         prettyPrint = true
     }
 
+    private const val DAMAGED = "This isn't a Nocturne backup, or it is damaged."
+    private const val NEWER = "This backup is from a newer version of Nocturne. Update the app first."
+
     fun encode(bundle: BackupBundle): String = json.encodeToString(BackupBundle.serializer(), bundle)
 
-    fun decode(text: String): BackupBundle {
-        val bundle = try {
-            json.decodeFromString(BackupBundle.serializer(), text)
-        } catch (e: SerializationException) {
-            throw BackupException("This isn't a Nocturne backup, or it is damaged.")
-        } catch (e: IllegalArgumentException) {
-            throw BackupException("This isn't a Nocturne backup, or it is damaged.")
-        }
-        if (bundle.schema > SCHEMA) throw BackupException("This backup is from a newer version of Nocturne. Update the app first.")
-        return bundle
+    /** Decodes a bundle of any schema up to [SCHEMA], migrating an older one first. */
+    fun decode(text: String): BackupBundle = try {
+        decode(json.parseToJsonElement(text).jsonObject)
+    } catch (e: SerializationException) {
+        throw BackupException(DAMAGED)
+    } catch (e: IllegalArgumentException) {
+        throw BackupException(DAMAGED)
+    }
+
+    /** As [decode], from the parsed JSON object. */
+    fun decode(obj: JsonObject): BackupBundle {
+        val schema = obj["schema"]?.jsonPrimitive?.int ?: 1
+        if (schema > SCHEMA) throw BackupException(NEWER)
+        return json.decodeFromJsonElement(BackupBundle.serializer(), Migrations.bundle(obj))
     }
 }

@@ -16,12 +16,26 @@ interface BedJetLink {
     suspend fun disconnect()
     /** Writes a command and waits for the unit to acknowledge it. */
     suspend fun send(command: ByteArray)
+    /** Checks a start's deadline at the transport write boundary, after reconnect and queue wait. */
+    suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+        beforeWrite()
+        send(command)
+    }
     /** Asks the unit for stored data and returns the reply payload, without the echoed request and tag. */
     suspend fun query(request: Int): ByteArray
+    /**
+     * Called before a program start is sent: forget the program progress last reported, so only a report that
+     * arrives afterwards can confirm the start. Links without split status reports need do nothing.
+     */
+    suspend fun prepareForStart() {}
+    /** Releases preparation if the start is withheld or interrupted before the link completes its write. */
+    fun cancelPreparedStart() {}
 }
 
 sealed class BedJetError(message: String) : Exception(message) {
-    class NotConnected : BedJetError("Couldn't reach your BedJet. Check that it's plugged in and nearby.")
+    class NotConnected(
+        message: String = "Couldn't reach your BedJet. Check that it's plugged in and nearby.",
+    ) : BedJetError(message)
     class Timeout : BedJetError("Your BedJet didn't respond. Move closer and try again.")
     class BadResponse : BedJetError("Your BedJet sent something unexpected. Try again.")
     class VerifyFailed : BedJetError("The night didn't save to your BedJet correctly. Try again.")

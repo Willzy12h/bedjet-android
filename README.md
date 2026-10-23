@@ -54,8 +54,8 @@ so the check needs a GitHub token: a fine-grained token with read-only "Contents
 An update only installs over the old version when both are signed with the same key. Set up the release key once:
 
 ```bash
-keytool -genkeypair -v -keystore nocturne-release.jks -alias nocturne -keyalg RSA -keysize 4096 -validity 36500
-base64 -w0 nocturne-release.jks   # paste the output into the secret below
+keytool -genkeypair -v -keystore /secure/location/outside-this-repo/nocturne-release.jks -alias nocturne -keyalg RSA -keysize 4096 -validity 36500
+base64 -w0 /secure/location/outside-this-repo/nocturne-release.jks   # paste the output into the secret below
 ```
 
 Then add these repository secrets (Settings → Secrets and variables → Actions):
@@ -65,10 +65,18 @@ Then add these repository secrets (Settings → Secrets and variables → Action
 - `NOCTURNE_KEY_ALIAS` (`nocturne`)
 - `NOCTURNE_KEY_PASSWORD`
 
+Before creating a version tag, also set these Actions repository variables:
+
+- `NOCTURNE_RELEASE_CERT_SHA256`: the SHA-256 certificate digest of the established release key, as printed by `apksigner verify --print-certs`.
+- `NOCTURNE_RELEASE_VERSION_CODE`: the integer code for this release.
+- `NOCTURNE_PREVIOUS_VERSION_CODE`: the last published release code; the new code must be greater.
+
 Keep the `.jks` file safe: losing it means uninstalling to update (export a backup first).
 
-To release, push a tag such as `v0.2.0`. GitHub Actions tests the app, builds a signed APK and attaches it to a
-release.
+Local `assembleRelease` builds a minified, unsigned APK unless all four `NOCTURNE_*` signing values are set.
+An incomplete or invalid signing configuration fails the build; it never substitutes the debug key. Pull requests
+build an unsigned inspection APK. A version tag such as `v0.2.0` publishes only after the configured key signs the
+APK and CI verifies its signature, expected signer and increasing version code. Keep the production key outside Git and backed up securely.
 
 ## Development
 

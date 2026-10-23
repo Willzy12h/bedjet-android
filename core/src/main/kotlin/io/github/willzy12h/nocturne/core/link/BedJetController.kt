@@ -56,30 +56,45 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
     /**
      * Sets the unit's clock and starts a slot, then waits for the unit to report the first step running.
      * A unit that can't run the program stays off and raises a notification instead, which is cleared here.
+     * [beforePrepare] may read fresh status after clock sync and before start preparation.
+     * [beforeStart] can reject an expired request after clock sync/status preparation, immediately before sending
+     * the start command. If it throws, this scope cancels the confirmation waiter without issuing a start.
      */
-    suspend fun startProgram(slot: Int) = coroutineScope {
+    suspend fun startProgram(slot: Int, onStartAttempt: () -> Unit = {},
+        beforePrepare: suspend () -> Unit = {}, beforeStart: () -> Unit = {}) = coroutineScope {
         syncClock()
-        // Only reports that arrive after the start count: a program already running would otherwise look like
-        // this one starting, and a refusal that follows would be missed.
-        val reply = async(start = CoroutineStart.UNDISPATCHED) {
-            withTimeoutOrNull(START_CONFIRMATION_MS) {
-                link.status.drop(1).first { status ->
-                    val extra = status?.extra ?: return@first false
-                    extra.programStep == 1 || extra.notification in REFUSALS
+        beforePrepare()
+        // Only reports that arrive after this count: a program already running would otherwise look like this one
+        // starting, and a refusal that follows would be missed. The link forgets the progress it last saw first.
+        try {
+            link.prepareForStart()
+            val reply = async(start = CoroutineStart.UNDISPATCHED) {
+                withTimeoutOrNull(START_CONFIRMATION_MS) {
+                    link.status.drop(1).first { status ->
+                        val extra = status?.extra ?: return@first false
+                        extra.programStep == 1 || extra.notification in REFUSALS
+                    }
                 }
             }
-        }
-        link.send(Codec.startProgram(slot))
-        var outcome = reply.await() ?: throw BedJetError.Timeout()
-        if (outcome.extra?.notification !in REFUSALS) {
-            // A refusal can follow the first report; give it a moment.
-            outcome = withTimeoutOrNull(REFUSAL_GRACE_MS) {
-                link.status.first { it?.extra?.notification in REFUSALS }
-            } ?: outcome
-        }
-        when (outcome.extra?.notification) {
-            Codec.Notification.PROGRAM_TOO_LONG -> { acknowledge(); throw BedJetError.ProgramTooLong() }
-            Codec.Notification.PROGRAM_NEEDS_CLOCK -> { acknowledge(); throw BedJetError.ClockNotSet() }
+            beforeStart()
+            link.sendGuarded(Codec.startProgram(slot)) {
+                beforeStart()
+                // This runs at the transport write boundary, after the final temporal guard.
+                onStartAttempt()
+            }
+            var outcome = reply.await() ?: throw BedJetError.Timeout()
+            if (outcome.extra?.notification !in REFUSALS) {
+                // A refusal can follow the first report; give it a moment.
+                outcome = withTimeoutOrNull(REFUSAL_GRACE_MS) {
+                    link.status.first { it?.extra?.notification in REFUSALS }
+                } ?: outcome
+            }
+            when (outcome.extra?.notification) {
+                Codec.Notification.PROGRAM_TOO_LONG -> { acknowledge(); throw BedJetError.ProgramTooLong() }
+                Codec.Notification.PROGRAM_NEEDS_CLOCK -> { acknowledge(); throw BedJetError.ClockNotSet() }
+            }
+        } finally {
+            link.cancelPreparedStart()
         }
     }
 

@@ -83,10 +83,10 @@ class PlanCompilerTest {
 
     @Test
     fun turboChainedToHeat() {
-        val p = profile(start = listOf(Phase(Mode.TURBO, 86, 100, 15)), limits = ProfileLimits(maxTemp = 76))
+        val p = profile(start = listOf(Phase(Mode.TURBO, 86, 100, 15)), limits = ProfileLimits(maxTemp = 86))
         val steps = PlanCompiler.compile(p, start, wake).steps.filter { it.block == Block.START }
         assertEquals(listOf(Mode.TURBO to 10, Mode.HEAT to 5), steps.map { it.step.mode to it.minutes })
-        assertEquals(76, steps[1].step.temperature)
+        assertEquals(80, steps[1].step.temperature)
     }
 
     @Test

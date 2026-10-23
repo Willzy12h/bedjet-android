@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,8 +50,12 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     val wakeColor = nocturneColors.accent
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
+    val description = "Night plan from ${Format.clock(plan.start)} to ${Format.clock(plan.end)}; wake ${Format.clock(plan.wake)}. " +
+        plan.steps.joinToString("; ") { step ->
+            "${Format.clock(step.startsAt)} ${blockName(step.block)} ${Format.modeName(step.step.mode)}, fan ${(step.step.fanStep + 1) * 5}%, ${step.minutes} minutes"
+        }
     Column(modifier) {
-        Canvas(Modifier.fillMaxWidth().height(110.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(110.dp).semantics { contentDescription = description }) {
             val mid = size.height / 2
             drawLine(outline, Offset(0f, mid), Offset(size.width, mid), 1.dp.toPx())
             for (step in plan.steps) {
