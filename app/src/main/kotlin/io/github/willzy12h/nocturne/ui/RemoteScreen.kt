@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import io.github.willzy12h.nocturne.night.ManualAdjust
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -66,7 +67,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Slider(
                 temp, { temp = it }, valueRange = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
                 steps = (s.maxTemperature - s.minTemperature - 1).coerceAtLeast(0),
-                onValueChangeFinished = { model.remote("Temperature set") { it.setTemperature(temp.roundToInt()) } },
+                onValueChangeFinished = { model.adjust("Temperature set", ManualAdjust(temperature = temp.roundToInt())) },
             )
         }
         if (s.isRunning && s.mode.usesFan) {
@@ -74,14 +75,14 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Text("Fan ${fan.roundToInt()}%")
             Slider(
                 fan, { fan = it }, valueRange = 5f..100f, steps = 18,
-                onValueChangeFinished = { model.remote("Fan set") { it.setFan((fan / 5).roundToInt() - 1) } },
+                onValueChangeFinished = { model.adjust("Fan set", ManualAdjust(fanStep = (fan / 5).roundToInt() - 1)) },
             )
         }
         if (s.isRunning) {
             Text("Run for", style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60, 120, 240, 480).forEach { minutes ->
-                    AssistChip({ model.remote("Timer set") { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
+                    AssistChip({ model.adjust("Timer set", ManualAdjust(minutes = minutes)) }, label = { Text(Format.duration(minutes)) })
                 }
             }
         }

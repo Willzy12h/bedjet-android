@@ -151,6 +151,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         act { graph.actions.remote(label, endsNight, captured.deviceId, expected, work).message }
     }
 
+    /** A Remote temperature, fan or timer change; during a night it then tracks that manual run. */
+    fun adjust(label: String, change: io.github.willzy12h.nocturne.night.ManualAdjust) {
+        val captured = graph.actions.capture(NightActions.Command.OFF)
+        act { graph.actions.adjust(label, change, captured.deviceId).message }
+    }
+
     fun restoreSlot(slot: Int, program: StoredProgram) = act {
         graph.actions.restoreOriginal(slot).message
     }

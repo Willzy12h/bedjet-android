@@ -218,8 +218,8 @@ class NightActions(private val graph: Graph) {
         graph.controller().runManual(preset.mode, PlanCompiler.temperatureFor(preset.mode, preset.temperature, limits),
             PlanCompiler.fanStepFor(preset.fanPercent, limits), preset.minutes)
     }
-    private suspend fun manualChange(message: String, endsNight: Boolean, work: suspend () -> Unit): CommandOutcome {
-        val night = repo.activeNight.value
+    /** Sends manual packets with [night] shown PENDING meanwhile. A failure leaves it UNKNOWN, since a packet may have landed. */
+    private suspend fun sendManual(night: ActiveNight?, work: suspend () -> Unit) {
         val pending = night?.copy(confidence = Confidence.PENDING, pending = PendingChange(UUID.randomUUID().toString(),
             ChangeKind.MANUAL, null, graph.now().toString(), graph.now().plusMinutes(1).toString(), night.identity))
         pending?.let { publishNight(it) }
@@ -230,6 +230,10 @@ class NightActions(private val graph: Graph) {
             }
             throw e
         }
+    }
+    private suspend fun manualChange(message: String, endsNight: Boolean, work: suspend () -> Unit): CommandOutcome {
+        val night = repo.activeNight.value
+        sendManual(night, work)
         if (endsNight && night != null) finishLocked(night, EventKind.STOPPED, message)
         else if (night != null) publishNight(night)
         return CommandOutcome(OutcomeKind.ACCEPTED, message)
@@ -237,23 +241,61 @@ class NightActions(private val graph: Graph) {
     private suspend fun timedManual(preset: ActionPreset, kind: EventKind, label: String): CommandOutcome {
         val old = repo.activeNight.value
         val message = text(R.string.runtime_timed, label, preset.minutes)
-        val result = manualChange(message, false) { runPreset(preset) }
-        if (old != null) {
-            val until = graph.now().plusMinutes(preset.minutes.toLong())
-            val bounds = limits()
-            val step = ProgramStep(preset.mode, PlanCompiler.fanStepFor(preset.fanPercent, bounds),
-                PlanCompiler.temperatureFor(preset.mode, preset.temperature, bounds), preset.minutes / 60, preset.minutes % 60)
-            val plan = Plan(graph.now(), ZonedDateTime.parse(old.wakeAt), listOf(PlannedStep(Block.MIDDLE, step, graph.now(), preset.minutes)))
-            val n = old.copy(endsAt = until.toString(), revision = old.revision + 1, confidence = Confidence.CONFIRMED,
-                pending = null, trackingManual = true, applied = AppliedProgram.from(plan, old.revision + 1))
-            publishNight(n)
-            repo.history.value.firstOrNull { it.id == n.recordId }?.let { repo.addRecord(NightMutation.Applied(plan, n).recordRevision(it)) }
-            repo.addEvent(n.recordId, event(kind, message))
-            repo.updateRuntime { it.copy(retime = null, wakeShown = n.identity) }
-            NightAlarms.schedule(context, n)
-            Notifications.showWakeUp(context, n, repo.settings.value, message, logNotice = false)
+        if (old == null) return manualChange(message, false) { runPreset(preset) }
+        sendManual(old) { runPreset(preset) }
+        val bounds = limits()
+        val step = ProgramStep(preset.mode, PlanCompiler.fanStepFor(preset.fanPercent, bounds),
+            PlanCompiler.temperatureFor(preset.mode, preset.temperature, bounds), preset.minutes / 60, preset.minutes % 60)
+        val n = trackManual(old, step, kind, message)
+        val shown = manualMessage(n, message)
+        Notifications.showWakeUp(context, n, repo.settings.value, shown, logNotice = false)
+        return CommandOutcome(OutcomeKind.ACCEPTED, shown)
+    }
+    /**
+     * IR-08/IR-09: the night now tracks the one manual [step], published PENDING until a status after the packets
+     * shows it ([confirmsManual]); then CONFIRMED. A report that never comes leaves it PENDING, and [observeStatus]
+     * confirms it later or, if the BedJet runs something else, records a takeover. Any pending re-time is dropped.
+     */
+    private suspend fun trackManual(old: ActiveNight, step: ProgramStep, kind: EventKind, message: String): ActiveNight {
+        val now = graph.now()
+        val minutes = step.durationMinutes
+        val plan = Plan(now, ZonedDateTime.parse(old.wakeAt), listOf(PlannedStep(Block.MIDDLE, step, now, minutes)))
+        val n = old.copy(endsAt = now.plusMinutes(minutes.toLong()).toString(), revision = old.revision + 1, confidence = Confidence.PENDING,
+            pending = null, trackingManual = true, applied = AppliedProgram.from(plan, old.revision + 1))
+        publishNight(n)
+        repo.history.value.firstOrNull { it.id == n.recordId }?.let { repo.addRecord(NightMutation.Applied(plan, n).recordRevision(it)) }
+        repo.addEvent(n.recordId, event(kind, message))
+        // A manual run never follows the alarm, so an alarm change waiting to be read is dropped with the re-time.
+        repo.updateRuntime { it.copy(retime = null, alarmInbox = null, reason = null, wakeShown = n.identity) }
+        NightAlarms.cancelRetry(context)
+        NightAlarms.schedule(context, n)
+        val target = repo.settings.value.deviceId()
+        val seen = withTimeoutOrNull(MANUAL_CONFIRM_MS) {
+            graph.link.sourcedStatus.filterNotNull().first { it.isFrom(target) && confirmsManual(n, it.status, graph.now()) }
         }
-        return result
+        if (seen == null || repo.activeNight.value?.identity != n.identity) return n
+        return n.copy(confidence = Confidence.CONFIRMED).also { publishNight(it) }
+    }
+    private fun manualMessage(n: ActiveNight, message: String) =
+        if (n.confidence == Confidence.CONFIRMED) message else text(R.string.runtime_manual_pending, message)
+    /** A manual night waiting for the BedJet's report of its run; unlike an interrupted command it has no pending change. */
+    private fun awaitingReport(n: ActiveNight) = n.trackingManual && n.confidence == Confidence.PENDING && n.pending == null
+    private fun manualStep(n: ActiveNight): ProgramStep? = n.applied.programSteps.singleOrNull()
+    /** Whether [status] shows [n]'s manual run: its mode, temperature, fan and the time it has left. */
+    private fun confirmsManual(n: ActiveNight, status: DeviceStatus, at: ZonedDateTime): Boolean {
+        val step = manualStep(n) ?: return false
+        val left = java.time.Duration.between(at, ZonedDateTime.parse(n.endsAt)).seconds
+        return status.isRunning && status.mode == step.mode &&
+            (!step.mode.usesTemperature || status.targetTemperature == step.temperature) &&
+            (!step.mode.usesFan || status.fanStep == step.fanStep) &&
+            kotlin.math.abs(status.remainingSeconds - left) <= MANUAL_TIMER_SLACK_S
+    }
+    /** Whether [status] shows the BedJet running something other than [n]'s manual run, outside its first and last moments. */
+    private fun contradictsManual(n: ActiveNight, status: DeviceStatus, at: ZonedDateTime): Boolean {
+        val step = manualStep(n) ?: return false
+        val began = n.applied.start.takeIf { it.isNotEmpty() }?.let(ZonedDateTime::parse) ?: return false
+        if (at.isBefore(began.plusSeconds(TAKEOVER_GRACE_S)) || !at.isBefore(ZonedDateTime.parse(n.endsAt).minusSeconds(MANUAL_TIMER_SLACK_S))) return false
+        return !status.isRunning || status.mode != step.mode || (step.mode.usesTemperature && status.targetTemperature != step.temperature)
     }
     private suspend fun boostLocked(): CommandOutcome {
         val s = repo.settings.value
@@ -445,6 +487,7 @@ class NightActions(private val graph: Graph) {
     /** What the tracked night expects of the BedJet at [at]: programme step, mode and, for temperature modes,
      * target. With [grace], a report still on the previous step just after a boundary also matches. */
     private fun runsNight(n: ActiveNight, status: DeviceStatus, at: ZonedDateTime, grace: Boolean = false): Boolean {
+        if (n.trackingManual) return !contradictsManual(n, status, at) && status.isRunning
         val plan = n.activePlan(repo.profile(n.profileId)) ?: return false
         val (index, step) = plan.stepAt(at) ?: return false
         fun runs(i: Int, planned: PlannedStep) = status.extra?.programStep == i + 1 && status.mode == planned.step.mode &&
@@ -527,7 +570,7 @@ class NightActions(private val graph: Graph) {
             }
             val n = repo.activeNight.value
             // A process died with an uncompleted intention. Never replay a possibly partial upload.
-            if (n?.confidence == Confidence.PENDING) {
+            if (n?.confidence == Confidence.PENDING && !awaitingReport(n)) {
                 publishNight(n.copy(confidence = Confidence.UNKNOWN))
                 repo.updateRuntime { it.copy(reason = text(R.string.runtime_interrupted), retime = null) }
             }
@@ -564,7 +607,13 @@ class NightActions(private val graph: Graph) {
                 lastNotice = n.recordId to extra.notification
                 repo.addEvent(n.recordId, event(EventKind.UNIT_NOTICE, text(R.string.runtime_unit_notice, extra.notification)))
             } else if (extra.notification == 0) lastNotice = null
-            if (n.confidence != Confidence.CONFIRMED || n.trackingManual) return@withLock
+            if (n.trackingManual) {
+                // IR-08: a manual run is confirmed by its report and watched against its own step.
+                if (awaitingReport(n) && confirmsManual(n, status, receivedAt)) publishNight(n.copy(confidence = Confidence.CONFIRMED))
+                else if ((n.confidence == Confidence.CONFIRMED || awaitingReport(n)) && contradictsManual(n, status, receivedAt)) recordTakeover(n)
+                return@withLock
+            }
+            if (n.confidence != Confidence.CONFIRMED) return@withLock
             val plan = n.activePlan(repo.profile(n.profileId)) ?: return@withLock
             val current = plan.stepAt(receivedAt) ?: return@withLock
             val grace = receivedAt.isBefore(current.second.startsAt.plusSeconds(TAKEOVER_GRACE_S))
@@ -760,6 +809,40 @@ class NightActions(private val graph: Graph) {
         if (endsNight && expected != repo.activeNight.value?.identity) return@owned stale()
         connected { advanceGeneration(); manualChange(label, endsNight) { work(graph.controller()) } }
     }
+    /**
+     * IR-09: a Remote-screen temperature, fan or timer change. During a tracked night (programmed, or a manual run
+     * already tracked) the night switches to tracking the new manual step, PENDING until the BedJet reports it, and
+     * any pending re-time is dropped, so neither a takeover nor a re-time is ever made of the user's own change. With
+     * no night, or one already uncertain, the change is sent and nothing else changes.
+     */
+    suspend fun adjust(label: String, change: ManualAdjust, target: String? = repo.settings.value.deviceId()): CommandOutcome = owned(label, target) {
+        connected {
+            advanceGeneration()
+            val send: suspend () -> Unit = {
+                val c = graph.controller()
+                change.temperature?.let { c.setTemperature(it) }
+                change.fanStep?.let { c.setFan(it) }
+                // The unit resets the timer on some changes, so the timer goes last.
+                change.minutes?.let { c.setRuntime(it) }
+            }
+            val night = repo.activeNight.value
+            val now = graph.now()
+            val reported = graph.link.latestStatusFrom(target)?.takeIf { it.isRunning }
+            val planned = night?.let { if (it.trackingManual) manualStep(it)?.let { s -> s to ZonedDateTime.parse(it.endsAt) }
+                else it.activePlan(repo.profile(it.profileId))?.stepAt(now)?.second?.let { p -> p.step to p.endsAt } }
+            val mode = reported?.mode ?: planned?.first?.mode
+            if (night == null || mode == null || !(night.confidence == Confidence.CONFIRMED || awaitingReport(night)))
+                return@connected manualChange(label, false, send)
+            sendManual(night, send)
+            val minutes = change.minutes ?: reported?.let { (it.remainingSeconds + 59) / 60 }
+                ?: planned?.let { java.time.Duration.between(now, it.second).toMinutes().toInt() } ?: 0
+            val step = ProgramStep(mode, change.fanStep ?: reported?.fanStep ?: planned!!.first.fanStep,
+                change.temperature ?: reported?.targetTemperature ?: planned!!.first.temperature,
+                minutes.coerceAtLeast(1) / 60, minutes.coerceAtLeast(1) % 60)
+            val n = trackManual(night, step, EventKind.ADJUSTED, label)
+            CommandOutcome(OutcomeKind.ACCEPTED, manualMessage(n, label))
+        }
+    }
     suspend fun exportDiagnostics(uri: android.net.Uri) {
         val snapshot = diagnostics()
         withContext(Dispatchers.IO) {
@@ -800,6 +883,10 @@ class NightActions(private val graph: Graph) {
         private val SLOT_WRITES = setOf(Command.START_NIGHT, Command.REAPPLY, Command.BOOST, Command.RESUME)
         /** A step boundary is not a takeover: the unit's report may lag the planned boundary briefly. */
         private const val TAKEOVER_GRACE_S = 20L
+        /** How long a manual command waits for the BedJet to report the run it asked for (IR-08). */
+        private const val MANUAL_CONFIRM_MS = 5_000L
+        /** A reported timer this close to the tracked end matches; a run this close to its end may stop by itself. */
+        private const val MANUAL_TIMER_SLACK_S = 90L
         fun commandLabel(context: android.content.Context, command: Command): String = context.getString(when (command) {
             Command.START_NIGHT -> R.string.runtime_command_start_night
             Command.END_NIGHT -> R.string.runtime_command_end_night

@@ -42,6 +42,8 @@ enum class OutcomeKind { CONFIRMED, ACCEPTED, LOCAL, REFUSED, STALE, FAILED, UNK
 data class CommandOutcome(val kind: OutcomeKind, val message: String, val notified: Boolean = false) {
     val succeeded: Boolean get() = kind in setOf(OutcomeKind.CONFIRMED, OutcomeKind.ACCEPTED, OutcomeKind.LOCAL)
 }
+/** A Remote-screen setting changed while the BedJet runs: only the given values change (IR-09). */
+data class ManualAdjust(val temperature: Int? = null, val fanStep: Int? = null, val minutes: Int? = null)
 data class BusyState(val runningLabel: String? = null, val queuedCount: Int = 0)
 data class NightStatus(val confidence: Confidence?, val reason: String?)
 
