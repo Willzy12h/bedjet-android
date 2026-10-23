@@ -23,6 +23,7 @@ import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.core.store.LoggedNotice
+import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.core.store.Migrations
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.core.store.NotificationLog
@@ -116,8 +117,10 @@ class Repository(
      */
     private var pendingJournal: Map<String, ByteArray>? = null
     // Complete any interrupted multi-file restore before individual files are loaded as one repository state.
-    private val journalDamaged = recoverPendingRestore()
-    private val _unreadable = MutableStateFlow((readUnreadableMarker() + listOfNotNull(RESTORE_JOURNAL.takeIf { journalDamaged })).distinct())
+    private val journalState = recoverPendingRestore()
+    /** A journal still pending after start-up recovery: reported in [unreadable] until it is finished. */
+    private var journalStuck = journalState == JournalState.STUCK
+    private val _unreadable = MutableStateFlow((readUnreadableMarker() + listOfNotNull(RESTORE_JOURNAL.takeIf { journalState != JournalState.NONE })).distinct())
     // Dismissing the unreadable-file notice must not make an unknown slot original safe to overwrite.
     private val _originalsBlocked = MutableStateFlow(File(dir, SLOT_BACKUPS_BLOCK).exists())
     /**
@@ -131,9 +134,11 @@ class Repository(
         get() = _originalsBlocked.value
         set(value) { _originalsBlocked.value = value }
     /** When the loss of unreadable originals was accepted, or null; originals saved since are marked uncertain. */
-    private var originalsLossAcceptedAt: String? = if (!File(dir, SLOT_BACKUPS_LOSS).exists()) null else
-        runCatching { decode(String.serializer(), AtomicFile(File(dir, SLOT_BACKUPS_LOSS)).readFully().decodeToString()) }
-            .getOrDefault(ZonedDateTime.ofInstant(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC).toString())
+    // A damaged record is set aside and reported, and read as accepted now: originals saved from now on stay
+    // uncertain, while one saved earlier keeps the current-wins rule instead of giving way to any backup's.
+    private var originalsLossAcceptedAt: String? =
+        load(SLOT_BACKUPS_LOSS) { text -> decode(String.serializer(), text).also { require(runCatching { ZonedDateTime.parse(it) }.isSuccess) } }
+            ?: now().toString().takeIf { SLOT_BACKUPS_LOSS in _unreadable.value }
     /**
      * Files that couldn't be read, so their defaults are showing instead. Each was moved aside as
      * `<name>.corrupt-<millis>`. Kept across restarts until a restore or [dismissUnreadable]; automatic snapshots are
@@ -193,6 +198,13 @@ class Repository(
         // Moving the unreadable files aside and saving the report are writes, so they wait for the writer. Every
         // later write queues behind this one, so nothing can be written over an unreadable file before it is moved.
         if (toSetAside.isNotEmpty()) scope.launch(writer) { serially { setAsidePending() } }
+        if (journalStuck) scope.launch {
+            runCatching {
+                addNotice(LoggedNotice(now().toString(), NoticeKind.PROBLEM, "A restore isn't finished",
+                    "Nocturne couldn't finish writing a restore. Until it can, changes to profiles, settings, history " +
+                        "and saved originals aren't saved. Free some storage space, then reopen Nocturne."))
+            }.onFailure { Log.e(TAG, "Couldn't log the unfinished restore", it) }
+        }
         if (_settings.value.selectedProfileId != null) scope.launch {
             updateSettings { it.migrateTonightChoice(settingsLoadedAt) }
         }
@@ -381,7 +393,7 @@ class Repository(
         val at = now().toString()
         writeValue(SLOT_BACKUPS_LOSS, String.serializer(), at)
         originalsLossAcceptedAt = at
-        AtomicFile(File(dir, SLOT_BACKUPS_BLOCK)).delete()
+        runCatching { deleteFile(File(dir, SLOT_BACKUPS_BLOCK)) }.onFailure { Log.w(TAG, "Couldn't remove $SLOT_BACKUPS_BLOCK", it) }
         if (File(dir, SLOT_BACKUPS_BLOCK).exists()) throw IOException("Couldn't lift the block on slots with no saved original.")
         originalsIntegrityBlocked = false
     }
@@ -575,6 +587,10 @@ class Repository(
         entries.forEach { (name, bytes) -> writeFile(File(dir, name), bytes) }
         if (!removeJournal()) throw IOException("Couldn't remove $RESTORE_JOURNAL.")
         pendingJournal = null
+        if (journalStuck) {
+            journalStuck = false
+            _unreadable.value = _unreadable.value - RESTORE_JOURNAL
+        }
     }
 
     /** Removes the journal; true only when none of its files is left behind. */
@@ -586,27 +602,34 @@ class Repository(
     /**
      * Runs before anything is loaded: rolls an interrupted multi-file change forward from its journal, through
      * [writeFile]. A journal that can't be read, names other files or fails its checks changes no file: it is noted
-     * to be set aside and reported in [unreadable] instead of stopping start-up, and true is returned. When a file
-     * can't be written now the journal stays pending: the loads read its contents, and it is finished before any of
-     * its files is next written.
+     * to be set aside and reported in [unreadable] instead of stopping start-up ([JournalState.DAMAGED]). When a
+     * file can't be written now the journal stays pending ([JournalState.STUCK]): the loads read its contents, it is
+     * reported in [unreadable] with a notice, and it is finished before any of its files is next written.
      */
-    private fun recoverPendingRestore(): Boolean {
+    private fun recoverPendingRestore(): JournalState {
         val file = AtomicFile(File(dir, RESTORE_JOURNAL))
         val entries = try {
             readJournal(file.readFully())
         } catch (_: FileNotFoundException) {
-            return false
+            return JournalState.NONE
         } catch (e: IOException) {
             Log.e(TAG, "Couldn't use $RESTORE_JOURNAL; it will be moved aside", e)
             toSetAside += file.baseFile
-            return true
+            return JournalState.DAMAGED
         }
         // A restore clears the unreadable report; a morning check-in, the other multi-file change, does not.
         if (SETTINGS in entries) AtomicFile(File(dir, UNREADABLE)).delete()
         pendingJournal = entries
-        runCatching { finishJournal() }.onFailure { Log.e(TAG, "Couldn't finish the interrupted change yet", it) }
-        return false
+        return try {
+            finishJournal()
+            JournalState.NONE
+        } catch (e: Exception) {
+            Log.e(TAG, "Couldn't finish the interrupted change yet", e)
+            JournalState.STUCK
+        }
     }
+
+    private enum class JournalState { NONE, DAMAGED, STUCK }
 
     /** Every entry of a journal, checked before any is used. Throws [IOException] when it can't be trusted. */
     private fun readJournal(bytes: ByteArray): Map<String, ByteArray> {
@@ -669,6 +692,7 @@ class Repository(
                 Log.e(TAG, "Couldn't save $SLOT_BACKUPS_BLOCK", it)
             }.isSuccess
         } else true
+        val lossRecordAside = toSetAside.any { it.name == SLOT_BACKUPS_LOSS }
         toSetAside.forEach { file ->
             if (file.name == SLOT_BACKUPS && !barrierSaved) return@forEach
             val aside = File(dir, "${file.name}.corrupt-${System.currentTimeMillis()}")
@@ -676,8 +700,13 @@ class Repository(
             if (!file.renameTo(aside)) runCatching { file.copyTo(aside) }.onFailure { Log.e(TAG, "Couldn't keep ${file.name}", it) }
         }
         toSetAside.clear()
+        // A damaged record of the accepted loss is replaced by the time it is now read as.
+        if (lossRecordAside) originalsLossAcceptedAt?.let { at ->
+            runCatching { writeValue(SLOT_BACKUPS_LOSS, String.serializer(), at) }.onFailure { Log.e(TAG, "Couldn't save $SLOT_BACKUPS_LOSS", it) }
+        }
+        // A journal still pending is reported only while it is: each start finds it again.
         val names = _unreadable.value
-        runCatching { writeValue(UNREADABLE, ListSerializer(String.serializer()), names) }.onFailure {
+        runCatching { writeValue(UNREADABLE, ListSerializer(String.serializer()), if (journalStuck) names - RESTORE_JOURNAL else names) }.onFailure {
             Log.e(TAG, "Couldn't save $UNREADABLE", it)
             _unreadable.value = (names + UNREADABLE).distinct()
         }
@@ -725,7 +754,10 @@ class Repository(
         private const val HISTORY = "history.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
         private const val SLOT_BACKUPS_BLOCK = "slot-backups-integrity.json"
-        /** When the loss of unreadable originals was accepted. Device-local: not in the backup allowlist. */
+        /**
+         * When the loss of unreadable originals was accepted. It travels with [SLOT_BACKUPS] and [SLOT_BACKUPS_BLOCK]
+         * in cloud backup and device transfer (res/xml/backup_rules.xml, data_extraction_rules.xml).
+         */
         private const val SLOT_BACKUPS_LOSS = "slot-backups-loss-accepted.json"
         private const val RESTORE_JOURNAL = "restore-pending.json"
         private const val RUNTIME = "runtime.json"

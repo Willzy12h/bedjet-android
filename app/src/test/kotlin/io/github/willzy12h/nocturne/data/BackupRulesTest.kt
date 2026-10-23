@@ -36,10 +36,11 @@ class BackupRulesTest {
         return found
     }
 
+    /** The originals travel with their barrier and with the record of an accepted loss, which marks later ones uncertain. */
     @Test fun onlyPortableFilesAndTheOriginalsBarrierAreTransferred() {
         val expected = setOf(
             "file/profiles.json", "file/history.json",
-            "file/slot-backups.json", "file/slot-backups-integrity.json",
+            "file/slot-backups.json", "file/slot-backups-integrity.json", "file/slot-backups-loss-accepted.json",
         )
         for (mode in listOf("cloud-backup", "device-transfer")) {
             val actual = entries(R.xml.data_extraction_rules, "include")

@@ -28,6 +28,7 @@ import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.core.store.NightRecord
+import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import kotlinx.coroutines.CoroutineDispatcher
@@ -379,6 +380,32 @@ class RepositoryTest {
         // A slot the backup has nothing for keeps what was saved.
         assertEquals(unsureOther, repo.originalSlot("ble:AA:BB", 1))
         assertEquals(known.copy(imported = true), repository().originalSlot("ble:AA:BB", 2))
+    }
+
+    @Test
+    fun aBarrierThatCantBeRemovedStaysInForce() {
+        File(dir, "slot-backups.json").writeText("[{ broken")
+        val repo = repository(deleteFile = { file -> if (file.name != "slot-backups-integrity.json") AtomicFile(file).delete() })
+        assertThrows(IOException::class.java) { runBlocking { repo.dismissUnreadable(acceptLostOriginals = true) } }
+        assertTrue(repo.originalsBlocked.value)
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertTrue(repository().originalsBlocked.value)
+    }
+
+    /** A damaged record of the accepted loss is read as accepted now: later originals stay uncertain, older ones win. */
+    @Test
+    fun aDamagedLossRecordCountsFromNowAndIsReported() = runBlocking {
+        val earlier = SlotBackup("ble:AA:BB", 2, program, now.minusHours(1).toString(), uncertain = true)
+        File(dir, "slot-backups.json").writeText(BackupCodec.json.encodeToString(ListSerializer(SlotBackup.serializer()), listOf(earlier)))
+        File(dir, "slot-backups-loss-accepted.json").writeText("{bad")
+        val repo = repository()
+        assertEquals(listOf("slot-backups-loss-accepted.json"), repo.unreadable.value)
+        assertEquals("\"$now\"", File(dir, "slot-backups-loss-accepted.json").readText())
+        assertTrue(dir.listFiles()!!.any { it.name.startsWith("slot-backups-loss-accepted.json.corrupt-") })
+        assertTrue(repo.recordOriginalSlot("ble:AA:BB", 1, null).uncertain)
+        // Saved before the time it is now read as, so a backup's record of the slot doesn't replace it.
+        repo.restore(repo.bundle().copy(slotBackups = listOf(backup(2, "from a backup"))))
+        assertEquals(earlier, repo.originalSlot("ble:AA:BB", 2))
     }
 
     @Test
@@ -904,6 +931,33 @@ class RepositoryTest {
         assertEquals(profiles, File(dir, "profiles.json").readText())
         assertEquals(listOf(Presets.winterWarm), repo.profiles.value)
         assertEquals(listOf("restore-pending.json"), repo.unreadable.value)
+    }
+
+    /** A journal still pending after a restart is reported, as it holds up changes to its files until finished. */
+    @Test
+    fun aRestoreStillUnfinishedAfterARestartIsReportedUntilItIsFinished() = runBlocking {
+        val incoming = importable()
+        var stopped = false
+        val first = repository(writeFile = { file, bytes ->
+            if (stopped) throw AssertionError("process stopped")
+            if (file.name == "settings.json") { stopped = true; throw AssertionError("process stopped between restore files") }
+            Repository.writeDurably(file, bytes)
+        })
+        assertThrows(AssertionError::class.java) { runBlocking { first.restore(incoming) } }
+
+        var broken = true
+        val second = repository(writeFile = { file, bytes ->
+            if (broken && file.name == "profiles.json") throw IOException("Disk full")
+            Repository.writeDurably(file, bytes)
+        })
+        assertEquals(listOf("restore-pending.json"), second.unreadable.value)
+        assertEquals(NoticeKind.PROBLEM, second.notices.value.first().kind)
+        assertEquals("A restore isn't finished", second.notices.value.first().title)
+
+        broken = false
+        second.saveProfile(Presets.summerCool.copy(id = "mine", name = "Mine"))
+        assertEquals(emptyList<String>(), second.unreadable.value)
+        assertEquals(emptyList<String>(), repository().unreadable.value)
     }
 
     @Test

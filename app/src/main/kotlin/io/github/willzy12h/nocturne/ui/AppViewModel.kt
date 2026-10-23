@@ -281,9 +281,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit("Snapshot saved.") }
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
-    fun restoreSnapshot(id: String) = save {
-        _messages.tryEmit(if (repo.restoreSnapshot(id)) "Restored. What you had before is saved as a snapshot." else "That snapshot couldn't be read.")
-    }
+    fun restoreSnapshot(id: String) = save { _messages.tryEmit(snapshotRestoreMessage { repo.restoreSnapshot(id) }) }
 
     fun export(uri: android.net.Uri) {
         graph.scope.launch {
@@ -374,4 +372,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val last = getApplication<Application>().getSharedPreferences("updates", 0).getLong("lastCheck", 0)
         if (graph.clock.millis() - last > 7 * 24 * 3600 * 1000L) checkForUpdates(quiet = true)
     }
+}
+
+/**
+ * What restoring a snapshot says. A restore that is kept but not yet finished says so in its own words; any other
+ * failure is thrown, for the caller's "Couldn't save" message.
+ */
+internal suspend fun snapshotRestoreMessage(restore: suspend () -> Boolean): String = try {
+    if (restore()) "Restored. What you had before is saved as a snapshot." else "That snapshot couldn't be read."
+} catch (e: io.github.willzy12h.nocturne.data.RestoreUnfinished) {
+    e.message.orEmpty()
 }

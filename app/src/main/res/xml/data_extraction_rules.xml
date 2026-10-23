@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Keep slot originals and their integrity barrier together. Runtime journals,
+<!-- Keep slot originals, their integrity barrier and any accepted loss together. Runtime journals,
      target identity and the update token stay on this phone. -->
 <data-extraction-rules>
     <cloud-backup>
@@ -7,11 +7,13 @@
         <include domain="file" path="history.json" />
         <include domain="file" path="slot-backups.json" />
         <include domain="file" path="slot-backups-integrity.json" />
+        <include domain="file" path="slot-backups-loss-accepted.json" />
     </cloud-backup>
     <device-transfer>
         <include domain="file" path="profiles.json" />
         <include domain="file" path="history.json" />
         <include domain="file" path="slot-backups.json" />
         <include domain="file" path="slot-backups-integrity.json" />
+        <include domain="file" path="slot-backups-loss-accepted.json" />
     </device-transfer>
 </data-extraction-rules>
