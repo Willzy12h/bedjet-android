@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
 import android.os.Looper
+import androidx.core.util.AtomicFile
 import io.github.willzy12h.nocturne.core.link.BedJetController
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.core.night.ActiveNight
@@ -87,7 +88,9 @@ class RepositoryTest {
         writer: CoroutineDispatcher = Dispatchers.Unconfined,
         writeFile: (File, ByteArray) -> Unit = Repository::writeDurably,
         openInput: (Uri) -> InputStream? = { context.contentResolver.openInputStream(it) },
-    ) = Repository(context, scope, writer, writeFile, openInput = openInput) { now }
+        openOutput: (Uri) -> java.io.OutputStream? = { context.contentResolver.openOutputStream(it, "wt") },
+        deleteFile: (File) -> Unit = { AtomicFile(it).delete() },
+    ) = Repository(context, scope, writer, writeFile, openInput = openInput, openOutput = openOutput, deleteFile = deleteFile) { now }
 
     /** A writer that fails for [name] and works for everything else. */
     private fun failingFor(name: String): (File, ByteArray) -> Unit = { file, bytes ->
@@ -626,10 +629,13 @@ class RepositoryTest {
     fun interruptedRestoreCompletesAllFilesBeforeTheNextRepositoryLoads() = runBlocking {
         val incoming = importable().copy(slotBackups = listOf(backup(1, "imported slot")))
         var replacements = 0
+        var stopped = false
+        // The process stops after the first file: nothing after that, a rollback included, reaches the disk.
         val repo = repository(writeFile = { file, bytes ->
+            if (stopped) throw AssertionError("process stopped")
             if (file.name in setOf("profiles.json", "settings.json", "history.json", "slot-backups.json")) {
                 replacements++
-                if (replacements == 2) throw AssertionError("process stopped between restore files")
+                if (replacements == 2) { stopped = true; throw AssertionError("process stopped between restore files") }
             }
             Repository.writeDurably(file, bytes)
         })
@@ -655,6 +661,165 @@ class RepositoryTest {
 
         assertTrue(repo.restoreSnapshot(id))
         assertEquals(recorded, repo.originalSlot("ble:AA:BB", 2)!!.program)
+    }
+
+    // A restore that can't be finished in process (IR-13)
+
+    /** Fails `history.json` and the rollback of `profiles.json` while [broken], so a restore leaves its journal. */
+    private class RollbackFails {
+        var broken = true
+        private var profileWrites = 0
+        val write: (File, ByteArray) -> Unit = { file, bytes ->
+            if (broken && file.name == "history.json") throw IOException("Disk full")
+            if (broken && file.name == "profiles.json" && ++profileWrites == 2) throw IOException("Disk full")
+            Repository.writeDurably(file, bytes)
+        }
+    }
+
+    @Test
+    fun anOriginalRecordedAfterAFailedRollbackSurvivesTheNextStart() = runBlocking {
+        val disk = RollbackFails()
+        val repo = repository(writeFile = disk.write)
+        assertThrows(IOException::class.java) { runBlocking { repo.restore(importable()) } }
+        assertTrue(File(dir, "restore-pending.json").exists())
+
+        disk.broken = false
+        val recorded = repo.recordOriginalSlot("ble:AA:BB", 2, program)
+        val restarted = repository()
+        assertEquals(recorded, restarted.originalSlot("ble:AA:BB", 2))
+        // What was shown is what the next start loads.
+        assertEquals(repo.bundle().copy(createdAt = ""), restarted.bundle().copy(createdAt = ""))
+    }
+
+    @Test
+    fun anOriginalIsRefusedWhileAFailedRestoreStillCantBeFinished() = runBlocking {
+        val disk = RollbackFails()
+        val repo = repository(writeFile = disk.write)
+        assertThrows(IOException::class.java) { runBlocking { repo.restore(importable()) } }
+
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertNull(repo.originalSlot("ble:AA:BB", 2))
+        val restarted = repository()
+        assertNull(restarted.originalSlot("ble:AA:BB", 2))
+        assertEquals(repo.bundle().copy(createdAt = ""), restarted.bundle().copy(createdAt = ""))
+    }
+
+    @Test
+    fun aProfileSavedAfterAFailedRollbackSurvivesTheNextStart() = runBlocking {
+        val disk = RollbackFails()
+        val repo = repository(writeFile = disk.write)
+        assertThrows(IOException::class.java) { runBlocking { repo.restore(importable()) } }
+
+        disk.broken = false
+        val mine = Presets.summerCool.copy(id = "mine", name = "Mine")
+        repo.saveProfile(mine)
+        val restarted = repository()
+        assertEquals(mine, restarted.profile("mine"))
+        assertEquals(repo.profiles.value, restarted.profiles.value)
+        assertFalse(File(dir, "restore-pending.json").exists())
+    }
+
+    @Test
+    fun anErrorPartWayThroughARestoreStillPutsTheFilesBack() {
+        var thrown = false
+        val repo = repository(writeFile = { file, bytes ->
+            if (!thrown && file.name == "history.json") { thrown = true; throw OutOfMemoryError("no room") }
+            Repository.writeDurably(file, bytes)
+        })
+        val before = repo.bundle()
+        assertThrows(OutOfMemoryError::class.java) { runBlocking { repo.restore(importable()) } }
+        assertFalse(File(dir, "restore-pending.json").exists())
+        assertEquals(before, repo.bundle())
+        assertEquals(before.copy(createdAt = ""), repository().bundle().copy(createdAt = ""))
+    }
+
+    @Test
+    fun aJournalThatCantBeRemovedAfterARestoreIsNotReappliedOverLaterEdits() = runBlocking {
+        var keepJournal = true
+        val repo = repository(deleteFile = { file ->
+            if (keepJournal && file.name == "restore-pending.json") keepJournal = false else AtomicFile(file).delete()
+        })
+        repo.restore(importable())
+        assertEquals(importable().profiles, repo.profiles.value)
+
+        val mine = Presets.summerCool.copy(id = "mine", name = "Mine")
+        repo.saveProfile(mine)
+        val restarted = repository()
+        assertEquals(mine, restarted.profile("mine"))
+        assertEquals(repo.bundle().copy(createdAt = ""), restarted.bundle().copy(createdAt = ""))
+    }
+
+    @Test
+    fun aFailedRestoreWhoseJournalCantBeRemovedIsNotReappliedOverLaterEdits() = runBlocking {
+        var failHistory = true
+        var keepJournal = true
+        val repo = repository(
+            writeFile = { file, bytes ->
+                if (failHistory && file.name == "history.json") { failHistory = false; throw IOException("Disk full") }
+                Repository.writeDurably(file, bytes)
+            },
+            deleteFile = { file -> if (keepJournal && file.name == "restore-pending.json") keepJournal = false else AtomicFile(file).delete() },
+        )
+        assertThrows(IOException::class.java) { runBlocking { repo.restore(importable()) } }
+
+        val mine = Presets.summerCool.copy(id = "mine", name = "Mine")
+        repo.saveProfile(mine)
+        val restarted = repository()
+        assertEquals(mine, restarted.profile("mine"))
+        assertEquals(repo.bundle().copy(createdAt = ""), restarted.bundle().copy(createdAt = ""))
+        assertFalse(File(dir, "restore-pending.json").exists())
+    }
+
+    @Test
+    fun aDamagedRestoreJournalIsSetAsideAndReportedInsteadOfStoppingStartUp() {
+        File(dir, "restore-pending.json").writeText("{bad")
+        val repo = repository()
+        assertEquals(listOf("restore-pending.json"), repo.unreadable.value)
+        assertFalse(File(dir, "restore-pending.json").exists())
+        assertTrue(dir.listFiles()!!.any { it.name.startsWith("restore-pending.json.corrupt-") })
+        assertEquals(listOf("restore-pending.json"), repository().unreadable.value)
+    }
+
+    @Test
+    fun aRestoreJournalFailingItsCheckChangesNoFile() {
+        val profiles = BackupCodec.json.encodeToString(ListSerializer(Profile.serializer()), listOf(Presets.winterWarm))
+        File(dir, "profiles.json").writeText(profiles)
+        fun entry(name: String, text: String, sha: String? = null): String {
+            val bytes = text.toByteArray()
+            val digest = java.util.Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
+            return """{"name":"$name","bytes":"${java.util.Base64.getEncoder().encodeToString(bytes)}","sha256":"${sha ?: digest}"}"""
+        }
+        File(dir, "restore-pending.json").writeText("""{"writes":[${entry("profiles.json", "[]")},${entry("history.json", "[]", "wrong")}]}""")
+
+        val repo = repository()
+        assertEquals(profiles, File(dir, "profiles.json").readText())
+        assertEquals(listOf(Presets.winterWarm), repo.profiles.value)
+        assertEquals(listOf("restore-pending.json"), repo.unreadable.value)
+    }
+
+    @Test
+    fun aStartUpRecoveryThatCantWriteStillStartsAndShowsTheRestore() = runBlocking {
+        val incoming = importable()
+        var replacements = 0
+        var stopped = false
+        val first = repository(writeFile = { file, bytes ->
+            if (stopped) throw AssertionError("process stopped")
+            if (file.name == "settings.json") { stopped = true; throw AssertionError("process stopped between restore files") }
+            replacements++
+            Repository.writeDurably(file, bytes)
+        })
+        assertThrows(AssertionError::class.java) { runBlocking { first.restore(incoming) } }
+
+        // The next start can't write profiles.json: it still starts, showing the restore it couldn't finish.
+        val second = repository(writeFile = failingFor("profiles.json"))
+        assertEquals(incoming.profiles, second.profiles.value)
+        assertEquals(incoming.settings.workingSlot, second.settings.value.workingSlot)
+        assertTrue(File(dir, "restore-pending.json").exists())
+        assertThrows(IOException::class.java) { runBlocking { second.saveProfile(Presets.summerCool.copy(id = "mine")) } }
+
+        val third = repository()
+        assertEquals(incoming.profiles, third.profiles.value)
+        assertFalse(File(dir, "restore-pending.json").exists())
     }
 
     @Test

@@ -93,18 +93,27 @@ class Repository(
     private val writeFile: (File, ByteArray) -> Unit = ::writeDurably,
     private val openInput: (Uri) -> InputStream? = { context.contentResolver.openInputStream(it) },
     private val openOutput: (Uri) -> OutputStream? = { context.contentResolver.openOutputStream(it, "wt") },
+    /** How the restore journal is removed; tests replace it to make the removal fail. */
+    private val deleteFile: (File) -> Unit = { AtomicFile(it).delete() },
     private val now: () -> ZonedDateTime = { ZonedDateTime.now() },
 ) {
     private val dir = context.filesDir
     val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { now() }
     private val lock = Mutex()
-    // Complete any interrupted multi-file restore before individual files are loaded as one repository state.
-    init { recoverPendingRestore() }
 
     // Declared before the loads below, which add to them.
     /** Files found unreadable while loading, moved aside by the writer once the Repository is made. */
     private val toSetAside = mutableListOf<File>()
-    private val _unreadable = MutableStateFlow(readUnreadableMarker())
+    /**
+     * The contents, by file name, of a multi-file change ([writeAllOrNone]) that is committed (its journal is on disk)
+     * but not yet completely written; null when there is none. What is shown already follows it, so it is finished on
+     * disk before any of its files is written again ([finishJournalBefore]); otherwise the next start would roll it
+     * forward over that write.
+     */
+    private var pendingJournal: Map<String, ByteArray>? = null
+    // Complete any interrupted multi-file restore before individual files are loaded as one repository state.
+    private val journalDamaged = recoverPendingRestore()
+    private val _unreadable = MutableStateFlow((readUnreadableMarker() + listOfNotNull(RESTORE_JOURNAL.takeIf { journalDamaged })).distinct())
     // Dismissing the unreadable-file notice must not make an unknown slot original safe to overwrite.
     private var originalsIntegrityBlocked = File(dir, SLOT_BACKUPS_BLOCK).exists()
     /**
@@ -258,11 +267,13 @@ class Repository(
         val history = History.addEvent(_history.value, night.id,
             HistoryEvent(now().toString(), EventKind.MORNING_SUGGESTION_APPLIED, detail))
         writeAllOrNone(listOf(
-            Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)),
-            Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)),
+            Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)) {
+                _profiles.value = profiles
+            },
+            Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)) {
+                _history.value = history
+            },
         ))
-        _profiles.value = profiles
-        _history.value = history
         true
     }
 
@@ -358,6 +369,7 @@ class Repository(
      * knows, never which BedJet it talks to or what that BedJet is doing. Slot backups are merged, current ones
      * winning: an older bundle's backup of a slot may be one of the app's own programs, not the user's original.
      * Everything is written before anything is published; if a write fails the files already written are put back.
+     * If that fails too the restore stays committed and is finished later: see [writeAllOrNone] and [RestoreUnfinished].
      */
     suspend fun restore(bundle: BackupBundle, label: String = "Before import") {
         val errors = BackupValidator.validate(bundle)
@@ -380,19 +392,22 @@ class Repository(
                 val incoming = bundle.slotBackups.map { it.copy(imported = true) }
                 list + incoming.filter { restored -> list.none { it.covers(restored) } }
             }
-            val writes = listOf(
-                Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)),
-                Write(SETTINGS, encode(Settings.serializer(), _settings.value), encode(Settings.serializer(), settings)),
-                Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)),
-                Write(SLOT_BACKUPS, encode(ListSerializer(SlotBackup.serializer()), _slotBackups.value), encode(ListSerializer(SlotBackup.serializer()), slotBackups)),
-            )
-            writeAllOrNone(writes)
-            _profiles.value = profiles
-            _settings.value = settings
-            _settingsPublication.value += 1
-            _history.value = history
-            _slotBackups.value = slotBackups
-            clearUnreadable()
+            writeAllOrNone(listOf(
+                Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)) {
+                    _profiles.value = profiles
+                },
+                Write(SETTINGS, encode(Settings.serializer(), _settings.value), encode(Settings.serializer(), settings)) {
+                    _settings.value = settings
+                    _settingsPublication.value += 1
+                },
+                Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)) {
+                    _history.value = history
+                },
+                Write(SLOT_BACKUPS, encode(ListSerializer(SlotBackup.serializer()), _slotBackups.value), encode(ListSerializer(SlotBackup.serializer()), slotBackups)) {
+                    _slotBackups.value = slotBackups
+                    clearUnreadable()
+                },
+            ))
         }
     }
 
@@ -439,48 +454,122 @@ class Repository(
         if (name == SETTINGS) _settingsPublication.value += 1
     }
 
-    private fun <T> writeValue(name: String, serializer: KSerializer<T>, value: T) = writeFile(File(dir, name), encode(serializer, value))
+    private fun <T> writeValue(name: String, serializer: KSerializer<T>, value: T) {
+        finishJournalBefore(name)
+        writeFile(File(dir, name), encode(serializer, value))
+    }
 
-    private class Write(val name: String, val old: ByteArray, val new: ByteArray)
+    /** One file of a [writeAllOrNone] change: its bytes before and after, and how to show the new value. */
+    private class Write(val name: String, val old: ByteArray, val new: ByteArray, val publish: () -> Unit)
     @Serializable private data class JournalWrite(val name: String, val bytes: String, val sha256: String)
     @Serializable private data class RestoreJournal(val writes: List<JournalWrite>)
 
+    /**
+     * Writes several files as one change. A journal of the new contents is saved first; from then on the change is
+     * committed, as the next start rolls it forward. Call on the writer.
+     *
+     * - Every file written: the values are published and the journal removed. If it can't be removed it stays
+     *   pending ([pendingJournal]), to be removed before these files are next written.
+     * - A file fails (an Error too): the files already written are put back and the journal removed, and the failure
+     *   is thrown with nothing published. If a file can't be put back, or the journal can't be removed, the change
+     *   stays committed instead: the new values are published, as the next start will load them, the journal stays
+     *   pending, and [RestoreUnfinished] is thrown (an Error as it is). Nothing written after that is lost to the
+     *   roll-forward, as every later write of these files finishes the journal first or is refused.
+     */
     private fun writeAllOrNone(writes: List<Write>) {
+        // A journal still pending is finished first: the new one replaces it.
+        finishJournalBefore(*writes.map { it.name }.toTypedArray())
+        val entries = writes.associate { it.name to it.new }
         val journal = RestoreJournal(writes.map { JournalWrite(it.name, Base64.getEncoder().encodeToString(it.new), digest(it.new)) })
         writeValue(RESTORE_JOURNAL, RestoreJournal.serializer(), journal)
         writes.forEachIndexed { i, write ->
             try {
                 writeFile(File(dir, write.name), write.new)
-            } catch (e: Exception) {
-                var rollbackFailed = false
+            } catch (e: Throwable) {
+                var putBack = true
                 writes.take(i).forEach { done ->
-                    runCatching { writeFile(File(dir, done.name), done.old) }.onFailure { e.addSuppressed(it); rollbackFailed = true }
+                    runCatching { writeFile(File(dir, done.name), done.old) }.onFailure { e.addSuppressed(it); putBack = false }
                 }
-                if (!rollbackFailed) AtomicFile(File(dir, RESTORE_JOURNAL)).delete()
-                throw e
+                if (putBack && removeJournal()) throw e
+                pendingJournal = entries
+                writes.forEach { it.publish() }
+                throw if (e is Exception) RestoreUnfinished(e) else e
             }
         }
-        AtomicFile(File(dir, RESTORE_JOURNAL)).delete()
+        writes.forEach { it.publish() }
+        if (!removeJournal()) {
+            Log.w(TAG, "Couldn't remove $RESTORE_JOURNAL; it is finished before these files are next written")
+            pendingJournal = entries
+        }
     }
 
-    private fun recoverPendingRestore() {
+    /**
+     * Before any of [names] is written: finishes a pending journal that holds one of them, so the next start doesn't
+     * roll it forward over the write. Throws [RestoreUnfinished], and then nothing is written, when it can't be done.
+     */
+    private fun finishJournalBefore(vararg names: String) {
+        val entries = pendingJournal ?: return
+        if (names.none { it in entries }) return
+        try {
+            finishJournal()
+        } catch (e: Exception) {
+            throw RestoreUnfinished(e, "An earlier change couldn't be finished, so this one wasn't saved. Try again, or reopen Nocturne.")
+        }
+    }
+
+    /** Writes every file of [pendingJournal], then removes the journal. Throws, leaving it pending, when either fails. */
+    private fun finishJournal() {
+        val entries = pendingJournal ?: return
+        entries.forEach { (name, bytes) -> writeFile(File(dir, name), bytes) }
+        if (!removeJournal()) throw IOException("Couldn't remove $RESTORE_JOURNAL.")
+        pendingJournal = null
+    }
+
+    /** Removes the journal; true only when none of its files is left behind. */
+    private fun removeJournal(): Boolean {
+        runCatching { deleteFile(File(dir, RESTORE_JOURNAL)) }.onFailure { Log.w(TAG, "Couldn't remove $RESTORE_JOURNAL", it) }
+        return listOf("", ".new", ".bak").none { File(dir, RESTORE_JOURNAL + it).exists() }
+    }
+
+    /**
+     * Runs before anything is loaded: rolls an interrupted multi-file change forward from its journal, through
+     * [writeFile]. A journal that can't be read, names other files or fails its checks changes no file: it is noted
+     * to be set aside and reported in [unreadable] instead of stopping start-up, and true is returned. When a file
+     * can't be written now the journal stays pending: the loads read its contents, and it is finished before any of
+     * its files is next written.
+     */
+    private fun recoverPendingRestore(): Boolean {
         val file = AtomicFile(File(dir, RESTORE_JOURNAL))
-        val bytes = try { file.readFully() } catch (_: FileNotFoundException) { return }
+        val entries = try {
+            readJournal(file.readFully())
+        } catch (_: FileNotFoundException) {
+            return false
+        } catch (e: IOException) {
+            Log.e(TAG, "Couldn't use $RESTORE_JOURNAL; it will be moved aside", e)
+            toSetAside += file.baseFile
+            return true
+        }
+        // A restore clears the unreadable report; a morning check-in, the other multi-file change, does not.
+        if (SETTINGS in entries) AtomicFile(File(dir, UNREADABLE)).delete()
+        pendingJournal = entries
+        runCatching { finishJournal() }.onFailure { Log.e(TAG, "Couldn't finish the interrupted change yet", it) }
+        return false
+    }
+
+    /** Every entry of a journal, checked before any is used. Throws [IOException] when it can't be trusted. */
+    private fun readJournal(bytes: ByteArray): Map<String, ByteArray> {
         val journal = try { decode(RestoreJournal.serializer(), bytes.decodeToString()) }
-            catch (e: Exception) { throw IOException("The interrupted restore journal is unreadable; stored files cannot be trusted.", e) }
+            catch (e: IllegalArgumentException) { throw IOException("The restore journal is unreadable.", e) }
         val names = journal.writes.map { it.name }
-        val expected = names.toSet()
-        if (names.size != expected.size || expected !in setOf(setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS), setOf(PROFILES, HISTORY))) {
-            throw IOException("The interrupted restore journal does not name the expected files.")
+        if (names.size != names.toSet().size || names.toSet() !in setOf(setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS), setOf(PROFILES, HISTORY))) {
+            throw IOException("The restore journal does not name the expected files.")
         }
-        journal.writes.forEach { entry ->
+        return journal.writes.associate { entry ->
             val content = try { Base64.getDecoder().decode(entry.bytes) }
-                catch (e: IllegalArgumentException) { throw IOException("The interrupted restore journal is damaged.", e) }
-            if (digest(content) != entry.sha256) throw IOException("The interrupted restore journal failed its integrity check.")
-            writeDurably(File(dir, entry.name), content)
+                catch (e: IllegalArgumentException) { throw IOException("The restore journal is damaged.", e) }
+            if (digest(content) != entry.sha256) throw IOException("The restore journal failed its integrity check.")
+            entry.name to content
         }
-        AtomicFile(File(dir, UNREADABLE)).delete()
-        file.delete()
     }
 
     private fun digest(bytes: ByteArray): String = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(bytes))
@@ -489,8 +578,14 @@ class Repository(
 
     private fun <T> decode(serializer: KSerializer<T>, text: String): T = BackupCodec.json.decodeFromString(serializer, text)
 
-    /** Null when the file doesn't exist yet, or couldn't be read; then it's moved aside and reported in [unreadable]. */
+    /**
+     * Null when the file doesn't exist yet, or couldn't be read; then it's moved aside and reported in [unreadable]. A
+     * file in a pending journal is read from the journal, which is what it will hold.
+     */
     private fun <T> load(name: String, decode: (String) -> T): T? {
+        pendingJournal?.get(name)?.let { bytes ->
+            runCatching { decode(bytes.decodeToString()) }.onSuccess { return it }.onFailure { Log.e(TAG, "Couldn't read $name from the journal", it) }
+        }
         val file = AtomicFile(File(dir, name))
         return try {
             decode(file.readFully().decodeToString())
@@ -602,6 +697,16 @@ class Repository(
         }
     }
 }
+
+/**
+ * A change of several files (a restore, or an accepted morning suggestion) is committed, but not every file could be
+ * written yet. It is shown as made, and finished before any of those files is next written, or at the next start;
+ * a later change that can't wait for that is refused with this.
+ */
+class RestoreUnfinished(
+    cause: Throwable,
+    message: String = "The change is kept, but not every file could be written yet. Nocturne finishes it before your next change, or when it next starts.",
+) : IOException(message, cause)
 
 /** The saved slot originals are unreadable and this slot has none, so it must not be written (IR-03). */
 class SlotBackupsUnreadable : IOException("Saved slot originals are unreadable. Restore a backup of this BedJet's slot before writing it.")
