@@ -38,6 +38,7 @@
     <string name="runtime_pinned">Saved in slot %1$d. Readback verified. This duration-based programme does not follow an alarm.</string>
     <string name="runtime_restore_label">Restore original slot</string>
     <string name="runtime_no_original">No original was saved for this slot.</string>
+    <string name="runtime_slot_write_acknowledged">Marked as checked.</string>
     <string name="runtime_slot_backups_unreadable">Your saved BedJet slot backups couldn\'t be read. Restore a snapshot or dismiss the warning before changing BedJet slots.</string>
     <string name="runtime_retime_refused">The wake-up change wasn\'t applied.</string>
     <string name="runtime_restored">Original restored to slot %1$d. Readback verified.</string>

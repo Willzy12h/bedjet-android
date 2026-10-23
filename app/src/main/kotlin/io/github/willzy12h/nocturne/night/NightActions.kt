@@ -27,7 +27,11 @@ class NightActions(private val graph: Graph) {
     val busy: StateFlow<BusyState> = _busy.asStateFlow()
     private val _outcomes = MutableSharedFlow<CommandOutcome>(extraBufferCapacity = 16)
     val outcomes: SharedFlow<CommandOutcome> = _outcomes.asSharedFlow()
-    val status: StateFlow<NightStatus> = combine(repo.activeNight, repo.runtime) { n, r -> NightStatus(if ((r.retime != null || r.alarmInbox != null) && n?.confidence == Confidence.CONFIRMED) Confidence.PENDING else if (r.slotWrite?.confidence in setOf(Confidence.PENDING, Confidence.FAILED, Confidence.UNKNOWN)) r.slotWrite?.confidence else n?.confidence, r.reason) }
+    /** A slot write colours the status only while it is in question and concerns the tracked night, or there is none (IR-06). */
+    val status: StateFlow<NightStatus> = combine(repo.activeNight, repo.runtime) { n, r ->
+        val slot = r.unresolvedSlotWrite?.takeIf { n == null || it.displaced == n.identity }
+        NightStatus(if ((r.retime != null || r.alarmInbox != null) && n?.confidence == Confidence.CONFIRMED) Confidence.PENDING
+            else slot?.confidence ?: n?.confidence, r.reason) }
         .stateIn(graph.scope, SharingStarted.Eagerly, NightStatus(repo.activeNight.value?.confidence, repo.runtime.value.reason))
 
     enum class Command { START_NIGHT, END_NIGHT, OFF, TURBO, BOOST, COOL, WARM, RETIME, RETRY_RETIME, REAPPLY, SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL, RESUME, STOP_TRACKING, KEEP_TRACKING }
@@ -88,7 +92,8 @@ class NightActions(private val graph: Graph) {
             return refused(R.string.runtime_slot_backups_unreadable).also { _outcomes.emit(it) }
         } catch (e: Exception) {
             recordError("$label: ${e.message.orEmpty()}")
-            return CommandOutcome(if (repo.activeNight.value?.confidence == Confidence.UNKNOWN || repo.runtime.value.slotWrite?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
+            // A slot write reports its own outcome; an old one in question says nothing about this failure (IR-06).
+            return CommandOutcome(if (repo.activeNight.value?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
                 e.message ?: text(R.string.runtime_failed)).also { _outcomes.emit(it) }
         } finally {
             // Ownership is tested even if timeout raced with resumption after lock.lock().
@@ -148,7 +153,14 @@ class NightActions(private val graph: Graph) {
         }
         slotBackupsRefusal()?.let { return it }
         val result = graph.runner().apply(change, { repo.activeNight.value }, { repo.runtime.value.generation },
-            publish = { publishNight(it); if (it.confidence != Confidence.CONFIRMED) Notifications.cancelQuiet(context) }, beforeWrite = { backup(change.intended.deviceId, change.intended.slot) })
+            publish = {
+                // IR-23: a new night's record exists before the first write, so a failure or restart keeps its events.
+                val intended = it.pending?.intended
+                if (intended != null && it.confidence == Confidence.PENDING && repo.history.value.none { r -> r.id == it.recordId }) repo.addRecord(
+                    NightRecord(intended.recordId, intended.profileId, intended.profile!!.name, intended.startedAt, intended.wakeAt,
+                        intended.wakeFromAlarm, intended.applied.steps, deviceId = intended.deviceId))
+                publishNight(it); if (it.confidence != Confidence.CONFIRMED) Notifications.cancelQuiet(context)
+            }, beforeWrite = { backup(change.intended.deviceId, change.intended.slot) })
         return when (result) {
             is NightMutation.Applied -> {
                 if (change.previous != null && change.previous!!.recordId != result.night.recordId) {
@@ -161,8 +173,11 @@ class NightActions(private val graph: Graph) {
                 val record = existing ?: NightRecord(n.recordId, n.profileId, n.profile!!.name, n.startedAt, n.wakeAt,
                     n.wakeFromAlarm, n.applied.steps, deviceId = n.deviceId)
                 repo.addRecord(result.recordRevision(record))
-                repo.addEvent(n.recordId, event(if (existing == null) EventKind.STARTED else EventKind.RETIMED, text(message, n.profile!!.name, clock(n.wakeAt))))
-                repo.updateRuntime { it.copy(retime = null, reason = null, wakeShown = null) }
+                val started = existing == null || change.request.kind == ChangeKind.START
+                repo.addEvent(n.recordId, event(if (started) EventKind.STARTED else EventKind.RETIMED, text(message, n.profile!!.name, clock(n.wakeAt))))
+                // IR-06: a confirmed write of this BedJet's slot settles an earlier write still in question.
+                repo.updateRuntime { it.copy(retime = null, reason = null, wakeShown = null,
+                    slotWrite = it.slotWrite?.takeUnless { w -> w.deviceId == n.deviceId }) }
                 NightAlarms.schedule(context, n)
                 NightAlarms.cancelRetry(context)
                 if (repo.runtime.value.alarmInbox != null) NightAlarms.scheduleObservation(context, graph.now())
@@ -177,7 +192,8 @@ class NightActions(private val graph: Graph) {
             is NightMutation.Failed -> {
                 repo.updateRuntime { it.copy(reason = result.cause.message) }
                 recordError(result.cause.message.orEmpty())
-                CommandOutcome(if (result.night.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
+                // IR-05: nothing written means the night shown is the one still running, whatever its confidence.
+                CommandOutcome(if (!result.nothingWritten && result.night.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
                     result.cause.message ?: text(R.string.runtime_failed))
             }
             is NightMutation.Refused -> CommandOutcome(OutcomeKind.REFUSED, result.reason)
@@ -251,8 +267,10 @@ class NightActions(private val graph: Graph) {
     }
     private suspend fun finishLocked(night: ActiveNight, kind: EventKind, detail: String) {
         val transition = io.github.willzy12h.nocturne.core.night.stopTracking(night, detail, graph.now(), repo.runtime.value.generation)
+        // IR-06: a slot write made in this night, or one that displaced it, ends with it.
         repo.updateRuntime { it.copy(ending = PendingEnd(night.identity, event(kind, detail)), retime = null,
-            resumeOffer = if (kind == EventKind.ENDED) null else transition.resumeOffer, reason = null, wakeShown = null) }
+            resumeOffer = if (kind == EventKind.ENDED) null else transition.resumeOffer, reason = null, wakeShown = null,
+            slotWrite = it.slotWrite?.takeUnless { w -> w.belongsTo(night.recordId) }) }
         completeLocalEnd()
         transition.resumeOffer?.takeIf { kind != EventKind.ENDED }?.let { Notifications.showResume(context) }
     }
@@ -369,7 +387,13 @@ class NightActions(private val graph: Graph) {
                 takeoverBeforeRewrite(n)?.let { return@connected it }
                 val result = apply(graph.runner().prepareRetime(n, pending.expected, pending.alarmAt?.let(ZonedDateTime::parse),
                     ZonedDateTime.parse(pending.deadline), repo.profile(n.profileId), repo.settings.value, pending.alarmOrigin), R.string.runtime_retimed)
-                if (!result.succeeded) { repo.updateRuntime { it.copy(retime = null, reason = result.message) }; NightAlarms.cancelRetry(context) }
+                val current = repo.activeNight.value
+                if (result.kind == OutcomeKind.FAILED && current?.identity == pending.expected && current.confidence == Confidence.CONFIRMED) {
+                    // IR-05: it failed before writing and the night runs on unchanged, so the change is tried again
+                    // (never past its deadline), as after a failed connection.
+                    repo.updateRuntime { it.copy(reason = result.message) }
+                    NightAlarms.scheduleRetry(context, pending, graph.now())
+                } else if (!result.succeeded) { repo.updateRuntime { it.copy(retime = null, reason = result.message) }; NightAlarms.cancelRetry(context) }
                 result
             }
         } catch (e: CancellationException) { throw e
@@ -412,7 +436,8 @@ class NightActions(private val graph: Graph) {
             applied = AppliedProgram.from(plan, night.revision + 1))
         publishNight(updated)
         repo.history.value.firstOrNull { it.id == night.recordId }?.let { repo.addRecord(NightMutation.Applied(plan, updated).recordRevision(it)) }
-        repo.updateRuntime { it.copy(retime = null, reason = null) }
+        // Keeping a fresh run acknowledges a slot write that displaced or interrupted this night (IR-06).
+        repo.updateRuntime { it.copy(retime = null, reason = null, slotWrite = it.slotWrite?.takeUnless { w -> w.belongsTo(night.recordId) }) }
         repo.addEvent(night.recordId, event(EventKind.RECOVERED, text(R.string.runtime_manual_tracking)))
         NightAlarms.schedule(context, updated)
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_manual_tracking))
@@ -491,8 +516,11 @@ class NightActions(private val graph: Graph) {
         lock.withLock {
             completeLocalEnd()
             completeWakeSourceChange()
-            val displaced = repo.runtime.value.slotWrite?.takeIf { it.startRequested }?.displaced
-            repo.activeNight.value?.takeIf { it.identity == displaced }?.let { previous ->
+            // Only an interrupted replacement: under way (PENDING) or written but not yet finished (CONFIRMED). A write
+            // that failed first changed nothing, and an UNKNOWN one already marked its night (IR-06).
+            val displaced = repo.runtime.value.slotWrite?.takeIf { it.startRequested &&
+                (it.confidence == Confidence.PENDING || it.confidence == Confidence.CONFIRMED) }?.displaced
+            repo.activeNight.value?.takeIf { it.identity == displaced && it.confidence != Confidence.UNKNOWN }?.let { previous ->
                 publishNight(previous.copy(confidence = Confidence.UNKNOWN))
                 repo.updateRuntime { it.copy(reason = text(R.string.runtime_interrupted), retime = null) }
                 Notifications.cancelQuiet(context)
@@ -577,8 +605,10 @@ class NightActions(private val graph: Graph) {
     private suspend fun writeSlotLocked(slot: Int, program: StoredProgram?, label: String, start: Boolean = false): CommandOutcome {
         val target = repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target)
         slotBackupsRefusal()?.let { return it }
+        val earlier = repo.runtime.value.slotWrite
+        val night = repo.activeNight.value
         val intent = SlotWrite(target, slot, program, label = label, startRequested = start,
-            displaced = if (start) repo.activeNight.value?.identity else null)
+            displaced = if (start) night?.identity else null, nightId = night?.recordId)
         repo.updateRuntime { it.copy(slotWrite = intent) }
         var writing = false
         try {
@@ -589,16 +619,29 @@ class NightActions(private val graph: Graph) {
                 if (graph.controller().storedPrograms()[slot] != null) throw BedJetError.VerifyFailed()
             }
             if (start) graph.controller().startProgram(slot)
-            repo.updateRuntime { it.copy(slotWrite = intent.copy(confidence = Confidence.CONFIRMED)) }
+            // IR-06: success settles any earlier write in question. A Boost keeps its CONFIRMED entry until the night
+            // it displaced is finished, so a restart in between still marks that night interrupted.
+            repo.updateRuntime { it.copy(slotWrite = if (start) intent.copy(confidence = Confidence.CONFIRMED) else null) }
             return CommandOutcome(OutcomeKind.CONFIRMED, label)
         } catch (e: Exception) {
             withContext(NonCancellable) {
-                val confidence = if (writing) Confidence.UNKNOWN else Confidence.FAILED
-                repo.updateRuntime { it.copy(slotWrite = intent.copy(confidence = confidence), reason = e.message) }
-                if (start) repo.activeNight.value?.let { publishNight(it.copy(confidence = confidence)) }
+                if (!writing) {
+                    // IR-05/IR-06: nothing reached the BedJet. The journal and the night are left as they were.
+                    repo.updateRuntime { it.copy(slotWrite = earlier, reason = e.message) }
+                } else {
+                    repo.updateRuntime { it.copy(slotWrite = intent.copy(confidence = Confidence.UNKNOWN), reason = e.message) }
+                    if (start) repo.activeNight.value?.let { publishNight(it.copy(confidence = Confidence.UNKNOWN)) }
+                }
             }
-            throw e
+            if (e is CancellationException) throw e
+            recordError("$label: ${e.message.orEmpty()}")
+            return CommandOutcome(if (writing) OutcomeKind.UNKNOWN else OutcomeKind.FAILED, e.message ?: text(R.string.runtime_failed))
         }
+    }
+    /** The user has checked the BedJet: a slot write in question no longer holds anything back (IR-06). Local only. */
+    suspend fun acknowledgeSlotWrite(): CommandOutcome = lock.withLock {
+        repo.updateRuntime { it.copy(slotWrite = null) }
+        CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_slot_write_acknowledged))
     }
     suspend fun initialise() {
         lock.withLock {

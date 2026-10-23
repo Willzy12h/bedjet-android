@@ -76,6 +76,29 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
         assertNull(graph.repository.activeNight.value)
     }
 
+    // IR-06: only a current, unresolved slot write holds the charger start back.
+    private suspend fun slotWrite(graph: Graph, confidence: io.github.willzy12h.nocturne.core.night.Confidence, device: String = "ble:AA:BB:CC:DD:EE:FF") =
+        graph.repository.updateRuntime { it.copy(slotWrite = io.github.willzy12h.nocturne.night.SlotWrite(device, 0,
+            null, confidence, "Restore")) }
+    @Test fun anOldFailedSlotWriteDoesNotBlockTheStart() = runBlocking {
+        val graph=graph(); var notices=0
+        slotWrite(graph, io.github.willzy12h.nocturne.core.night.Confidence.FAILED)
+        ChargerRun(graph,{true},{_,_->notices++;true},{graph.repository.updateSettings { it.copy(platform=it.platform.copy(chargerAutoStart=false)) }},{true}).execute()
+        assertEquals("nothing was written, so it is not a reason to hold back",1,notices)
+    }
+    @Test fun anUnresolvedSlotWriteOnTheTargetStillBlocksTheStart() = runBlocking {
+        val graph=graph(); var notices=0
+        slotWrite(graph, io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN)
+        ChargerRun(graph,{true},{_,_->notices++;true},{},{true}).execute()
+        assertEquals(0,notices)
+    }
+    @Test fun anUnresolvedSlotWriteOnAnotherBedJetDoesNotBlockTheStart() = runBlocking {
+        val graph=graph(); var notices=0
+        slotWrite(graph, io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN, "ble:AA:BB:CC:DD:EE:01")
+        ChargerRun(graph,{true},{_,_->notices++;true},{graph.repository.updateSettings { it.copy(platform=it.platform.copy(chargerAutoStart=false)) }},{true}).execute()
+        assertEquals(1,notices)
+    }
+
     /** A demo unit whose last report is a manual run, attributed to [source]. */
     private class OtherUnitReport(demo: DemoBedJet, source: String) : BedJetLink by demo {
         private val running = DeviceStatus(remainingSeconds = 600, actualTemperature = 60, targetTemperature = 70,

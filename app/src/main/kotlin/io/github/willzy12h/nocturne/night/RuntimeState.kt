@@ -16,12 +16,24 @@ import kotlinx.serialization.Serializable
     val slotWrite: SlotWrite? = null,
     val reason: String? = null,
     val wakeShown: NightIdentity? = null,
-)
+) {
+    /**
+     * IR-06: the slot write still in question, PENDING (under way, or interrupted by a restart) or UNKNOWN (perhaps
+     * partly accepted). A write that failed before touching the BedJet is never kept, and an old FAILED entry from an
+     * earlier journal is ignored. The entry is cleared when a later slot write or night on the same BedJet succeeds,
+     * when the night it was made in ends or is kept tracking, or when the user acknowledges it.
+     */
+    val unresolvedSlotWrite: SlotWrite? get() = slotWrite?.takeIf { it.confidence == Confidence.PENDING || it.confidence == Confidence.UNKNOWN }
+}
 @Serializable data class PendingRetime(val id: String, val expected: NightIdentity, val deviceId: String,
     val alarmAt: String?, val alarmOrigin: String?, val deadline: String)
 @Serializable data class SlotWrite(val deviceId: String, val slot: Int, val intended: StoredProgram?,
     val confidence: Confidence = Confidence.PENDING, val label: String,
-    val startRequested: Boolean = false, val displaced: NightIdentity? = null)
+    val startRequested: Boolean = false, val displaced: NightIdentity? = null,
+    /** The night tracked when the write was made; its end resolves the write (IR-06). */
+    val nightId: String? = null) {
+    fun belongsTo(recordId: String): Boolean = nightId == recordId || displaced?.nightId == recordId
+}
 
 data class CommandRequest(val command: NightActions.Command, val profileId: String?, val deviceId: String?,
     val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false)
