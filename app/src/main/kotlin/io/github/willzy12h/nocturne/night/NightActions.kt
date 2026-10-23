@@ -457,9 +457,13 @@ class NightActions(private val graph: Graph) {
     }
     private suspend fun freshStatus(): DeviceStatus {
         // Reconnect under whole-command ownership. Existing READY status may predate this operation.
+        val target = repo.settings.value.deviceId()
         graph.link.disconnect()
         graph.link.connect()
-        return withTimeout(10_000) { graph.link.status.filterNotNull().first { it.extra != null } }
+        // Only the chosen BedJet's own report counts: one from a session still on another unit says nothing about it.
+        return withTimeout(10_000) {
+            graph.link.sourcedStatus.filterNotNull().first { it.isFrom(target) && it.status.extra != null }.status
+        }
     }
     /** Actual received wake/end signals only. Startup never invents historical deliveries. */
     suspend fun submitLocalDelivery(action: String, expected: NightIdentity?) {

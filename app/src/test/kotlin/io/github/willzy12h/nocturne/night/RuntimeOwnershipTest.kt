@@ -13,6 +13,7 @@ import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.emitAll
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -37,15 +38,28 @@ class RuntimeOwnershipTest {
     private var failSettings = false
     private var failClear = false
     private val sent = mutableListOf<ByteArray>()
+    private enum class RefuseStart { NO, BEFORE_GUARD, AFTER_GUARD }
+    private var refuseStart = RefuseStart.NO
+    /** When set, the link's latest report came from another BedJet, as from a session still on the previous one. */
+    private var foreign: SourcedStatus? = null
     @Before fun setup() = runBlocking {
         demo = DemoBedJet(now = { graph.now() })
         val link = object : BedJetLink by demo {
             override suspend fun send(command: ByteArray) { beforeSend(command); sent += command; demo.send(command) }
             override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+                val start = command.contentEquals(Codec.startProgram(graph.repository.settings.value.workingSlot))
+                // As GattLink does with no live, prepared session: refused before the final check runs.
+                if (start && refuseStart == RefuseStart.BEFORE_GUARD) throw BedJetError.NotConnected()
                 beforeWrite()
+                if (start && refuseStart == RefuseStart.AFTER_GUARD) throw BedJetError.NotConnected()
                 send(command)
             }
             override suspend fun connect() { beforeConnect(); demo.connect() }
+            override val status: kotlinx.coroutines.flow.StateFlow<DeviceStatus?>
+                get() = foreign?.let { kotlinx.coroutines.flow.MutableStateFlow<DeviceStatus?>(it.status) } ?: demo.status
+            override val sourcedStatus: kotlinx.coroutines.flow.Flow<SourcedStatus?>
+                get() = foreign?.let { f -> kotlinx.coroutines.flow.flow { emit(f); emitAll(demo.sourcedStatus) } } ?: demo.sourcedStatus
+            override fun latestSourcedStatus(): SourcedStatus? = foreign ?: demo.latestSourcedStatus()
         }
         graph = graphs.fresh { Graph(context, link) { scope, now -> Repository(context, scope, writeFile = { file, bytes ->
             if (failClear && file.name == "active-night.json" && bytes.decodeToString() == "null") throw IOException("Clear disk failure")
@@ -355,6 +369,32 @@ class RuntimeOwnershipTest {
         assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
         graph.actions.observeStatus(demo.status.value!!, "demo", graph.now(), source = "demo")
         assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
+    }
+    @Test fun keepTrackingReadsOnlyTheTargetsOwnFreshStatus() = runBlocking {
+        start(); advance(60); demo.tick()
+        demo.send(Codec.setMode(Mode.COOL)!!)
+        graph.actions.observeStatus(demo.status.value!!, "demo")
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
+        val own = demo.status.value!!
+        // A running report from another BedJet is the newest the link holds; it must not be tracked as this one's.
+        foreign = SourcedStatus(DeviceId.ble("AA:BB:CC:DD:EE:01"), own.copy(mode = Mode.HEAT, remainingSeconds = own.remainingSeconds + 3_600))
+        assertEquals(OutcomeKind.LOCAL, graph.actions.execute(graph.actions.capture(NightActions.Command.KEEP_TRACKING)).kind)
+        foreign = null
+        val tracked = graph.repository.activeNight.value!!
+        assertEquals(graph.now().plusSeconds(own.remainingSeconds.toLong()).toInstant(), ZonedDateTime.parse(tracked.endsAt).toInstant())
+    }
+    @Test fun aFreshStartTheLinkRefusesBeforeItsFinalCheckEndsFailed() = runBlocking {
+        refuseStart = RefuseStart.BEFORE_GUARD
+        assertFalse(graph.actions.perform(NightActions.Command.START_NIGHT).contains("started"))
+        // No start can have reached the unit, so the night is known not to be running.
+        assertEquals(Confidence.FAILED, graph.repository.activeNight.value?.confidence)
+        assertFalse(sent.any { it.contentEquals(Codec.startProgram(graph.repository.settings.value.workingSlot)) })
+    }
+    @Test fun aFreshStartRefusedAfterItsFinalCheckIsUnknown() = runBlocking {
+        // The contrast: once the final check has passed, the start may have been written, so nothing is known.
+        refuseStart = RefuseStart.AFTER_GUARD
+        assertFalse(graph.actions.perform(NightActions.Command.START_NIGHT).contains("started"))
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
     }
     @Test fun normalProgressionIsNotTakeoverButFreshManualStatusIsUnknown() = runBlocking {
         val n = start(); advance(60); demo.tick()
