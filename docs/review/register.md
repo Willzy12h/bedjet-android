@@ -118,7 +118,7 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 
 | ID | Item | Owner | Status |
 |---|---|---|---|
-| V01 | Injected clocks, controlled schedulers, transport/fault fakes across the regression scenarios in the brief | all | open |
+| V01 | Injected clocks, controlled schedulers, transport/fault fakes across the regression scenarios in the brief | all | open; test graphs over the application storage now run one at a time and finish before teardown (`GraphLifecycle`, `test(app): run one graph at a time over the app storage`; GraphLifecycleTest) |
 | V02 | Migration and backup round trips | W2 | auto-verified (MigrationsTest, BackupTest.roundTrip, SnapshotStoreTest.aVersion1SnapshotLoads, RepositoryTest.aVersion1BackupImports) |
 | V03 | Before/after real-app renders: Dark, Light, Simple, narrow, large text | L / W4 | baseline captured |
 | V04 | Minified release build with a test signing key (not production) | L | open |

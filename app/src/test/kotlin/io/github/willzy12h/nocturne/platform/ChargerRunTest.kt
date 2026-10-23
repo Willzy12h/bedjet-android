@@ -24,7 +24,7 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
     private suspend fun graph(link: (DemoBedJet) -> BedJetLink = { it }): Graph {
         val context: Context=RuntimeEnvironment.getApplication()
         lateinit var graph: Graph
-        graph=own(Graph(context,link(DemoBedJet(now={graph.now()}))))
+        graph=fresh { Graph(context,link(DemoBedJet(now={graph.now()}))) }
         graph.clock=Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"),ZoneOffset.UTC)
         graph.repository.updateSettings { it.copy(targetDevice="ble:AA:BB:CC:DD:EE:FF",demoMode=false,
             platform=it.platform.copy(chargerAutoStart=true,chargerDevice="ble:AA:BB:CC:DD:EE:FF")) }

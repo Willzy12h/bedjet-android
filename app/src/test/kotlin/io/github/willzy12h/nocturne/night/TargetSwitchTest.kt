@@ -24,6 +24,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TargetSwitchTest {
+    @get:org.junit.Rule val graphs = io.github.willzy12h.nocturne.GraphLifecycle()
     private val context: Context = RuntimeEnvironment.getApplication()
     private val radio = FakeRadio()
     private lateinit var graph: Graph
@@ -39,7 +40,7 @@ class TargetSwitchTest {
                 if (racingReconnect) runCatching { gatt.connect() }
             }
         }
-        graph = Graph(context, link)
+        graph = graphs.fresh { Graph(context, link) }
         graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = A) }
     }
 

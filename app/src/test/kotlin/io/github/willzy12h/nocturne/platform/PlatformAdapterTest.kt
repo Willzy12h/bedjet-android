@@ -63,7 +63,7 @@ class PlatformAdapterTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
         assertNull(scheduler.getPendingJob(ChargerJobs.ID))
     }
     @Test fun oldPeerRequestCannotReleaseNewTarget() = runBlocking {
-        val graph=own(Graph(context,DemoBedJet()))
+        val graph=fresh { Graph(context,DemoBedJet()) }
         val old="ble:AA:BB:CC:DD:EE:FF"
         graph.repository.updateSettings {it.copy(targetDevice="ble:11:22:33:44:55:66")}
         assertEquals(OutcomeKind.STALE,graph.platform.handover.peerRequest(old).kind)
@@ -71,7 +71,7 @@ class PlatformAdapterTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
     }
     @Test fun handoverUsesCoordinatorSuspendResumeAndDeclinesBusyTransaction() = runBlocking {
         lateinit var graph:Graph
-        graph=own(Graph(context,DemoBedJet(now={graph.now()})))
+        graph=fresh { Graph(context,DemoBedJet(now={graph.now()})) }
         graph.repository.updateSettings {it.copy(demoMode=true)}
         val entered=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
         val operation=async {graph.actions.exclusive {entered.complete(Unit);release.await()}}

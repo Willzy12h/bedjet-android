@@ -20,7 +20,7 @@ class PlatformDeliveryTest : io.github.willzy12h.nocturne.platform.PlatformGraph
         val repo=context.graph.repository
         assertTrue(repo.claimAutomation("reminder:2026-10-22"))
         assertFalse(repo.claimAutomation("reminder:2026-10-22"))
-        val restarted=own(Graph(context)).repository
+        val restarted=fresh { Graph(context) }.repository
         assertFalse(restarted.claimAutomation("reminder:2026-10-22"))
         assertTrue(restarted.claimAutomation("charger:2026-10-22"))
         assertFalse(restarted.claimAutomation("charger:2026-10-22"))

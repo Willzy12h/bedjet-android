@@ -23,7 +23,7 @@ class PlatformActivityTest : io.github.willzy12h.nocturne.platform.PlatformGraph
         val link=object:io.github.willzy12h.nocturne.core.link.BedJetLink by demo {
             override suspend fun connect() {connecting=true;kotlinx.coroutines.awaitCancellation()}
         }
-        val graph=own(io.github.willzy12h.nocturne.Graph(app,link))
+        val graph=fresh { io.github.willzy12h.nocturne.Graph(app,link) }
         io.github.willzy12h.nocturne.App::class.java.getDeclaredField("graph").apply {isAccessible=true}.set(app,graph)
         graph.clock=Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"),ZoneOffset.UTC)
         graph.repository.updateSettings {it.copy(demoMode=true)}

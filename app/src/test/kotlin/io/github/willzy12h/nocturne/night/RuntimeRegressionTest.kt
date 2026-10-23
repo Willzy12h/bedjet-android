@@ -21,6 +21,7 @@ import java.util.TimeZone
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RuntimeRegressionTest {
+    @get:org.junit.Rule val graphs = io.github.willzy12h.nocturne.GraphLifecycle()
     private val context: Context = RuntimeEnvironment.getApplication()
     private val graph get() = context.graph
     @Before fun setup() = runBlocking {
@@ -57,7 +58,7 @@ class RuntimeRegressionTest {
         val old = TimeZone.getDefault()
         try {
             TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
-            val production = io.github.willzy12h.nocturne.Graph(context)
+            val production = graphs.fresh { io.github.willzy12h.nocturne.Graph(context) }
             TimeZone.setDefault(TimeZone.getTimeZone("Europe/London"))
             assertEquals(ZoneId.of("Europe/London"), production.now().zone)
             assertEquals(ZoneOffset.UTC, graph.now().zone)

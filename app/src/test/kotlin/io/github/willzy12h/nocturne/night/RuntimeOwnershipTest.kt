@@ -27,6 +27,7 @@ import java.io.IOException
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RuntimeOwnershipTest {
+    @get:org.junit.Rule val graphs = io.github.willzy12h.nocturne.GraphLifecycle()
     private val context: Context = RuntimeEnvironment.getApplication()
     private lateinit var graph: Graph
     private lateinit var demo: DemoBedJet
@@ -46,12 +47,12 @@ class RuntimeOwnershipTest {
             }
             override suspend fun connect() { beforeConnect(); demo.connect() }
         }
-        graph = Graph(context, link) { scope, now -> Repository(context, scope, writeFile = { file, bytes ->
+        graph = graphs.fresh { Graph(context, link) { scope, now -> Repository(context, scope, writeFile = { file, bytes ->
             if (failClear && file.name == "active-night.json" && bytes.decodeToString() == "null") throw IOException("Clear disk failure")
             if (failBackups && file.name == "slot-backups.json") throw IOException("Backup disk failure")
             if (failSettings && file.name == "settings.json") throw IOException("Settings disk failure")
             Repository.writeDurably(file, bytes)
-        }, now = now) }
+        }, now = now) } }
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
         context.graph.clock = graph.clock
         graph.repository.updateSettings { it.copy(demoMode = true) }
@@ -72,7 +73,7 @@ class RuntimeOwnershipTest {
         graph.repository.updateRuntime { it.copy(
             slotWrite = SlotWrite("demo", n.slot, StoredProgram("Boost", emptyList()), confidence, "Boost", true, n.identity),
             alarmInbox = AlarmObservation("alarm", n.recordId, "demo", graph.now().toString())) }
-        val restarted = Graph(context, graph.link)
+        val restarted = graphs.fresh { Graph(context, graph.link) }
         restarted.clock = graph.clock
         val count = sent.size
         restarted.actions.reconcile()
@@ -128,14 +129,14 @@ class RuntimeOwnershipTest {
         assertNull(demo.slots[2]); assertEquals(Confidence.FAILED, graph.repository.activeNight.value!!.confidence)
         val failed = graph.repository.history.value.single { it.id == graph.repository.activeNight.value!!.recordId }
         assertTrue(failed.events.any { it.kind == EventKind.ERROR })
-        val reloaded = Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() }
+        val reloaded = graphs.afterFinishing { Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() } }
         assertEquals(failed, reloaded.history.value.single { it.id == failed.id })
     }
     @Test fun corruptOriginalsCannotAuthoriseStartBoostOrPinAfterNoticeDismissal() = runBlocking {
         File(context.filesDir, "slot-backups.json").writeText("[{ broken")
-        val restarted = Graph(context, graph.link) { scope, now ->
+        val restarted = graphs.fresh { Graph(context, graph.link) { scope, now ->
             Repository(context, scope, writer = Dispatchers.Unconfined, now = now)
-        }
+        } }
         restarted.clock = graph.clock
         assertEquals(listOf("slot-backups.json"), restarted.repository.unreadable.value)
         restarted.repository.dismissUnreadable()
@@ -183,7 +184,7 @@ class RuntimeOwnershipTest {
         assertEquals(OutcomeKind.LOCAL, graph.actions.selectTarget(target, useRealDevice = true).kind)
         assertEquals(target, graph.repository.settings.value.deviceId())
         assertFalse(graph.repository.settings.value.demoMode)
-        val reloaded = Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() }
+        val reloaded = graphs.afterFinishing { Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() } }
         assertEquals(target, reloaded.settings.value.deviceId())
         assertFalse(reloaded.settings.value.demoMode)
     }
@@ -220,7 +221,7 @@ class RuntimeOwnershipTest {
         failSettings = true
         assertEquals(OutcomeKind.FAILED, graph.actions.selectTarget("ble:AA:BB:CC:DD:EE:FF", useRealDevice = true).kind)
         assertEquals(before, graph.repository.settings.value)
-        val reloaded = Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() }
+        val reloaded = graphs.afterFinishing { Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() } }
         assertEquals(before, reloaded.settings.value)
     }
     @Test fun pinRefusesWorkingSlotAndRecordsOriginalBeforeWritingOtherSlot() = runBlocking {
@@ -265,7 +266,7 @@ class RuntimeOwnershipTest {
         graph.actions.perform(NightActions.Command.TURBO)
         assertTrue(graph.repository.runtime.value.generation > version)
         assertNull(graph.repository.runtime.value.resumeOffer)
-        val loaded = Repository(context, graph.scope, now = { graph.now() })
+        val loaded = graphs.afterFinishing { Repository(context, graph.scope, now = { graph.now() }) }
         assertEquals(graph.repository.runtime.value.generation, loaded.runtime.value.generation)
     }
     @Test fun remoteOffEndsNightAndLaterAlarmCannotRestartIt() = runBlocking {

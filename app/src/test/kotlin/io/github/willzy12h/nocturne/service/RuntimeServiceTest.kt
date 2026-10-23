@@ -25,6 +25,7 @@ import java.time.*
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RuntimeServiceTest {
+    @get:org.junit.Rule val graphs = io.github.willzy12h.nocturne.GraphLifecycle()
     private val app: App = RuntimeEnvironment.getApplication() as App
     private lateinit var graph: Graph
     private var beforeSend: suspend (ByteArray) -> Unit = {}
@@ -36,7 +37,7 @@ class RuntimeServiceTest {
             override suspend fun connect() { connects++; demo.connect() }
             override suspend fun send(command: ByteArray) { writes++; beforeSend(command); demo.send(command) }
         }
-        graph = Graph(app, link)
+        graph = graphs.fresh { Graph(app, link) }
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
         App::class.java.getDeclaredField("graph").apply { isAccessible = true }.set(app, graph)
         graph.repository.updateSettings { it.copy(demoMode = true) }
