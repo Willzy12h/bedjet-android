@@ -36,7 +36,7 @@ This table disposes of every finding in `independent-review-tasks-1-4.md`, using
 | IR-28 | Implemented: importing history preserves the current night's record; repository regression. |
 | IR-29 | Implemented best-effort parent-directory sync and regular snapshot temporary-file cleanup; store regressions. Power-loss durability on the actual phone remains unverified. |
 | IR-30 | Implemented: restore preserves current temporary choice/override, including null values, and migrates old selection; repository regression. |
-| IR-31 | **Conditional unresolved legacy limit:** a v1 empty slot was never recorded. An old `[]` cannot prove whether it was originally empty. Imported unknown originals remain read-only; a supervised original-slot inventory/restore is required before accepting an upgraded real installation. |
+| IR-31 | **Conditional unresolved legacy limit:** a v1 empty slot was never recorded. An old `[]` cannot prove whether it was originally empty. Since P4, every v1-migrated original carries `SlotBackup.uncertain = true` (kept through adoption and backups; `MigrationsTest.version1OriginalsAreMarkedUncertain`); showing it in Settings and the restore outcome is a later UI task. Imported unknown originals remain read-only; a supervised original-slot inventory/restore is required before accepting an upgraded real installation. |
 | IR-32 | Implemented: exact-file automatic-transfer allowlists carry portable profiles/history and the slot originals with their integrity barrier together. Runtime, target, journals and update-token preferences are excluded. XML regression and lint. |
 
 ## Scope and remaining acceptance

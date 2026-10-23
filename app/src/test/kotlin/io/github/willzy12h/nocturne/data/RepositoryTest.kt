@@ -341,7 +341,8 @@ class RepositoryTest {
 
     // Originals saved before devices were recorded
 
-    private val migrated = SlotBackup("unknown", 2, program, "2026-10-20T22:30Z")
+    /** As version 1 saved it; migrated records are uncertain (IR-31). */
+    private val migrated = SlotBackup("unknown", 2, program, "2026-10-20T22:30Z", uncertain = true)
 
     /** A version 1 backup of slot 3 (index 2), as an upgrade finds it. */
     private fun version1Original() = File(dir, "slot-backups.json").writeText(
@@ -892,7 +893,7 @@ class RepositoryTest {
         )
         val repo = repository()
         assertEquals(emptyList<String>(), repo.unreadable.value)
-        assertEquals(SlotBackup("unknown", 2, program, "2026-10-20T22:30Z"), repo.slotBackups.value.single())
+        assertEquals(SlotBackup("unknown", 2, program, "2026-10-20T22:30Z", uncertain = true), repo.slotBackups.value.single())
         assertEquals("unknown", repo.history.value.single().deviceId)
     }
 

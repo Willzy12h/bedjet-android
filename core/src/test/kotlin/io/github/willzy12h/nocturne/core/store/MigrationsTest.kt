@@ -33,8 +33,19 @@ class MigrationsTest {
         val bundle = BackupCodec.decode(v1)
         assertEquals(2, BackupCodec.SCHEMA)
         assertEquals(BackupCodec.SCHEMA, bundle.schema)
-        assertEquals(listOf(SlotBackup("unknown", 0, program, "2026-10-20T22:30Z", empty = false)), bundle.slotBackups)
+        assertEquals(listOf(SlotBackup("unknown", 0, program, "2026-10-20T22:30Z", empty = false, uncertain = true)), bundle.slotBackups)
         assertEquals("unknown", bundle.history.single().deviceId)
+    }
+
+    /** IR-31: version 1 never recorded empty slots, so a slot it saved may already have held one of its programmes. */
+    @Test
+    fun version1OriginalsAreMarkedUncertain() {
+        assertTrue(BackupCodec.decode(v1).slotBackups.single().uncertain)
+        val onDisk = """[{"slot": 1, "program": null, "savedAt": "x"}]"""
+        assertTrue(Migrations.decodeSlotBackups(onDisk).single().uncertain)
+        // A current record keeps the flag it has.
+        val current = listOf(SlotBackup("ble:AA", 1, program, "y"), SlotBackup("unknown", 2, program, "z", uncertain = true))
+        assertEquals(current, Migrations.decodeSlotBackups(BackupCodec.json.encodeToString(ListSerializer(SlotBackup.serializer()), current)))
     }
 
     @Test
@@ -49,7 +60,7 @@ class MigrationsTest {
     fun version1SlotBackupFileLoads() {
         val onDisk = """[{"slot": 1, "program": {"name": "old", "steps": [{"mode": "DRY", "fanStep": 1, "temperature": 60, "hours": 1, "minutes": 0}]}, "savedAt": "x"}]"""
         val list = Migrations.decodeSlotBackups(onDisk)
-        assertEquals(listOf(SlotBackup("unknown", 1, program, "x")), list)
+        assertEquals(listOf(SlotBackup("unknown", 1, program, "x", uncertain = true)), list)
         assertFalse(list.single().empty)
     }
 

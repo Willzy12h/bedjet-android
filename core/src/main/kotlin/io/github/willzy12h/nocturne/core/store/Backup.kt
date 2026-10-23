@@ -24,6 +24,11 @@ data class SlotBackup(
     val empty: Boolean = program == null,
     /** Imported unknown-device records cannot identify the BedJet whose original they contain. */
     val imported: Boolean = false,
+    /**
+     * The slot may already have held one of the app's own programmes when this was saved: version 1 never recorded
+     * empty slots (IR-31), and a record saved after the loss of unreadable originals was accepted can't tell either.
+     */
+    val uncertain: Boolean = false,
 )
 
 @Serializable

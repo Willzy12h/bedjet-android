@@ -42,7 +42,7 @@ object Migrations {
     fun decodeHistory(text: String): List<NightRecord> =
         BackupCodec.json.decodeFromJsonElement(ListSerializer(NightRecord.serializer()), mapRecords(BackupCodec.json.parseToJsonElement(text), ::nightRecordV2))
 
-    /** 1 → 2: slot backups gain their device and empty marker; nights gain their device. */
+    /** 1 → 2: slot backups gain their device and empty marker, and are marked uncertain; nights gain their device. */
     private fun oneToTwo(obj: JsonObject): JsonObject = JsonObject(
         obj + mapOf(
             "schema" to JsonPrimitive(2),
@@ -57,6 +57,9 @@ object Migrations {
             record + mapOf(
                 "deviceId" to (record["deviceId"] ?: JsonPrimitive(UNKNOWN_DEVICE)),
                 "empty" to (record["empty"] ?: JsonPrimitive(program == null || program is JsonNull)),
+                // Only a record without a device is from version 1, which never recorded empty slots (IR-31). A
+                // current record keeps the flag it has.
+                "uncertain" to (record["uncertain"] ?: JsonPrimitive(record["deviceId"] == null)),
             ),
         )
     }
