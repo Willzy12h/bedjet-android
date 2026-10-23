@@ -88,6 +88,26 @@ class AdmissionTest {
         assertNull(graph.repository.activeNight.value)
     }
 
+    @Test fun aRetimeRetryThatWaitedTooLongKeepsItsChangeAndItsRetry() = runBlocking {
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT)).kind)
+        val alarms = context.getSystemService(android.app.AlarmManager::class.java)
+        val fire = android.app.PendingIntent.getBroadcast(context, 0, android.content.Intent("test"), android.app.PendingIntent.FLAG_IMMUTABLE)
+        alarms.setAlarmClock(android.app.AlarmManager.AlarmClockInfo(graph.now().plusHours(5).toInstant().toEpochMilli(), null), fire)
+        assertEquals(OutcomeKind.LOCAL, graph.actions.submitAlarmChange().kind)
+        // The observation's retry alarm fires later, and the retry then waits behind another command.
+        graph.clock = Clock.offset(graph.clock, Duration.ofMinutes(10)); context.graph.clock = graph.clock
+        val count = sent.size
+        val outcome = afterWaiting(NightActions.OPERATION_MS - 25_000) {
+            graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        }
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
+        assertEquals(count, sent.size)
+        assertTrue("the change is still waiting", graph.actions.retimePending)
+        val again = graph.now().plusMinutes(10).toInstant().toEpochMilli()
+        assertTrue("and it is tried again", org.robolectric.Shadows.shadowOf(alarms).scheduledAlarms.any {
+            org.robolectric.Shadows.shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY && it.triggerAtTime == again })
+    }
+
     @Test fun theUiWaitOutlastsTheServiceWhichOutlastsTheOwnerBudget() {
         assertTrue(BedJetService.SERVICE_MS > NightActions.OPERATION_MS)
         assertTrue("the UI's wait covers promotion, the service bound and a margin",

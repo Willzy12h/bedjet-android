@@ -89,7 +89,7 @@ class NightActions(private val graph: Graph) {
                 val result = if (target != repo.settings.value.deviceId() ||
                     (submitted != null && submitted.deviceId != repo.settings.value.deviceId())) stale(R.string.runtime_target_changed)
                     // The budget includes the wait; too little left would be cut off partway through a write.
-                    else if (admit && OPERATION_MS - (elapsedMs() - queued) < MIN_BUDGET_MS) refused(R.string.runtime_waited_too_long)
+                    else if (admit && OPERATION_MS - (elapsedMs() - queued) < MIN_BUDGET_MS) waitedTooLong()
                     else work()
                 _outcomes.emit(result)
                 result
@@ -110,6 +110,12 @@ class NightActions(private val graph: Graph) {
                 try { drainLocalSafely() } finally { lock.unlock(owner) }
             }
         }
+    }
+    /** Nothing changed; a pending wake-up change keeps its retry, since this attempt may have been the alarm's. */
+    private fun waitedTooLong(): CommandOutcome {
+        repo.runtime.value.retime?.let { NightAlarms.scheduleRetry(context, it, graph.now()) }
+        if (repo.runtime.value.alarmInbox != null) NightAlarms.scheduleObservation(context, graph.now())
+        return refused(R.string.runtime_waited_too_long)
     }
     private suspend fun <T> connected(work: suspend () -> T): T {
         check(repo.settings.value.deviceId() != null) { text(R.string.runtime_choose_target) }
