@@ -19,7 +19,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -111,28 +110,56 @@ class GattLink(
         connecting.withLock { }
     }
 
+    /**
+     * Writes [command]. A program start (recognised by its bytes, see [isStart]) never reconnects: it goes out only
+     * on the live session that [prepareForStart] prepared, or fails with [BedJetError.NotConnected]. A start that
+     * had to wait for a reconnect would land later than its caller checked it was still due, and a new session's
+     * first report could already have been taken for its confirmation.
+     */
     override suspend fun send(command: ByteArray) {
+        if (isStart(command)) return sendStart(command)
         ensureConnected()
         operations.withLock {
             val session = live()
-            // Only reports that arrive after the start may confirm it: an older program step must not.
-            if (isStart(command)) session.forgetExtra()
+            // Anything other than the start means the start that was prepared is not coming.
+            session.startPending = false
             write(session, command)
+        }
+    }
+
+    private suspend fun sendStart(command: ByteArray) = operations.withLock {
+        val session = live()
+        if (!session.startPending) throw BedJetError.NotConnected()
+        session.forgetExtra()
+        try {
+            write(session, command)
+        } finally {
+            // Reports from now on may confirm the start; the next head-only one asks for the remainder at once.
+            session.startPending = false
+            session.lastRemainderRead = null
         }
     }
 
     override suspend fun query(request: Int): ByteArray {
         ensureConnected()
-        return operations.withLock { ask(live(), request) }
+        return operations.withLock {
+            val session = live()
+            session.startPending = false
+            ask(session, request)
+        }
     }
 
     /**
-     * Forgets the program progress last reported, now and for head-only reports, until a fresh full status or
-     * remainder read arrives, so an older program step can't confirm the start that follows.
+     * Forgets the program progress last reported and ignores any reported from now until the start command has been
+     * written, whether it comes in a full status, a head-only one or a remainder read, so only a report from after
+     * the start can confirm it. Taking [operations] waits for a remainder read already under way, so none can merge
+     * an older step afterwards. Progress stays unknown on this session until the start is written or another
+     * command is sent.
      */
-    override suspend fun prepareForStart() {
+    override suspend fun prepareForStart() = operations.withLock {
         val session = current
         session?.forgetExtra()
+        session?.startPending = true
         publish(session, _status.value?.copy(extra = null))
     }
 
@@ -241,7 +268,8 @@ class GattLink(
                 // Metadata is optional, but exchange failures still retire the session.
                 // The current-session check below decides whether this attempt remains usable.
             }
-            if (stillWanted(session, started)) withTimeoutOrNull(timings.firstStatusMs) { status.first { it != null } }
+            // Retiring the session (as disconnect() does) ends the wait at once.
+            if (stillWanted(session, started)) withTimeoutOrNull(timings.firstStatusMs) { session.reported.await() }
             // The name query can time out, the unit can drop or disconnect() can land meanwhile, each retiring
             // the session: only a session that is still current and still wanted counts as connected.
             attached = stillWanted(session, started) && session.ready
@@ -255,10 +283,15 @@ class GattLink(
     private fun stillWanted(session: Session, started: Int) =
         wanted && epoch == started && current === session && session.isFor(targetAddress())
 
-    /** Every status goes out with the session that reported it; see [sourcedStatus]. */
+    /**
+     * Every status goes out with the session that reported it; see [sourcedStatus]. Without a session there is no
+     * status, so [status] is never left set while [sourcedStatus] is empty.
+     */
     private fun publish(session: Session?, value: DeviceStatus?) {
-        _sourcedStatus.value = if (session == null || value == null) null else SourcedStatus(DeviceId.ble(session.address), value)
-        _status.value = value
+        val shown = value?.takeIf { session != null }
+        _sourcedStatus.value = if (session == null || shown == null) null else SourcedStatus(DeviceId.ble(session.address), shown)
+        _status.value = shown
+        if (session != null && shown != null) session.reported.complete(Unit)
     }
 
     private fun retire(session: Session) {
@@ -339,7 +372,11 @@ class GattLink(
      */
     private fun receiveStatus(session: Session, chunk: ByteArray) {
         if (current !== session) return
+        // While a start is pending, program progress and notifications describe the unit from before it: the live
+        // readings still go out, the rest is dropped. See [prepareForStart].
+        val pending = session.startPending
         if (!Codec.isStatusStart(chunk)) {
+            if (pending) return
             val head = session.lastHead ?: return
             Codec.parseStatus(head + chunk)?.extra?.let { extra ->
                 session.lastExtra = extra
@@ -349,12 +386,15 @@ class GattLink(
         }
         val parsed = Codec.parseStatus(chunk) ?: return
         if (parsed.extra != null) {
+            if (pending) return publish(session, parsed.copy(extra = null))
             session.lastExtra = parsed.extra
             publish(session, parsed)
             return
         }
         session.lastHead = chunk
         publish(session, parsed.copy(extra = session.lastExtra))
+        // A remainder read now would only be dropped, and would hold up the start.
+        if (pending) return
         val now = clock()
         val last = session.lastRemainderRead
         // Only while no operation holds the queue, not merely between its steps: the unit and the GATT stack each
@@ -393,6 +433,7 @@ class GattLink(
             throw BedJetError.NotConnected()
         }
 
+    /** A program start, told apart by its bytes so the [BedJetLink] interface needs no start-only call. */
     private fun isStart(command: ByteArray) = (0 until Limits.SLOTS).any { Codec.startProgram(it).contentEquals(command) }
 
     private enum class Kind { WRITE, READ, DESCRIPTOR }
@@ -406,7 +447,11 @@ class GattLink(
         val scope = CoroutineScope(SupervisorJob() + dispatcher)
         val services = CompletableDeferred<Boolean>()
         val pending = AtomicReference<Pending?>(null)
+        /** Completed by this session's first status, or when it is shut. */
+        val reported = CompletableDeferred<Unit>()
         @Volatile var ready = false
+        /** Set by [prepareForStart] until the start is written or another command is sent; see [receiveStatus]. */
+        @Volatile var startPending = false
         @Volatile var lastHead: ByteArray? = null
         @Volatile var lastExtra: DeviceStatus.Extra? = null
         @Volatile var lastRemainderRead: Long? = null
@@ -439,6 +484,7 @@ class GattLink(
             if (!closed.compareAndSet(false, true)) return
             scope.cancel()
             services.complete(false)
+            reported.complete(Unit)
             pending.getAndSet(null)?.result?.completeExceptionally(BedJetError.NotConnected())
             synchronized(this) { port }?.let(::closePort)
         }

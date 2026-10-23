@@ -315,6 +315,13 @@ class GattLinkTest {
         val port = fake.ports.single()
         link.prepareForStart()
         assertEquals(null, link.status.value?.extra)
+        // Until the start is written, a head-only report neither brings the step back nor asks for the remainder.
+        port.notify(Status.head())
+        fake.drain()
+        delay(100)
+        assertFalse(port.reads.contains(Attr.STATUS))
+        assertEquals(null, link.status.value?.extra)
+        link.send(Codec.startProgram(2))
         port.notify(Status.head())
         eventually { port.reads.contains(Attr.STATUS) }
         assertEquals(null, link.status.value?.extra)
@@ -346,6 +353,158 @@ class GattLinkTest {
         eventually { port.reads.contains(Attr.STATUS) }
         port.answerStatusRead(Status.remainder(programStep = 1))
         withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    // Only a fresh status confirms a start (IR-04)
+
+    @Test
+    fun aFullStatusBetweenPrepareAndStartDoesNotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val start = async {
+            runCatching {
+                controller.startProgram(2) {
+                    // A whole status still reporting the previous program, after the link was prepared.
+                    port.notify(Status.full(programStep = 1))
+                    fake.drain()
+                }
+            }
+        }
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        fake.drain()
+        // Longer than the controller's refusal grace, so a confirmation would have finished the start by now.
+        delay(1_800)
+        assertFalse("A full status from before the start confirmed it", start.isCompleted)
+        port.notify(Status.full(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    @Test
+    fun aFullStatusWhileTheStartIsBeingWrittenDoesNotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        port.holdWrites = true
+        val start = async { runCatching { controller.startProgram(2) } }
+        eventually { port.writes.any { it[0].toInt() == 0x08 } }
+        port.ackWrite()
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        // Sent before the unit acknowledged the start, so it may describe the unit from before it.
+        port.notify(Status.full(programStep = 1))
+        fake.drain()
+        port.ackWrite()
+        delay(1_800)
+        assertFalse("A full status from before the unit took the start confirmed it", start.isCompleted)
+        port.notify(Status.full(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    @Test
+    fun aHeadAndRemainderReadBetweenPrepareAndStartDoNotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val start = async {
+            runCatching {
+                controller.startProgram(2) {
+                    // A head-only report after the prepare; any remainder read it starts is answered with the old step.
+                    port.notify(Status.head())
+                    fake.drain()
+                    Thread.sleep(100)
+                    port.answerStatusRead(Status.remainder(programStep = 1))
+                    fake.drain()
+                }
+            }
+        }
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        fake.drain()
+        delay(1_800)
+        assertFalse("A remainder read from before the start confirmed it", start.isCompleted)
+        // After the start, the next head asks for the remainder at once, and a fresh step confirms.
+        val readsBefore = port.reads.count { it == Attr.STATUS }
+        port.notify(Status.head())
+        eventually { port.reads.count { it == Attr.STATUS } > readsBefore }
+        port.answerStatusRead(Status.remainder(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    @Test
+    fun aReconnectBetweenPrepareAndStartNeverConfirmsFromTheNewSession() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val first = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val result = withTimeout(5_000) {
+            runCatching {
+                controller.startProgram(2) {
+                    // The unit drops after the prepare and another holder reconnects before the start goes out.
+                    first.drop()
+                    fake.drain()
+                    runBlocking { eventually { link.state.value == LinkState.SEARCHING }; link.connect() }
+                }
+            }
+        }
+        assertEquals(2, fake.connects.size)
+        assertTrue("$result", result.exceptionOrNull() is BedJetError.NotConnected)
+        assertFalse(fake.ports.any { p -> p.writes.any { it.contentEquals(Codec.startProgram(2)) } })
+    }
+
+    // A start is sent without reconnecting (IR-11)
+
+    @Test
+    fun aStartWithNoLiveSessionFailsRatherThanReconnecting() = runBlocking {
+        link.connect()
+        val first = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val result = withTimeout(5_000) {
+            runCatching {
+                controller.startProgram(2) {
+                    first.drop()
+                    fake.drain()
+                    runBlocking { eventually { link.state.value == LinkState.SEARCHING } }
+                }
+            }
+        }
+        assertTrue("$result", result.exceptionOrNull() is BedJetError.NotConnected)
+        assertEquals(listOf(ADDRESS), fake.connects)
+        assertFalse(first.writes.any { it.contentEquals(Codec.startProgram(2)) })
+        // Other commands still reconnect as before.
+        link.send(Codec.setFan(4))
+        assertEquals(2, fake.connects.size)
+    }
+
+    @Test
+    fun aDisconnectInterruptsTheWaitForTheFirstStatus() = runBlocking {
+        val slow = GattLink(fake.radio, { target }, TIMINGS.copy(firstStatusMs = 3_000))
+        try {
+            fake.behaviour = FakeRadio.Behaviour(firstStatus = null)
+            val connecting = async { runCatching { slow.connect() } }
+            eventually { slow.state.value == LinkState.READY }
+            delay(50)
+            val started = System.currentTimeMillis()
+            slow.disconnect()
+            val took = System.currentTimeMillis() - started
+            assertTrue("disconnect waited $took ms for the first-status wait", took < 1_000)
+            assertTrue(connecting.isCompleted)
+            assertTrue(connecting.await().exceptionOrNull() is BedJetError.NotConnected)
+        } finally {
+            slow.shutdown()
+        }
+    }
+
+    @Test
+    fun preparingWithNoSessionLeavesNoUnattributedStatus() = runBlocking {
+        link.prepareForStart()
+        assertEquals(null, link.status.value)
+        assertEquals(null, link.sourcedStatus.value)
+        link.connect()
+        link.prepareForStart()
+        assertEquals(DeviceId.ble(ADDRESS), link.sourcedStatus.value?.source)
+        assertEquals(link.status.value, link.sourcedStatus.value?.status)
     }
 
     // Platform exceptions (R07)
