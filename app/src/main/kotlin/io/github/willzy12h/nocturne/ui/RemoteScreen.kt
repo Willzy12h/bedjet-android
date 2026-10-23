@@ -66,7 +66,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Slider(
                 temp, { temp = it }, valueRange = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
                 steps = (s.maxTemperature - s.minTemperature - 1).coerceAtLeast(0),
-                onValueChangeFinished = { model.remote("Temperature set") { it.setTemperature(temp.roundToInt()) } },
+                onValueChangeFinished = { model.remote("Temperature set", affectsProgramme = true) { it.setTemperature(temp.roundToInt()) } },
             )
         }
         if (s.isRunning && s.mode.usesFan) {
@@ -74,14 +74,14 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Text("Fan ${fan.roundToInt()}%")
             Slider(
                 fan, { fan = it }, valueRange = 5f..100f, steps = 18,
-                onValueChangeFinished = { model.remote("Fan set") { it.setFan((fan / 5).roundToInt() - 1) } },
+                onValueChangeFinished = { model.remote("Fan set", affectsProgramme = true) { it.setFan((fan / 5).roundToInt() - 1) } },
             )
         }
         if (s.isRunning) {
             Text("Run for", style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60, 120, 240, 480).forEach { minutes ->
-                    AssistChip({ model.remote("Timer set") { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
+                    AssistChip({ model.remote("Timer set", affectsProgramme = true) { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
                 }
             }
         }

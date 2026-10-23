@@ -9,6 +9,8 @@ import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.core.plan.Middle
+import io.github.willzy12h.nocturne.core.plan.ProfileLimits
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.BackupBundle
 import io.github.willzy12h.nocturne.core.store.BackupCodec
@@ -16,6 +18,8 @@ import io.github.willzy12h.nocturne.core.store.BackupException
 import io.github.willzy12h.nocturne.core.store.BackupValidator
 import io.github.willzy12h.nocturne.core.store.History
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
+import io.github.willzy12h.nocturne.core.store.EventKind
+import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.core.store.LoggedNotice
 import io.github.willzy12h.nocturne.core.store.Migrations
 import io.github.willzy12h.nocturne.core.store.NightRecord
@@ -40,6 +44,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
@@ -47,7 +52,30 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
+import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.ATOMIC_MOVE
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import java.security.MessageDigest
 import java.time.ZonedDateTime
+import java.util.Base64
+
+/** A proposed edit to the reusable profile; the expected values make an old preview safe to refuse. */
+data class MiddleSuggestion(
+    val nightId: String,
+    val profileId: String,
+    val comfort: MorningComfort,
+    val expectedMiddle: Middle,
+    val expectedLimits: ProfileLimits,
+    val proposedMiddle: Middle,
+)
+
+data class MorningCheckIn(
+    val night: NightRecord,
+    val endedAt: String,
+    val comfort: MorningComfort,
+    val suggestion: MiddleSuggestion?,
+)
 
 /**
  * Everything the app keeps, as JSON files in its private storage. Changes to profiles and settings are snapshotted
@@ -63,16 +91,22 @@ class Repository(
     scope: CoroutineScope,
     private val writer: CoroutineDispatcher = defaultWriter(),
     private val writeFile: (File, ByteArray) -> Unit = ::writeDurably,
+    private val openInput: (Uri) -> InputStream? = { context.contentResolver.openInputStream(it) },
+    private val openOutput: (Uri) -> OutputStream? = { context.contentResolver.openOutputStream(it, "wt") },
     private val now: () -> ZonedDateTime = { ZonedDateTime.now() },
 ) {
     private val dir = context.filesDir
     val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { now() }
     private val lock = Mutex()
+    // Complete any interrupted multi-file restore before individual files are loaded as one repository state.
+    init { recoverPendingRestore() }
 
     // Declared before the loads below, which add to them.
     /** Files found unreadable while loading, moved aside by the writer once the Repository is made. */
     private val toSetAside = mutableListOf<File>()
     private val _unreadable = MutableStateFlow(readUnreadableMarker())
+    // Dismissing the unreadable-file notice must not make an unknown slot original safe to overwrite.
+    private var originalsIntegrityBlocked = File(dir, SLOT_BACKUPS_BLOCK).exists()
     /**
      * Files that couldn't be read, so their defaults are showing instead. Each was moved aside as
      * `<name>.corrupt-<millis>`. Kept across restarts until a restore or [dismissUnreadable]; automatic snapshots are
@@ -173,12 +207,90 @@ class Repository(
     suspend fun addEvent(recordId: String, event: HistoryEvent) =
         update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { History.addEvent(it, recordId, event) }
 
+    /** Feedback is linked to a completed record. Rating alone never edits a reusable profile. */
+    suspend fun recordMorningCheckIn(nightId: String, comfort: MorningComfort): MorningCheckIn? = serially {
+        val night = _history.value.firstOrNull { it.id == nightId } ?: return@serially null
+        if (_activeNight.value?.recordId == nightId || night.events.any { it.kind == EventKind.MORNING_FEEDBACK }) return@serially null
+        val end = night.events.lastOrNull { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED } ?: return@serially null
+        val detail = when (comfort) {
+            MorningComfort.TOO_HOT -> "Too hot"
+            MorningComfort.JUST_RIGHT -> "Just right"
+            MorningComfort.TOO_COLD -> "Too cold"
+        }
+        val updated = History.addEvent(_history.value, nightId, HistoryEvent(now().toString(), EventKind.MORNING_FEEDBACK, detail, comfort))
+        writeValue(HISTORY, ListSerializer(NightRecord.serializer()), updated)
+        _history.value = updated
+        makeMorningCheckIn(updated.first { it.id == nightId }, end.at, comfort)
+    }
+
+    /** Rebuilds the preview after screen recreation; an applied suggestion is no longer offered. */
+    fun morningCheckIn(nightId: String): MorningCheckIn? {
+        val night = _history.value.firstOrNull { it.id == nightId } ?: return null
+        if (_activeNight.value?.recordId == nightId) return null
+        val end = night.events.lastOrNull { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED } ?: return null
+        val comfort = night.events.lastOrNull { it.kind == EventKind.MORNING_FEEDBACK }?.comfort ?: return null
+        return makeMorningCheckIn(night, end.at, comfort)
+    }
+
+    private fun makeMorningCheckIn(night: NightRecord, endedAt: String, comfort: MorningComfort): MorningCheckIn {
+        val suggestion = if (night.events.any { it.kind == EventKind.MORNING_SUGGESTION_APPLIED }) null else
+            _profiles.value.firstOrNull { it.id == night.profileId }?.let { profile ->
+                proposedMiddle(profile, comfort)?.let { MiddleSuggestion(night.id, profile.id, comfort, profile.middle, profile.limits, it) }
+            }
+        return MorningCheckIn(night, endedAt, comfort, suggestion)
+    }
+
+    /** Accept only the exact Middle edit the person previewed, with a matching live profile and feedback. */
+    suspend fun acceptMorningSuggestion(suggestion: MiddleSuggestion): Boolean = serially {
+        val night = _history.value.firstOrNull { it.id == suggestion.nightId } ?: return@serially false
+        if (_activeNight.value?.recordId == night.id || night.profileId != suggestion.profileId ||
+            night.events.none { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED } ||
+            night.events.none { it.kind == EventKind.MORNING_FEEDBACK && it.comfort == suggestion.comfort } ||
+            night.events.any { it.kind == EventKind.MORNING_SUGGESTION_APPLIED }) return@serially false
+        val profile = _profiles.value.firstOrNull { it.id == suggestion.profileId } ?: return@serially false
+        // Legacy nights without a saved profile can still compile their effective plan from this reusable profile.
+        // Keep a preview available until that night has ended rather than changing its fallback under it.
+        if (_activeNight.value?.profileId == profile.id) return@serially false
+        if (profile.middle != suggestion.expectedMiddle || profile.limits != suggestion.expectedLimits ||
+            proposedMiddle(profile, suggestion.comfort) != suggestion.proposedMiddle) return@serially false
+        val profiles = _profiles.value.map { if (it.id == profile.id) it.copy(middle = suggestion.proposedMiddle) else it }
+        val detail = "Accepted a 1 °C ${if (suggestion.comfort == MorningComfort.TOO_HOT) "lower" else "higher"} Middle temperature"
+        val history = History.addEvent(_history.value, night.id,
+            HistoryEvent(now().toString(), EventKind.MORNING_SUGGESTION_APPLIED, detail))
+        writeAllOrNone(listOf(
+            Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)),
+            Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)),
+        ))
+        _profiles.value = profiles
+        _history.value = history
+        true
+    }
+
+    private fun proposedMiddle(profile: Profile, comfort: MorningComfort): Middle? {
+        if (comfort == MorningComfort.JUST_RIGHT || !profile.middle.mode.usesTemperature) return null
+        val delta = if (comfort == MorningComfort.TOO_HOT) -2 else 2
+        val middle = profile.middle.copy(tempStart = profile.middle.tempStart + delta, tempEnd = profile.middle.tempEnd + delta)
+        val limits = profile.limits
+        val modeRange = profile.middle.mode.temperatureRange
+        fun validTemperature(value: Int) = value in limits.minTemp..limits.maxTemp && value in modeRange
+        if (limits.minFan !in 5..100 || limits.maxFan !in 5..100 || limits.minFan > limits.maxFan ||
+            profile.middle.fanStart !in limits.minFan..limits.maxFan || profile.middle.fanEnd !in limits.minFan..limits.maxFan ||
+            middle.rampSteps !in 1..8 || limits.minTemp !in 38..86 || limits.maxTemp !in 38..86 ||
+            limits.minTemp > limits.maxTemp || !validTemperature(profile.middle.tempStart) ||
+            !validTemperature(profile.middle.tempEnd) || !validTemperature(middle.tempStart) ||
+            !validTemperature(middle.tempEnd)) return null
+        return middle
+    }
+
     /**
      * Saves what [deviceId]'s [slot] held before the app writes to it: [program], or an empty-slot marker when null.
      * The first original is kept: once a slot is recorded, later calls return that record unchanged, since by then
      * the slot may hold the app's own program. Throws when it can't be saved, and then the slot must not be written.
      */
     suspend fun recordOriginalSlot(deviceId: String, slot: Int, program: StoredProgram?): SlotBackup = serially {
+        if (originalsIntegrityBlocked && _slotBackups.value.none { it.deviceId == deviceId && it.slot == slot }) {
+            throw IOException("Saved slot originals are unreadable. Restore a backup of this BedJet's slot before writing it.")
+        }
         adoptMigrated(deviceId)
         originalSlot(deviceId, slot) ?: SlotBackup(deviceId, slot, program, now().toString()).also { backup ->
             val list = _slotBackups.value + backup
@@ -190,7 +302,7 @@ class Repository(
     /** What [deviceId]'s [slot] held before the app first wrote to it, or null when that wasn't recorded. */
     fun originalSlot(deviceId: String, slot: Int): SlotBackup? =
         _slotBackups.value.firstOrNull { it.deviceId == deviceId && it.slot == slot }
-            ?: _slotBackups.value.firstOrNull { it.slot == slot && adopts(deviceId, it.deviceId) }
+            ?: _slotBackups.value.firstOrNull { it.slot == slot && !it.imported && adopts(deviceId, it.deviceId) }
 
     /**
      * The slot backups that count for [deviceId], to tell NightRunner which slots are already backed up. A real
@@ -249,17 +361,24 @@ class Repository(
         serially {
             snapshots.save(bundle(), label, manual = true)
             _snapshotList.value = snapshots.list()
-            val current = _settings.value
+            val restoreAt = now()
+            val current = _settings.value.migrateTonightChoice(restoreAt)
             val profiles = bundle.profiles
-            val settings = bundle.settings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
+            val importedSettings = bundle.settings.migrateTonightChoice(restoreAt)
+            val settings = importedSettings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
+                setupFanCheckedDevice = current.setupFanCheckedDevice,
+                tonightChoice = current.tonightChoice,
+                tonightOverride = current.tonightOverride,
                 platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null))
-            val history = History.prune(bundle.history, now())
+            val activeRecord = _activeNight.value?.recordId?.let { id -> _history.value.firstOrNull { it.id == id } }
+            val history = History.prune(bundle.history, now()).filterNot { it.id == activeRecord?.id } + listOfNotNull(activeRecord)
             val slotBackups = _slotBackups.value.let { list ->
-                list + bundle.slotBackups.filter { restored -> list.none { it.covers(restored) } }
+                val incoming = bundle.slotBackups.map { it.copy(imported = true) }
+                list + incoming.filter { restored -> list.none { it.covers(restored) } }
             }
             val writes = listOf(
                 Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)),
-                Write(SETTINGS, encode(Settings.serializer(), current), encode(Settings.serializer(), settings)),
+                Write(SETTINGS, encode(Settings.serializer(), _settings.value), encode(Settings.serializer(), settings)),
                 Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)),
                 Write(SLOT_BACKUPS, encode(ListSerializer(SlotBackup.serializer()), _slotBackups.value), encode(ListSerializer(SlotBackup.serializer()), slotBackups)),
             )
@@ -280,17 +399,19 @@ class Repository(
         return true
     }
 
-    suspend fun exportTo(uri: Uri) = withContext(writer) {
-        val bytes = BackupCodec.encode(bundle()).toByteArray()
-        context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } ?: throw IOException("Couldn't open the file to save to.")
+    suspend fun exportTo(uri: Uri) {
+        val bytes = serially { BackupCodec.encode(bundle()).toByteArray() }
+        withContext(Dispatchers.IO) {
+            openOutput(uri)?.use { it.write(bytes) } ?: throw IOException("Couldn't open the file to save to.")
+        }
     }
 
     /**
      * Reads a backup file; throws [BackupException] when it isn't one or is over [BackupValidator.MAX_BYTES]. Check it
      * with [restore], which validates it before changing anything.
      */
-    suspend fun importFrom(uri: Uri): BackupBundle = withContext(writer) {
-        context.contentResolver.openInputStream(uri)?.use { importFrom(it) } ?: throw IOException("Couldn't open that file.")
+    suspend fun importFrom(uri: Uri): BackupBundle = withContext(Dispatchers.IO) {
+        openInput(uri)?.use { importFrom(it) } ?: throw IOException("Couldn't open that file.")
     }
 
     /** As [importFrom], from a stream. The size is checked before any decoding. */
@@ -317,19 +438,48 @@ class Repository(
     private fun <T> writeValue(name: String, serializer: KSerializer<T>, value: T) = writeFile(File(dir, name), encode(serializer, value))
 
     private class Write(val name: String, val old: ByteArray, val new: ByteArray)
+    @Serializable private data class JournalWrite(val name: String, val bytes: String, val sha256: String)
+    @Serializable private data class RestoreJournal(val writes: List<JournalWrite>)
 
     private fun writeAllOrNone(writes: List<Write>) {
+        val journal = RestoreJournal(writes.map { JournalWrite(it.name, Base64.getEncoder().encodeToString(it.new), digest(it.new)) })
+        writeValue(RESTORE_JOURNAL, RestoreJournal.serializer(), journal)
         writes.forEachIndexed { i, write ->
             try {
                 writeFile(File(dir, write.name), write.new)
             } catch (e: Exception) {
+                var rollbackFailed = false
                 writes.take(i).forEach { done ->
-                    runCatching { writeFile(File(dir, done.name), done.old) }.onFailure { e.addSuppressed(it) }
+                    runCatching { writeFile(File(dir, done.name), done.old) }.onFailure { e.addSuppressed(it); rollbackFailed = true }
                 }
+                if (!rollbackFailed) AtomicFile(File(dir, RESTORE_JOURNAL)).delete()
                 throw e
             }
         }
+        AtomicFile(File(dir, RESTORE_JOURNAL)).delete()
     }
+
+    private fun recoverPendingRestore() {
+        val file = AtomicFile(File(dir, RESTORE_JOURNAL))
+        val bytes = try { file.readFully() } catch (_: FileNotFoundException) { return }
+        val journal = try { decode(RestoreJournal.serializer(), bytes.decodeToString()) }
+            catch (e: Exception) { throw IOException("The interrupted restore journal is unreadable; stored files cannot be trusted.", e) }
+        val names = journal.writes.map { it.name }
+        val expected = names.toSet()
+        if (names.size != expected.size || expected !in setOf(setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS), setOf(PROFILES, HISTORY))) {
+            throw IOException("The interrupted restore journal does not name the expected files.")
+        }
+        journal.writes.forEach { entry ->
+            val content = try { Base64.getDecoder().decode(entry.bytes) }
+                catch (e: IllegalArgumentException) { throw IOException("The interrupted restore journal is damaged.", e) }
+            if (digest(content) != entry.sha256) throw IOException("The interrupted restore journal failed its integrity check.")
+            writeDurably(File(dir, entry.name), content)
+        }
+        AtomicFile(File(dir, UNREADABLE)).delete()
+        file.delete()
+    }
+
+    private fun digest(bytes: ByteArray): String = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(bytes))
 
     private fun <T> encode(serializer: KSerializer<T>, value: T) = BackupCodec.json.encodeToString(serializer, value).toByteArray()
 
@@ -355,12 +505,21 @@ class Repository(
         Log.w(TAG, "Couldn't read ${file.name}; it will be moved aside", cause)
         toSetAside += file
         _unreadable.value = (_unreadable.value + file.name).distinct()
+        if (file.name == SLOT_BACKUPS) originalsIntegrityBlocked = true
         return null
     }
 
     /** Runs on the writer. A report that can't be saved is shown as unreadable too, rather than lost on a restart. */
     private fun setAsidePending() {
+        // Write the independent barrier before moving the corrupt file. If this write fails, a restart will still
+        // encounter the corrupt original and refuse slot mutations rather than treating a missing file as new.
+        val barrierSaved = if (toSetAside.any { it.name == SLOT_BACKUPS }) {
+            runCatching { writeValue(SLOT_BACKUPS_BLOCK, String.serializer(), "blocked") }.onFailure {
+                Log.e(TAG, "Couldn't save $SLOT_BACKUPS_BLOCK", it)
+            }.isSuccess
+        } else true
         toSetAside.forEach { file ->
+            if (file.name == SLOT_BACKUPS && !barrierSaved) return@forEach
             val aside = File(dir, "${file.name}.corrupt-${System.currentTimeMillis()}")
             // If it can't be moved, a copy still keeps the original from being lost on the next write.
             if (!file.renameTo(aside)) runCatching { file.copyTo(aside) }.onFailure { Log.e(TAG, "Couldn't keep ${file.name}", it) }
@@ -378,13 +537,15 @@ class Repository(
 
     /** Two backups of the same slot of the same BedJet, counting a migrated one as the real BedJet's. */
     private fun SlotBackup.covers(other: SlotBackup) =
-        slot == other.slot && (deviceId == other.deviceId || adopts(deviceId, other.deviceId) || adopts(other.deviceId, deviceId))
+        slot == other.slot && (deviceId == other.deviceId ||
+            adopts(deviceId, other.deviceId) || (!imported && adopts(other.deviceId, deviceId)))
 
     /** Re-tags, durably, the migrated originals of slots [deviceId] has none for. Call on the writer. */
     private fun adoptMigrated(deviceId: String) {
+        if (originalsIntegrityBlocked) return
         val list = _slotBackups.value
         val adopted = list.map { backup ->
-            if (adopts(deviceId, backup.deviceId) && list.none { it.deviceId == deviceId && it.slot == backup.slot }) backup.copy(deviceId = deviceId) else backup
+            if (!backup.imported && adopts(deviceId, backup.deviceId) && list.none { it.deviceId == deviceId && it.slot == backup.slot }) backup.copy(deviceId = deviceId) else backup
         }
         if (adopted == list) return
         writeValue(SLOT_BACKUPS, ListSerializer(SlotBackup.serializer()), adopted)
@@ -405,6 +566,8 @@ class Repository(
         private const val SETTINGS = "settings.json"
         private const val HISTORY = "history.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
+        private const val SLOT_BACKUPS_BLOCK = "slot-backups-integrity.json"
+        private const val RESTORE_JOURNAL = "restore-pending.json"
         private const val RUNTIME = "runtime.json"
         private const val AUTOMATION = "automation.json"
         private const val ACTIVE_NIGHT = "active-night.json"
@@ -423,6 +586,11 @@ class Repository(
             try {
                 out.write(bytes)
                 atomic.finishWrite(out)
+                // AndroidX AtomicFile logs a failed rename without throwing. On Windows test hosts,
+                // File.renameTo cannot replace an existing destination, leaving the old bytes visible.
+                // A failed replacement must never be reported as a durable write.
+                val pending = File(file.path + ".new")
+                if (pending.exists()) Files.move(pending.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
             } catch (e: IOException) {
                 atomic.failWrite(out)
                 throw e

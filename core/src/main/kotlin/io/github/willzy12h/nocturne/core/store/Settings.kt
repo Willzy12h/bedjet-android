@@ -18,7 +18,7 @@ data class ActionPreset(val mode: Mode, val temperature: Int, val fanPercent: In
 
 /** Which palette the app and widgets use. SYSTEM follows the phone's dark theme setting. */
 @Serializable
-enum class ThemeMode { SYSTEM, DARK, LIGHT }
+enum class ThemeMode { SYSTEM, DARK, LIGHT, SCHEDULED }
 
 @Serializable
 data class Settings(
@@ -42,6 +42,8 @@ data class Settings(
     val demoMode: Boolean = false,
     /** The real BedJet chosen by the person, as a [DeviceId] (`ble:<MAC>`). Null until one is chosen. */
     val targetDevice: String? = null,
+    /** Local supervised fan check for this exact real BedJet; never inferred from a backup. */
+    val setupFanCheckedDevice: String? = null,
     /** GitHub `owner/repo` whose latest release is checked for updates. The token is kept outside backups. */
     val updateRepo: String = "Willzy12h/bedjet-android",
     val autoUpdateCheck: Boolean = false,
@@ -49,6 +51,9 @@ data class Settings(
     val alarmPackages: Set<String> = setOf("com.google.android.deskclock", "com.sec.android.app.clockpackage"),
     // Appearance. Defaults keep older saved settings and backups loading unchanged.
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Local clock times. Equal boundaries mean always dark. */
+    val scheduledDarkMinute: Int = 22 * 60,
+    val scheduledLightMinute: Int = 7 * 60,
     /** Tonight shows the night as a list of steps instead of the bar curve. */
     val simpleView: Boolean = false,
     val quietNightNotification: Boolean = false,
@@ -58,6 +63,14 @@ data class Settings(
         ThemeMode.SYSTEM -> systemDark
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
+        ThemeMode.SCHEDULED -> {
+            val minute = at.hour * 60 + at.minute
+            when {
+                scheduledDarkMinute == scheduledLightMinute -> true
+                scheduledDarkMinute < scheduledLightMinute -> minute in scheduledDarkMinute until scheduledLightMinute
+                else -> minute >= scheduledDarkMinute || minute < scheduledLightMinute
+            }
+        }
     }
     fun setWakeOverride(wakeAt: ZonedDateTime, at: ZonedDateTime): Settings =
         copy(tonightOverride = TonightOverride(wakeAt.toString(), at.toString()))

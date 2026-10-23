@@ -122,13 +122,14 @@ class BedJetService : Service() {
                 NightAlarms.identity(intent), intent.getBooleanExtra(EXTRA_STRICT, false), intent.getBooleanExtra(EXTRA_CONFIRMED, false))
         }
         /** False means no service owns the work. Receivers may only record/schedule a pending retry. */
-        fun start(context: Context, command: NightActions.Command, profileId: String? = null, replacementConfirmed: Boolean = false): Boolean =
+        fun start(context: Context, command: NightActions.Command, profileId: String? = null,
+            replacementConfirmed: Boolean = false, notifyFailures: Boolean = true): Boolean =
             start(context, context.graph.actions.capture(command, profileId, requireIdentity = replacementConfirmed)
-                .copy(replacementConfirmed = replacementConfirmed))
-        fun start(context: Context, captured: CommandRequest): Boolean = try {
+                .copy(replacementConfirmed = replacementConfirmed), notifyFailures)
+        fun start(context: Context, captured: CommandRequest, notifyFailures: Boolean = true): Boolean = try {
             if (!permitted(context, captured.command)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
             context.startForegroundService(intent(context, captured)); true
-        } catch (e: RuntimeException) { failure(context, e); false }
+        } catch (e: RuntimeException) { failure(context, e, notifyFailures); false }
         private fun permitted(context: Context, command: NightActions.Command) =
             context.graph.repository.settings.value.demoMode || command == NightActions.Command.STOP_TRACKING ||
                 context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED

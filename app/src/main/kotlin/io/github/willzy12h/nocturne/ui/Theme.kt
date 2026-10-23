@@ -13,6 +13,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ThemeMode
+import io.github.willzy12h.nocturne.core.store.Settings
+import java.time.ZonedDateTime
 
 // Two fixed palettes replace Material You: "Midnight Ink" for dark and "Daylight" for light. Fixed colours keep the
 // mode colours, the night curve and the widgets readable whatever the wallpaper is. The type stays the system font.
@@ -123,11 +125,22 @@ fun ThemeMode.isDark(systemDark: Boolean): Boolean = when (this) {
     ThemeMode.SYSTEM -> systemDark
     ThemeMode.DARK -> true
     ThemeMode.LIGHT -> false
+    ThemeMode.SCHEDULED -> systemDark
 }
 
 @Composable
 fun NocturneTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
     val dark = mode.isDark(isSystemInDarkTheme())
+    NocturnePalette(dark, content)
+}
+
+@Composable
+fun NocturneTheme(settings: Settings, at: ZonedDateTime, content: @Composable () -> Unit) {
+    NocturnePalette(settings.isDarkTheme(at, isSystemInDarkTheme()), content)
+}
+
+@Composable
+private fun NocturnePalette(dark: Boolean, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalNocturneColors provides if (dark) MidnightInkColors else DaylightColors) {
         MaterialTheme(colorScheme = if (dark) MidnightInkScheme else DaylightScheme, content = content)
     }

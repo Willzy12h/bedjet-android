@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 11 and earlier, and adb backups. The update token (shared preferences "secrets") is never backed up. -->
+<!-- Legacy format. Keep slot originals and their integrity barrier together. -->
 <full-backup-content>
-    <exclude domain="sharedpref" path="secrets.xml" />
+    <include domain="file" path="profiles.json" />
+    <include domain="file" path="history.json" />
+    <include domain="file" path="slot-backups.json" />
+    <include domain="file" path="slot-backups-integrity.json" />
 </full-backup-content>

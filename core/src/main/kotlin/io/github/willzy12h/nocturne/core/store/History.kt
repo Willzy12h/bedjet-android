@@ -8,11 +8,14 @@ import java.time.ZonedDateTime
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class EventKind { STARTED, RETIMED, SNOOZED, EXTENDED, STOPPED, ENDED, UNIT_NOTICE, ERROR, REMOTE_CHANGE, RECOVERED }
+enum class EventKind { STARTED, RETIMED, SNOOZED, EXTENDED, STOPPED, ENDED, UNIT_NOTICE, ERROR, REMOTE_CHANGE, RECOVERED, MORNING_FEEDBACK, MORNING_SUGGESTION_APPLIED }
+
+@Serializable
+enum class MorningComfort { TOO_HOT, JUST_RIGHT, TOO_COLD }
 
 /** Times are ISO-8601 zoned date-times, as `ZonedDateTime.toString()` writes them. */
 @Serializable
-data class HistoryEvent(val at: String, val kind: EventKind, val detail: String)
+data class HistoryEvent(val at: String, val kind: EventKind, val detail: String, val comfort: MorningComfort? = null)
 
 @Serializable
 data class RecordedStep(val block: Block, val mode: Mode, val temperature: Int, val fanPercent: Int, val startsAt: String, val minutes: Int)

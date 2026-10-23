@@ -77,6 +77,60 @@ class GattLinkTest {
     }
 
     @Test
+    fun aReadySessionForTheOldTargetCannotCarryTheNewTargetsCommand() = runBlocking {
+        link.connect()
+        val oldPort = fake.ports.single()
+        target = DeviceId.ble(OTHER)
+
+        link.send(Codec.setFan(4))
+
+        assertEquals(listOf(ADDRESS, OTHER), fake.connects)
+        assertTrue(oldPort.closed)
+        assertFalse(oldPort.writes.any { it.contentEquals(Codec.setFan(4)) })
+        assertTrue(fake.ports.last().writes.any { it.contentEquals(Codec.setFan(4)) })
+    }
+
+    @Test
+    fun aStartQueuedBehindAnotherGattWriteIsRejectedAtTheWriteBoundary() = runBlocking {
+        link.connect()
+        val port = fake.ports.single()
+        port.holdWrites = true
+        val first = async { link.send(Codec.setFan(4)) }
+        eventually { port.writes.any { it.contentEquals(Codec.setFan(4)) } }
+        var stillBeforeDeadline = true
+        val start = async {
+            runCatching {
+                link.sendGuarded(Codec.startProgram(2)) {
+                    if (!stillBeforeDeadline) throw IllegalStateException("expired before GATT write")
+                }
+            }
+        }
+        // The command has been admitted to the transport, but cannot pass the occupied GATT queue yet.
+        delay(20)
+        stillBeforeDeadline = false
+        port.ackWrite()
+        first.await()
+        assertEquals("expired before GATT write", start.await().exceptionOrNull()?.message)
+        assertFalse(port.writes.any { it.contentEquals(Codec.startProgram(2)) })
+    }
+
+    @Test
+    fun changingTargetDuringRetryCannotReviveTheOldSession() = runBlocking {
+        fake.upcoming += FakeRadio.Behaviour(connectStatus = 133)
+        val retryingLink = GattLink(fake.radio, { target }, TIMINGS.copy(retryBackoffMs = listOf(500)))
+        val connecting = async { runCatching { retryingLink.connect() } }
+        eventually { fake.connects.size == 1 && fake.ports.first().closed }
+        target = DeviceId.ble(OTHER)
+
+        assertTrue(connecting.await().isFailure)
+        assertEquals(listOf(ADDRESS), fake.connects)
+        retryingLink.connect()
+        assertEquals(listOf(ADDRESS, OTHER), fake.connects)
+        assertEquals(LinkState.READY, retryingLink.state.value)
+        retryingLink.shutdown()
+    }
+
+    @Test
     fun aConnectionCallbackBeforeConnectReturnsStillCarriesOn() = runBlocking {
         fake.behaviour = FakeRadio.Behaviour(connectsInline = true)
         link.connect()
@@ -246,6 +300,9 @@ class GattLinkTest {
         eventually { port.reads.contains(Attr.STATUS) }
         assertEquals(null, link.status.value?.extra)
         port.answerStatusRead(Status.remainder(programStep = 1))
+        assertEquals(null, link.status.value?.extra)
+        link.cancelPreparedStart()
+        port.notify(Status.full(programStep = 1))
         eventually { link.status.value?.extra?.programStep == 1 }
     }
 
@@ -272,6 +329,74 @@ class GattLinkTest {
         port.notify(Status.head())
         eventually { port.reads.contains(Attr.STATUS) }
         port.answerStatusRead(Status.remainder(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    @Test
+    fun aFullOldStatusBeforeTheStartWriteCannotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val start = async {
+            runCatching {
+                controller.startProgram(2) {
+                    port.notify(Status.full(programStep = 1))
+                    fake.drain()
+                }
+            }
+        }
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        delay(1_800)
+        assertFalse("The old full status confirmed the new start", start.isCompleted)
+        port.notify(Status.full(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    @Test
+    fun anOldRemainderCompletedBeforeTheStartWriteCannotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val start = async {
+            runCatching {
+                controller.startProgram(2) {
+                    port.notify(Status.head())
+                    fake.drain()
+                    val deadline = System.currentTimeMillis() + 1_000
+                    while (Attr.STATUS !in port.reads && System.currentTimeMillis() < deadline) Thread.sleep(1)
+                    assertTrue("The remainder read was not started", Attr.STATUS in port.reads)
+                    port.answerStatusRead(Status.remainder(programStep = 1))
+                    fake.drain()
+                }
+            }
+        }
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        delay(1_800)
+        assertFalse("The old remainder confirmed the new start", start.isCompleted)
+        port.notify(Status.full(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    @Test
+    fun reconnectsOldStatusBeforeTheStartWriteCannotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val first = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val start = async {
+            runCatching {
+                controller.startProgram(2) {
+                    first.drop()
+                    fake.drain()
+                }
+            }
+        }
+        eventually { fake.ports.size == 2 && fake.ports.last().writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        delay(1_800)
+        assertFalse("Reconnect's old status confirmed the new start", start.isCompleted)
+        fake.ports.last().notify(Status.full(programStep = 1))
         withTimeout(4_000) { start.await() }.getOrThrow()
     }
 

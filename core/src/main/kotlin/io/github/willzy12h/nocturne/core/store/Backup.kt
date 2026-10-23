@@ -22,6 +22,8 @@ data class SlotBackup(
     val program: StoredProgram?,
     val savedAt: String,
     val empty: Boolean = program == null,
+    /** Imported unknown-device records cannot identify the BedJet whose original they contain. */
+    val imported: Boolean = false,
 )
 
 @Serializable

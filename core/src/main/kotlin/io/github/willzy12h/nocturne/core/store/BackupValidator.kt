@@ -58,6 +58,21 @@ object BackupValidator {
         bundle.slotBackups.forEach { backup ->
             if (backup.slot !in SLOTS) add("A saved slot is numbered ${backup.slot + 1}; it must be 1 to ${Limits.SLOTS}.")
             time("The time slot ${backup.slot + 1} was saved", backup.savedAt)
+            if (backup.empty != (backup.program == null)) add("A saved slot's empty marker disagrees with its programme.")
+            backup.program?.let { program ->
+                if (program.name.toByteArray(Charsets.UTF_8).size > Limits.NAME_LENGTH)
+                    add("A saved slot programme name is too long for the BedJet.")
+                if (program.steps.size > Limits.STEPS_PER_PROGRAM)
+                    add("A saved slot programme must have at most ${Limits.STEPS_PER_PROGRAM} steps.")
+                program.steps.forEachIndexed { index, step ->
+                    val what = "Saved slot ${backup.slot + 1}, step ${index + 1}"
+                    if (step.fanStep !in 0..19) add("$what has a fan setting outside 5 to 100%.")
+                    temperature("$what: the temperature", step.mode, step.temperature)
+                    if (step.minutes !in 0..59 || step.hours !in (if (step.endsAtClockTime) 0..23 else 0..11) ||
+                        (!step.endsAtClockTime && (step.durationMinutes !in 1..Limits.MAX_STEP_MINUTES || !step.fitsUnitLimits)))
+                        add("$what has a time the BedJet cannot run.")
+                }
+            }
         }
 
         bundle.history.forEach { night ->
@@ -101,6 +116,13 @@ object BackupValidator {
 
     private fun MutableList<String>.settings(settings: Settings) {
         addAll(settings.platform.validationErrors())
+        settings.tonightChoice?.let { time("Tonight-only profile expiry", it.expiresAt) }
+        settings.tonightOverride?.let {
+            time("Tonight-only wake time", it.wakeAt)
+            time("Tonight-only wake selection time", it.setAt)
+        }
+        if (settings.scheduledDarkMinute !in MINUTE_OF_DAY || settings.scheduledLightMinute !in MINUTE_OF_DAY)
+            add("Scheduled theme times must be within the day.")
         if (settings.workingSlot !in SLOTS) add("The working slot is ${settings.workingSlot + 1}; it must be 1 to ${Limits.SLOTS}.")
         if (settings.boostMinutes !in BOOST_MINUTES) add("Boost lasts ${settings.boostMinutes} minutes; it must be 10 to 30.")
         if (settings.notificationActions.size > MAX_NOTIFICATION_ACTIONS) {

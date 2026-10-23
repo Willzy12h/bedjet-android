@@ -14,6 +14,7 @@ object NightAlarms {
     const val ACTION_WAKE_UP = "io.github.willzy12h.nocturne.WAKE_UP"
     const val ACTION_NIGHT_END = "io.github.willzy12h.nocturne.NIGHT_END"
     const val ACTION_LOCAL_RETRY = "io.github.willzy12h.nocturne.RETRY_LOCAL_DELIVERY"
+    const val ACTION_RECONCILE_RETRY = "io.github.willzy12h.nocturne.RETRY_RECONCILE"
     const val ACTION_RETRY = "io.github.willzy12h.nocturne.RETRY_RETIME"
     const val EXTRA_NIGHT = "nightId"
     const val EXTRA_REVISION = "revision"
@@ -24,6 +25,8 @@ object NightAlarms {
     }
     fun scheduleLocalRetry(context: Context) = set(context, ACTION_LOCAL_RETRY, context.graph.now().plusMinutes(1), null)
     fun cancelLocalRetry(context: Context) = cancel(context, ACTION_LOCAL_RETRY)
+    fun scheduleReconcileRetry(context: Context) = set(context, ACTION_RECONCILE_RETRY, context.graph.now().plusMinutes(1), null)
+    fun cancelReconcileRetry(context: Context) = cancel(context, ACTION_RECONCILE_RETRY)
     fun scheduleObservation(context: Context, now: ZonedDateTime) = set(context, ACTION_RETRY, now.plusMinutes(10), null)
     fun scheduleRetry(context: Context, pending: PendingRetime, now: ZonedDateTime) {
         val deadline = ZonedDateTime.parse(pending.deadline)

@@ -21,13 +21,21 @@ class GattVerifiedNameTest {
             assertEquals("BEDJET 3",Codec.parseText(link.query(Codec.Query.DEVICE_NAME)))
         } finally {link.shutdown()}
     }
-    @Test fun callbackUsesSessionAddressEvenIfSelectedTargetChangesDuringQuery() = runBlocking {
+    @Test fun targetChangeDuringNameQueryRetiresOldSessionWithoutPublishingItsVerifiedName() = runBlocking {
         val fake=FakeRadio();fake.behaviour=FakeRadio.Behaviour(nameBytes="Original unit".toByteArray())
         var target=DeviceId.ble(address)
+        val next=DeviceId.ble("11:22:33:44:55:66")
         val names=mutableListOf<Pair<String,String?>>()
-        val link=GattLink(fake.radio,{target},timings,onName={_,_->target=DeviceId.ble("11:22:33:44:55:66")},
+        val link=GattLink(fake.radio,{target},timings,onName={_,_->target=next},
             onVerifiedName={device,name->names+=device to name})
-        try {link.connect();assertEquals(DeviceId.ble(address) to "Original unit",names.last())}
+        try {
+            assertThrows<io.github.willzy12h.nocturne.core.link.BedJetError.NotConnected> { link.connect() }
+            assertEquals(listOf(address), fake.connects)
+            assertTrue(fake.ports.single().closed)
+            assertFalse(names.any { it.first == DeviceId.ble(address) && it.second != null })
+            link.connect()
+            assertEquals(next to "Original unit", names.last())
+        }
         finally {link.shutdown()}
     }
     @Test fun unknownNameDoesNotPreventOrdinaryControl() = runBlocking {

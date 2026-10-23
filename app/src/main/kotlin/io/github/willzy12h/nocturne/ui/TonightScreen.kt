@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import android.app.TimePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -45,10 +47,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.core.plan.WakeResolver
 import io.github.willzy12h.nocturne.core.store.Settings
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.delay
 import java.time.ZonedDateTime
@@ -66,9 +71,11 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val alarm by model.nextAlarm.collectAsState()
     val busy by model.busy.collectAsState()
     val release by model.release.collectAsState()
+    val nightStatus by model.nightStatus.collectAsState()
     var now by remember { mutableStateOf(model.now()) }
     LaunchedEffect(Unit) { while (true) { delay(30_000); now = model.now(); model.refreshAlarm() } }
     val guard = rememberNightGuard(model)
+    val context = LocalContext.current
     val dark = nocturneColors.dark
     val simple = settings.simpleView
 
@@ -80,6 +87,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         ConnectionLine(model)
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         SetupChecks()
+        if (settings.deviceId() == null) SetupFlow(model, compact = true)
         release?.let { latest ->
             val uri = LocalUriHandler.current
             AlertDialog(
@@ -96,13 +104,23 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             val plan = remember(running, profiles) { model.activePlan() }
             val profile = profiles.firstOrNull { it.id == running.profileId }
             val startedAt = runCatching { ZonedDateTime.parse(running.startedAt) }.getOrNull()
-            Text(profile?.name ?: "Night running", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val confirmed = running.confidence == Confidence.CONFIRMED && nightStatus.confidence == Confidence.CONFIRMED
+            Text(profile?.name ?: "Tonight's night", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!confirmed || running.trackingManual) {
+                val state = when (nightStatus.confidence ?: running.confidence) {
+                    Confidence.PENDING -> "Change pending: the BedJet has not confirmed it."
+                    Confidence.FAILED -> "Change failed. Check the BedJet before trying again."
+                    Confidence.UNKNOWN -> "BedJet state unknown. Check the unit before another programme."
+                    Confidence.CONFIRMED -> "Tracking manually. Nocturne has not resumed the programme."
+                }
+                Note(state + (nightStatus.reason?.let { " $it" } ?: ""))
+            }
             when {
                 simple -> Unit // The timeline below ends with the wake time.
-                dark -> WakeHeadline("Waking you at", Format.clock(running.wakeAt), running.wakeFromAlarm)
-                else -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", "Started", Format.clock(running.wakeAt), running.wakeFromAlarm, waking = true)
+                dark -> WakeHeadline(if (confirmed) "Waking you at" else "Planned wake", Format.clock(running.wakeAt), running.wakeFromAlarm)
+                else -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", if (confirmed) "Started" else "Planned start", Format.clock(running.wakeAt), running.wakeFromAlarm, waking = confirmed, planned = !confirmed)
             }
-            plan?.stepAt(now)?.second?.let { step ->
+            if (confirmed) plan?.stepAt(now)?.second?.let { step ->
                 Text(
                     "Now: ${blockName(step.block)} · ${Format.modeName(step.step.mode)} · fan ${(step.step.fanStep + 1) * 5}%",
                     style = MaterialTheme.typography.bodyLarge,
@@ -110,13 +128,15 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
             // Mid-night the controls come before the plan: they're what you reach for, and up here the
             // "night started" snackbar at the bottom of the screen doesn't cover them.
-            BigButton("End night", onClick = { guard.confirm("turn the BedJet off") { model.run(Command.END_NIGHT) } })
-            OutlinedButton(onClick = { model.run(Command.RETIME) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text("Re-check alarm") }
+            if (confirmed) BigButton("End night", onClick = { guard.confirm("turn the BedJet off") { model.run(Command.END_NIGHT) } })
             plan?.let { PlanCard(it, settings, running.wakeFromAlarm, now = now) }
         } else {
-            var chosen by remember(settings.tonightChoice, profiles) { mutableStateOf(model.tonightsProfile()) }
+            val choiceId = settings.resolveTonightChoice(now)?.profileId
+            val scheduleWindow = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
+            var chosen by remember(choiceId, scheduleWindow, profiles) { mutableStateOf(settings.resolveProfile(profiles, now)) }
             val profile = chosen
-            val wake = profile?.let { model.wakePreview(it, now) }
+            val preview = profile?.let { model.startPreview(it, now) }
+            val wake = preview?.wake
             if (wake != null && !simple) {
                 if (dark) WakeHeadline("Wakes you at", Format.clock(wake.time), wake.fromAlarm)
                 else StatTiles(Format.clock(now), "Starts", Format.clock(wake.time), wake.fromAlarm, waking = false)
@@ -135,14 +155,27 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 alarm?.let { next ->
                     if (!next.counts) Note("Your next alarm at ${Format.clock(next.time)} is from ${next.creator}, which isn't a clock app. Allow it in Settings.")
                 } ?: if (it.wakeSource.useAlarm) Note("No alarm set, so the profile's wake time is used.") else Unit
-                model.previewPlan(it, startNow = true).fold(
-                    onSuccess = { plan -> PlanCard(plan, settings, wake?.fromAlarm ?: false, now = null) },
-                    onFailure = { e -> Text(e.message.orEmpty(), color = MaterialTheme.colorScheme.error) },
-                )
-                BigButton("Start night now", enabled = !busy, onClick = { model.run(Command.START_NIGHT, it.id) })
+                preview?.plan?.let { plan -> PlanCard(plan, settings, wake?.fromAlarm ?: false, now = null) }
+                    ?: Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.error)
+                BigButton("Start night now", enabled = !busy && preview?.plan != null, onClick = { model.run(Command.START_NIGHT, it.id) })
             }
         }
 
+        val wakeOverride = settings.resolveWakeOverride(now)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = {
+                val current = model.now()
+                TimePickerDialog(context, { _, hour, minute ->
+                    val wake = WakeResolver.nextOccurrence(hour * 60 + minute, model.now())
+                    model.setTonightWake(wake)
+                }, current.hour, current.minute, true).show()
+            }) { Text(if (wakeOverride == null) "Set tonight-only wake" else "Change tonight-only wake · ${Format.clock(wakeOverride.wakeAt)}") }
+            if (wakeOverride != null) TextButton(onClick = { model.setTonightWake(null) }) { Text("Clear wake override") }
+            if (settings.resolveTonightChoice(now) != null) TextButton(onClick = { model.updateSettings { it.followSchedule() } }) {
+                Text("Tonight only · Follow schedule")
+            }
+        }
+        NightRecoveryControls(model, night, guard, now)
         QuickButtons(model, settings, guard)
     }
 }
@@ -159,10 +192,10 @@ private fun WakeHeadline(label: String, time: String, fromAlarm: Boolean) {
 
 /** Daylight's lead: start and wake side by side. */
 @Composable
-private fun StatTiles(startTime: String, startLabel: String, wakeTime: String, fromAlarm: Boolean, waking: Boolean) {
+private fun StatTiles(startTime: String, startLabel: String, wakeTime: String, fromAlarm: Boolean, waking: Boolean, planned: Boolean = false) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         StatTile(startLabel, startTime, null, Modifier.weight(1f))
-        StatTile(if (waking) "Waking you at" else "Wakes you at", wakeTime, if (fromAlarm) "Your alarm" else "Profile's wake time", Modifier.weight(1f))
+        StatTile(if (planned) "Planned wake" else if (waking) "Waking you at" else "Wakes you at", wakeTime, if (fromAlarm) "Your alarm" else "Profile's wake time", Modifier.weight(1f))
     }
 }
 
@@ -204,11 +237,12 @@ private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true
 }
 
 /** Four one-tap actions in a row, each marked with the colour of what it does. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {
     val colors = nocturneColors
     Text("Quick", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 2) {
         QuickButton("Boost", "${settings.boostMinutes} min", colors.turbo, Modifier.weight(1f)) { guard.confirm("start Boost") { model.run(Command.BOOST, replacementConfirmed = true) } }
         QuickButton("Warm", null, colors.heat, Modifier.weight(1f)) { guard.confirm("start warming") { model.run(Command.WARM, replacementConfirmed = true) } }
         QuickButton("Cool", null, colors.cool, Modifier.weight(1f)) { guard.confirm("start cooling") { model.run(Command.COOL, replacementConfirmed = true) } }
@@ -220,7 +254,7 @@ private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGu
 private fun QuickButton(label: String, detail: String?, dot: Color, modifier: Modifier, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(72.dp),
+        modifier = modifier.heightIn(min = 72.dp),
         shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(4.dp),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface),
@@ -228,8 +262,8 @@ private fun QuickButton(label: String, detail: String?, dot: Color, modifier: Mo
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Dot(dot, 10)
-            Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, maxLines = 1)
-            detail?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
+            Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+            detail?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }

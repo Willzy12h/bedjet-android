@@ -120,8 +120,12 @@ class LinkSessions(
         releasedUntil = untilMs ?: Long.MAX_VALUE
         _released.value = true
         releaseEnds?.cancel()
-        // Checking once the time has come ends the release.
-        releaseEnds = untilMs?.let { scope.launch { delay(it - now()); isReleased() } }
+        // Wall time can move backwards while the monotonic delay is waiting. Recheck until the deadline really passes.
+        releaseEnds = untilMs?.let { deadline ->
+            scope.launch {
+                while (isReleased()) delay((deadline - now()).coerceAtLeast(1).coerceAtMost(RELEASE_POLL_MS))
+            }
+        }
         return scope.launch {
             lock.withLock {
                 connects.forEach { it.cancel() }
@@ -188,6 +192,7 @@ class LinkSessions(
     }
 
     private companion object {
+        const val RELEASE_POLL_MS = 60_000L
         const val GRACE_MS = 5_000L
         const val RELEASED = "Released for another phone"
     }

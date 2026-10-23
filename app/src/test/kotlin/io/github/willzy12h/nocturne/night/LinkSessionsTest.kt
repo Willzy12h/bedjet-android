@@ -113,6 +113,22 @@ class LinkSessionsTest {
         assertFalse(sessions.released.value)
     }
 
+    @Test
+    fun aBackwardClockChangeStillEndsTheReleaseWithoutAnAcquire() = runBlocking {
+        link.gate.complete(Unit)
+        sessions.holdForScreen(true)
+        eventually { link.state.value == LinkState.READY }
+        val deadline = now + 80
+        sessions.suspendAutoConnect(untilMs = deadline)
+        eventually { link.state.value == LinkState.SEARCHING }
+        now -= 80
+        delay(100) // The first scheduled check has passed while the wall clock is still before the deadline.
+        assertTrue(sessions.released.value)
+
+        now = deadline
+        eventually(timeoutMs = 1_000) { !sessions.released.value && link.state.value == LinkState.READY }
+    }
+
     /** A link whose connect waits for [gate]. */
     class SlowLink : BedJetLink {
         override val state = MutableStateFlow(LinkState.SEARCHING)

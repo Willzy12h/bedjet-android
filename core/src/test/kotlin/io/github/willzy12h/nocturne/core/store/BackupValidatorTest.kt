@@ -2,6 +2,8 @@ package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Presets
+import io.github.willzy12h.nocturne.core.plan.TonightChoice
+import io.github.willzy12h.nocturne.core.plan.TonightOverride
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
@@ -91,6 +93,24 @@ class BackupValidatorTest {
         assertRejected(good.copy(history = listOf(good.history.single().copy(startedAt = "22:30"))), "time")
         assertRejected(good.copy(history = listOf(good.history.single().copy(events = listOf(HistoryEvent("soon", EventKind.ERROR, "x"))))), "time")
         assertRejected(good.copy(slotBackups = listOf(SlotBackup("demo", 1, null, "2026-13-01"))), "time")
+        assertRejected(good.copy(settings = Settings(tonightChoice = TonightChoice("p", "tomorrow"))), "profile expiry")
+        assertRejected(good.copy(settings = Settings(tonightOverride = TonightOverride("six", now))), "wake time")
+        assertRejected(good.copy(settings = Settings(tonightOverride = TonightOverride(now, "yesterday"))), "selection time")
+    }
+
+    @Test
+    fun importedSlotStepsMustFitTheProtocol() {
+        val original = good.slotBackups.first()
+        assertRejected(good.copy(slotBackups = listOf(original.copy(program = StoredProgram("old", listOf(
+            ProgramStep(Mode.COOL, 20, 44, 1, 0)
+        ))))), "fan")
+        assertRejected(good.copy(slotBackups = listOf(original.copy(program = StoredProgram("old", listOf(
+            ProgramStep(Mode.COOL, 1, 44, 12, 0)
+        ))))), "time")
+        assertRejected(good.copy(slotBackups = listOf(original.copy(program = StoredProgram("old", List(33) {
+            ProgramStep(Mode.DRY, 1, 60, 1, 0)
+        })))), "at most 32 steps")
+        assertEquals(emptyList<String>(), errors(good.copy(slotBackups = listOf(original.copy(program = StoredProgram("old", emptyList()))))))
     }
 
     @Test
@@ -98,6 +118,7 @@ class BackupValidatorTest {
         assertRejected(good.copy(settings = Settings(boostMinutes = 0)), "boost")
         assertRejected(good.copy(settings = Settings(extendWarm = ActionPreset(Mode.HEAT, 64, 30, 0))), "minutes")
         assertRejected(good.copy(settings = Settings(notificationActions = WakeAction.entries)), "notification")
+        assertRejected(good.copy(settings = Settings(scheduledDarkMinute = 1440)), "theme")
     }
 
     @Test

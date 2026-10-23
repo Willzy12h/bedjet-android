@@ -1,4 +1,22 @@
 # SDD ledger — plan: docs/superpowers/plans/2026-10-22-nocturne-hardening.md
+
+## Completion decisions — 23 October 2026
+
+The entries below this section are the chronological Task 1–6 ledger. Their interim Task 5/7 and release instructions are superseded by `docs/review/nocturne-completion.md` and the current `docs/HANDOVER.md`. The completion branch is `claude/nocturne-completion`, based on independent-review commit `ae6e4d52a38dc2f295dd5c26f0f4614a24fed587`; this contains hardening commit `7fffabcb58741c48b765285d78c9284ce9967c27`. No newer fix branch was available at the fetch. The historical Task 5 checkpoint objects were unavailable locally or remotely, so the missing screen integration was reconstructed against the reviewed code.
+
+| Decision | Evidence and boundary |
+|---|---|
+| IR-01–IR-03 were addressed first | Fresh programme/status and physical Off guards, target-bound GATT work, and a persistent originals-integrity barrier have regressions. Every IR-01–IR-32 disposition is in `nocturne-completion.md`; no finding is silently closed. |
+| IR-24 remains rejected as a confirmed crash | The independent final pass did not demonstrate an Android foreground-service timeout after timely stop. Framework and Samsung timing are **NOT RUN**; no blanket foreground promotion was introduced. |
+| IR-29 uses best-effort directory sync | Temporary regular snapshot files are cleaned and parent-directory sync is attempted. Power-loss durability on the phone is unverified. |
+| IR-31 is conditionally unresolved | Legacy v1 `[]` has no original empty-slot provenance. Imported unknown originals stay read-only; physical slot inventory/restore must precede an upgrade acceptance claim. |
+| Automatic transfer keeps originals and barrier together | Profiles/history plus slot originals and their integrity marker are allowlisted as a pair. Runtime, target, journals and update-token preferences remain excluded. |
+| Task 5 is integrated against current source | Setup, shared preview, scheduled theme, recovery/Resume, wake override, check-in, explicit spare-slot pinning, feature placements and narrow/large-text navigation are present. Older literal UI strings remain to migrate; TalkBack and phone layout need supervised acceptance. |
+| Task 7 is a test candidate, not a release | Missing signing configuration produces an unsigned release; partial configuration fails, with no debug-key fallback. R8/resource shrinking are enabled without blanket keep rules. Tag workflow requires signer fingerprint and increasing version code. No tag or production release has been made. |
+| Automated gate | 148 core tests and 244 app tests passed, six app screenshot tests skipped; debug assembled; lint zero errors, 22 warnings and one hint. Unsigned shrunk release: 4,217,595 bytes. Fixed-clock before/after Robolectric captures are separate rendered evidence. |
+| Test-signed candidate | `outputs/nocturne-0.2.0-hardening-test.1.apk`, version name `0.2.0-hardening-test.1`, code `2`, 4,229,883 bytes; APK SHA-256 `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d`. Throwaway RSA 3072 certificate SHA-256 `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67`; v2 signature verified by `apksigner`. Key stored outside Git. Device install/upgrade **NOT RUN**. |
+| Physical acceptance | Every item in `samsung-bedjet-acceptance.md` remains **NOT RUN**. First checks: candidate hash/signer and upgrade, explicit BedJet 3 selection, transport/physical Off, three original slots and restore, then preview/override and interrupted-write recovery. |
+
 Spec: docs/superpowers/specs/2026-10-21-nocturne-design.md + implementation brief (owner message 2026-10-22). Attached review action plan unavailable — rulings provisional where it would have decided.
 Base for Tasks 1–2: e4b0cae
 

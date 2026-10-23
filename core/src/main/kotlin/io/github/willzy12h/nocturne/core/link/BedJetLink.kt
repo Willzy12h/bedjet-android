@@ -16,6 +16,11 @@ interface BedJetLink {
     suspend fun disconnect()
     /** Writes a command and waits for the unit to acknowledge it. */
     suspend fun send(command: ByteArray)
+    /** Checks a start's deadline at the transport write boundary, after reconnect and queue wait. */
+    suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+        beforeWrite()
+        send(command)
+    }
     /** Asks the unit for stored data and returns the reply payload, without the echoed request and tag. */
     suspend fun query(request: Int): ByteArray
     /**
@@ -23,6 +28,8 @@ interface BedJetLink {
      * arrives afterwards can confirm the start. Links without split status reports need do nothing.
      */
     suspend fun prepareForStart() {}
+    /** Releases preparation if the start is withheld or interrupted before the link completes its write. */
+    fun cancelPreparedStart() {}
 }
 
 sealed class BedJetError(message: String) : Exception(message) {

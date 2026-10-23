@@ -2,24 +2,35 @@ package io.github.willzy12h.nocturne.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import io.github.willzy12h.nocturne.BuildConfig
+import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.ble.FoundBedJet
 import io.github.willzy12h.nocturne.core.link.BedJetController
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
+import io.github.willzy12h.nocturne.core.plan.NightPreview
+import io.github.willzy12h.nocturne.core.plan.Preview
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.WakeChoice
 import io.github.willzy12h.nocturne.core.plan.WakeResolver
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
+import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.core.store.Release
 import io.github.willzy12h.nocturne.core.store.Settings
+import io.github.willzy12h.nocturne.core.store.MorningComfort
+import io.github.willzy12h.nocturne.data.MiddleSuggestion
+import io.github.willzy12h.nocturne.data.MorningCheckIn
 import io.github.willzy12h.nocturne.core.store.UpdateChecker
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -41,16 +52,45 @@ import java.time.ZonedDateTime
 /** The screens' view of the app: stored data, the live BedJet, and the actions behind every button. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppViewModel(application: Application) : AndroidViewModel(application) {
-    private val graph = application.graph
+    internal val graph = application.graph
     private val repo = graph.repository
 
     val profiles = repo.profiles
     val settings = repo.settings
     val history = repo.history
+    fun morningCheckIn(nightId: String): MorningCheckIn? = repo.morningCheckIn(nightId)
+
+    fun recordMorningCheckIn(nightId: String, comfort: MorningComfort, onResult: (MorningCheckIn?) -> Unit) {
+        viewModelScope.launch {
+            val result = try { repo.recordMorningCheckIn(nightId, comfort) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { null }
+            _messages.tryEmit(getApplication<Application>().getString(if (result == null) R.string.checkin_no_longer_available
+                else R.string.checkin_saved_message))
+            onResult(result)
+        }
+    }
+
+    fun acceptMorningSuggestion(suggestion: MiddleSuggestion, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val applied = try { repo.acceptMorningSuggestion(suggestion) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { false }
+            _messages.tryEmit(getApplication<Application>().getString(if (applied) R.string.checkin_applied_message else R.string.checkin_stale_message))
+            onResult(applied)
+        }
+    }
     val activeNight = repo.activeNight
     val slotBackups = repo.slotBackups
     val snapshots = repo.snapshotList
     val notices = repo.notices
+    val unreadable = repo.unreadable
+    val nightStatus = graph.actions.status
+    val runtime = repo.runtime
+    private val _foundBedJets = MutableStateFlow<List<FoundBedJet>>(emptyList())
+    val foundBedJets: StateFlow<List<FoundBedJet>> = _foundBedJets.asStateFlow()
+    private val _discovering = MutableStateFlow(false)
+    val discovering: StateFlow<Boolean> = _discovering.asStateFlow()
 
     /** Follows the live link, which changes when demo mode is switched. */
     val linkState: StateFlow<LinkState> = repo.settings.map { graph.link }.flatMapLatest { it.state }
@@ -112,9 +152,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** The plan a profile would run tonight, or the reason it can't. */
     fun previewPlan(profile: Profile, startNow: Boolean = false): Result<Plan> = runCatching {
         val now = graph.now()
+        if (startNow) {
+            val preview = startPreview(profile, now)
+            return@runCatching preview.plan ?: error(preview.refusalReason ?: "This night cannot start now.")
+        }
         val start = if (startNow) now else WakeResolver.nextBedtime(profile, now)
         PlanCompiler.compile(profile, start, WakeResolver.resolve(profile, start, nextAlarm.value?.takeIf { it.counts }?.time).time)
     }
+
+    /** One preview supplies the wake headline, curve and actual Start policy. */
+    fun startPreview(profile: Profile, now: ZonedDateTime = graph.now()): Preview = NightPreview.forStartNow(
+        profile, now, nextAlarm.value?.time, repo.settings.value.resolveWakeOverride(now),
+        repo.settings.value, nextAlarm.value?.creator,
+    )
 
     /** The running night's plan, rebuilt from what was stored when it started. */
     fun activePlan(): Plan? {
@@ -145,27 +195,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** A Remote control: sent straight to the BedJet. */
-    fun remote(label: String, endsNight: Boolean = false, work: suspend (BedJetController) -> Unit) {
+    fun remote(label: String, endsNight: Boolean = false, affectsProgramme: Boolean = false,
+        work: suspend (BedJetController) -> Unit) {
         val captured = graph.actions.capture(NightActions.Command.OFF)
         val expected = confirmedNight ?: captured.expected
-        act { graph.actions.remote(label, endsNight, captured.deviceId, expected, work).message }
+        act { graph.actions.remote(label, endsNight = endsNight, affectsProgramme = affectsProgramme,
+            target = captured.deviceId, expected = expected, work = work).message }
     }
 
-    fun restoreSlot(slot: Int, program: StoredProgram) = act {
-        graph.actions.restoreOriginal(slot).message
+    fun restoreSlot(backup: SlotBackup) = act {
+        if (backup.deviceId != repo.settings.value.deviceId()) "The selected BedJet changed. Check the saved slot before restoring."
+        else if (repo.slotBackups.value.firstOrNull { it.deviceId == backup.deviceId && it.slot == backup.slot } != backup)
+            "The saved original changed. Check the slot before restoring."
+        else graph.actions.restoreOriginal(backup.slot).message
     }
+
+    fun pinProfile(profile: Profile, slot: Int, expectedTarget: String, expectedWorkingSlot: Int,
+        previewedAt: ZonedDateTime, expectedProgram: StoredProgram) = act {
+        graph.actions.pin(profile.id, slot, expectedTarget, profile, expectedWorkingSlot, previewedAt, expectedProgram).message
+    }
+
+    fun dismissUnreadable() = save { repo.dismissUnreadable() }
 
     /** Commands wait for saves asked for before them, so they act on what the person just saved. */
     private fun act(hardware: Boolean = true, work: suspend () -> String) {
         val pending = lastSave
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
-        graph.scope.launch {
+        viewModelScope.launch {
             pending?.join()
             _busy.value = true
             val message = try {
                 if (hardware) kotlinx.coroutines.withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target)) {
-                    io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication()) { work() }
+                    io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false) { work() }
                 } else work()
+            } catch (e: TimeoutCancellationException) { e.message ?: "The BedJet did not answer in time. Check its state before trying again."
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) { e.message ?: "Something went wrong." }
             finally { _busy.value = false }
@@ -182,6 +245,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSettings(change: (Settings) -> Settings) = save {
         val outcome = graph.actions.updateSettings(change)
         if (!outcome.succeeded) _messages.tryEmit(outcome.message)
+    }
+
+    fun setTonightWake(wake: ZonedDateTime?) {
+        val expected = activeNight.value?.identity
+        act(hardware = expected != null) {
+            if (activeNight.value?.identity != expected) "Tonight's night changed. Check it before setting a wake time."
+            else graph.actions.setWakeOverride(wake, expected).message
+        }
     }
 
     /** "Update tonight": the edited profile is saved before the rest of the night is rewritten from it. */
@@ -239,6 +310,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun forgetBedJet() = act(hardware = false) { graph.actions.forgetTarget().message }
+
+    fun discoverBedJets() {
+        viewModelScope.launch {
+            _discovering.value = true
+            _foundBedJets.value = emptyList()
+            try { _foundBedJets.value = graph.bleLink.discover(10_000) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _messages.tryEmit(e.message ?: "Could not look for BedJets. Check Nearby devices permission.") }
+            finally { _discovering.value = false }
+        }
+    }
+
+    fun selectBedJet(address: String) = act(hardware = false) {
+        graph.actions.selectTarget("ble:$address", useRealDevice = true).message
+    }
+
+    fun runSetupFanCheck() = act { graph.actions.setupFanCheck().message }
 
     fun bedJetName(): String? = if (settings.value.demoMode) "BEDJET-DEMO" else graph.bleLink.deviceName
 

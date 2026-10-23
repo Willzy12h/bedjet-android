@@ -47,6 +47,28 @@ class RuntimeServiceTest {
         while (!check() && System.nanoTime() < deadline) { shadowOf(Looper.getMainLooper()).idle(); Thread.yield() }
         assertTrue("Timed out pumping main looper", check())
     }
+    @Test fun busyTimeChangeReconciliationRetriesWithoutAFalseError() = runBlocking {
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.actions.exclusive { entered.complete(Unit); release.await() } }
+        until { entered.isCompleted }
+        val receiver = BootReceiver()
+        app.registerReceiver(receiver, IntentFilter(Intent.ACTION_TIME_CHANGED), Context.RECEIVER_EXPORTED)
+        try {
+            app.sendBroadcast(Intent(Intent.ACTION_TIME_CHANGED))
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(10))
+            val manager = shadowOf(app.getSystemService(AlarmManager::class.java))
+            until { manager.scheduledAlarms.any { it.triggerAtTime == graph.clock.millis() + 60_000 } }
+            assertNull(shadowOf(app.getSystemService(android.app.NotificationManager::class.java)).getNotification(3))
+
+            release.complete(Unit); until { held.isCompleted }
+            val retry = NightAlarmReceiver()
+            app.registerReceiver(retry, IntentFilter(NightAlarms.ACTION_RECONCILE_RETRY), Context.RECEIVER_NOT_EXPORTED)
+            try {
+                app.sendBroadcast(Intent(NightAlarms.ACTION_RECONCILE_RETRY))
+                until { manager.scheduledAlarms.none { it.triggerAtTime == graph.clock.millis() + 60_000 } }
+            } finally { app.unregisterReceiver(retry) }
+        } finally { release.complete(Unit); app.unregisterReceiver(receiver) }
+    }
     @Test fun wakeReceiverRetainsDeliveryBeyondItsBudgetWhileOwnerIsBusy() = runBlocking {
         graph.actions.perform(NightActions.Command.START_NIGHT)
         val n = graph.repository.activeNight.value!!

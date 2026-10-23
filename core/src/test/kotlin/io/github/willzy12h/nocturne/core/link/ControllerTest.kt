@@ -150,7 +150,16 @@ class ControllerTest {
     fun startingPreparesTheLinkAfterTheClockAndListensOnlyAfterThat() = runTest {
         val link = ScriptedLink()
         assertThrows<BedJetError.Timeout> { BedJetController(link) { now }.startProgram(2) }
-        assertEquals(listOf("send 08", "prepare", "send 01"), link.calls)
+        assertEquals(listOf("send 08", "prepare", "send 01", "cancel"), link.calls)
+    }
+
+    @Test
+    fun aWithheldStartReleasesItsPreparedStatusBarrier() = runTest {
+        val link = ScriptedLink()
+        assertThrows<IllegalStateException> {
+            BedJetController(link) { now }.startProgram(2) { throw IllegalStateException("expired") }
+        }
+        assertEquals(listOf("send 08", "prepare", "cancel"), link.calls)
     }
 
     /**
@@ -175,6 +184,7 @@ class ControllerTest {
             calls += "prepare"
             status.value = stale
         }
+        override fun cancelPreparedStart() { calls += "cancel" }
         override suspend fun query(request: Int) = ByteArray(0)
     }
 

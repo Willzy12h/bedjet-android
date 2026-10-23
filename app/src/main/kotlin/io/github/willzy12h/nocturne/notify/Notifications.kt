@@ -10,6 +10,9 @@ import android.net.Uri
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.night.ActiveNight
+import io.github.willzy12h.nocturne.core.night.Confidence
+import io.github.willzy12h.nocturne.core.night.NightIdentity
+import io.github.willzy12h.nocturne.core.night.ResumeOffer
 import io.github.willzy12h.nocturne.core.store.LoggedNotice
 import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.core.store.Settings
@@ -17,7 +20,12 @@ import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.service.BedJetService
 import io.github.willzy12h.nocturne.ui.MainActivity
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -100,6 +108,39 @@ object Notifications {
     }
 
     fun cancelWakeUp(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(WAKE_ID)
+    fun cancelResume(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(7)
+
+    /** Withdraw actions whose captured night or resume offer is no longer current. Posting remains at its event. */
+    fun reconcileWakeResume(context: Context, night: ActiveNight?, resumeOffer: ResumeOffer?, wakeShown: NightIdentity?,
+        manualWakeShown: Boolean = false) {
+        val now = context.graph.now()
+        val wakeCurrent = night != null && wakeShown == night.identity && now.isBefore(ZonedDateTime.parse(night.endsAt)) &&
+            if (manualWakeShown) night.trackingManual && night.confidence in setOf(Confidence.UNKNOWN, Confidence.CONFIRMED)
+            else night.confidence == Confidence.CONFIRMED && !night.trackingManual &&
+                !now.isBefore(ZonedDateTime.parse(night.wakeUpStart))
+        if (!wakeCurrent) cancelWakeUp(context)
+        val offerCurrent = resumeOffer != null && now.isBefore(ZonedDateTime.parse(resumeOffer.expiresAt)) &&
+            now.isBefore(ZonedDateTime.parse(resumeOffer.night.wakeAt))
+        if (!offerCurrent) cancelResume(context)
+    }
+
+    /** A clock tick also withdraws notices when no repository state changes at their expiry. */
+    internal suspend fun observeWakeResume(context: Context, ticks: Flow<Unit> = flow {
+        while (true) {
+            emit(Unit)
+            val remaining = context.graph.repository.runtime.value.resumeOffer?.let {
+                Duration.between(context.graph.now(), ZonedDateTime.parse(it.expiresAt)).toMillis()
+            }
+            delay(if (remaining != null && remaining > 0) remaining.coerceAtMost(60_000) else 60_000)
+        }
+    }) {
+        val repo = context.graph.repository
+        combine(repo.activeNight, repo.runtime, ticks) { _, _, _ -> Unit }.collect {
+            // Separate file publications can be conflated; decide from the latest pair at reconciliation time.
+            val runtime = repo.runtime.value
+            reconcileWakeResume(context, repo.activeNight.value, runtime.resumeOffer, runtime.wakeShown, runtime.manualWakeShown)
+        }
+    }
 
     fun showError(context: Context, title: String, text: String) = showAlert(context, NoticeKind.PROBLEM, title, text, ERROR_ID)
 

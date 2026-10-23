@@ -18,24 +18,36 @@ android {
         versionName = (findProperty("versionName") as String?) ?: "0.1.0"
     }
 
-    // Android only installs an update signed with the same key as the installed app, so releases use one fixed key
-    // when it is provided (GitHub secrets in CI), and the debug key otherwise.
-    val releaseKeystore = System.getenv("NOCTURNE_KEYSTORE")?.let(::file)?.takeIf { it.exists() }
+    // A missing key produces an unsigned release for local inspection. Partial or invalid
+    // configuration fails rather than silently changing the signing identity.
+    val signingKeys = listOf("NOCTURNE_KEYSTORE", "NOCTURNE_KEYSTORE_PASSWORD", "NOCTURNE_KEY_ALIAS", "NOCTURNE_KEY_PASSWORD")
+    val signingValues = signingKeys.associateWith { System.getenv(it)?.takeIf(String::isNotBlank) }
+    val signingRequested = signingValues.values.any { it != null }
+    if (signingRequested && signingValues.values.any { it == null }) {
+        throw GradleException("Release signing requires all NOCTURNE_KEYSTORE, NOCTURNE_KEYSTORE_PASSWORD, NOCTURNE_KEY_ALIAS and NOCTURNE_KEY_PASSWORD values")
+    }
+    val releaseKeystore = signingValues.getValue("NOCTURNE_KEYSTORE")?.let(::file)
+    if (releaseKeystore != null && !releaseKeystore.isFile) {
+        throw GradleException("Configured release keystore is not a file: $releaseKeystore")
+    }
     signingConfigs {
         if (releaseKeystore != null) {
             create("release") {
                 storeFile = releaseKeystore
-                storePassword = System.getenv("NOCTURNE_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("NOCTURNE_KEY_ALIAS")
-                keyPassword = System.getenv("NOCTURNE_KEY_PASSWORD")
+                storePassword = signingValues.getValue("NOCTURNE_KEYSTORE_PASSWORD")
+                keyAlias = signingValues.getValue("NOCTURNE_KEY_ALIAS")
+                keyPassword = signingValues.getValue("NOCTURNE_KEY_PASSWORD")
             }
         }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
+            if (releaseKeystore == null) println("Nocturne release signing is not configured; assembleRelease will produce an unsigned APK")
         }
     }
     compileOptions {

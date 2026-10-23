@@ -7,6 +7,7 @@ import android.content.Intent
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.service.BedJetService
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
 
 /** Broadcasts only perform short durable local transitions; hardware work belongs to the service/job. */
 class NightAlarmReceiver : BroadcastReceiver() {
@@ -17,6 +18,10 @@ class NightAlarmReceiver : BroadcastReceiver() {
                 graph.actions.submitLocalDelivery(intent.action!!, NightAlarms.identity(intent))
             }
             NightAlarms.ACTION_LOCAL_RETRY -> local(context) { graph.actions.drainLocalDeliveries() }
+            NightAlarms.ACTION_RECONCILE_RETRY -> local(context, onTimeout = { NightAlarms.scheduleReconcileRetry(context) }) {
+                graph.actions.reconcile()
+                NightAlarms.cancelReconcileRetry(context)
+            }
             NightAlarms.ACTION_RETRY -> {
                 if (!graph.actions.retimePending) return
                 NightAlarms.scheduleObservation(context, graph.now())
@@ -29,7 +34,10 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_TIME_CHANGED, AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)) return
-        local(context) { context.graph.actions.reconcile() }
+        local(context, onTimeout = { NightAlarms.scheduleReconcileRetry(context) }) {
+            context.graph.actions.reconcile()
+            NightAlarms.cancelReconcileRetry(context)
+        }
     }
 }
 class AlarmChangedReceiver : BroadcastReceiver() {
@@ -38,15 +46,19 @@ class AlarmChangedReceiver : BroadcastReceiver() {
         NightAlarms.scheduleObservation(context, context.graph.now())
         local(context) {
             context.graph.actions.submitAlarmChange()
-            BedJetService.start(context, NightActions.Command.RETRY_RETIME)
+            if (context.graph.actions.retimePending) BedJetService.start(context, NightActions.Command.RETRY_RETIME, notifyFailures = false)
         }
     }
 }
-private fun BroadcastReceiver.local(context: Context, work: suspend () -> Unit) {
+private fun BroadcastReceiver.local(context: Context, onTimeout: (() -> Unit)? = null, work: suspend () -> Unit) {
     val pending = goAsync()
     context.graph.scope.launch {
         try { kotlinx.coroutines.withTimeout(8_500) { work() } }
-        catch (e: Exception) {
+        catch (e: TimeoutCancellationException) {
+            if (onTimeout != null) onTimeout() else io.github.willzy12h.nocturne.notify.Notifications.showError(context,
+                context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
+                e.message ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))
+        } catch (e: Exception) {
             io.github.willzy12h.nocturne.notify.Notifications.showError(context, context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
                 e.message ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))
         } finally { pending.finish() }

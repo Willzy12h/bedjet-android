@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -31,6 +33,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +41,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.plan.Phase
@@ -56,8 +62,10 @@ private val PHASE_MODES = listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.
 /** Edits every part of a profile, with a live preview of tonight's night and any reason the BedJet would refuse it. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit) {
-    var profile by remember { mutableStateOf(original) }
+fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
+    initialDraft: Profile? = null, onDraftChange: (Profile) -> Unit = {}) {
+    var profile by remember(original.id) { mutableStateOf(initialDraft ?: original) }
+    LaunchedEffect(profile) { onDraftChange(profile) }
     val settings by model.settings.collectAsState()
     val f = settings.fahrenheit
     val night by model.activeNight.collectAsState()
@@ -249,12 +257,13 @@ private fun TempSlider(mode: Mode, value: Int, onChange: (Int) -> Unit) {
 
 @Composable
 fun SwitchRow(title: String, detail: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+        .semantics { contentDescription = title }, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
-        Switch(checked, onChange)
+        Switch(checked, onCheckedChange = null)
     }
 }
 

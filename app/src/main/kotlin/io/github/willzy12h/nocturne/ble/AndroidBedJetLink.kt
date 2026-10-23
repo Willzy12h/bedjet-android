@@ -29,11 +29,11 @@ import java.util.UUID
  * The connection logic lives in [GattLink]; this class supplies Android's Bluetooth classes and remembers the
  * unit's name for display.
  */
-class AndroidBedJetLink(private val context: Context, private val preparedLink: BedJetLink? = null, target: () -> String?) : BedJetLink {
+class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, target: () -> String?) : BedJetLink {
     private val prefs = context.getSharedPreferences("ble", Context.MODE_PRIVATE)
     private val names = DeviceNames(context, target)
     val verifiedNames: StateFlow<Pair<String, String?>?> get() = names.verified
-    private val engine = GattLink(AndroidRadio(context, ::hasPermissions), target,
+    private val engine = GattLink(radio ?: AndroidRadio(context, ::hasPermissions), target,
         onName = names::display, onVerifiedName = names::verify)
 
     override val state: StateFlow<LinkState> get() = engine.state
@@ -45,9 +45,11 @@ class AndroidBedJetLink(private val context: Context, private val preparedLink: 
     fun deviceNameFor(deviceId: String): String? = names.verifiedName(deviceId)
 
     override suspend fun connect() = engine.connect()
-    override suspend fun prepareForStart() = (preparedLink ?: engine).prepareForStart()
+    override suspend fun prepareForStart() = engine.prepareForStart()
+    override fun cancelPreparedStart() = engine.cancelPreparedStart()
     override suspend fun disconnect() = engine.disconnect()
     override suspend fun send(command: ByteArray) = engine.send(command)
+    override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) = engine.sendGuarded(command, beforeWrite)
     override suspend fun query(request: Int): ByteArray = engine.query(request)
 
     /** Lists the BedJets nearby for setup to choose from, without connecting to any. */

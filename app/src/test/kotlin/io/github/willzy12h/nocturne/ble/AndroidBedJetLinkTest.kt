@@ -2,6 +2,7 @@ package io.github.willzy12h.nocturne.ble
 
 import android.content.Context
 import io.github.willzy12h.nocturne.core.link.BedJetError
+import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.link.LinkState
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -19,12 +20,14 @@ class AndroidBedJetLinkTest {
     private val context: Context = RuntimeEnvironment.getApplication()
     private val prefs = context.getSharedPreferences("ble", Context.MODE_PRIVATE)
 
-    @Test fun outerAdapterForwardsFreshStatusPreparation() = runBlocking {
-        val demo = io.github.willzy12h.nocturne.core.link.DemoBedJet()
-        demo.connect()
-        val adapter = AndroidBedJetLink(context, demo) { null }
+    @Test fun outerAdapterForwardsFreshStatusPreparationThroughItsGattEngine() = runBlocking {
+        val fake = FakeRadio().apply { behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1)) }
+        val adapter = AndroidBedJetLink(context, radio = fake.radio) { DeviceId.ble("AA:BB:CC:DD:EE:01") }
+        adapter.connect()
+        assertEquals(1, adapter.status.value?.extra?.programStep)
         adapter.prepareForStart()
-        assertNull(demo.status.value!!.extra)
+        assertNull(adapter.status.value!!.extra)
+        adapter.disconnect()
     }
 
     @Test

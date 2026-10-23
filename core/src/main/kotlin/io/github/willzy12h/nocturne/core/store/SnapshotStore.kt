@@ -4,9 +4,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.jsonObject
 import java.io.FileOutputStream
 import java.io.Reader
+import java.io.IOException
+import java.nio.channels.FileChannel
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
 import java.time.ZonedDateTime
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.deleteIfExists
@@ -20,13 +24,24 @@ data class SnapshotInfo(val id: String, val createdAt: String, val label: String
 /** Point-in-time copies of everything, to restore from. Manual ones are kept; the last [KEEP_AUTOMATIC] automatic ones too. */
 class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime) {
 
+    init {
+        if (dir.exists()) {
+            // A completed snapshot never has this suffix. Leave every other file alone.
+            dir.listDirectoryEntries("snap-*.json.tmp").forEach { path ->
+                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+                    try { path.deleteIfExists() } catch (_: IOException) { /* A good snapshot remains usable. */ }
+                }
+            }
+        }
+    }
+
     /** Written header first, so [list] can stop reading before the bundle. */
     @Serializable
     private data class SnapshotFile(val createdAt: String, val label: String? = null, val manual: Boolean, val bundle: BackupBundle)
 
     private data class Header(val createdAt: String, val label: String?, val manual: Boolean)
 
-    /** Writes the snapshot durably: a power cut leaves either no snapshot or the whole of it. */
+    /** Syncs contents before atomic publication, then syncs the directory where supported. Power-loss guarantees vary by filesystem. */
     fun save(bundle: BackupBundle, label: String?, manual: Boolean): SnapshotInfo {
         Files.createDirectories(dir)
         val time = now()
@@ -39,6 +54,7 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
             out.fd.sync()
         }
         Files.move(temp, dir.resolve("$id.json"), StandardCopyOption.ATOMIC_MOVE)
+        syncDirectoryIfSupported()
         prune()
         return SnapshotInfo(id, file.createdAt, label, manual)
     }
@@ -75,6 +91,14 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
 
     private fun prune() {
         list().filter { !it.manual }.drop(KEEP_AUTOMATIC).forEach { delete(it.id) }
+    }
+
+    private fun syncDirectoryIfSupported() {
+        // Android/filesystems differ on whether a directory can be opened as a channel.
+        try { FileChannel.open(dir, StandardOpenOption.READ).use { it.force(true) } }
+        catch (_: IOException) { }
+        catch (_: UnsupportedOperationException) { }
+        catch (_: SecurityException) { }
     }
 
     /**

@@ -16,6 +16,7 @@ import kotlinx.serialization.Serializable
     val slotWrite: SlotWrite? = null,
     val reason: String? = null,
     val wakeShown: NightIdentity? = null,
+    val manualWakeShown: Boolean = false,
 )
 @Serializable data class PendingRetime(val id: String, val expected: NightIdentity, val deviceId: String,
     val alarmAt: String?, val alarmOrigin: String?, val deadline: String)

@@ -1,10 +1,12 @@
 # Samsung + BedJet 3: supervised acceptance
 
-Prepared 22 October 2026 against `docs/HANDOVER.md`, the hardening plan and `docs/review/register.md`; platform qualifications follow `platform-preflight.md`. **No hardware has been tested. Every result below starts NOT RUN.** This is an executable acceptance specification, not a statement that all planned features have shipped. Mark an absent feature BLOCKED and identify its build/issue.
+Prepared 22 October 2026 and updated 23 October against the completion candidate, `docs/HANDOVER.md`, the hardening plan and `docs/review/register.md`; platform qualifications follow `platform-preflight.md`. **No hardware has been tested. Every result below remains NOT RUN.** This is an executable acceptance specification; mark an absent or unusable feature BLOCKED and identify its build/issue.
 
 ## Evidence and decision rules
 
-Historical automated evidence for integrated Tasks 1–2: the continuation baseline recorded 99 core tests passed, 85 app tests passed, four screenshot tests skipped, debug assembly successful and lint with zero errors/one warning. Fake transport, JVM/Robolectric tests and rendered screenshots cannot establish real BLE behaviour, Samsung background delivery, TalkBack usability, Lull interoperability or upgrade installation. Attach the final candidate's fresh CI/build results separately; do not transfer historical counts to it.
+Completion-candidate local evidence: 148 core tests and 244 app tests passed; six app capture tests skipped; zero failures; debug assembled; lint zero errors, 22 warnings and one hint. An unsigned shrunk release build passed at 4,217,595 bytes. The shrunk test-signed APK is `outputs/nocturne-0.2.0-hardening-test.1.apk`: version `0.2.0-hardening-test.1` / code `2`, 4,229,883 bytes, APK SHA-256 `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d`, throwaway RSA 3072 certificate SHA-256 `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67`; APK Signature Scheme v2 verified with `apksigner`. Fixed-clock Robolectric before/after captures are rendered app evidence. Fake transport, JVM/Robolectric tests and rendered screenshots cannot establish real BLE behaviour, Samsung background delivery, TalkBack usability, Lull interoperability or upgrade installation. These counts describe the recorded source gate and must not be transferred to a changed candidate without a fresh run.
+
+Candidate-specific release limits: IR-24 was rejected as a proven foreground-service timeout, while framework/Samsung timing is **NOT RUN**; IR-29 directory durability is best effort and needs phone/power-loss evidence; IR-31 legacy v1 `[]` cannot prove an originally empty slot. An upgraded real installation must have a supervised inventory and read-back restoration of the original slots before acceptance. Older literal UI strings have not all been moved to resources; verify UK English and accessibility on the phone.
 
 Use PASS / FAIL / BLOCKED / NOT RUN. For every row, append tester, date/time with zone, observations and evidence filename/issue. A multi-part row passes only when every applicable part passes; record individual sub-results otherwise. Unsupported optional capabilities require a recorded BLOCKED limitation, never an assumed pass. Record requested, submitted and confirmed times separately; elapsed time alone is not proof of a device change. The BedJet display/physical remote and actual airflow corroborate fresh app status; they do not establish calibrated temperature accuracy.
 
@@ -15,8 +17,8 @@ Use PASS / FAIL / BLOCKED / NOT RUN. For every row, append tester, date/time wit
 | Record | Value |
 |---|---|
 | Tester / supervisor / session dates | __________ |
-| Candidate commit, version name/code, APK filename and SHA-256 | __________ |
-| Minified build; test signer certificate SHA-256; previous build/version/signer | __________ |
+| Candidate commit, version name/code, APK filename and SHA-256 | Commit: __________; `0.2.0-hardening-test.1` / `2`; `outputs/nocturne-0.2.0-hardening-test.1.apk`; `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d` |
+| Minified build; test signer certificate SHA-256; previous build/version/signer | Shrunk/test-signed, 4,229,883 bytes; `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67`; previous candidate/signer: __________ |
 | Samsung model, Android version, One UI version, security patch | __________ |
 | Samsung Clock and Google Clock versions; default/active alarm app | __________ |
 | Time zone, automatic time/zone settings; DND and alarm volume | __________ |

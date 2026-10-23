@@ -32,23 +32,30 @@ object WidgetUpdater {
         if (!started.compareAndSet(false, true)) return
         val app = context.applicationContext
         val graph = app.graph
+        graph.scope.launch {
+            observeUpdates(app) {
+                runCatching {
+                    QuickControlsWidget().updateAll(app)
+                    SingleActionWidget().updateAll(app)
+                }
+            }
+        }
+    }
+
+    /** Shared by the process observer and a background-only regression with a captured redraw. */
+    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+    internal suspend fun observeUpdates(app: Context, redraw: suspend () -> Unit) {
+        val graph = app.graph
         val repo = graph.repository
         val linkState = repo.settings.map { graph.link }.distinctUntilChanged().flatMapLatest { it.state }
         val time = flow { while (true) { emit(graph.now()); delay(60_000) } }
         val shownState = combine(repo.activeNight, repo.automation, repo.runtime, time) { active, observation, runtime, at ->
             Triple(Triple(active,observation,runtime),at.toEpochSecond()/60,at)
         }
-        graph.scope.launch {
-            combine(repo.profiles, repo.settings, linkState, shownState) { profiles, settings, _, shown -> Shown(profiles, settings, widgetBedJetName(app, settings), shown.first, shown.second, settings.isDarkTheme(shown.third,false)) }
-                .distinctUntilChanged()
-                // A slider drag writes settings many times a second; widgets only need the result.
-                .debounce(500)
-                .collect {
-                    runCatching {
-                        QuickControlsWidget().updateAll(app)
-                        SingleActionWidget().updateAll(app)
-                    }
-                }
-        }
+        combine(repo.profiles, repo.settings, linkState, shownState) { profiles, settings, _, shown -> Shown(profiles, settings, widgetBedJetName(app, settings), shown.first, shown.second, settings.isDarkTheme(shown.third,false)) }
+            .distinctUntilChanged()
+            // A slider drag writes settings many times a second; widgets only need the result.
+            .debounce(500)
+            .collect { redraw() }
     }
 }

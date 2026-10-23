@@ -151,11 +151,12 @@ class NightRunner(private val controller: BedJetController, private val now: () 
     }
 
     /** Caller owns lock and connection. [current] is read after acquisition. [publish] must durably save
-     * PENDING before returning; [beforeWrite] durably backs up the original slot. A partial write is UNKNOWN.
+     * PENDING before returning; [beforeWrite] durably backs up the original slot. [afterWrite]
+     * may verify hardware after upload and before START. A partial write is UNKNOWN.
      * Task 4 supplies repository callbacks; no callback is invoked for stale/expired requests. */
     suspend fun apply(change: PreparedChange, current: () -> ActiveNight?,
         commandVersion: () -> Long = { 0 }, publish: suspend (ActiveNight) -> Unit = {},
-        beforeWrite: suspend () -> Unit = {}): NightMutation {
+        beforeWrite: suspend () -> Unit = {}, afterWrite: suspend () -> Unit = {}): NightMutation {
         if (change.expectedCommand != null && change.expectedCommand != commandVersion()) return NightMutation.Stale(change.request.expected, current()?.identity)
         when (val check = Eligibility.check(current(), now(), change.request)) {
             is Eligibility.Stale -> return NightMutation.Stale(check.expected, check.actual)
@@ -165,6 +166,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         val pending = change.pendingNight
         publish(pending)
         var writeMayHaveHappened = false
+        var startMayHaveHappened = false
         try {
             beforeWrite()
             val latest = current()
@@ -178,11 +180,18 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             writeMayHaveHappened = true
             controller.store(StoredProgram(change.intended.profile!!.name, change.plan.programSteps), change.intended.slot)
             checkExecutionTime(change)
-            controller.startProgram(change.intended.slot) { checkExecutionTime(change) }
+            controller.startProgram(change.intended.slot, onStartAttempt = { startMayHaveHappened = true },
+                beforePrepare = { afterWrite(); checkExecutionTime(change) }) {
+                checkExecutionTime(change)
+            }
             publish(change.intended)
             return NightMutation.Applied(change.plan, change.intended)
         } catch (e: Exception) {
-            val failed = pending.copy(confidence = if (writeMayHaveHappened) Confidence.UNKNOWN else Confidence.FAILED)
+            // A failed backup has not touched the unit. Restore the previous confirmed
+            // night instead of turning a working night into a failed replacement.
+            val failed = if (!writeMayHaveHappened && change.previous?.confidence == Confidence.CONFIRMED)
+                change.previous else pending.copy(confidence = if (writeMayHaveHappened &&
+                    (change.request.kind != ChangeKind.START || change.previous != null || startMayHaveHappened || e is CancellationException)) Confidence.UNKNOWN else Confidence.FAILED)
             withContext(NonCancellable) { publish(failed) }
             if (e is CancellationException) throw e
             return NightMutation.Failed(failed, e)
@@ -196,6 +205,14 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         if ((change.request.kind == ChangeKind.RETIME || change.request.kind == ChangeKind.REAPPLY) &&
             change.previous != null && !time.isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) {
             throw PlanException("Tonight's wake-up has already started.")
+        }
+        // Clock-time BedJet steps wrap to tomorrow once their programmed end has passed.
+        // Recheck the new plan after uploads and clock sync, including a safe write margin.
+        if (change.plan.steps.any { it.step.endsAtClockTime && !time.isBefore(it.endsAt.minusMinutes(10)) }) {
+            throw PlanException("The new programme's clock-time step is too close to ending.")
+        }
+        if (change.plan.steps.any { it.step.endsAtClockTime } && time.offset != change.plan.start.offset) {
+            throw PlanException("The clock offset changed while preparing the programme. Try again.")
         }
     }
 

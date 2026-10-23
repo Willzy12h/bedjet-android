@@ -12,6 +12,7 @@ import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.LinkSessions
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.notify.Notifications
+import io.github.willzy12h.nocturne.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -62,12 +63,14 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun startRuntime() {
         platform.start()
+        WidgetUpdater.start(context)
         scope.launch { actions.initialise() }
         scope.launch {
             combine(repository.settingsPublication, repository.activeNight) { _, _ -> Unit }.collect {
                 actions.refreshQuietNotification()
             }
         }
+        scope.launch { Notifications.observeWakeResume(context) }
         scope.launch {
             repository.settings.map { it.deviceId() }.distinctUntilChanged().flatMapLatest { target ->
                 link.status.map { target to it }

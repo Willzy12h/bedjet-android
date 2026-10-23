@@ -1,9 +1,13 @@
 package io.github.willzy12h.nocturne.night
 
 import android.content.Context
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Intent
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.core.link.*
 import io.github.willzy12h.nocturne.core.night.*
+import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.protocol.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
@@ -29,17 +33,23 @@ class RuntimeOwnershipTest {
     private var beforeSend: suspend (ByteArray) -> Unit = {}
     private var beforeConnect: suspend () -> Unit = {}
     private var failBackups = false
+    private var failSettings = false
     private var failClear = false
     private val sent = mutableListOf<ByteArray>()
     @Before fun setup() = runBlocking {
         demo = DemoBedJet(now = { graph.now() })
         val link = object : BedJetLink by demo {
             override suspend fun send(command: ByteArray) { beforeSend(command); sent += command; demo.send(command) }
+            override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+                beforeWrite()
+                send(command)
+            }
             override suspend fun connect() { beforeConnect(); demo.connect() }
         }
         graph = Graph(context, link) { scope, now -> Repository(context, scope, writeFile = { file, bytes ->
             if (failClear && file.name == "active-night.json" && bytes.decodeToString() == "null") throw IOException("Clear disk failure")
             if (failBackups && file.name == "slot-backups.json") throw IOException("Backup disk failure")
+            if (failSettings && file.name == "settings.json") throw IOException("Settings disk failure")
             Repository.writeDurably(file, bytes)
         }, now = now) }
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
@@ -116,6 +126,27 @@ class RuntimeOwnershipTest {
         val result = graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT))
         assertEquals(OutcomeKind.FAILED, result.kind)
         assertNull(demo.slots[2]); assertEquals(Confidence.FAILED, graph.repository.activeNight.value!!.confidence)
+        val failed = graph.repository.history.value.single { it.id == graph.repository.activeNight.value!!.recordId }
+        assertTrue(failed.events.any { it.kind == EventKind.ERROR })
+        val reloaded = Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() }
+        assertEquals(failed, reloaded.history.value.single { it.id == failed.id })
+    }
+    @Test fun corruptOriginalsCannotAuthoriseStartBoostOrPinAfterNoticeDismissal() = runBlocking {
+        File(context.filesDir, "slot-backups.json").writeText("[{ broken")
+        val restarted = Graph(context, graph.link) { scope, now ->
+            Repository(context, scope, writer = Dispatchers.Unconfined, now = now)
+        }
+        restarted.clock = graph.clock
+        assertEquals(listOf("slot-backups.json"), restarted.repository.unreadable.value)
+        restarted.repository.dismissUnreadable()
+        assertTrue(restarted.repository.unreadable.value.isEmpty())
+        sent.clear()
+
+        assertEquals(OutcomeKind.FAILED, restarted.actions.pin(restarted.repository.profiles.value.first().id, 0).kind)
+        assertEquals(OutcomeKind.FAILED, restarted.actions.execute(restarted.actions.capture(NightActions.Command.BOOST)).kind)
+        assertEquals(OutcomeKind.FAILED, restarted.actions.execute(restarted.actions.capture(NightActions.Command.START_NIGHT)).kind)
+        assertTrue("A corrupt originals file allowed a hardware write", sent.isEmpty())
+        assertTrue(demo.slots.all { it == null })
     }
     @Test fun partialUploadCancellationIsDurablyUnknownAndNeverRetried() = runBlocking {
         beforeSend = { if (it[0] == 0x40.toByte()) throw CancellationException("cancel upload") }
@@ -147,6 +178,51 @@ class RuntimeOwnershipTest {
         graph.actions.perform(NightActions.Command.STOP_TRACKING)
         assertEquals(OutcomeKind.LOCAL, graph.actions.setDemoMode(false).kind)
     }
+    @Test fun selectingRealTargetPersistsTargetAndDemoModeTogether() = runBlocking {
+        val target = "ble:AA:BB:CC:DD:EE:FF"
+        assertEquals(OutcomeKind.LOCAL, graph.actions.selectTarget(target, useRealDevice = true).kind)
+        assertEquals(target, graph.repository.settings.value.deviceId())
+        assertFalse(graph.repository.settings.value.demoMode)
+        val reloaded = Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() }
+        assertEquals(target, reloaded.settings.value.deviceId())
+        assertFalse(reloaded.settings.value.demoMode)
+    }
+    @Test fun activeWakeOverrideUsesOwnedReapplyAndRejectsStaleOrUnknownNight() = runBlocking {
+        val initial = start()
+        val wakeChoice = graph.now().plusHours(6)
+        val applied = graph.actions.setWakeOverride(wakeChoice, initial.identity)
+        assertEquals(OutcomeKind.CONFIRMED, applied.kind)
+        val current = graph.repository.activeNight.value!!
+        assertEquals(initial.revision + 1, current.revision)
+        assertEquals(wakeChoice.toInstant(), ZonedDateTime.parse(current.wakeAt).toInstant())
+        assertNotNull(graph.repository.settings.value.tonightOverride)
+
+        val cleared = graph.actions.setWakeOverride(null, current.identity)
+        assertTrue(cleared.kind == OutcomeKind.CONFIRMED || cleared.kind == OutcomeKind.LOCAL)
+        assertNull(graph.repository.settings.value.tonightOverride)
+        val afterClear = graph.repository.activeNight.value!!
+        val before = graph.repository.settings.value
+        assertEquals(OutcomeKind.STALE, graph.actions.setWakeOverride(graph.now().plusHours(5), initial.identity).kind)
+        assertEquals(before, graph.repository.settings.value)
+
+        graph.repository.setActiveNight(afterClear.copy(confidence = Confidence.UNKNOWN))
+        assertEquals(OutcomeKind.REFUSED, graph.actions.setWakeOverride(null, afterClear.identity).kind)
+        assertEquals(before, graph.repository.settings.value)
+    }
+    @Test fun selectingRealTargetRefusesAnActiveNightWithoutChangingSettings() = runBlocking {
+        start()
+        val before = graph.repository.settings.value
+        assertEquals(OutcomeKind.REFUSED, graph.actions.selectTarget("ble:AA:BB:CC:DD:EE:FF", useRealDevice = true).kind)
+        assertEquals(before, graph.repository.settings.value)
+    }
+    @Test fun selectingRealTargetWriteFailureKeepsThePreviousPairAfterRestart() = runBlocking {
+        val before = graph.repository.settings.value
+        failSettings = true
+        assertEquals(OutcomeKind.FAILED, graph.actions.selectTarget("ble:AA:BB:CC:DD:EE:FF", useRealDevice = true).kind)
+        assertEquals(before, graph.repository.settings.value)
+        val reloaded = Repository(context, graph.scope, writer = Dispatchers.Unconfined) { graph.now() }
+        assertEquals(before, reloaded.settings.value)
+    }
     @Test fun pinRefusesWorkingSlotAndRecordsOriginalBeforeWritingOtherSlot() = runBlocking {
         val profile = graph.repository.profiles.value.first()
         assertEquals(OutcomeKind.REFUSED, graph.actions.pin(profile.id, 2).kind)
@@ -162,10 +238,18 @@ class RuntimeOwnershipTest {
         failBackups = true
         assertEquals(OutcomeKind.FAILED, graph.actions.pin(graph.repository.profiles.value.first().id, 0).kind)
         assertNull(demo.slots[0])
+        assertNull(graph.repository.runtime.value.slotWrite)
+        failBackups = false
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.pin(graph.repository.profiles.value.first().id, 0).kind)
+        assertEquals(Confidence.CONFIRMED, graph.repository.runtime.value.slotWrite?.confidence)
+        assertTrue(graph.actions.status.value.confidence != Confidence.FAILED)
+
+        failBackups = true
         graph.repository.updateSettings { it.copy(boostMinutes = 15) }
         graph.repository.saveProfile(graph.repository.profiles.value.first().copy(limits = io.github.willzy12h.nocturne.core.plan.ProfileLimits(maxTemp = 86)))
         assertEquals(OutcomeKind.FAILED, graph.actions.execute(graph.actions.capture(NightActions.Command.BOOST)).kind)
         assertNull(demo.slots[2])
+        assertNull(graph.repository.runtime.value.slotWrite)
     }
     @Test fun stopTrackingIsLocalAndResumeRestoresRemainingNight() = runBlocking {
         start(); advance(30); sent.clear()
@@ -190,6 +274,70 @@ class RuntimeOwnershipTest {
         sent.clear(); graph.actions.perform(NightActions.Command.RETIME)
         assertNull(graph.repository.activeNight.value); assertTrue(sent.isEmpty())
     }
+    @Test fun unobservedPhysicalOffBlocksAutomaticRetimeAfterReconnect() = runBlocking {
+        val night = start()
+        // Simulate a physical remote while the app is disconnected: no observer delivers this status.
+        graph.link.disconnect()
+        demo.connect()
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        demo.disconnect()
+        val alarm = context.getSystemService(AlarmManager::class.java)
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+            PendingIntent.getBroadcast(context, 188, Intent("retime-test"), PendingIntent.FLAG_IMMUTABLE))
+        sent.clear()
+        graph.actions.recordPendingRetime()
+        graph.actions.retryPendingRetime()
+        assertTrue("automatic retime wrote to a stopped unit", sent.isEmpty())
+        assertEquals(Mode.STANDBY, demo.status.value!!.mode)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
+        assertFalse(graph.actions.retimePending)
+        assertEquals(EventKind.REMOTE_CHANGE, graph.repository.history.value.first { it.id == night.recordId }.events.last().kind)
+    }
+    @Test fun unobservedPhysicalFanChangeBlocksAutomaticRetimeAfterReconnect() = runBlocking {
+        val night = start()
+        graph.link.disconnect()
+        demo.connect()
+        val oldFan = demo.status.value!!.fanStep
+        demo.send(Codec.setFan(if (oldFan < 19) oldFan + 1 else oldFan - 1))
+        demo.disconnect()
+        val alarm = context.getSystemService(AlarmManager::class.java)
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+            PendingIntent.getBroadcast(context, 189, Intent("retime-fan-test"), PendingIntent.FLAG_IMMUTABLE))
+        sent.clear()
+        graph.actions.recordPendingRetime()
+        graph.actions.retryPendingRetime()
+        assertTrue("automatic retime overwrote a physical fan change", sent.isEmpty())
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
+        assertFalse(graph.actions.retimePending)
+        assertEquals(EventKind.REMOTE_CHANGE, graph.repository.history.value.first { it.id == night.recordId }.events.last().kind)
+    }
+    @Test fun physicalOffDuringRetimeUploadBlocksStartAndLeavesWrittenSlotUncertain() = runBlocking {
+        val night = start()
+        val alarm = context.getSystemService(AlarmManager::class.java)
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+            PendingIntent.getBroadcast(context, 190, Intent("retime-upload-off-test"), PendingIntent.FLAG_IMMUTABLE))
+        graph.actions.recordPendingRetime()
+        sent.clear()
+        var uploadFragments = 0
+        beforeSend = { command ->
+            if (command[0] == 0x40.toByte() && ++uploadFragments == 2) {
+                // The remote acts after the first fragment, while this command owns the link.
+                demo.send(Codec.setMode(Mode.STANDBY)!!)
+            }
+        }
+
+        val result = graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+
+        assertTrue("retime did not reach the upload", uploadFragments >= 2)
+        assertEquals(OutcomeKind.UNKNOWN, result.kind)
+        assertFalse("automatic retime restarted a physically stopped unit",
+            sent.any { it.contentEquals(Codec.startProgram(night.slot)) })
+        assertEquals(Mode.STANDBY, demo.status.value!!.mode)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
+        assertFalse(graph.actions.retimePending)
+        assertEquals(EventKind.REMOTE_CHANGE,
+            graph.repository.history.value.first { it.id == night.recordId }.events.last().kind)
+    }
     @Test fun lightsBeepsAndAcknowledgementDoNotEndNightOrLeaveItPending() = runBlocking {
         val n = start()
         graph.actions.remote("Lights") { it.setLed(false) }
@@ -210,6 +358,17 @@ class RuntimeOwnershipTest {
         assertTrue(graph.repository.activeNight.value!!.trackingManual)
         assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
     }
+    @Test fun aDifferentProgrammeDuringStepStartGraceIsTakeover() = runBlocking {
+        val n = start()
+        val changed = demo.status.value!!.copy(mode = Mode.HEAT, targetTemperature = 64)
+        // The step number alone is insufficient: a physical remote can change mode before
+        // the first twenty seconds of our planned step have elapsed.
+        assertTrue(changed.extra!!.programStep > 0)
+        graph.actions.observeStatus(changed, "demo")
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
+        assertEquals(EventKind.REMOTE_CHANGE,
+            graph.repository.history.value.first { it.id == n.recordId }.events.last().kind)
+    }
     @Test fun diagnosticsExcludeTokenButIncludeBoundedEventsAndLink() = runBlocking {
         graph.repository.updateToken = "TOP_SECRET_TOKEN"
         start()
@@ -228,6 +387,19 @@ class RuntimeOwnershipTest {
         release.complete(Unit); start.await();
         assertTrue(waited); assertTrue(notReleasedEarly); assertEquals(OutcomeKind.LOCAL, handover.await().kind)
         assertTrue(graph.sessions.released.value)
+    }
+    @Test fun handoverPreservesRecoveryReasonAndResumeOffer() = runBlocking {
+        start()
+        graph.actions.perform(NightActions.Command.OFF)
+        val offer = graph.repository.runtime.value.resumeOffer
+        assertNotNull(offer)
+        graph.repository.updateRuntime { it.copy(reason = "Hardware state is uncertain.") }
+        val generation = graph.repository.runtime.value.generation
+
+        assertEquals(OutcomeKind.LOCAL, graph.actions.releaseForOtherPhone().kind)
+        assertEquals(generation + 1, graph.repository.runtime.value.generation)
+        assertEquals("Hardware state is uncertain.", graph.repository.runtime.value.reason)
+        assertEquals(offer, graph.repository.runtime.value.resumeOffer)
     }
     @Test fun jobEligibilityIsCheckedAfterConnectionBeforeMutation() = runBlocking {
         var eligible = true
@@ -329,15 +501,51 @@ class RuntimeOwnershipTest {
         demo.send(Codec.setMode(Mode.COOL)!!); sent.clear()
         assertEquals(OutcomeKind.REFUSED, graph.actions.setupFanCheck().kind); assertTrue(sent.isEmpty())
     }
+    @Test fun forgettingAndReselectingAUnitRequiresANewSupervisedCheck() = runBlocking {
+        val target = "ble:AA:BB:CC:DD:EE:FF"
+        graph.repository.updateSettings { it.copy(targetDevice = target, setupFanCheckedDevice = target) }
+        assertEquals(OutcomeKind.LOCAL, graph.actions.forgetTarget().kind)
+        assertNull(graph.repository.settings.value.setupFanCheckedDevice)
+        assertEquals(OutcomeKind.LOCAL, graph.actions.selectTarget(target, useRealDevice = true).kind)
+        assertNull(graph.repository.settings.value.setupFanCheckedDevice)
+    }
+    @Test fun pinConfirmationRejectsChangedTargetProfileSlotAndActiveNight() = runBlocking {
+        val profile = graph.repository.profiles.value.first()
+        assertEquals(OutcomeKind.STALE, graph.actions.pin(profile.id, 0,
+            expectedTarget = "ble:AA:BB:CC:DD:EE:FF", expectedProfile = profile, expectedWorkingSlot = 2).kind)
+        assertEquals(OutcomeKind.STALE, graph.actions.pin(profile.id, 0,
+            expectedTarget = "demo", expectedProfile = profile.copy(name = "Out of date"), expectedWorkingSlot = 2).kind)
+        assertEquals(OutcomeKind.STALE, graph.actions.pin(profile.id, 0,
+            expectedTarget = "demo", expectedProfile = profile, expectedWorkingSlot = 1).kind)
+        start()
+        assertEquals(OutcomeKind.REFUSED, graph.actions.pin(profile.id, 0,
+            expectedTarget = "demo", expectedProfile = profile, expectedWorkingSlot = 2).kind)
+    }
+    @Test fun delayedPinPreviewCannotWriteAProgrammeThatChangedWhileOpen() = runBlocking {
+        val profile = graph.repository.profiles.value.first()
+        val at = graph.now()
+        val plan = NightPreview.forStartNow(profile, at, null, settings = graph.repository.settings.value).plan!!
+        val expected = StoredProgram(profile.name, plan.steps.map { step ->
+            step.step.copy(hours = step.minutes / 60, minutes = step.minutes % 60, endsAtClockTime = false)
+        })
+        advance(2)
+        assertEquals(OutcomeKind.STALE, graph.actions.pin(profile.id, 0, expectedTarget = "demo",
+            expectedProfile = profile, expectedWorkingSlot = 2, previewedAt = at, expectedProgram = expected).kind)
+        assertTrue(sent.isEmpty())
+    }
     @Test fun snoozeStoresTheAcceptedManualProgrammeInsteadOfTheOldNightCurve() = runBlocking {
         val original = start()
-        graph.actions.perform(NightActions.Command.SNOOZE_WARM)
+        assertEquals(OutcomeKind.ACCEPTED, graph.actions.execute(graph.actions.capture(NightActions.Command.SNOOZE_WARM)).kind)
         val n = graph.repository.activeNight.value!!
+        assertEquals(Confidence.UNKNOWN, n.confidence)
+        assertTrue(n.trackingManual)
         assertEquals(1, n.applied.programSteps.size)
         assertEquals(Mode.HEAT, n.applied.programSteps.single().mode)
         assertEquals(10, n.applied.steps.single().minutes)
         assertEquals(original.revision + 1, n.applied.revision)
         assertEquals(n.applied, graph.repository.history.value.first { it.id == n.recordId }.revisions.last())
+        assertEquals(OutcomeKind.LOCAL, graph.actions.execute(graph.actions.capture(NightActions.Command.KEEP_TRACKING)).kind)
+        assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
     }
     @Test fun restoreAbortsIfMigratedOriginalCannotBeDurablyBoundToTarget() = runBlocking {
         val original = StoredProgram("Original", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0)))

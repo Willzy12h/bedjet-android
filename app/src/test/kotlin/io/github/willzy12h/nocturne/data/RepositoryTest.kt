@@ -13,6 +13,7 @@ import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.Season
+import io.github.willzy12h.nocturne.core.plan.TonightOverride
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
@@ -20,6 +21,9 @@ import io.github.willzy12h.nocturne.core.store.BackupBundle
 import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.BackupException
 import io.github.willzy12h.nocturne.core.store.BackupValidator
+import io.github.willzy12h.nocturne.core.store.EventKind
+import io.github.willzy12h.nocturne.core.store.HistoryEvent
+import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.SlotBackup
@@ -29,6 +33,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -49,6 +55,7 @@ import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Collections
@@ -79,7 +86,8 @@ class RepositoryTest {
     private fun repository(
         writer: CoroutineDispatcher = Dispatchers.Unconfined,
         writeFile: (File, ByteArray) -> Unit = Repository::writeDurably,
-    ) = Repository(context, scope, writer, writeFile) { now }
+        openInput: (Uri) -> InputStream? = { context.contentResolver.openInputStream(it) },
+    ) = Repository(context, scope, writer, writeFile, openInput = openInput) { now }
 
     /** A writer that fails for [name] and works for everything else. */
     private fun failingFor(name: String): (File, ByteArray) -> Unit = { file, bytes ->
@@ -156,7 +164,8 @@ class RepositoryTest {
         val older = repo.bundle().copy(slotBackups = listOf(backup(1, "nocturne's"), backup(2, "slot two"), backup(1, "demo's", "demo")))
 
         repo.restore(older)
-        assertEquals(listOf(backup(1, "user's own"), backup(2, "slot two"), backup(1, "demo's", "demo")), repo.slotBackups.value)
+        assertEquals(listOf(backup(1, "user's own"), backup(2, "slot two").copy(imported = true),
+            backup(1, "demo's", "demo").copy(imported = true)), repo.slotBackups.value)
     }
 
     // Durable before visible
@@ -276,6 +285,41 @@ class RepositoryTest {
         assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
         assertNull(repo.originalSlot("ble:AA:BB", 2))
         assertNull(repository().originalSlot("ble:AA:BB", 2))
+    }
+
+    @Test
+    fun corruptOriginalsStayBlockedAfterDismissalAndRestartUntilTheirExactBackupIsRestored() = runBlocking {
+        File(dir, "slot-backups.json").writeText("[{ broken")
+        val first = repository()
+        assertEquals(listOf("slot-backups.json"), first.unreadable.value)
+        assertTrue(File(dir, "slot-backups-integrity.json").exists())
+        first.dismissUnreadable()
+
+        val second = repository()
+        assertTrue(second.unreadable.value.isEmpty())
+        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertNull(second.originalSlot("ble:AA:BB", 2))
+        assertFalse(File(dir, "slot-backups.json").exists())
+
+        // A restore with no original for this BedJet cannot silently authorise the current programme as original.
+        second.restore(second.bundle())
+        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        val recovered = backup(2, "known original")
+        second.restore(second.bundle().copy(slotBackups = listOf(recovered)))
+        assertEquals(recovered.copy(imported = true), second.recordOriginalSlot("ble:AA:BB", 2, program))
+        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:CC:DD", 2, program) } }
+        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB", 1, program) } }
+        assertEquals(recovered.copy(imported = true), repository().recordOriginalSlot("ble:AA:BB", 2, program))
+    }
+
+    @Test
+    fun failedIntegrityMarkerWriteLeavesCorruptOriginalForTheNextRestart() {
+        val corrupt = "[{ broken"
+        File(dir, "slot-backups.json").writeText(corrupt)
+        val first = repository(writeFile = failingFor("slot-backups-integrity.json"))
+        assertThrows(IOException::class.java) { runBlocking { first.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertEquals(corrupt, File(dir, "slot-backups.json").readText())
+        assertThrows(IOException::class.java) { runBlocking { repository().recordOriginalSlot("ble:AA:BB", 2, program) } }
     }
 
     @Test
@@ -409,6 +453,166 @@ class RepositoryTest {
         assertEquals(night, restarted.activeNight.value)
     }
 
+    private fun completedNight(id: String = "completed") = NightRecord(
+        id, "preset-winter", "Winter Warm", now.minusHours(8).toString(), now.toString(), false,
+        events = listOf(HistoryEvent(now.toString(), EventKind.ENDED, "Night ended")),
+    )
+
+    @Test
+    fun morningFeedbackIsDurableAndOnlyAcceptanceEditsTheCurrentMiddle() = runBlocking {
+        val repo = repository()
+        repo.addRecord(completedNight())
+        val oldMiddle = repo.profile("preset-winter")!!.middle
+        val otherActive = ActiveNight("other", "preset-summer", now.toString(), now.plusHours(8).toString(), false,
+            2, now.plusHours(7).toString(), now.plusHours(9).toString())
+        repo.setActiveNight(otherActive)
+
+        val checkIn = repo.recordMorningCheckIn("completed", MorningComfort.TOO_HOT)!!
+        val suggestion = checkIn.suggestion!!
+        assertEquals(now.toString(), checkIn.endedAt)
+        assertEquals(oldMiddle.tempStart - 2, suggestion.proposedMiddle.tempStart)
+        assertEquals(oldMiddle.tempEnd - 2, suggestion.proposedMiddle.tempEnd)
+        assertEquals(oldMiddle, repo.profile("preset-winter")!!.middle)
+        assertEquals(MorningComfort.TOO_HOT, repo.history.value.first { it.id == "completed" }.events.last().comfort)
+
+        // An unrelated edit must survive acceptance; the night already running is not republished.
+        repo.saveProfile(repo.profile("preset-winter")!!.copy(name = "My winter"))
+        assertTrue(repo.acceptMorningSuggestion(suggestion))
+        assertEquals("My winter", repo.profile("preset-winter")!!.name)
+        assertEquals(suggestion.proposedMiddle, repo.profile("preset-winter")!!.middle)
+        assertEquals(otherActive, repo.activeNight.value)
+        assertEquals(EventKind.MORNING_SUGGESTION_APPLIED, repo.history.value.first { it.id == "completed" }.events.last().kind)
+        assertFalse(repo.acceptMorningSuggestion(suggestion))
+
+        val restarted = repository()
+        assertEquals(suggestion.proposedMiddle, restarted.profile("preset-winter")!!.middle)
+        assertEquals(EventKind.MORNING_SUGGESTION_APPLIED, restarted.history.value.first { it.id == "completed" }.events.last().kind)
+        assertEquals(otherActive, restarted.activeNight.value)
+    }
+
+    @Test
+    fun morningSuggestionRefusesActiveDeletedStaleAndOutOfRangeProfiles() = runBlocking {
+        val repo = repository()
+        repo.addRecord(completedNight("active"))
+        repo.setActiveNight(ActiveNight("active", "preset-winter", now.toString(), now.plusHours(8).toString(), false,
+            2, now.plusHours(7).toString(), now.plusHours(9).toString()))
+        assertNull(repo.recordMorningCheckIn("active", MorningComfort.TOO_HOT))
+        repo.setActiveNight(null)
+
+        val suggestion = repo.recordMorningCheckIn("active", MorningComfort.TOO_COLD)!!.suggestion!!
+        assertNull(repo.recordMorningCheckIn("active", MorningComfort.TOO_HOT))
+        repo.saveProfile(repo.profile("preset-winter")!!.copy(middle = repo.profile("preset-winter")!!.middle.copy(fanEnd = 25)))
+        assertFalse(repo.acceptMorningSuggestion(suggestion))
+        repo.deleteProfile("preset-winter")
+        assertFalse(repo.acceptMorningSuggestion(suggestion))
+
+        repo.addRecord(completedNight("limit"))
+        repo.saveProfile(Presets.winterWarm.copy(middle = Presets.winterWarm.middle.copy(tempEnd = Presets.winterWarm.limits.minTemp)))
+        assertNull(repo.recordMorningCheckIn("limit", MorningComfort.TOO_HOT)!!.suggestion)
+    }
+
+    @Test
+    fun morningAcceptanceWaitsWhileAnotherNightUsesTheSameLiveProfileFallback() = runBlocking {
+        val repo = repository()
+        repo.addRecord(completedNight())
+        val suggestion = repo.recordMorningCheckIn("completed", MorningComfort.TOO_HOT)!!.suggestion!!
+        val active = ActiveNight("current", "preset-winter", now.toString(), now.plusHours(8).toString(), false,
+            2, now.plusHours(7).toString(), now.plusHours(9).toString())
+        assertTrue(active.usesLiveProfileFallback)
+        repo.setActiveNight(active)
+        val before = active.activePlan(repo.profile(active.profileId))
+        assertFalse(repo.acceptMorningSuggestion(suggestion))
+        assertEquals(before, repo.activeNight.value!!.activePlan(repo.profile(active.profileId)))
+        assertEquals(suggestion, repo.morningCheckIn("completed")!!.suggestion)
+        assertEquals(suggestion.expectedMiddle, repo.profile("preset-winter")!!.middle)
+
+        repo.setActiveNight(null)
+        assertTrue(repo.acceptMorningSuggestion(suggestion))
+    }
+
+    @Test
+    fun failedMorningAcceptanceKeepsProfileAndHistoryTogether() = runBlocking {
+        var failHistory = false
+        val repo = repository(writeFile = { file, bytes ->
+            if (failHistory && file.name == "history.json") throw IOException("Disk full")
+            Repository.writeDurably(file, bytes)
+        })
+        repo.addRecord(completedNight())
+        val suggestion = repo.recordMorningCheckIn("completed", MorningComfort.TOO_HOT)!!.suggestion!!
+        val beforeProfile = repo.profile("preset-winter")
+        val beforeHistory = repo.history.value
+
+        failHistory = true
+        assertThrows(IOException::class.java) { runBlocking { repo.acceptMorningSuggestion(suggestion) } }
+        assertEquals(beforeProfile, repo.profile("preset-winter"))
+        assertEquals(beforeHistory, repo.history.value)
+        val restarted = repository()
+        assertEquals(beforeProfile, restarted.profile("preset-winter"))
+        assertEquals(beforeHistory, restarted.history.value)
+    }
+
+    @Test
+    fun restorePreservesTheCurrentTonightChoiceAndWakeOverride() = runBlocking {
+        val repo = repository()
+        val wake = now.plusHours(9)
+        repo.updateSettings { it.chooseTonight("preset-summer", now).setWakeOverride(wake, now) }
+        val current = repo.settings.value
+        val imported = importable().copy(settings = Settings(
+            selectedProfileId = "imported", tonightOverride = TonightOverride(now.plusDays(1).toString(), now.toString())))
+
+        repo.restore(imported)
+
+        assertEquals(current.tonightChoice, repo.settings.value.tonightChoice)
+        assertEquals(current.tonightOverride, repo.settings.value.tonightOverride)
+        assertNull(repo.settings.value.selectedProfileId)
+        assertEquals(current.tonightChoice, repository().settings.value.tonightChoice)
+    }
+
+    @Test
+    fun restoreDoesNotReplaceAnEmptyCurrentTonightChoiceOrWakeOverride() = runBlocking {
+        val repo = repository()
+        val imported = Settings(selectedProfileId = "imported").setWakeOverride(now.plusHours(8), now)
+        repo.restore(importable().copy(settings = imported))
+
+        assertNull(repo.settings.value.tonightChoice)
+        assertNull(repo.settings.value.tonightOverride)
+        assertNull(repo.settings.value.selectedProfileId)
+        assertNull(repository().settings.value.tonightChoice)
+        assertNull(repository().settings.value.tonightOverride)
+    }
+
+    @Test
+    fun restoreCannotImportAnotherPhonesSupervisedFanCheck() = runBlocking {
+        val repo = repository()
+        repo.updateSettings { it.copy(targetDevice = "ble:AA:BB", setupFanCheckedDevice = "ble:AA:BB") }
+        repo.restore(importable().copy(settings = importable().settings.copy(setupFanCheckedDevice = "ble:11:22")))
+
+        assertEquals("ble:AA:BB", repo.settings.value.targetDevice)
+        assertEquals("ble:AA:BB", repo.settings.value.setupFanCheckedDevice)
+        assertEquals("ble:AA:BB", repository().settings.value.setupFanCheckedDevice)
+    }
+
+    @Test
+    fun slowExternalImportDoesNotHoldTheNightStateWriter() = runBlocking {
+        val opened = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val bytes = BackupCodec.encode(importable()).toByteArray()
+        val repo = repository(writer = Repository.defaultWriter(), openInput = {
+            opened.countDown()
+            check(release.await(10, TimeUnit.SECONDS))
+            ByteArrayInputStream(bytes)
+        })
+        val import = async(Dispatchers.IO) { repo.importFrom(Uri.parse("content://slow-provider/backup")) }
+        try {
+            assertTrue(opened.await(5, TimeUnit.SECONDS))
+            withTimeout(3_000) { repo.updateRuntime { it.copy(reason = "night state saved") } }
+            assertEquals("night state saved", repo.runtime.value.reason)
+        } finally {
+            release.countDown()
+        }
+        assertEquals(importable().profiles, import.await().profiles)
+    }
+
     @Test
     fun aFailedImportLeavesEverythingAsItWas() {
         val repo = repository(writeFile = failingFor("history.json"))
@@ -416,6 +620,28 @@ class RepositoryTest {
         assertThrows(IOException::class.java) { runBlocking { repo.restore(importable()) } }
         assertEquals(before, repo.bundle())
         assertEquals(before.copy(createdAt = ""), repository().bundle().copy(createdAt = ""))
+    }
+
+    @Test
+    fun interruptedRestoreCompletesAllFilesBeforeTheNextRepositoryLoads() = runBlocking {
+        val incoming = importable().copy(slotBackups = listOf(backup(1, "imported slot")))
+        var replacements = 0
+        val repo = repository(writeFile = { file, bytes ->
+            if (file.name in setOf("profiles.json", "settings.json", "history.json", "slot-backups.json")) {
+                replacements++
+                if (replacements == 2) throw AssertionError("process stopped between restore files")
+            }
+            Repository.writeDurably(file, bytes)
+        })
+        assertThrows(AssertionError::class.java) { runBlocking { repo.restore(incoming) } }
+        assertTrue(File(dir, "restore-pending.json").exists())
+
+        val restarted = repository()
+        assertFalse(File(dir, "restore-pending.json").exists())
+        assertEquals(incoming.profiles, restarted.profiles.value)
+        assertEquals(incoming.settings.workingSlot, restarted.settings.value.workingSlot)
+        assertEquals(incoming.history, restarted.history.value)
+        assertEquals(incoming.slotBackups.map { it.copy(imported = true) }, restarted.slotBackups.value)
     }
 
     @Test
@@ -441,6 +667,39 @@ class RepositoryTest {
             "slotBackups":[{"slot":1,"program":{"name":"old","steps":[]},"savedAt":"2026-10-20T22:30Z"}]}"""
         repo.restore(repo.importFrom(ByteArrayInputStream(v1.toByteArray())))
         assertEquals("unknown", repo.slotBackups.value.single().deviceId)
+        assertTrue(repo.slotBackups.value.single().imported)
+    }
+
+    @Test
+    fun importedUnknownDeviceOriginalIsNotAdoptedAsTheSelectedBedJetsOriginal() = runBlocking {
+        val repo = repository()
+        repo.restore(importable().copy(slotBackups = listOf(migrated)))
+        assertTrue(repo.slotBackups.value.single().imported)
+        assertNull(repo.originalSlot("ble:AA:BB", 2))
+        assertTrue(repo.originalsFor("ble:AA:BB").isEmpty())
+        assertNull(repository().originalSlot("ble:AA:BB", 2))
+
+        val current = StoredProgram("actual selected BedJet original", listOf(ProgramStep(Mode.HEAT, 7, 64, 0, 20)))
+        val recorded = repo.recordOriginalSlot("ble:AA:BB", 2, current)
+        assertEquals(current, recorded.program)
+        assertEquals("ble:AA:BB", recorded.deviceId)
+        assertFalse(recorded.imported)
+        assertEquals(recorded, repository().originalSlot("ble:AA:BB", 2))
+    }
+
+    @Test
+    fun importPreservesTheLiveNightsHistoryRecord() = runBlocking {
+        val repo = repository()
+        val live = NightRecord("live", "p", "Live", now.toString(), now.plusHours(8).toString(), false)
+        repo.addRecord(live)
+        repo.setActiveNight(ActiveNight("live", "p", now.toString(), now.plusHours(8).toString(), false, 2,
+            now.plusHours(7).toString(), now.plusHours(9).toString()))
+        val importedCollision = live.copy(profileName = "Imported replacement")
+        repo.restore(importable().copy(history = listOf(importedCollision) + importable().history))
+
+        assertEquals(live, repo.history.value.single { it.id == "live" })
+        assertEquals(setOf("live", "n1"), repo.history.value.map { it.id }.toSet())
+        assertEquals(live, repository().history.value.single { it.id == "live" })
     }
 
     // Migrations and retention

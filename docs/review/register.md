@@ -1,5 +1,21 @@
 # Nocturne hardening register
 
+**Completion update, 23 October 2026:** Work on `claude/nocturne-completion` is recorded in [nocturne-completion.md](nocturne-completion.md), which gives an individual disposition for **IR-01–IR-32**. This register's task rows and earlier checkpoints below are retained as the hardening work history; their old `open` and `in progress` labels are superseded by the completion status in the table immediately below. Automated verification is separate from physical acceptance.
+
+| Area | Completion status | Remaining limit |
+|---|---|---|
+| R01–R38 | Implementation and regressions updated; see the IR dispositions and completion source | Samsung/BedJet 3 acceptance **NOT RUN** |
+| R39–R40, V04 | Fail-safe signing configuration and R8/resource shrinking implemented. Unsigned shrunk release passed (4,217,595 bytes); shrunk test-signed APK version `0.2.0-hardening-test.1` / code `2` was signed and v2 signature verified (4,229,883 bytes) | Physical installation and upgrade **NOT RUN** |
+| U01–U10, F01–F16 | Task 5 placements and feature controls reconstructed and integrated, including explicit setup, pinning and recovery; automated UI/feature coverage in completion gate | TalkBack, narrow-device layout, Bluetooth, optional providers and two-phone hand-over **NOT RUN** |
+| U11/F14 | New copy uses UK English resources | Migration of all older literal UI strings remains incomplete |
+| V01–V02 | Full current gate: 148 core and 244 app tests passed, six app capture tests skipped, zero failures; debug assembly passed; lint zero errors, 22 warnings and one hint | Automated/fake-device evidence only |
+| V03 | Fixed-clock Robolectric before/after captures documented in completion review | Actual phone screenshots **NOT RUN** |
+| V05–V06 | Physical checklist prepared; independent review and scoped fix waves incorporated into completion review | Every physical result **NOT RUN** |
+
+**Explicit exceptions:** IR-24 was rejected as a *proven crash*, while framework/Samsung timing is pending. IR-29 is best-effort directory durability, pending power-loss/device evidence. IR-31 remains conditionally unresolved for legacy v1 `[]` slot provenance and requires supervised original-slot inventory. Do not promote any of these to hardware-verified.
+
+**Test candidate identity:** `outputs/nocturne-0.2.0-hardening-test.1.apk`; APK SHA-256 `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d`; throwaway test certificate SHA-256 `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67` (RSA 3072, APK Signature Scheme v2 verified). No production release or phone install is implied.
+
 Branch `claude/nocturne-hardening`, based on `claude/lucid-mayer-i1h2gy` @ `22766fd`.
 
 **About the IDs.** The attached `2026-10-22-nocturne-review-action-plan.md`, with its B01–B20 / U01–U09 / Q01–Q03 IDs, was not available in this session: it wasn't in the message, on disk, or in the repo. This register was rebuilt from the implementation brief, `docs/review/claude-second-review.md` (cited as "2R #n" / "2R m#n") and source inspection. The IDs here (R, U, F, V) are this register's own, and do not correspond to the review's B/U/Q numbers. Add the action plan to the repo to have them cross-referenced.

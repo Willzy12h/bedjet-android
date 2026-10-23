@@ -81,12 +81,14 @@ class NightTransactionsTest {
         })
         assertEquals(listOf(Confidence.PENDING, Confidence.CONFIRMED), states)
     }
-    @Test fun `failure before write is failed and partial write is unknown`() = runTest {
+    @Test fun `failure before write preserves a confirmed night and partial write is unknown`() = runTest {
         val night = start()
         now = now.plusHours(1)
         val change = ready(runner.prepareRetime(night, night.identity, wake.plusMinutes(30)))
-        val failed = runner.apply(change, { night }, beforeWrite = { error("disk full") }) as NightMutation.Failed
-        assertEquals(Confidence.FAILED, failed.night.confidence)
+        val states = mutableListOf<ActiveNight>()
+        val failed = runner.apply(change, { night }, publish = { states += it }, beforeWrite = { error("disk full") }) as NightMutation.Failed
+        assertEquals(night, failed.night)
+        assertEquals(night, states.last())
         val broken = object : BedJetLink by link {
             override suspend fun send(command: ByteArray) { link.send(command); error("lost acknowledgement") }
         }
@@ -94,6 +96,54 @@ class NightTransactionsTest {
         val unknown = brokenRunner.apply(change, { night }) as NightMutation.Failed
         assertEquals(Confidence.UNKNOWN, unknown.night.confidence)
         assertNotEquals(Confidence.CONFIRMED, unknown.night.confidence)
+    }
+    @Test fun `fresh start refused after slot upload is failed when no start was sent`() = runTest {
+        link.connect()
+        val change = ready(runner.prepareStart(Presets.springAutumn, wake, 2, "demo", null, null))
+        var starts = 0
+        val observed = object : BedJetLink by link {
+            override suspend fun send(command: ByteArray) {
+                if (command[0].toInt() and 0xff == 1 && command[1].toInt() and 0xff in 0x80..0x82) starts++
+                link.send(command)
+                if (command[0].toInt() and 0xff == 0x40) now = ZonedDateTime.parse(change.request.deadline)
+            }
+        }
+        val result = NightRunner(BedJetController(observed) { now }) { now }.apply(change, { null })
+        assertTrue(result is NightMutation.Failed)
+        assertEquals(Confidence.FAILED, (result as NightMutation.Failed).night.confidence)
+        assertEquals(0, starts)
+    }
+    @Test fun `fresh start rejected by transport guard is failed without a start attempt`() = runTest {
+        link.connect()
+        val change = ready(runner.prepareStart(Presets.springAutumn, wake, 2, "demo", null, null))
+        var starts = 0
+        val observed = object : BedJetLink by link {
+            override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+                now = ZonedDateTime.parse(change.request.deadline)
+                beforeWrite()
+                starts++
+                link.send(command)
+            }
+        }
+        val result = NightRunner(BedJetController(observed) { now }) { now }.apply(change, { null })
+        assertTrue(result is NightMutation.Failed)
+        assertEquals(Confidence.FAILED, (result as NightMutation.Failed).night.confidence)
+        assertEquals(0, starts)
+        assertEquals(change.plan.programSteps, link.slots[2]!!.steps)
+    }
+    @Test fun `fresh start with ambiguous in flight acknowledgement remains unknown`() = runTest {
+        link.connect()
+        val change = ready(runner.prepareStart(Presets.springAutumn, wake, 2, "demo", null, null))
+        val observed = object : BedJetLink by link {
+            override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+                beforeWrite()
+                link.send(command)
+                error("start acknowledgement was lost")
+            }
+        }
+        val result = NightRunner(BedJetController(observed) { now }) { now }.apply(change, { null })
+        assertTrue(result is NightMutation.Failed)
+        assertEquals(Confidence.UNKNOWN, (result as NightMutation.Failed).night.confidence)
     }
     @Test fun `local stop and expiry need no link and clear override`() = runTest {
         val night = start()

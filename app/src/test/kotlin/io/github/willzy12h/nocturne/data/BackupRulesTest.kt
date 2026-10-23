@@ -11,21 +11,21 @@ import org.robolectric.annotation.Config
 import org.xmlpull.v1.XmlPullParser
 import java.io.File
 
-/** The update token's preferences stay on the phone: no cloud backup, no copy to a new phone. */
+/** Explicit file allowlists exclude the update-token preferences and device-local state. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class BackupRulesTest {
     private val context: Context = RuntimeEnvironment.getApplication()
 
-    /** Each `<exclude>` as "parent/domain/path". */
-    private fun excludes(xml: Int): List<String> {
+    /** Each matching rule as "parent/domain/path". */
+    private fun entries(xml: Int, tag: String): List<String> {
         val parser = context.resources.getXml(xml)
         val parents = ArrayDeque<String>()
         val found = mutableListOf<String>()
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             when (parser.eventType) {
                 XmlPullParser.START_TAG -> {
-                    if (parser.name == "exclude") {
+                    if (parser.name == tag) {
                         found += "${parents.lastOrNull()}/${parser.getAttributeValue(null, "domain")}/${parser.getAttributeValue(null, "path")}"
                     }
                     parents.addLast(parser.name)
@@ -36,16 +36,17 @@ class BackupRulesTest {
         return found
     }
 
-    @Test
-    fun secretsAreKeptOutOfCloudBackupAndDeviceTransfer() {
-        val rules = excludes(R.xml.data_extraction_rules)
-        assertTrue(rules.toString(), "cloud-backup/sharedpref/secrets.xml" in rules)
-        assertTrue(rules.toString(), "device-transfer/sharedpref/secrets.xml" in rules)
-    }
-
-    @Test
-    fun secretsAreKeptOutOfOlderAndroidBackups() {
-        assertTrue("full-backup-content/sharedpref/secrets.xml" in excludes(R.xml.backup_rules))
+    @Test fun onlyPortableFilesAndTheOriginalsBarrierAreTransferred() {
+        val expected = setOf(
+            "file/profiles.json", "file/history.json",
+            "file/slot-backups.json", "file/slot-backups-integrity.json",
+        )
+        for (mode in listOf("cloud-backup", "device-transfer")) {
+            val actual = entries(R.xml.data_extraction_rules, "include")
+                .filter { it.startsWith("$mode/") }.map { it.removePrefix("$mode/") }.toSet()
+            assertTrue("$mode: $actual", actual == expected)
+        }
+        assertTrue(entries(R.xml.backup_rules, "include").map { it.removePrefix("full-backup-content/") }.toSet() == expected)
     }
 
     @Test

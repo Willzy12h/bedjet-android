@@ -2,6 +2,7 @@ package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.plan.Presets
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -10,6 +11,7 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.name
+import kotlin.io.path.exists
 
 class SnapshotStoreTest {
     private var now = ZonedDateTime.of(2026, 10, 21, 22, 30, 0, 0, ZoneId.of("Europe/London"))
@@ -59,6 +61,26 @@ class SnapshotStoreTest {
         val info = store.save(bundle(), "Mine", manual = true)
         assertEquals(listOf("${info.id}.json"), dir.listDirectoryEntries().map { it.name })
         assertEquals(bundle(), store.load(info.id))
+    }
+
+    @Test
+    fun restartDiscardsAnInterruptedSnapshotButKeepsCompletedCopies(@TempDir dir: Path) {
+        val first = SnapshotStore(dir) { now }
+        val completed = first.save(bundle(), "Before interruption", manual = true)
+        val abandoned = dir.resolve("snap-9999-a.json.tmp")
+        abandoned.toFile().writeText("partial private snapshot")
+        val unrelated = dir.resolve("notes.json.tmp")
+        unrelated.toFile().writeText("leave me alone")
+
+        val restarted = SnapshotStore(dir) { now }
+        assertFalse(abandoned.exists())
+        assertTrue(unrelated.exists())
+        assertEquals(listOf(completed), restarted.list())
+        assertEquals(bundle(), restarted.load(completed.id))
+
+        now = now.plusMinutes(1)
+        val next = restarted.save(bundle(), "After interruption", manual = true)
+        assertEquals(bundle(), SnapshotStore(dir) { now }.load(next.id))
     }
 
     @Test

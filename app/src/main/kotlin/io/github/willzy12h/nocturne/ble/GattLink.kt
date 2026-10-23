@@ -64,22 +64,29 @@ class GattLink(
     @Volatile private var current: Session? = null
     /** Set by [connect], cleared by [disconnect]: whether an operation may reconnect a retired session. */
     @Volatile private var wanted = false
+    /** Progress from a previous programme must not confirm a newly prepared start, even across reconnects. */
+    @Volatile private var startPending = false
+    private val startStatusLock = Any()
     private var tag = 0
 
     override suspend fun connect() {
         wanted = true
         connecting.withLock {
-            if (current?.ready == true) return
-            checkRadio()
             val address = DeviceId.address(target()) ?: run {
+                current?.let(::retire)
                 _state.value = LinkState.SEARCHING
                 throw BedJetError.NotConnected(NO_TARGET)
             }
+            if (current?.takeIf { it.ready && it.address == address } != null) return
+            current?.let(::retire)
+            checkRadio()
             // A failed connection (133 is the stack's catch-all) or one that never answers often works on a
             // second try. Only the chosen BedJet is ever tried.
             for (attempt in 0..timings.retryBackoffMs.size) {
                 if (attempt > 0) delay(timings.retryBackoffMs[attempt - 1])
                 if (!wanted) break
+                // A selection change invalidates this entire attempt, including its retry address.
+                if (!selected(address)) throw BedJetError.NotConnected()
                 if (attach(address, readVerifiedName = attempt == 0)) return
             }
             _state.value = LinkState.SEARCHING
@@ -92,13 +99,17 @@ class GattLink(
         operations.withLock { current?.let(::retire) }
     }
 
-    override suspend fun send(command: ByteArray) {
+    override suspend fun send(command: ByteArray) = sendGuarded(command) {}
+
+    override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
         ensureConnected()
         operations.withLock {
             val session = live()
+            beforeWrite()
             // Only reports that arrive after the start may confirm it: an older program step must not.
             if (isStart(command)) session.forgetExtra()
             write(session, command)
+            if (isStart(command)) synchronized(startStatusLock) { startPending = false }
         }
     }
 
@@ -112,9 +123,16 @@ class GattLink(
      * remainder read arrives, so an older program step can't confirm the start that follows.
      */
     override suspend fun prepareForStart() {
-        current?.forgetExtra()
-        _status.value = _status.value?.copy(extra = null)
+        operations.withLock {
+            synchronized(startStatusLock) {
+                startPending = true
+                current?.forgetExtra()
+                _status.value = _status.value?.copy(extra = null)
+            }
+        }
     }
+
+    override fun cancelPreparedStart() { synchronized(startStatusLock) { startPending = false } }
 
     /**
      * Lists the BedJets advertising nearby, strongest first, without connecting to any: first by the BedJet service
@@ -163,12 +181,21 @@ class GattLink(
     // Connection
 
     private suspend fun ensureConnected() {
-        if (current?.ready == true) return
+        if (current?.takeIf { it.ready && selected(it.address) } != null) return
         if (!wanted) throw BedJetError.NotConnected()
         connect()
     }
 
-    private fun live(): Session = current?.takeIf { it.ready } ?: throw BedJetError.NotConnected()
+    private fun selected(address: String): Boolean = DeviceId.address(target()) == address
+
+    private fun live(): Session {
+        val session = current?.takeIf { it.ready } ?: throw BedJetError.NotConnected()
+        if (!selected(session.address)) {
+            retire(session)
+            throw BedJetError.NotConnected()
+        }
+        return session
+    }
 
     /**
      * One connection attempt. True once the unit is ready. On false, a throw or cancellation the session is retired,
@@ -210,7 +237,7 @@ class GattLink(
             withTimeoutOrNull(timings.firstStatusMs) { status.first { it != null } }
             // The name query can time out, the unit can drop or disconnect() can land meanwhile, each retiring
             // the session: only a session that is still current and still wanted counts as connected.
-            attached = wanted && current === session && session.ready
+            attached = wanted && selected(address) && current === session && session.ready
             return attached
         } finally {
             if (!attached) retire(session)
@@ -275,6 +302,10 @@ class GattLink(
         val pending = Pending(kind, attr)
         session.pending.set(pending)
         try {
+            if (!selected(session.address)) {
+                retire(session)
+                throw BedJetError.NotConnected()
+            }
             if (!platform(session) { start(session.port()) }) throw BedJetError.NotConnected()
             return withTimeoutOrNull(timings.operationMs) { pending.result.await() } ?: run {
                 retire(session)
@@ -295,22 +326,38 @@ class GattLink(
      */
     private fun receiveStatus(session: Session, chunk: ByteArray) {
         if (current !== session) return
+        if (!selected(session.address)) return retire(session)
         if (!Codec.isStatusStart(chunk)) {
             val head = session.lastHead ?: return
             Codec.parseStatus(head + chunk)?.extra?.let { extra ->
-                session.lastExtra = extra
-                _status.value = _status.value?.copy(extra = extra)
+                synchronized(startStatusLock) {
+                    if (current !== session || !selected(session.address)) return
+                    if (startPending) return
+                    session.lastExtra = extra
+                    _status.value = _status.value?.copy(extra = extra)
+                }
             }
             return
         }
         val parsed = Codec.parseStatus(chunk) ?: return
         if (parsed.extra != null) {
-            session.lastExtra = parsed.extra
-            _status.value = parsed
+            synchronized(startStatusLock) {
+                if (current !== session || !selected(session.address)) return
+                if (startPending) {
+                    session.lastExtra = null
+                    _status.value = parsed.copy(extra = null)
+                } else {
+                    session.lastExtra = parsed.extra
+                    _status.value = parsed
+                }
+            }
             return
         }
-        session.lastHead = chunk
-        _status.value = parsed.copy(extra = session.lastExtra)
+        synchronized(startStatusLock) {
+            if (current !== session || !selected(session.address)) return
+            session.lastHead = chunk
+            _status.value = parsed.copy(extra = if (startPending) null else session.lastExtra)
+        }
         val now = clock()
         val last = session.lastRemainderRead
         // Only while no operation holds the queue, not merely between its steps: the unit and the GATT stack each

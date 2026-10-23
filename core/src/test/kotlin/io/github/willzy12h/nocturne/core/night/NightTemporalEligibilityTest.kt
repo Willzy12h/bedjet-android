@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.time.ZonedDateTime
+import java.time.ZoneOffset
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class NightTemporalEligibilityTest {
@@ -145,6 +146,27 @@ class NightTemporalEligibilityTest {
         val before = testScheduler.currentTime
         assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish=f::publish))
         assertTrue(testScheduler.currentTime - before < 10_000, "Cancelled confirmation must not wait for its timeout")
+    }
+
+    @Test fun `forward clock correction near new clock time step end never starts retime`() = runTest {
+        val f = Fixture()
+        val night = f.night()
+        f.now = f.now.plusHours(1)
+        val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, f.wake.minusMinutes(30), f.wake))
+        val clockEnd = change.plan.steps.first { it.step.endsAtClockTime }.endsAt
+        assertTrue(clockEnd.minusMinutes(5).isBefore(ZonedDateTime.parse(night.wakeUpStart)))
+        val runner = f.observedRunner(afterClock = { f.now = clockEnd.minusMinutes(5) })
+        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
+    }
+
+    @Test fun `offset change during upload never starts a clock time programme`() = runTest {
+        val f = Fixture()
+        val night = f.night()
+        f.now = f.now.plusHours(1)
+        val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, f.wake.plusMinutes(30), f.wake))
+        assertTrue(change.plan.steps.any { it.step.endsAtClockTime })
+        val runner = f.observedRunner(afterClock = { f.now = f.now.withZoneSameInstant(ZoneOffset.ofHours(1)) })
+        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
     }
 
 }

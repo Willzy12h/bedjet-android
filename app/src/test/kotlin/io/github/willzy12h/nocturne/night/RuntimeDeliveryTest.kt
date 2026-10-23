@@ -6,7 +6,12 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.night.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.service.BedJetService
+import io.github.willzy12h.nocturne.notify.Notifications
 import io.github.willzy12h.nocturne.ui.ShortcutActivity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -49,6 +54,67 @@ class RuntimeDeliveryTest {
         assertEquals(graph.now().plusHours(7).toInstant(), ZonedDateTime.parse(graph.repository.activeNight.value!!.wakeAt).toInstant())
     }
     private fun quiet() = shadowOf(context.getSystemService(NotificationManager::class.java)).getNotification(6)
+    @Test fun wakeNotificationIsWithdrawnWhenItsNightBecomesUncertainOrChangesRevision() = runBlocking {
+        graph.actions.perform(NightActions.Command.START_NIGHT)
+        val night = graph.repository.activeNight.value!!
+        graph.clock = Clock.fixed(ZonedDateTime.parse(night.wakeUpStart).plusMinutes(1).toInstant(), ZoneOffset.UTC)
+        graph.repository.updateRuntime { it.copy(wakeShown = night.identity) }
+        val manager = shadowOf(context.getSystemService(NotificationManager::class.java))
+        Notifications.showWakeUp(context, night, graph.repository.settings.value)
+        Notifications.reconcileWakeResume(context, night, null, night.identity)
+        assertNotNull(manager.getNotification(2))
+        Notifications.reconcileWakeResume(context, night.copy(confidence = Confidence.UNKNOWN), null, night.identity)
+        assertNull(manager.getNotification(2))
+        Notifications.showWakeUp(context, night, graph.repository.settings.value)
+        Notifications.reconcileWakeResume(context, night.copy(revision = night.revision + 1), null, night.identity)
+        assertNull(manager.getNotification(2))
+    }
+
+    @Test fun resumeNotificationIsWithdrawnWhenItsOfferIsRemoved() = runBlocking {
+        graph.actions.perform(NightActions.Command.START_NIGHT)
+        graph.actions.perform(NightActions.Command.START_NIGHT, replacementConfirmed = true)
+        val manager = shadowOf(context.getSystemService(NotificationManager::class.java))
+        assertNotNull(manager.getNotification(7))
+        Notifications.reconcileWakeResume(context, graph.repository.activeNight.value, null, null)
+        assertNull(manager.getNotification(7))
+    }
+    @Test fun manualSnoozeWakeNoticeSurvivesTheBackgroundReconcilerAndTrackingConfirmation() = runBlocking {
+        graph.actions.perform(NightActions.Command.START_NIGHT)
+        graph.actions.perform(NightActions.Command.SNOOZE_WARM)
+        val manager = shadowOf(context.getSystemService(NotificationManager::class.java))
+        val snoozed = graph.repository.activeNight.value!!
+        assertEquals(Confidence.UNKNOWN, snoozed.confidence)
+        assertTrue(snoozed.trackingManual)
+        assertTrue(graph.repository.runtime.value.manualWakeShown)
+        repeat(10) { shadowOf(android.os.Looper.getMainLooper()).idle(); kotlinx.coroutines.yield() }
+        assertNotNull(manager.getNotification(2))
+
+        assertEquals(OutcomeKind.LOCAL, graph.actions.execute(graph.actions.capture(NightActions.Command.KEEP_TRACKING)).kind)
+        repeat(10) { shadowOf(android.os.Looper.getMainLooper()).idle(); kotlinx.coroutines.yield() }
+        assertEquals(graph.repository.activeNight.value!!.identity, graph.repository.runtime.value.wakeShown)
+        assertNotNull(manager.getNotification(2))
+    }
+
+    @Test fun resumeNoticeExpiresOnAClockTickWithoutAnyRepositoryChange() = runBlocking {
+        graph.actions.perform(NightActions.Command.START_NIGHT)
+        graph.actions.perform(NightActions.Command.START_NIGHT, replacementConfirmed = true)
+        val manager = shadowOf(context.getSystemService(NotificationManager::class.java))
+        val offer = graph.repository.runtime.value.resumeOffer!!
+        assertNotNull(manager.getNotification(7))
+        val ticks = MutableSharedFlow<Unit>(replay = 1)
+        ticks.emit(Unit)
+        val observer = launch(Dispatchers.Default) { Notifications.observeWakeResume(context, ticks) }
+        repeat(3) { shadowOf(android.os.Looper.getMainLooper()).idle(); kotlinx.coroutines.yield() }
+        graph.clock = Clock.fixed(ZonedDateTime.parse(offer.expiresAt).plusSeconds(1).toInstant(), ZoneOffset.UTC)
+        ticks.emit(Unit)
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (manager.getNotification(7) != null && System.nanoTime() < deadline) {
+            shadowOf(android.os.Looper.getMainLooper()).idle(); kotlinx.coroutines.yield()
+        }
+        assertNull(manager.getNotification(7))
+        assertEquals(offer, graph.repository.runtime.value.resumeOffer)
+        observer.cancelAndJoin()
+    }
     @Test fun quietNotificationIsCancelledOnTakeoverAndManualTracking() = runBlocking {
         graph.actions.updateSettings { it.copy(quietNightNotification = true) }
         graph.actions.perform(NightActions.Command.START_NIGHT)
@@ -178,6 +244,16 @@ class RuntimeDeliveryTest {
         assertNotNull(result); assertTrue(result!!.contains("expired")); assertFalse(graph.actions.retimePending)
         assertEquals(old.applied, graph.repository.activeNight.value!!.applied)
     }
+    @Test fun routineAlarmChangeAfterWakeIsQuietNoOp() = runBlocking {
+        graph.actions.perform(NightActions.Command.START_NIGHT)
+        val night = graph.repository.activeNight.value!!
+        graph.clock = Clock.fixed(ZonedDateTime.parse(night.wakeUpStart).toInstant(), ZoneOffset.UTC)
+        alarm(7)
+        val result = graph.actions.submitAlarmChange()
+        assertEquals(OutcomeKind.LOCAL, result.kind)
+        assertFalse(graph.actions.retimePending)
+        assertNull(shadowOf(context.getSystemService(NotificationManager::class.java)).getNotification(3))
+    }
     @Test fun wakeDeliveryAndSnoozeNeverDuplicateWakeNotice() = runBlocking {
         graph.actions.perform(NightActions.Command.START_NIGHT)
         val n = graph.repository.activeNight.value!!
@@ -207,14 +283,23 @@ class RuntimeDeliveryTest {
         assertFalse(shadowOf(service).isForegroundStopped == false && shadowOf(service).lastForegroundNotification != null)
         service.onDestroy()
     }
+    @Test fun expectedBackgroundRetryDenialKeepsItsResultWithoutAnErrorNotice() = runBlocking {
+        graph.repository.updateSettings { it.copy(demoMode = false) }
+        val manager = shadowOf(context.getSystemService(NotificationManager::class.java))
+        context.getSystemService(NotificationManager::class.java).cancel(3)
+        BedJetService.lastResult = null
+        assertFalse(BedJetService.start(context, NightActions.Command.RETRY_RETIME, notifyFailures = false))
+        assertNotNull(BedJetService.lastResult)
+        assertNull(manager.getNotification(3))
+    }
     @Test fun deniedRetryAtBoundaryExpiresObservationLocally() = runBlocking {
         graph.actions.perform(NightActions.Command.START_NIGHT)
         alarm(5); graph.actions.submitAlarmChange()
         val n = graph.repository.activeNight.value!!
         graph.clock = Clock.fixed(ZonedDateTime.parse(n.wakeUpStart).toInstant(), ZoneOffset.UTC)
         val result = graph.actions.submitAlarmChange()
-        assertEquals(OutcomeKind.REFUSED, result.kind)
-        assertTrue(result.message.contains("expired"))
+        assertEquals(OutcomeKind.LOCAL, result.kind)
+        assertTrue(result.message.contains("unchanged", ignoreCase = true))
         assertNull(graph.repository.runtime.value.alarmInbox)
         assertFalse(graph.actions.retimePending)
         assertEquals(n.applied, graph.repository.activeNight.value!!.applied)
