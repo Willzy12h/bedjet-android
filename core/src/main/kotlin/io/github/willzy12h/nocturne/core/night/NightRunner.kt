@@ -152,6 +152,10 @@ class NightRunner(private val controller: BedJetController, private val now: () 
 
     /** Caller owns lock and connection. [current] is read after acquisition. [publish] must durably save
      * PENDING before returning; [beforeWrite] durably backs up the original slot. A partial write is UNKNOWN.
+     * A failure before any write publishes the night that was current back unchanged and returns [NightMutation.Failed]
+     * with `nothingWritten`; only a new start with no night before it is published FAILED. A fresh start that the final
+     * check refuses after its upload is FAILED ([StartWithheld]); a rewrite refused there stays UNKNOWN, since the
+     * slot it overwrote may be the one running.
      * Task 4 supplies repository callbacks; no callback is invoked for stale/expired requests. */
     suspend fun apply(change: PreparedChange, current: () -> ActiveNight?,
         commandVersion: () -> Long = { 0 }, publish: suspend (ActiveNight) -> Unit = {},
@@ -162,6 +166,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             is Eligibility.Refused -> return NightMutation.Refused(check.reason)
             Eligibility.Allowed -> Unit
         }
+        // What is running now; a failure before any write publishes it back unchanged (IR-05).
+        val before = current()
         val pending = change.pendingNight
         publish(pending)
         var writeMayHaveHappened = false
@@ -177,15 +183,31 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             checkExecutionTime(change)
             writeMayHaveHappened = true
             controller.store(StoredProgram(change.intended.profile!!.name, change.plan.programSteps), change.intended.slot)
-            checkExecutionTime(change)
-            controller.startProgram(change.intended.slot) { checkExecutionTime(change) }
+            withheld(change) { checkExecutionTime(change) }
+            controller.startProgram(change.intended.slot) { withheld(change) { checkExecutionTime(change) } }
             publish(change.intended)
             return NightMutation.Applied(change.plan, change.intended)
         } catch (e: Exception) {
-            val failed = pending.copy(confidence = if (writeMayHaveHappened) Confidence.UNKNOWN else Confidence.FAILED)
+            // IR-05: nothing reached the BedJet, so the night that was running is still what it runs.
+            if (!writeMayHaveHappened && before != null) {
+                withContext(NonCancellable) { publish(before) }
+                if (e is CancellationException) throw e
+                return NightMutation.Failed(before, e, nothingWritten = true)
+            }
+            // IR-21: a fresh start withheld at its final check is known not to have started.
+            val confidence = if (!writeMayHaveHappened || (e is StartWithheld && change.request.kind == ChangeKind.START &&
+                    change.previous == null)) Confidence.FAILED else Confidence.UNKNOWN
+            val failed = pending.copy(confidence = confidence)
             withContext(NonCancellable) { publish(failed) }
             if (e is CancellationException) throw e
-            return NightMutation.Failed(failed, e)
+            return NightMutation.Failed(failed, e, nothingWritten = !writeMayHaveHappened)
+        }
+    }
+
+    /** A final check that refuses after the slot was written: the start byte was not sent. */
+    private inline fun withheld(change: PreparedChange, check: () -> Unit) {
+        try { check() } catch (e: PlanException) {
+            throw if (change.request.kind == ChangeKind.START && change.previous == null) StartWithheld(e.message.orEmpty()) else e
         }
     }
 
@@ -193,10 +215,25 @@ class NightRunner(private val controller: BedJetController, private val now: () 
     private fun checkExecutionTime(change: PreparedChange) {
         val time = now()
         if (!time.isBefore(ZonedDateTime.parse(change.request.deadline))) throw PlanException("This request has expired.")
-        if ((change.request.kind == ChangeKind.RETIME || change.request.kind == ChangeKind.REAPPLY) &&
-            change.previous != null && !time.isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) {
+        val rewrite = change.request.kind == ChangeKind.RETIME || change.request.kind == ChangeKind.REAPPLY
+        if (rewrite && change.previous != null && !time.isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) {
             throw PlanException("Tonight's wake-up has already started.")
         }
+        // IR-10: the new plan's own wake-up start too, which is earlier than the old one when the alarm moved earlier.
+        // Start and Resume are left out: a start is compiled moments before, and a resume may continue a wake-up.
+        if (rewrite && !time.isBefore(change.plan.wakeUpStart)) throw PlanException("Tonight's wake-up has already started.")
+        // IR-10: a clock-time step started this late could be past its end, and the BedJet would run it until that
+        // time tomorrow. The same margin the compiler uses for such a step applies here.
+        if (change.plan.steps.any { it.step.endsAtClockTime && !time.isBefore(it.endsAt.minusMinutes(PlanCompiler.MIN_CLOCK_TIME_STEP.toLong())) }) {
+            throw PlanException("This change is too late to start safely. Try again.")
+        }
+        // IR-20: the clock-time end was worked out in the plan's UTC offset; the BedJet clock is set in the offset at
+        // sync time. Across a clock change the two differ by an hour, so the start is refused instead.
+        if (time.offset != change.plan.start.offset) throw PlanException("The clocks changed while the night was being saved. Try again.")
     }
 
 }
+
+/** The final check refused a fresh start after its upload: the slot holds the new night, but it was never started. */
+class StartWithheld(reason: String) : Exception(
+    "Nothing started; the BedJet slot holds the new night but it was not started. $reason".trim())

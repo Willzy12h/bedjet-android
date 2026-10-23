@@ -31,7 +31,8 @@ sealed interface NightMutation {
     }
     data class Stale(val expected: NightIdentity?, val actual: NightIdentity?): NightMutation
     data class Refused(val reason: String): NightMutation
-    data class Failed(val night: ActiveNight, val cause: Exception): NightMutation
+    /** [nothingWritten]: the failure came before any hardware write; [night] is then the one that was already there. */
+    data class Failed(val night: ActiveNight, val cause: Exception, val nothingWritten: Boolean = false): NightMutation
 }
 object Eligibility {
     sealed interface Result

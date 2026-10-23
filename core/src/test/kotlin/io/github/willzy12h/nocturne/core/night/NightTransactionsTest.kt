@@ -81,12 +81,18 @@ class NightTransactionsTest {
         })
         assertEquals(listOf(Confidence.PENDING, Confidence.CONFIRMED), states)
     }
-    @Test fun `failure before write is failed and partial write is unknown`() = runTest {
+    @Test fun `failure before write keeps the previous night and partial write is unknown`() = runTest {
         val night = start()
         now = now.plusHours(1)
         val change = ready(runner.prepareRetime(night, night.identity, wake.plusMinutes(30)))
-        val failed = runner.apply(change, { night }, beforeWrite = { error("disk full") }) as NightMutation.Failed
-        assertEquals(Confidence.FAILED, failed.night.confidence)
+        val published = mutableListOf<ActiveNight>()
+        val failed = runner.apply(change, { night }, publish = { published += it }, beforeWrite = { error("disk full") }) as NightMutation.Failed
+        // IR-05: nothing was written, so the running night is republished unchanged, still CONFIRMED.
+        assertTrue(failed.nothingWritten)
+        assertEquals(night, failed.night)
+        assertEquals(Confidence.CONFIRMED, failed.night.confidence)
+        assertEquals(night, published.last())
+        assertEquals("disk full", failed.cause.message)
         val broken = object : BedJetLink by link {
             override suspend fun send(command: ByteArray) { link.send(command); error("lost acknowledgement") }
         }

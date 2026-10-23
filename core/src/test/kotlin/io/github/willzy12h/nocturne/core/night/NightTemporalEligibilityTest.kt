@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
+import java.time.ZoneId
 import java.time.ZonedDateTime
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -145,6 +146,118 @@ class NightTemporalEligibilityTest {
         val before = testScheduler.currentTime
         assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish=f::publish))
         assertTrue(testScheduler.currentTime - before < 10_000, "Cancelled confirmation must not wait for its timeout")
+    }
+
+
+    // IR-10 (NGT-1): the final check also bounds the new plan, not only the request deadline and the old boundary.
+
+    @Test fun `a late retime is not started once its clock-time step is within ten minutes of its end`() = runTest {
+        val f = Fixture()
+        val night = f.night()
+        f.now = ZonedDateTime.parse("2026-10-22T05:00:00Z")
+        // Earlier alarm: the new wake-up starts at 05:35 and the last Middle step ends at clock 05:35.
+        val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, ZonedDateTime.parse("2026-10-22T06:00:00Z"),
+            ZonedDateTime.parse(night.wakeUpStart)))
+        val clockStep = change.plan.steps.single { it.step.endsAtClockTime }
+        assertEquals(ZonedDateTime.parse("2026-10-22T05:35:00Z").toInstant(), clockStep.endsAt.toInstant())
+        // Still before the new wake-up start, the old boundary and the deadline, but too late for the clock-time step.
+        val runner = f.observedRunner(afterReadback = { delay(1); f.now = clockStep.endsAt.minusMinutes(5) })
+        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
+    }
+
+    @Test fun `a late retime is not started once the new wake-up has begun`() = runTest {
+        val f = Fixture()
+        val night = f.night()
+        f.now = ZonedDateTime.parse("2026-10-22T05:00:00Z")
+        // The new wake-up starts at 05:08; the short last Middle step runs by duration.
+        val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, ZonedDateTime.parse("2026-10-22T05:33:00Z"),
+            ZonedDateTime.parse(night.wakeUpStart)))
+        assertTrue(change.plan.steps.none { it.step.endsAtClockTime })
+        val newBoundary = change.plan.wakeUpStart
+        assertTrue(newBoundary.isBefore(ZonedDateTime.parse(night.wakeUpStart)))
+        val runner = f.observedRunner(afterReadback = { delay(1); f.now = newBoundary })
+        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
+    }
+
+    // IR-21 (NGT-4): a fresh start refused at the final check is FAILED, not UNKNOWN: no start byte went out.
+
+    @Test fun `a fresh start refused after its upload is failed and says the slot holds the night`() = runTest {
+        val f = Fixture()
+        f.link.connect()
+        val change = Fixture.ready(f.runner.prepareStart(io.github.willzy12h.nocturne.core.plan.Presets.springAutumn,
+            f.wake, 2, "demo", null, null))
+        val runner = f.observedRunner(afterReadback = { delay(1); f.now = ZonedDateTime.parse(change.request.deadline) })
+        val result = runner.apply(change, { f.published.lastOrNull() }, publish = f::publish)
+        assertTrue(result is NightMutation.Failed, "$result")
+        result as NightMutation.Failed
+        assertEquals(Confidence.FAILED, result.night.confidence)
+        assertFalse(result.nothingWritten)
+        assertTrue(result.cause.message!!.startsWith("Nothing started; the BedJet slot holds the new night but it was not started"), result.cause.message)
+        assertEquals(listOf(Confidence.PENDING, Confidence.FAILED), f.published.map { it.confidence })
+        assertEquals(change.plan.programSteps, f.link.slots[2]!!.steps)
+        assertEquals(0, f.starts)
+    }
+
+    @Test fun `a replacement start refused after its upload stays unknown`() = runTest {
+        val f = Fixture()
+        val night = f.night()
+        f.now = f.now.plusHours(1)
+        val change = Fixture.ready(f.runner.prepareStart(io.github.willzy12h.nocturne.core.plan.Presets.springAutumn,
+            f.wake, 2, "demo", night.identity, night))
+        val runner = f.observedRunner(afterReadback = { delay(1); f.now = ZonedDateTime.parse(change.request.deadline) })
+        val result = runner.apply(change, { night }, publish = f::publish) as NightMutation.Failed
+        assertEquals(Confidence.UNKNOWN, result.night.confidence)
+        assertEquals(0, f.starts)
+    }
+
+    // IR-20 (NGT-3): a start whose clock sync would be in another UTC offset than the plan is refused.
+
+    @Test fun `a start across a clock change is refused before the start byte`() = runTest {
+        val f = Fixture()
+        val london = ZoneId.of("Europe/London")
+        f.now = ZonedDateTime.parse("2026-03-29T00:59:40Z").withZoneSameInstant(london)
+        f.link.connect()
+        val change = Fixture.ready(f.runner.prepareStart(io.github.willzy12h.nocturne.core.plan.Presets.springAutumn,
+            ZonedDateTime.parse("2026-03-29T07:00:00+01:00[Europe/London]"), 2, "demo", null, null))
+        assertEquals(java.time.ZoneOffset.UTC, change.plan.start.offset)
+        // The clocks go forward at 01:00 GMT while the night is being saved.
+        val runner = f.observedRunner(afterUpload = { delay(1); f.now = ZonedDateTime.parse("2026-03-29T01:00:05Z").withZoneSameInstant(london) })
+        val result = runner.apply(change, { f.published.lastOrNull() }, publish = f::publish)
+        assertTrue(result is NightMutation.Failed, "$result")
+        assertEquals(0, f.starts, "the BedJet clock would be an hour off the plan's clock-time end")
+    }
+
+    @Test fun `a start within one offset across midnight still runs`() = runTest {
+        val f = Fixture()
+        val london = ZoneId.of("Europe/London")
+        f.now = ZonedDateTime.parse("2026-03-28T23:59:40Z").withZoneSameInstant(london)
+        f.link.connect()
+        val change = Fixture.ready(f.runner.prepareStart(io.github.willzy12h.nocturne.core.plan.Presets.springAutumn,
+            ZonedDateTime.parse("2026-03-29T07:00:00+01:00[Europe/London]"), 2, "demo", null, null))
+        val runner = f.observedRunner(afterUpload = { delay(1); f.now = f.now.plusSeconds(25) })
+        assertTrue(runner.apply(change, { f.published.lastOrNull() }, publish = f::publish) is NightMutation.Applied)
+        assertEquals(1, f.starts)
+    }
+
+    // IR-05 (X-3, RT-4): a rewrite that fails before any write leaves the running night as it was.
+
+    @Test fun `a retime whose backup outlives its deadline republishes the night unchanged`() = runTest {
+        val f = Fixture()
+        val night = f.night()
+        val boundary = ZonedDateTime.parse(night.wakeUpStart)
+        f.now = boundary.minusMinutes(1)
+        val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, f.wake.plusMinutes(30), boundary))
+        val originalSlot = f.link.slots[2]
+        val result = f.observedRunner().apply(change, { f.published.lastOrNull() ?: night }, publish = f::publish,
+            beforeWrite = { delay(1); f.now = boundary })
+        assertTrue(result is NightMutation.Failed, "$result")
+        result as NightMutation.Failed
+        assertTrue(result.nothingWritten)
+        assertEquals(night, result.night)
+        assertEquals(listOf(Confidence.PENDING, Confidence.CONFIRMED), f.published.map { it.confidence })
+        assertEquals(night, f.published.last())
+        assertEquals(0, f.writes)
+        assertEquals(originalSlot, f.link.slots[2])
     }
 
 }
