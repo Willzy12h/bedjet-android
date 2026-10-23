@@ -124,7 +124,14 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
     var parkedDraft by rememberSaveable { mutableStateOf(false) }
+    // A new profile isn't in the repository until Save, so the editor keeps its starting point here (it survives recreation).
+    var newProfileJson by rememberSaveable { mutableStateOf<String?>(null) }
     val profiles by model.profiles.collectAsState()
+    val edit: (Profile) -> Unit = { profile ->
+        newProfileJson = if (profiles.none { it.id == profile.id }) Json.encodeToString(profile) else null
+        editingId = profile.id
+        draftJson = null
+    }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { model.messages.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(tonightRequest) {
@@ -137,9 +144,10 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
 
     editingId?.let { id ->
         val profile = profiles.firstOrNull { it.id == id }
+            ?: newProfileJson?.let { runCatching { Json.decodeFromString<Profile>(it) }.getOrNull() }?.takeIf { it.id == id }
         if (profile != null) {
             val draft = draftJson?.let { runCatching { Json.decodeFromString<Profile>(it) }.getOrNull() }
-            ProfileEditor(model, profile, onDone = { editingId = null; draftJson = null; parkedDraft = false },
+            ProfileEditor(model, profile, onDone = { editingId = null; draftJson = null; parkedDraft = false; newProfileJson = null },
                 initialDraft = draft, onDraftChange = { draftJson = Json.encodeToString(it) })
         } else editingId = null
         return
@@ -171,8 +179,8 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     ) { padding ->
         val modifier = Modifier.padding(padding)
         when (tab) {
-            Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = { editingId = it.id; draftJson = null })
-            Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = { editingId = it.id; draftJson = null })
+            Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit)
+            Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
             Tab.REMOTE -> RemoteScreen(model, modifier)
             Tab.HISTORY -> HistoryScreen(model, modifier)
             Tab.SETTINGS -> SettingsScreen(model, modifier)
