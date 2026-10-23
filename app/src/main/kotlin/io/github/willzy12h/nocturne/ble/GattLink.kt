@@ -149,7 +149,14 @@ class GattLink(
         }
     }
 
-    override fun cancelPreparedStart() { synchronized(startStatusLock) { startPending = false; preparedSession = null } }
+    /** Ends a preparation whose start will not be written; the next head-only report reads the remainder at once. */
+    override fun cancelPreparedStart() {
+        synchronized(startStatusLock) {
+            startPending = false
+            preparedSession = null
+            current?.lastRemainderRead = null
+        }
+    }
 
     /**
      * Lists the BedJets advertising nearby, strongest first, without connecting to any: first by the BedJet service
@@ -375,6 +382,8 @@ class GattLink(
             session.lastHead = chunk
             _status.value = parsed.copy(extra = if (startPending) null else session.lastExtra)
         }
+        // While a start is pending a remainder read would only be dropped, and would hold up the start.
+        if (startPending) return
         val now = clock()
         val last = session.lastRemainderRead
         // Only while no operation holds the queue, not merely between its steps: the unit and the GATT stack each

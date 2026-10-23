@@ -298,14 +298,107 @@ class GattLinkTest {
         val port = fake.ports.single()
         link.prepareForStart()
         assertEquals(null, link.status.value?.extra)
+        // Until the start is written, a head-only report neither brings the step back nor asks for the remainder:
+        // the read would only be dropped, and would hold up the start.
         port.notify(Status.head())
-        eventually { port.reads.contains(Attr.STATUS) }
-        assertEquals(null, link.status.value?.extra)
-        port.answerStatusRead(Status.remainder(programStep = 1))
+        fake.drain()
+        delay(100)
+        assertFalse(port.reads.contains(Attr.STATUS))
         assertEquals(null, link.status.value?.extra)
         link.cancelPreparedStart()
         port.notify(Status.full(programStep = 1))
         eventually { link.status.value?.extra?.programStep == 1 }
+    }
+
+    @Test
+    fun endingAPreparationWithoutAStartAsksForTheRemainderAgainAtOnce() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        link.prepareForStart()
+        port.notify(Status.head())
+        fake.drain()
+        delay(100)
+        // Whatever read the pending start allowed has finished before the preparation ends.
+        if (Attr.STATUS in port.reads) port.answerStatusRead(Status.remainder(programStep = 1))
+        fake.drain()
+        delay(50)
+        val readsBefore = port.reads.count { it == Attr.STATUS }
+        link.cancelPreparedStart()
+        port.notify(Status.full(programStep = 1))
+        eventually { link.status.value?.extra?.programStep == 1 }
+        // Well inside remainderEveryMs: progress must not wait for the next periodic read to come back.
+        port.notify(Status.head())
+        eventually(timeoutMs = 1_000) { port.reads.count { it == Attr.STATUS } > readsBefore }
+    }
+
+    @Test
+    fun aStartRefusedByItsFinalCheckLeavesProgressReportedAgain() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        val result = runCatching { controller.startProgram(2) { throw IllegalStateException("too late") } }
+        assertTrue("$result", result.exceptionOrNull() is IllegalStateException)
+        assertFalse(port.writes.any { it.contentEquals(Codec.startProgram(2)) })
+        // The session lives on; its reports must carry the program again, or takeovers would go unseen.
+        port.notify(Status.full(programStep = 1))
+        eventually { link.status.value?.extra?.programStep == 1 }
+    }
+
+    @Test
+    fun aFullStatusWhileTheStartIsBeingWrittenDoesNotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        port.holdWrites = true
+        val start = async { runCatching { controller.startProgram(2) } }
+        eventually { port.writes.any { it[0].toInt() == 0x08 } }
+        port.ackWrite()
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        // Sent before the unit acknowledged the start, so it may describe the unit from before it.
+        port.notify(Status.full(programStep = 1))
+        fake.drain()
+        port.ackWrite()
+        delay(1_800)
+        assertFalse("A full status from before the unit took the start confirmed it", start.isCompleted)
+        port.notify(Status.full(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
+    }
+
+    @Test
+    fun aHeadAndRemainderReadBetweenPrepareAndStartDoNotConfirmIt() = runBlocking {
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        link.connect()
+        val port = fake.ports.single()
+        val controller = BedJetController(link) { ZonedDateTime.now() }
+        var reported = false
+        val start = async {
+            runCatching {
+                controller.startProgram(2) {
+                    if (!reported) {
+                        reported = true
+                        // A head-only report after the prepare; any remainder read it starts is answered with the old step.
+                        port.notify(Status.head())
+                        fake.drain()
+                        Thread.sleep(100)
+                        port.answerStatusRead(Status.remainder(programStep = 1))
+                        fake.drain()
+                    }
+                }
+            }
+        }
+        eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
+        fake.drain()
+        delay(1_800)
+        assertFalse("A remainder read from before the start confirmed it", start.isCompleted)
+        // After the start, the next head asks for the remainder at once, and a fresh step confirms.
+        val readsBefore = port.reads.count { it == Attr.STATUS }
+        port.notify(Status.head())
+        eventually { port.reads.count { it == Attr.STATUS } > readsBefore }
+        port.answerStatusRead(Status.remainder(programStep = 1))
+        withTimeout(4_000) { start.await() }.getOrThrow()
     }
 
     @Test
@@ -366,9 +459,9 @@ class GattLinkTest {
                 controller.startProgram(2) {
                     port.notify(Status.head())
                     fake.drain()
-                    val deadline = System.currentTimeMillis() + 1_000
-                    while (Attr.STATUS !in port.reads && System.currentTimeMillis() < deadline) Thread.sleep(1)
-                    assertTrue("The remainder read was not started", Attr.STATUS in port.reads)
+                    Thread.sleep(100)
+                    // No remainder read starts while the start is pending; a stray old remainder changes nothing.
+                    assertFalse("A remainder read started while the start was pending", Attr.STATUS in port.reads)
                     port.answerStatusRead(Status.remainder(programStep = 1))
                     fake.drain()
                 }

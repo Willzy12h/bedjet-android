@@ -162,11 +162,22 @@ class ControllerTest {
         assertEquals(listOf("send 08", "prepare", "cancel"), link.calls)
     }
 
+    @Test
+    fun aStartCancelledAfterThePreparationEndsIt() = runTest {
+        val link = ScriptedLink(holdStart = true)
+        val starting = launch { BedJetController(link) { now }.startProgram(2) }
+        testScheduler.advanceUntilIdle()
+        assertEquals(listOf("send 08", "prepare", "send 01"), link.calls)
+        starting.cancel()
+        starting.join()
+        assertEquals(listOf("send 08", "prepare", "send 01", "cancel"), link.calls)
+    }
+
     /**
      * Records what the controller asks for and never confirms a start. Preparing publishes a stale program step, as
      * a report racing the start would: a controller already listening would take it as confirmation.
      */
-    private class ScriptedLink : BedJetLink {
+    private class ScriptedLink(private val holdStart: Boolean = false) : BedJetLink {
         val calls = mutableListOf<String>()
         private val stale = io.github.willzy12h.nocturne.core.protocol.DeviceStatus(
             remainingSeconds = 0, actualTemperature = 46, targetTemperature = 60, mode = Mode.COOL, fanStep = 7,
@@ -179,6 +190,7 @@ class ControllerTest {
         override suspend fun disconnect() = Unit
         override suspend fun send(command: ByteArray) {
             calls += "send %02x".format(command[0])
+            if (holdStart && command[0].toInt() == 0x01) kotlinx.coroutines.awaitCancellation()
         }
         override suspend fun prepareForStart() {
             calls += "prepare"
