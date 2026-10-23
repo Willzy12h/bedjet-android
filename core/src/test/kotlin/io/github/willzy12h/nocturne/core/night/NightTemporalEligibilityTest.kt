@@ -169,4 +169,37 @@ class NightTemporalEligibilityTest {
         assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
     }
 
+
+    // IR-10: the final check also bounds a rewrite by the new plan's own wake-up start.
+
+    @Test fun `a late retime is not started once the new wake-up has begun`() = runTest {
+        val f = Fixture()
+        val night = f.night()
+        f.now = ZonedDateTime.parse("2026-10-22T05:00:00Z")
+        // An earlier alarm: the new wake-up starts before the old one.
+        val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, ZonedDateTime.parse("2026-10-22T05:33:00Z"),
+            ZonedDateTime.parse(night.wakeUpStart)))
+        assertTrue(change.plan.steps.none { it.step.endsAtClockTime })
+        val newBoundary = change.plan.wakeUpStart
+        assertTrue(newBoundary.isBefore(ZonedDateTime.parse(night.wakeUpStart)))
+        val runner = f.observedRunner(afterReadback = { delay(1); f.now = newBoundary })
+        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
+    }
+
+    // IR-05: a failure before any write publishes back the night that was there, whatever its confidence.
+
+    @Test fun `a start that fails before writing leaves an unknown night as it was`() = runTest {
+        val f = Fixture()
+        val unknown = f.night().copy(confidence = Confidence.UNKNOWN)
+        f.now = f.now.plusHours(1)
+        val change = Fixture.ready(f.runner.prepareStart(Presets.springAutumn, f.wake, 2, "demo", unknown.identity, unknown))
+        val originalSlot = f.link.slots[2]
+        val result = f.observedRunner().apply(change, { f.published.lastOrNull() ?: unknown }, publish = f::publish,
+            beforeWrite = { error("disk full") })
+        assertTrue(result is NightMutation.Failed, "$result")
+        assertEquals(unknown, (result as NightMutation.Failed).night)
+        assertEquals(unknown, f.published.last())
+        assertEquals(0, f.writes)
+        assertEquals(originalSlot, f.link.slots[2])
+    }
 }

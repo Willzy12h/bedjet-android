@@ -163,6 +163,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             is Eligibility.Refused -> return NightMutation.Refused(check.reason)
             Eligibility.Allowed -> Unit
         }
+        // What is running now; a failure before any write publishes it back unchanged, whatever its confidence (IR-05).
+        val before = current()
         val pending = change.pendingNight
         publish(pending)
         var writeMayHaveHappened = false
@@ -187,14 +189,18 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             publish(change.intended)
             return NightMutation.Applied(change.plan, change.intended)
         } catch (e: Exception) {
-            // A failed backup has not touched the unit. Restore the previous confirmed
-            // night instead of turning a working night into a failed replacement.
-            val failed = if (!writeMayHaveHappened && change.previous?.confidence == Confidence.CONFIRMED)
-                change.previous else pending.copy(confidence = if (writeMayHaveHappened &&
+            // A failed backup has not touched the unit. Restore the night that was there, confirmed or not,
+            // instead of turning it into a failed replacement (IR-05).
+            if (!writeMayHaveHappened && before != null) {
+                withContext(NonCancellable) { publish(before) }
+                if (e is CancellationException) throw e
+                return NightMutation.Failed(before, e, nothingWritten = true)
+            }
+            val failed = pending.copy(confidence = if (writeMayHaveHappened &&
                     (change.request.kind != ChangeKind.START || change.previous != null || startMayHaveHappened || e is CancellationException)) Confidence.UNKNOWN else Confidence.FAILED)
             withContext(NonCancellable) { publish(failed) }
             if (e is CancellationException) throw e
-            return NightMutation.Failed(failed, e)
+            return NightMutation.Failed(failed, e, nothingWritten = !writeMayHaveHappened)
         }
     }
 
@@ -206,9 +212,13 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             change.previous != null && !time.isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) {
             throw PlanException("Tonight's wake-up has already started.")
         }
+        // IR-10: the new plan's own wake-up start too, which is earlier than the old one when the alarm moved earlier.
+        // Start and Resume are left out: a start is compiled moments before, and a resume may continue a wake-up.
+        if ((change.request.kind == ChangeKind.RETIME || change.request.kind == ChangeKind.REAPPLY) &&
+            !time.isBefore(change.plan.wakeUpStart)) throw PlanException("Tonight's wake-up has already started.")
         // Clock-time BedJet steps wrap to tomorrow once their programmed end has passed.
         // Recheck the new plan after uploads and clock sync, including a safe write margin.
-        if (change.plan.steps.any { it.step.endsAtClockTime && !time.isBefore(it.endsAt.minusMinutes(10)) }) {
+        if (change.plan.steps.any { it.step.endsAtClockTime && !time.isBefore(it.endsAt.minusMinutes(PlanCompiler.MIN_CLOCK_TIME_STEP.toLong())) }) {
             throw PlanException("The new programme's clock-time step is too close to ending.")
         }
         if (change.plan.steps.any { it.step.endsAtClockTime } && time.offset != change.plan.start.offset) {
