@@ -34,7 +34,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -133,6 +135,9 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         draftJson = null
     }
     val snackbar = remember { SnackbarHostState() }
+    // The snackbar floats over the content, so while one shows the content ends above it and nothing (Off) sits underneath.
+    var snackbarHeight by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
     LaunchedEffect(Unit) { model.messages.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(tonightRequest) {
         if (tonightRequest > 0) {
@@ -153,7 +158,7 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         return
     }
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SnackbarHost(snackbar, Modifier.onSizeChanged { snackbarHeight = it.height }) },
         bottomBar = {
             Column {
                 if (parkedDraft && draftJson != null) {
@@ -177,7 +182,8 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
             }
         },
     ) { padding ->
-        val modifier = Modifier.padding(padding)
+        val snackbarInset = with(density) { snackbarHeight.toDp() }
+        val modifier = Modifier.padding(padding).padding(bottom = snackbarInset)
         when (tab) {
             Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit)
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)

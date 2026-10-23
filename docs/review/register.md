@@ -81,7 +81,7 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 
 | ID | Item | Source | Owner | Status | Commit | Tests |
 |---|---|---|---|---|---|---|
-| U01 | Quick actions stay reachable while the snackbar shows | brief | W4 | open | | |
+| U01 | Quick actions stay reachable while the snackbar shows | brief | W4 | auto-verified (Robolectric layout only; phone NOT RUN): content ends above a visible snackbar | `fix(ui): keep Off above the snackbar` | UiFinalisationTest.offRemainsAboveTheVisibleSnackbar |
 | U02 | "Use tonight" is temporary; add "Follow schedule" | brief | W4 + W3 | in progress: temporary choice migration/resolution auto-verified; Follow schedule UI pending | `feat(core): snapshot and transact active nights` | WakePolicyHardeningTest.temporary choice expires to schedule and follow schedule clears it; legacy selection migrates to an expiring choice when resolved |
 | U03 | Widgets resolve dynamic profiles at tap time; fixed or deleted profiles handled clearly | brief | W5 | auto-verified; device acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | WidgetPolicyTest; PlatformDeliveryTest; PlatformActivityTest |
 | U04 | Unsaved editor drafts and navigation survive recreation | brief | W4 | auto-verified for new and existing profiles (Robolectric recreation) | `fix(ui): open and keep unsaved new profiles in the editor` | UiFinalisationTest.newProfileDraftSurvivesRecreationAndOnlySaveAddsIt |
