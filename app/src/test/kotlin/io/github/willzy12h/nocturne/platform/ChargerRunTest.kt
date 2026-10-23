@@ -77,8 +77,9 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
     }
 
     // IR-06: only a current, unresolved slot write holds the charger start back.
-    private suspend fun slotWrite(graph: Graph, confidence: io.github.willzy12h.nocturne.core.night.Confidence, device: String = "ble:AA:BB:CC:DD:EE:FF") =
-        graph.repository.updateRuntime { it.copy(slotWrite = io.github.willzy12h.nocturne.night.SlotWrite(device, 0,
+    private suspend fun slotWrite(graph: Graph, confidence: io.github.willzy12h.nocturne.core.night.Confidence, device: String = "ble:AA:BB:CC:DD:EE:FF",
+        slot: Int = graph.repository.settings.value.workingSlot) =
+        graph.repository.updateRuntime { it.copy(slotWrite = io.github.willzy12h.nocturne.night.SlotWrite(device, slot,
             null, confidence, "Restore")) }
     @Test fun anOldFailedSlotWriteDoesNotBlockTheStart() = runBlocking {
         val graph=graph(); var notices=0
@@ -91,6 +92,13 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
         slotWrite(graph, io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN)
         ChargerRun(graph,{true},{_,_->notices++;true},{},{true}).execute()
         assertEquals(0,notices)
+    }
+    @Test fun anUnresolvedWriteOfAnotherSlotDoesNotBlockTheStart() = runBlocking {
+        // A pinned slot the night never writes or starts: its uncertainty says nothing about the start.
+        val graph=graph(); var notices=0
+        slotWrite(graph, io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN, slot = 0)
+        ChargerRun(graph,{true},{_,_->notices++;true},{graph.repository.updateSettings { it.copy(platform=it.platform.copy(chargerAutoStart=false)) }},{true}).execute()
+        assertEquals(1,notices)
     }
     @Test fun anUnresolvedSlotWriteOnAnotherBedJetDoesNotBlockTheStart() = runBlocking {
         val graph=graph(); var notices=0

@@ -42,7 +42,7 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
             // Only the chosen BedJet's own report counts: one from a session still on another unit says nothing.
             manual=graph.link.latestStatusFrom(c.device)?.isRunning == true,
             // IR-06: only a write still in question on this BedJet holds the start back.
-            uncertain=repo.runtime.value.unresolvedSlotWrite?.deviceId == c.device,
+            uncertain=repo.runtime.value.unresolvedSlotWrite?.let { it.deviceId == c.device && it.affectsNights(settings.workingSlot) } == true,
             takeover=graph.sessions.released.value, prerequisites=permitted() && repo.unreadable.value.isEmpty() && settings.platform.validationErrors().isEmpty(),
             alreadyAttempted="cancel:${c.key}" in claims || (!ownAttempt && "charger:${c.key}" in claims)))
     }

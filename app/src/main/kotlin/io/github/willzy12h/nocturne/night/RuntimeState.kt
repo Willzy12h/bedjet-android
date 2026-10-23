@@ -34,6 +34,9 @@ import kotlinx.serialization.Serializable
     /** The night tracked when the write was made; its end settles the write (IR-06). */
     val nightId: String? = null) {
     fun belongsTo(recordId: String): Boolean = nightId == recordId || displaced?.nightId == recordId
+    /** Whether a night or start could depend on this write: it started a programme, or wrote the working slot that
+     * nights are written to and started from. A pin or restore of another slot does not (IR-06). */
+    fun affectsNights(workingSlot: Int): Boolean = startRequested || slot == workingSlot
 }
 
 data class CommandRequest(val command: NightActions.Command, val profileId: String?, val deviceId: String?,

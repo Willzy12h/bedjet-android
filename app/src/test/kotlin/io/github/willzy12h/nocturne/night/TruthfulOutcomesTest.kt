@@ -128,6 +128,29 @@ class TruthfulOutcomesTest {
         assertFalse(graph.actions.retimePending)
     }
 
+    @Test fun aRetimeWhoseNewWakeUpBeganBeforeItsWriteIsRefusedOnceAndNotRetried() = runBlocking {
+        val n = start()
+        at(ZonedDateTime.parse("2026-10-22T04:00:00Z"))
+        forgetOriginals()
+        // An earlier alarm: the new wake-up starts well before the old one.
+        val alarm = ZonedDateTime.parse("2026-10-22T04:45:00Z")
+        val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), null), fire)
+        assertEquals(OutcomeKind.LOCAL, graph.actions.submitAlarmChange().kind)
+        val count = sent.size
+        // The backup read is slow: by the final check before writing, the new wake-up has begun.
+        beforeQuery = { if (it == Codec.Query.PROGRAM_NAMES) {
+            graph.clock = Clock.fixed(alarm.minusMinutes(5).toInstant(), ZoneOffset.UTC); context.graph.clock = graph.clock } }
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        beforeQuery = {}
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
+        assertEquals("nothing written", count, sent.count())
+        assertEquals(n.identity, graph.repository.activeNight.value!!.identity)
+        assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
+        assertFalse("a change that can never apply is not retried", graph.actions.retimePending)
+        assertFalse(retryScheduled())
+    }
+
     @Test fun aBoostWhoseBackupFailsLeavesTheNightConfirmedAndReconcileLeavesItAlone() = runBlocking {
         val n = start(); advance(30)
         forgetOriginals()
@@ -189,10 +212,21 @@ class TruthfulOutcomesTest {
     @Test fun anUnknownSlotWriteIsClearedWhenTheUserMarksItChecked() = runBlocking {
         beforeSend = { if (it[0] == 0x40.toByte()) throw IOException("GATT write lost") }
         assertEquals(OutcomeKind.UNKNOWN, graph.actions.pin(graph.repository.profiles.value.first().id, 0).kind)
-        assertEquals(Confidence.UNKNOWN, status())
+        assertNotNull(graph.repository.runtime.value.unresolvedSlotWrite)
         assertEquals(OutcomeKind.LOCAL, graph.actions.acknowledgeSlotWrite().kind)
         assertNull(graph.repository.runtime.value.unresolvedSlotWrite)
         assertNull(status())
+    }
+
+    @Test fun anUnknownPinOfAnotherSlotDoesNotColourTheIdleStatusAfterANight() = runBlocking {
+        beforeSend = { if (it[0] == 0x40.toByte()) throw IOException("GATT write lost") }
+        assertEquals(OutcomeKind.UNKNOWN, graph.actions.pin(graph.repository.profiles.value.first().id, 0).kind)
+        beforeSend = {}
+        graph.controller().stop()
+        start()
+        assertEquals(OutcomeKind.LOCAL, graph.actions.execute(graph.actions.capture(NightActions.Command.STOP_TRACKING)).kind)
+        assertEquals("slot 1 is still in question", 0, graph.repository.runtime.value.unresolvedSlotWrite?.slot)
+        assertNull("but nothing tracked or about to run depends on it", status())
     }
 
     @Test fun anUnknownPinIsNotSettledByANightOnAnotherSlot() = runBlocking {

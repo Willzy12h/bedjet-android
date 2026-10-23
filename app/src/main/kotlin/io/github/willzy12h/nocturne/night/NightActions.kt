@@ -31,9 +31,10 @@ class NightActions(private val graph: Graph) {
     val busy: StateFlow<BusyState> = _busy.asStateFlow()
     private val _outcomes = MutableSharedFlow<CommandOutcome>(extraBufferCapacity = 16)
     val outcomes: SharedFlow<CommandOutcome> = _outcomes.asSharedFlow()
-    /** A slot write colours the status only while it is in question and concerns the tracked night, or there is none (IR-06). */
-    val status: StateFlow<NightStatus> = combine(repo.activeNight, repo.runtime) { n, r ->
-        val slot = r.unresolvedSlotWrite?.takeIf { n == null || it.displaced == n.identity }
+    /** A slot write colours the status only while it is in question and concerns the tracked night, or, with no night,
+     * only when a night could depend on it; an unknown pin of another slot is reported by its own outcome (IR-06). */
+    val status: StateFlow<NightStatus> = combine(repo.activeNight, repo.runtime, repo.settings) { n, r, s ->
+        val slot = r.unresolvedSlotWrite?.takeIf { if (n == null) it.affectsNights(s.workingSlot) else it.displaced == n.identity }
         NightStatus(if ((r.retime != null || r.alarmInbox != null) && n?.confidence == Confidence.CONFIRMED) Confidence.PENDING
             else slot?.confidence ?: n?.confidence, r.reason) }
         .stateIn(graph.scope, SharingStarted.Eagerly, NightStatus(repo.activeNight.value?.confidence, repo.runtime.value.reason))
@@ -225,6 +226,10 @@ class NightActions(private val graph: Graph) {
             }
             is NightMutation.Failed -> {
                 if (result.cause is SlotBackupsUnreadable) refused(R.string.runtime_slot_backups_unreadable)
+                // The final check before writing found the change no longer allowed (its wake-up has begun, a
+                // clock-time step is too close to its end, the offset changed): nothing was written, and trying
+                // again cannot help, so it is refused rather than failed and retried.
+                else if (result.nothingWritten && result.cause is PlanException) CommandOutcome(OutcomeKind.REFUSED, result.cause.message.orEmpty())
                 else if (result.cause is RetimeTakeover) {
                     val reason = text(R.string.runtime_takeover)
                     repo.updateRuntime { it.copy(reason = reason) }
