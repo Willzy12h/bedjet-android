@@ -7,6 +7,7 @@ import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
 import io.github.willzy12h.nocturne.core.plan.PlanException
+import io.github.willzy12h.nocturne.core.plan.RetryablePlanException
 import io.github.willzy12h.nocturne.core.plan.PlannedStep
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.ProfileLimits
@@ -219,10 +220,10 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         // Clock-time BedJet steps wrap to tomorrow once their programmed end has passed.
         // Recheck the new plan after uploads and clock sync, including a safe write margin.
         if (change.plan.steps.any { it.step.endsAtClockTime && !time.isBefore(it.endsAt.minusMinutes(PlanCompiler.MIN_CLOCK_TIME_STEP.toLong())) }) {
-            throw PlanException("The new programme's clock-time step is too close to ending.")
+            throw RetryablePlanException("The new programme's clock-time step is too close to ending.")
         }
         if (change.plan.steps.any { it.step.endsAtClockTime } && time.offset != change.plan.start.offset) {
-            throw PlanException("The clock offset changed while preparing the programme. Try again.")
+            throw RetryablePlanException("The clock offset changed while preparing the programme. Try again.")
         }
     }
 

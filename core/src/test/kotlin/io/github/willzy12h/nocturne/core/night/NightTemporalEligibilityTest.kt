@@ -202,4 +202,31 @@ class NightTemporalEligibilityTest {
         assertEquals(0, f.writes)
         assertEquals(originalSlot, f.link.slots[2])
     }
+
+    // P3b: a final check that only this moment rules out leaves the change worth trying again.
+
+    @Test fun `a clock offset that changes before writing is a retryable refusal and writes nothing`() = runTest {
+        val f = Fixture()
+        f.link.connect()
+        val change = Fixture.ready(f.runner.prepareStart(Presets.springAutumn, f.wake, 2, "demo", null, null))
+        assertTrue(change.plan.steps.any { it.step.endsAtClockTime })
+        val result = f.observedRunner().apply(change, { f.published.lastOrNull() }, publish = f::publish,
+            beforeWrite = { f.now = f.now.withZoneSameInstant(ZoneOffset.ofHours(1)) })
+        assertTrue(result is NightMutation.Failed, "$result")
+        result as NightMutation.Failed
+        assertTrue(result.nothingWritten)
+        assertTrue(result.cause is io.github.willzy12h.nocturne.core.plan.RetryablePlanException, "${result.cause}")
+        assertEquals(0, f.writes)
+    }
+
+    @Test fun `an expired request is a plain refusal, not a retryable one`() = runTest {
+        val f = Fixture()
+        f.link.connect()
+        val change = Fixture.ready(f.runner.prepareStart(Presets.springAutumn, f.wake, 2, "demo", null, null))
+        val result = f.observedRunner().apply(change, { f.published.lastOrNull() }, publish = f::publish,
+            beforeWrite = { f.now = ZonedDateTime.parse(change.request.deadline) })
+        result as NightMutation.Failed
+        assertTrue(result.cause is io.github.willzy12h.nocturne.core.plan.PlanException)
+        assertFalse(result.cause is io.github.willzy12h.nocturne.core.plan.RetryablePlanException)
+    }
 }

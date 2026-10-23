@@ -6,7 +6,10 @@ import kotlinx.serialization.Serializable
 import java.time.Duration
 import java.time.ZonedDateTime
 
-@Serializable data class TonightOverride(val wakeAt: String, val setAt: String)
+@Serializable data class TonightOverride(val wakeAt: String, val setAt: String) {
+    /** When it lapses by itself: at its own wake time (see Settings.resolveWakeOverride), for the UI's expiry note. */
+    val expiresAt: String get() = wakeAt
+}
 @Serializable data class TonightChoice(val profileId: String, val expiresAt: String)
 
 /** Attribution and window shared by start and re-time. The original start anchors both boundaries:

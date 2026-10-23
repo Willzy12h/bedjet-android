@@ -82,4 +82,7 @@ data class Plan(val start: ZonedDateTime, val wake: ZonedDateTime, val steps: Li
             ?.let { it.index to it.value }
 }
 
-class PlanException(message: String) : Exception(message)
+open class PlanException(message: String) : Exception(message)
+/** A plan ruled out only by this moment (a clock-time step about to end, the clock offset changing): one compiled
+ * afresh can still apply, so the change is worth trying again, unlike an expired request or a begun wake-up. */
+class RetryablePlanException(message: String) : PlanException(message)
