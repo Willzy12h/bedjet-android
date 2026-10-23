@@ -36,6 +36,8 @@ class TruthfulOutcomesTest {
     private var beforeSend: suspend (ByteArray) -> Unit = {}
     private var beforeQuery: suspend (Int) -> Unit = {}
     private var failBackups = false
+    /** The saved originals turn out unreadable while the backup is being written. */
+    private var backupsUnreadable = false
     private val link: BedJetLink by lazy {
         demo = DemoBedJet(now = { graph.now() })
         object : BedJetLink by demo {
@@ -51,6 +53,7 @@ class TruthfulOutcomesTest {
         val clock = if (::graph.isInitialized) graph.clock else Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
         val g = Graph(context, link) { scope, now -> Repository(context, scope, writeFile = { file, bytes ->
             if (failBackups && file.name == "slot-backups.json") throw IOException("Backup disk failure")
+            if (backupsUnreadable && file.name == "slot-backups.json") throw io.github.willzy12h.nocturne.data.SlotBackupsUnreadable()
             Repository.writeDurably(file, bytes)
         }, now = now) }
         g.clock = clock
@@ -219,5 +222,29 @@ class TruthfulOutcomesTest {
         assertEquals(listOf(EventKind.STARTED), record.events.map { it.kind })
         assertEquals(listOf(n.applied), record.revisions)
         assertEquals(n.applied.steps, record.steps)
+    }
+
+    // Fix round 1
+
+    @Test fun aFreshStartWithheldAtTheFinalCheckIsFailedAndSaysNothingStarted() = runBlocking {
+        // The clock sync is the last step before the final check; the request runs out there.
+        beforeSend = { if (it[0] == 0x08.toByte()) at(graph.now().plusMinutes(2)) }
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT))
+        beforeSend = {}
+        assertEquals(OutcomeKind.FAILED, outcome.kind)
+        assertTrue(outcome.message, outcome.message.startsWith("Nothing started; the BedJet slot holds the new night but it was not started"))
+        val n = graph.repository.activeNight.value!!
+        assertEquals(Confidence.FAILED, n.confidence)
+        assertTrue(sent.none { it[0] == 0x01.toByte() && it[1].toInt() and 0xff in 0x80..0x82 })
+        assertTrue(events(n).any { it.kind == EventKind.ERROR })
+    }
+
+    @Test fun aSlotWriteThatFindsTheOriginalsUnreadableIsRefusedWithThatReason() = runBlocking {
+        backupsUnreadable = true
+        val outcome = graph.actions.pin(graph.repository.profiles.value.first().id, 0)
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
+        assertEquals(context.getString(R.string.runtime_slot_backups_unreadable), outcome.message)
+        assertNull(demo.slots[0])
+        assertNull(graph.repository.runtime.value.slotWrite)
     }
 }

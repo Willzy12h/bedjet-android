@@ -110,7 +110,8 @@ class LinkSessionsTest {
     @Test
     fun aTimedReleaseEndsByItself() = runBlocking {
         link.gate.complete(Unit)
-        sessions.suspendAutoConnect(untilMs = now + 60_000)
+        // Wait for the release to let go, so its cancel can't land on the connect below.
+        sessions.suspendAutoConnect(untilMs = now + 60_000).join()
         assertThrows<BedJetError.NotConnected> { sessions.acquire() }
         now += 60_000
         sessions.withConnection { }

@@ -10,6 +10,9 @@ import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.SlotBackupsUnreadable
 import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -256,11 +259,10 @@ class NightActions(private val graph: Graph) {
         val old = repo.activeNight.value
         val message = text(R.string.runtime_timed, label, preset.minutes)
         if (old == null) return manualChange(message, false) { runPreset(preset) }
-        sendManual(old) { runPreset(preset) }
         val bounds = limits()
         val step = ProgramStep(preset.mode, PlanCompiler.fanStepFor(preset.fanPercent, bounds),
             PlanCompiler.temperatureFor(preset.mode, preset.temperature, bounds), preset.minutes / 60, preset.minutes % 60)
-        val n = trackManual(old, step, kind, message)
+        val n = reportsAfter({ sendManual(old) { runPreset(preset) } }) { reports -> trackManual(old, step, kind, message, reports) }
         val shown = manualMessage(n, message)
         Notifications.showWakeUp(context, n, repo.settings.value, shown, logNotice = false)
         return CommandOutcome(OutcomeKind.ACCEPTED, shown)
@@ -270,7 +272,8 @@ class NightActions(private val graph: Graph) {
      * shows it ([confirmsManual]); then CONFIRMED. A report that never comes leaves it PENDING, and [observeStatus]
      * confirms it later or, if the BedJet runs something else, records a takeover. Any pending re-time is dropped.
      */
-    private suspend fun trackManual(old: ActiveNight, step: ProgramStep, kind: EventKind, message: String): ActiveNight {
+    private suspend fun trackManual(old: ActiveNight, step: ProgramStep, kind: EventKind, message: String,
+        reports: ReceiveChannel<SourcedStatus>): ActiveNight {
         val now = graph.now()
         val minutes = step.durationMinutes
         val plan = Plan(now, ZonedDateTime.parse(old.wakeAt), listOf(PlannedStep(Block.MIDDLE, step, now, minutes)))
@@ -284,11 +287,21 @@ class NightActions(private val graph: Graph) {
         NightAlarms.cancelRetry(context)
         NightAlarms.schedule(context, n)
         val target = repo.settings.value.deviceId()
+        // Only a report received after the packets went out counts, never the one current before them.
         val seen = withTimeoutOrNull(MANUAL_CONFIRM_MS) {
-            graph.link.sourcedStatus.filterNotNull().first { it.isFrom(target) && confirmsManual(n, it.status, graph.now()) }
+            reports.receiveAsFlow().first { it.isFrom(target) && confirmsManual(n, it.status, graph.now()) }
         }
         if (seen == null || repo.activeNight.value?.identity != n.identity) return n
         return n.copy(confidence = Confidence.CONFIRMED).also { publishNight(it) }
+    }
+    /** Runs [send], then [then] with the reports the link received from the start of [send] on. */
+    private suspend fun <T> reportsAfter(send: suspend () -> Unit, then: suspend (ReceiveChannel<SourcedStatus>) -> T): T = coroutineScope {
+        val reports = Channel<SourcedStatus>(64, BufferOverflow.DROP_OLDEST)
+        // Subscribed before anything is sent; the value already current is dropped.
+        val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
+            graph.link.sourcedStatus.drop(1).filterNotNull().collect { reports.trySend(it) }
+        }
+        try { send(); then(reports) } finally { watcher.cancel() }
     }
     private fun manualMessage(n: ActiveNight, message: String) =
         if (n.confidence == Confidence.CONFIRMED) message else text(R.string.runtime_manual_pending, message)
@@ -501,7 +514,7 @@ class NightActions(private val graph: Graph) {
     /** What the tracked night expects of the BedJet at [at]: programme step, mode and, for temperature modes,
      * target. With [grace], a report still on the previous step just after a boundary also matches. */
     private fun runsNight(n: ActiveNight, status: DeviceStatus, at: ZonedDateTime, grace: Boolean = false): Boolean {
-        if (n.trackingManual) return !contradictsManual(n, status, at) && status.isRunning
+        if (n.trackingManual) return !contradictsManual(n, status, at)
         val plan = n.activePlan(repo.profile(n.profileId)) ?: return false
         val (index, step) = plan.stepAt(at) ?: return false
         fun runs(i: Int, planned: PlannedStep) = status.extra?.programStep == i + 1 && status.mode == planned.step.mode &&
@@ -699,7 +712,8 @@ class NightActions(private val graph: Graph) {
                     if (start) repo.activeNight.value?.let { publishNight(it.copy(confidence = Confidence.UNKNOWN)) }
                 }
             }
-            if (e is CancellationException) throw e
+            // Owned turns these into the IR-03 refusal; both were thrown before any write.
+            if (e is CancellationException || e is SlotBackupsUnreadable) throw e
             recordError("$label: ${e.message.orEmpty()}")
             return CommandOutcome(if (writing) OutcomeKind.UNKNOWN else OutcomeKind.FAILED, e.message ?: text(R.string.runtime_failed))
         }
@@ -832,7 +846,10 @@ class NightActions(private val graph: Graph) {
      * any pending re-time is dropped, so neither a takeover nor a re-time is ever made of the user's own change. With
      * no night, or one already uncertain, the change is sent and nothing else changes.
      */
-    suspend fun adjust(label: String, change: ManualAdjust, target: String? = repo.settings.value.deviceId()): CommandOutcome = owned(label, target) {
+    suspend fun adjust(label: String, change: ManualAdjust, target: String? = repo.settings.value.deviceId(),
+        expected: NightIdentity? = repo.activeNight.value?.identity): CommandOutcome = owned(label, target) {
+        // The tap's night, captured then: a change queued behind a Start, re-time or Stop never converts another night.
+        if (expected != repo.activeNight.value?.identity) return@owned stale()
         connected {
             advanceGeneration()
             val send: suspend () -> Unit = {
@@ -850,13 +867,12 @@ class NightActions(private val graph: Graph) {
             val mode = reported?.mode ?: planned?.first?.mode
             if (night == null || mode == null || !(night.confidence == Confidence.CONFIRMED || awaitingReport(night)))
                 return@connected manualChange(label, false, send)
-            sendManual(night, send)
             val minutes = change.minutes ?: reported?.let { (it.remainingSeconds + 59) / 60 }
                 ?: planned?.let { java.time.Duration.between(now, it.second).toMinutes().toInt() } ?: 0
             val step = ProgramStep(mode, change.fanStep ?: reported?.fanStep ?: planned!!.first.fanStep,
                 change.temperature ?: reported?.targetTemperature ?: planned!!.first.temperature,
                 minutes.coerceAtLeast(1) / 60, minutes.coerceAtLeast(1) % 60)
-            val n = trackManual(night, step, EventKind.ADJUSTED, label)
+            val n = reportsAfter({ sendManual(night, send) }) { reports -> trackManual(night, step, EventKind.ADJUSTED, label, reports) }
             CommandOutcome(OutcomeKind.ACCEPTED, manualMessage(n, label))
         }
     }

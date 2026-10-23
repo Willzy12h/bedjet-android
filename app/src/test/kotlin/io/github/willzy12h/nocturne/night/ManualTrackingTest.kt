@@ -12,7 +12,7 @@ import io.github.willzy12h.nocturne.core.protocol.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -175,5 +175,61 @@ class ManualTrackingTest {
         val n = start()
         graph.actions.remote("Lights") { it.setLed(false) }
         assertEquals(n, graph.repository.activeNight.value)
+    }
+
+    // Fix round 1
+
+    @Test fun aStatusFromBeforeTheSnoozeDoesNotConfirmIt() = runBlocking {
+        start()
+        graph.actions.perform(NightActions.Command.SNOOZE_WARM)
+        assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value!!.confidence)
+        // The unit already reports exactly what a second snooze asks for, then loses every packet of it.
+        drops = { true }
+        graph.actions.perform(NightActions.Command.SNOOZE_WARM)
+        val again = graph.repository.activeNight.value!!
+        assertEquals("only a report after the packets confirms them", Confidence.PENDING, again.confidence)
+    }
+
+    @Test fun takeBackKeepsAManualRunThatStoppedByItselfNearItsEnd() = runBlocking {
+        start()
+        graph.actions.perform(NightActions.Command.SNOOZE_WARM)
+        val n = graph.repository.activeNight.value!!
+        at(ZonedDateTime.parse(n.endsAt).minusSeconds(30).toInstant())
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        assertEquals(OutcomeKind.LOCAL, graph.actions.takeBack().kind)
+        assertEquals("the same end window as takeover detection", n, graph.repository.activeNight.value)
+    }
+
+    @Test fun anAdjustQueuedBehindAStartLeavesTheNewNightProgrammed() = runBlocking {
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val holder = async { graph.actions.exclusive { entered.complete(Unit); release.await() } }
+        entered.await()
+        val startRequest = graph.actions.capture(NightActions.Command.START_NIGHT)
+        val starting = async(start = CoroutineStart.UNDISPATCHED) { graph.actions.execute(startRequest) }
+        // Tapped while no night was shown: it captured no night.
+        val adjusting = async(start = CoroutineStart.UNDISPATCHED) {
+            graph.actions.adjust("Temperature set", ManualAdjust(temperature = 50), "demo", expected = null) }
+        release.complete(Unit); holder.await()
+        assertEquals(OutcomeKind.CONFIRMED, starting.await().kind)
+        assertEquals(OutcomeKind.STALE, adjusting.await().kind)
+        val n = graph.repository.activeNight.value!!
+        assertEquals(Confidence.CONFIRMED, n.confidence)
+        assertFalse("still the programmed night", n.trackingManual)
+        assertEquals(0, n.revision)
+    }
+
+    @Test fun aRemoteFanChangeDuringAProgrammedNightSwitchesToManualTracking() = runBlocking {
+        val n = start(); advance(30 * 60)
+        val running = demo.status.value!!
+        val fan = if (running.fanStep < 19) running.fanStep + 1 else running.fanStep - 1
+        assertEquals(OutcomeKind.ACCEPTED, graph.actions.adjust("Fan set", ManualAdjust(fanStep = fan)).kind)
+        val adjusted = graph.repository.activeNight.value!!
+        assertTrue(adjusted.trackingManual)
+        assertEquals(n.revision + 1, adjusted.revision)
+        assertEquals(fan, adjusted.applied.programSteps.single().fanStep)
+        assertEquals(running.targetTemperature, adjusted.applied.programSteps.single().temperature)
+        assertEquals(Confidence.CONFIRMED, adjusted.confidence)
+        advance(60); observe()
+        assertTrue(events(n).none { it.kind == EventKind.REMOTE_CHANGE })
     }
 }
