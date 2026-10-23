@@ -429,8 +429,10 @@ class Repository(
                 tonightChoice = current.tonightChoice,
                 tonightOverride = current.tonightOverride,
                 platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null))
-            val activeRecord = _activeNight.value?.recordId?.let { id -> _history.value.firstOrNull { it.id == id } }
-            val history = History.prune(bundle.history, now()).filterNot { it.id == activeRecord?.id } + listOfNotNull(activeRecord)
+            // Tonight's record, and that of a night being ended (its end is still to be added), are kept as they are.
+            val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
+            val carried = _history.value.filter { it.id in tonight }
+            val history = History.prune(bundle.history, now()).filterNot { restored -> carried.any { it.id == restored.id } } + carried
             val slotBackups = _slotBackups.value.let { list ->
                 val incoming = bundle.slotBackups.map { it.copy(imported = true) }
                 list + incoming.filter { restored -> list.none { it.covers(restored) } }

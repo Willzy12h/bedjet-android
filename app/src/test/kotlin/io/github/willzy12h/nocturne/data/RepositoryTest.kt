@@ -9,6 +9,8 @@ import androidx.core.util.AtomicFile
 import io.github.willzy12h.nocturne.core.link.BedJetController
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.core.night.ActiveNight
+import io.github.willzy12h.nocturne.core.night.NightIdentity
+import io.github.willzy12h.nocturne.night.PendingEnd
 import io.github.willzy12h.nocturne.core.night.NightRunner
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Presets
@@ -934,6 +936,23 @@ class RepositoryTest {
         assertEquals(live, repo.history.value.single { it.id == "live" })
         assertEquals(setOf("live", "n1"), repo.history.value.map { it.id }.toSet())
         assertEquals(live, repository().history.value.single { it.id == "live" })
+    }
+
+    /** IR-28: a night being ended keeps its record too, as the end is still to be added to it. */
+    @Test
+    fun importKeepsTheRecordOfTheNightBeingEnded() = runBlocking {
+        val repo = repository()
+        val ending = NightRecord("night-0", "p", "Ending", now.minusHours(1).toString(), now.plusHours(7).toString(), false,
+            events = listOf(HistoryEvent(now.minusHours(1).toString(), EventKind.STARTED, "Started")))
+        repo.addRecord(ending)
+        repo.updateRuntime { it.copy(ending = PendingEnd(NightIdentity("night-0", 0), HistoryEvent(now.toString(), EventKind.ENDED, "Ended"))) }
+
+        // The backup holds an older copy of the record, without its events.
+        repo.restore(importable().let { it.copy(history = it.history + ending.copy(events = emptyList())) })
+
+        assertEquals(setOf("n1", "night-0"), repo.history.value.map { it.id }.toSet())
+        assertEquals(ending, repo.history.value.single { it.id == "night-0" })
+        assertEquals(ending, repository().history.value.single { it.id == "night-0" })
     }
 
     // Migrations and retention
