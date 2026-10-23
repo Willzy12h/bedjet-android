@@ -69,10 +69,14 @@ class UiFinalisationTest {
     @Test fun tonightOverrideIsLabelledAsAnOverrideInEveryLook() {
         for ((theme, simple) in listOf(ThemeMode.DARK to false, ThemeMode.LIGHT to false,
             ThemeMode.DARK to true, ThemeMode.LIGHT to true)) {
+            // Resolve the graph and the time here: the repository runs this lambda off the main thread,
+            // where compose.activity (behind `graph`) cannot be read under Robolectric.
+            val graph = graph
+            val now = graph.now()
             compose.runOnUiThread { runBlocking {
                 graph.repository.updateSettings {
                     it.copy(themeMode = theme, simpleView = simple)
-                        .setWakeOverride(graph.now().plusHours(7), graph.now())
+                        .setWakeOverride(now.plusHours(7), now)
                 }
             } }
             waitFor("Tonight-only wake time")

@@ -75,4 +75,10 @@
     <string name="feature_off">Off</string>
     <string name="feature_working">Working on your BedJet…</string>
     <string name="feature_operation_timeout">The operation timed out. Check the BedJet status before trying again.</string>
+    <!-- Where tonight's wake time comes from, in every look. -->
+    <string name="wake_origin_alarm_headline">From your alarm</string>
+    <string name="wake_origin_alarm">Your alarm</string>
+    <string name="wake_origin_override">Tonight-only wake time</string>
+    <string name="wake_origin_profile">Profile\'s wake time</string>
+    <string name="wake_time">Wake time</string>
 </resources>

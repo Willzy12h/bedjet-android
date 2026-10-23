@@ -40,6 +40,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.core.night.WakeOrigin
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -117,8 +120,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
             when {
                 simple -> Unit // The timeline below ends with the wake time.
-                dark -> WakeHeadline(if (confirmed) "Waking you at" else "Planned wake", Format.clock(running.wakeAt), running.wakeFromAlarm)
-                else -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", if (confirmed) "Started" else "Planned start", Format.clock(running.wakeAt), running.wakeFromAlarm, waking = confirmed, planned = !confirmed)
+                dark -> WakeHeadline(if (confirmed) "Waking you at" else "Planned wake", Format.clock(running.wakeAt), running.wakeOrigin)
+                else -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", if (confirmed) "Started" else "Planned start", Format.clock(running.wakeAt), running.wakeOrigin, waking = confirmed, planned = !confirmed)
             }
             if (confirmed) plan?.stepAt(now)?.second?.let { step ->
                 Text(
@@ -129,7 +132,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             // Mid-night the controls come before the plan: they're what you reach for, and up here the
             // "night started" snackbar at the bottom of the screen doesn't cover them.
             if (confirmed) BigButton("End night", onClick = { guard.confirm("turn the BedJet off") { model.run(Command.END_NIGHT) } })
-            plan?.let { PlanCard(it, settings, running.wakeFromAlarm, now = now) }
+            plan?.let { PlanCard(it, settings, running.wakeOrigin, now = now) }
         } else {
             val choiceId = settings.resolveTonightChoice(now)?.profileId
             val scheduleWindow = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
@@ -138,8 +141,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             val preview = profile?.let { model.startPreview(it, now) }
             val wake = preview?.wake
             if (wake != null && !simple) {
-                if (dark) WakeHeadline("Wakes you at", Format.clock(wake.time), wake.fromAlarm)
-                else StatTiles(Format.clock(now), "Starts", Format.clock(wake.time), wake.fromAlarm, waking = false)
+                if (dark) WakeHeadline("Wakes you at", Format.clock(wake.time), wake.origin)
+                else StatTiles(Format.clock(now), "Starts", Format.clock(wake.time), wake.origin, waking = false)
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 profiles.forEach { p ->
@@ -155,7 +158,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 alarm?.let { next ->
                     if (!next.counts) Note("Your next alarm at ${Format.clock(next.time)} is from ${next.creator}, which isn't a clock app. Allow it in Settings.")
                 } ?: if (it.wakeSource.useAlarm) Note("No alarm set, so the profile's wake time is used.") else Unit
-                preview?.plan?.let { plan -> PlanCard(plan, settings, wake?.fromAlarm ?: false, now = null) }
+                preview?.plan?.let { plan -> PlanCard(plan, settings, wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null) }
                     ?: Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.error)
                 BigButton("Start night now", enabled = !busy && preview?.plan != null, onClick = { model.run(Command.START_NIGHT, it.id) })
             }
@@ -182,20 +185,28 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
 
 /** Midnight Ink's lead: the wake time, large. */
 @Composable
-private fun WakeHeadline(label: String, time: String, fromAlarm: Boolean) {
+private fun WakeHeadline(label: String, time: String, origin: WakeOrigin) {
     Column(Modifier.semantics(mergeDescendants = true) {}) {
         Text(label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(time, fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.Light, color = MaterialTheme.colorScheme.onSurface)
-        Text(if (fromAlarm) "From your alarm" else "Profile's wake time", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(when (origin) {
+            WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm_headline)
+            WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
+            WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_origin_profile)
+        }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 /** Daylight's lead: start and wake side by side. */
 @Composable
-private fun StatTiles(startTime: String, startLabel: String, wakeTime: String, fromAlarm: Boolean, waking: Boolean, planned: Boolean = false) {
+private fun StatTiles(startTime: String, startLabel: String, wakeTime: String, origin: WakeOrigin, waking: Boolean, planned: Boolean = false) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         StatTile(startLabel, startTime, null, Modifier.weight(1f))
-        StatTile(if (planned) "Planned wake" else if (waking) "Waking you at" else "Wakes you at", wakeTime, if (fromAlarm) "Your alarm" else "Profile's wake time", Modifier.weight(1f))
+        StatTile(if (planned) "Planned wake" else if (waking) "Waking you at" else "Wakes you at", wakeTime, when (origin) {
+            WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm)
+            WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
+            WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_origin_profile)
+        }, Modifier.weight(1f))
     }
 }
 
@@ -212,11 +223,11 @@ private fun StatTile(label: String, value: String, note: String?, modifier: Modi
 
 /** The night itself: the bar curve, or in simple view the step list. */
 @Composable
-private fun PlanCard(plan: Plan, settings: Settings, fromAlarm: Boolean, now: ZonedDateTime?) {
+private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: ZonedDateTime?) {
     Card(Modifier.fillMaxWidth(), colors = surfaceCard(), border = cardBorder()) {
         Column(Modifier.padding(16.dp)) {
             if (settings.simpleView) {
-                NightTimeline(plan, fromAlarm, settings.fahrenheit, now = now)
+                NightTimeline(plan, origin, settings.fahrenheit, now = now)
             } else {
                 Text("The night", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
                 NightCurve(plan, now = now, legend = !nocturneColors.dark)

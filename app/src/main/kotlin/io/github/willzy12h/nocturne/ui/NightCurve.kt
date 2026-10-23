@@ -26,11 +26,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.core.night.WakeOrigin
 import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.protocol.Mode
@@ -166,7 +169,7 @@ fun timelineEntries(plan: Plan): List<TimelineEntry> {
  * the wake time; anything that runs after waking is summarised on that last line.
  */
 @Composable
-fun NightTimeline(plan: Plan, fromAlarm: Boolean, fahrenheit: Boolean, modifier: Modifier = Modifier, now: ZonedDateTime? = null) {
+fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier: Modifier = Modifier, now: ZonedDateTime? = null) {
     val entries = timelineEntries(plan)
     val (before, after) = entries.partition { it.block != Block.AFTER_WAKE }
     val colors = nocturneColors
@@ -186,7 +189,11 @@ fun NightTimeline(plan: Plan, fromAlarm: Boolean, fahrenheit: Boolean, modifier:
         TimelineRow(
             time = Format.clock(plan.wake),
             dot = colors.accent,
-            title = if (fromAlarm) "Your alarm" else "Wake time",
+            title = when (origin) {
+                WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm)
+                WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
+                WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_time)
+            },
             detail = after.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Then ") { "${Format.modeName(it.mode).lowercase()} for ${Format.duration(it.minutes)}" },
             titleColor = colors.accent,
             bold = true,
