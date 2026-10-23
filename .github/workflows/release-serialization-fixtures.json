@@ -1,0 +1,739 @@
+{
+  "format": 1,
+  "description": "Release JVM fixtures. $ref expands values below. Every compiled production @Serializable class must have cases; every serialized field and enum value is checked. This is separate from APK DEX structural evidence.",
+  "values": {
+    "phase": {
+      "mode": "HEAT",
+      "temperature": 66,
+      "fanPercent": 45,
+      "minutes": 12
+    },
+    "middle": {
+      "mode": "COOL",
+      "fanStart": 35,
+      "fanEnd": 25,
+      "tempStart": 44,
+      "tempEnd": 46,
+      "rampSteps": 4
+    },
+    "limits": {
+      "minFan": 10,
+      "maxFan": 85,
+      "minTemp": 42,
+      "maxTemp": 80
+    },
+    "wakeSource": {
+      "useAlarm": false,
+      "defaultWakeMinute": 435
+    },
+    "profile": {
+      "id": "release-profile",
+      "name": "Night \"round trip\" · 夜",
+      "season": "WINTER",
+      "start": [
+        {
+          "$ref": "phase"
+        }
+      ],
+      "middle": {
+        "$ref": "middle"
+      },
+      "wake": [
+        {
+          "$ref": "phase"
+        }
+      ],
+      "afterWake": [
+        {
+          "$ref": "phase"
+        }
+      ],
+      "limits": {
+        "$ref": "limits"
+      },
+      "wakeSource": {
+        "$ref": "wakeSource"
+      },
+      "bedtimeMinute": 1305,
+      "days": [
+        1,
+        3,
+        5
+      ],
+      "turboChain": "REPEAT_TURBO"
+    },
+    "tonightOverride": {
+      "wakeAt": "2026-10-24T07:00Z",
+      "setAt": "2026-10-23T22:30Z"
+    },
+    "tonightChoice": {
+      "profileId": "release-profile",
+      "expiresAt": "2026-10-24T07:00Z"
+    },
+    "programStep": {
+      "mode": "DRY",
+      "fanStep": 5,
+      "temperature": 60,
+      "hours": 1,
+      "minutes": 17,
+      "endsAtClockTime": true
+    },
+    "program": {
+      "name": "Original slot · 雨",
+      "steps": [
+        {
+          "$ref": "programStep"
+        }
+      ]
+    },
+    "action": {
+      "mode": "DRY",
+      "temperature": 58,
+      "fanPercent": 35,
+      "minutes": 17
+    },
+    "platform": {
+      "bedtimeReminder": true,
+      "reminderMinutes": 45,
+      "chargerAutoStart": true,
+      "chargerDevice": "ble:AA:BB:CC:DD:EE:FF",
+      "healthSleepOverlay": true,
+      "lullHandover": true
+    },
+    "settings": {
+      "workingSlot": 1,
+      "selectedProfileId": "legacy-profile",
+      "tonightChoice": {
+        "$ref": "tonightChoice"
+      },
+      "tonightOverride": {
+        "$ref": "tonightOverride"
+      },
+      "acceptUnknownAlarmSource": false,
+      "notificationActions": [
+        "SNOOZE_COOL",
+        "EXTEND_WARM",
+        "OFF"
+      ],
+      "snoozeWarm": {
+        "$ref": "action"
+      },
+      "snoozeCool": {
+        "$ref": "action"
+      },
+      "extendWarm": {
+        "$ref": "action"
+      },
+      "extendCool": {
+        "$ref": "action"
+      },
+      "boostMinutes": 25,
+      "fahrenheit": true,
+      "demoMode": true,
+      "targetDevice": "ble:AA:BB:CC:DD:EE:FF",
+      "setupFanCheckedDevice": "ble:AA:BB:CC:DD:EE:FF",
+      "updateRepo": "example/release-check",
+      "autoUpdateCheck": true,
+      "alarmPackages": [
+        "clock.example.one",
+        "clock.example.two"
+      ],
+      "themeMode": "SCHEDULED",
+      "scheduledDarkMinute": 1260,
+      "scheduledLightMinute": 465,
+      "simpleView": true,
+      "quietNightNotification": true,
+      "platform": {
+        "$ref": "platform"
+      }
+    },
+    "slotBackup": {
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "slot": 1,
+      "program": {
+        "$ref": "program"
+      },
+      "savedAt": "2026-10-23T22:30Z",
+      "empty": false,
+      "imported": true,
+      "uncertain": true
+    },
+    "event": {
+      "at": "2026-10-24T07:00Z",
+      "kind": "MORNING_FEEDBACK",
+      "detail": "Too cold\n\"please adjust\" · 冷",
+      "comfort": "TOO_COLD"
+    },
+    "recordedStep": {
+      "block": "MIDDLE",
+      "mode": "DRY",
+      "temperature": 60,
+      "fanPercent": 30,
+      "startsAt": "2026-10-23T22:30Z",
+      "minutes": 77
+    },
+    "temperature": {
+      "at": "2026-10-23T22:30Z",
+      "room": 42,
+      "air": 54
+    },
+    "identity": {
+      "nightId": "release-night",
+      "revision": 7
+    },
+    "applied": {
+      "steps": [
+        {
+          "$ref": "recordedStep"
+        }
+      ],
+      "start": "2026-10-23T22:30Z",
+      "wake": "2026-10-24T07:00Z",
+      "revision": 7,
+      "programSteps": [
+        {
+          "$ref": "programStep"
+        }
+      ]
+    },
+    "record": {
+      "id": "release-night",
+      "profileId": "release-profile",
+      "profileName": "Night · 夜",
+      "startedAt": "2026-10-23T22:30Z",
+      "wakeAt": "2026-10-24T07:00Z",
+      "wakeFromAlarm": true,
+      "steps": [
+        {
+          "$ref": "recordedStep"
+        }
+      ],
+      "events": [
+        {
+          "$ref": "event"
+        }
+      ],
+      "temperatures": [
+        {
+          "$ref": "temperature"
+        }
+      ],
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "revisions": [
+        {
+          "$ref": "applied"
+        }
+      ]
+    },
+    "activeBase": {
+      "recordId": "release-night",
+      "profileId": "release-profile",
+      "startedAt": "2026-10-23T22:30Z",
+      "wakeAt": "2026-10-24T07:00Z",
+      "wakeFromAlarm": false,
+      "slot": 1,
+      "wakeUpStart": "2026-10-24T06:48Z",
+      "endsAt": "2026-10-24T07:12Z",
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "profile": {
+        "$ref": "profile"
+      },
+      "wakeOrigin": "OVERRIDE",
+      "revision": 7,
+      "applied": {
+        "$ref": "applied"
+      },
+      "confidence": "CONFIRMED",
+      "pending": null,
+      "actualEnd": null,
+      "trackingManual": true
+    },
+    "pending": {
+      "requestId": "release-change",
+      "kind": "RETIME",
+      "requestedWake": "2026-10-24T07:30Z",
+      "requestedAt": "2026-10-23T22:30Z",
+      "deadline": "2026-10-23T22:32Z",
+      "expected": {
+        "$ref": "identity"
+      },
+      "intended": {
+        "$ref": "activeBase"
+      }
+    },
+    "resume": {
+      "night": {
+        "$ref": "activeBase"
+      },
+      "remaining": [
+        {
+          "$ref": "recordedStep"
+        }
+      ],
+      "stoppedAt": "2026-10-23T23:00Z",
+      "expiresAt": "2026-10-23T23:10Z",
+      "commandVersion": 9
+    },
+    "backup": {
+      "schema": 2,
+      "createdAt": "2026-10-23T22:30Z",
+      "profiles": [
+        {
+          "$ref": "profile"
+        }
+      ],
+      "settings": {
+        "$ref": "settings"
+      },
+      "slotBackups": [
+        {
+          "$ref": "slotBackup"
+        }
+      ],
+      "history": [
+        {
+          "$ref": "record"
+        }
+      ]
+    },
+    "snapshot": {
+      "createdAt": "2026-10-23T22:30Z",
+      "label": "Before \"winter\" · 夜",
+      "manual": true,
+      "bundle": {
+        "$ref": "backup"
+      }
+    },
+    "notice": {
+      "at": "2026-10-23T22:30Z",
+      "kind": "PROBLEM",
+      "title": "Connection · 夜",
+      "text": "First line\nSecond \"line\""
+    },
+    "retime": {
+      "id": "release-retime",
+      "expected": {
+        "$ref": "identity"
+      },
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "alarmAt": "2026-10-24T07:00Z",
+      "alarmOrigin": "clock.example.one",
+      "deadline": "2026-10-23T22:32Z"
+    },
+    "slotWrite": {
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "slot": 1,
+      "intended": {
+        "$ref": "program"
+      },
+      "confidence": "UNKNOWN",
+      "label": "Restore · 夜",
+      "startRequested": true,
+      "displaced": {
+        "$ref": "identity"
+      },
+      "nightId": "release-night"
+    },
+    "observation": {
+      "id": "release-observation",
+      "nightId": "release-night",
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "observedAt": "2026-10-23T22:30Z"
+    },
+    "end": {
+      "identity": {
+        "$ref": "identity"
+      },
+      "event": {
+        "$ref": "event"
+      }
+    },
+    "delivery": {
+      "id": "release-delivery",
+      "action": "retime",
+      "expected": {
+        "$ref": "identity"
+      },
+      "receivedAt": "2026-10-23T22:30Z"
+    },
+    "wakeChange": {
+      "expected": {
+        "$ref": "identity"
+      },
+      "origin": "OVERRIDE"
+    },
+    "runtime": {
+      "generation": 4294967297,
+      "localDeliveries": [
+        {
+          "$ref": "delivery"
+        }
+      ],
+      "alarmInbox": {
+        "$ref": "observation"
+      },
+      "ending": {
+        "$ref": "end"
+      },
+      "wakeSourceChange": {
+        "$ref": "wakeChange"
+      },
+      "resumeOffer": {
+        "$ref": "resume"
+      },
+      "retime": {
+        "$ref": "retime"
+      },
+      "slotWrite": {
+        "$ref": "slotWrite"
+      },
+      "reason": "Recovery · 夜",
+      "wakeShown": {
+        "$ref": "identity"
+      },
+      "manualWakeShown": true
+    },
+    "journalWrite": {
+      "name": "settings.json",
+      "bytes": "eyJ3b3JraW5nU2xvdCI6MX0=",
+      "sha256": "abababababababababababababababababababababababababababababababab"
+    },
+    "journal": {
+      "writes": [
+        {
+          "$ref": "journalWrite"
+        }
+      ]
+    },
+    "deviceObservation": {
+      "device": "ble:AA:BB:CC:DD:EE:FF",
+      "name": "BedJet · 夜",
+      "mode": "COOL",
+      "running": true,
+      "at": "2026-10-23T22:30Z"
+    },
+    "automation": {
+      "claims": [
+        "release-one",
+        "release-two"
+      ],
+      "observed": {
+        "$ref": "deviceObservation"
+      }
+    },
+    "active": {
+      "recordId": "release-night",
+      "profileId": "release-profile",
+      "startedAt": "2026-10-23T22:30Z",
+      "wakeAt": "2026-10-24T07:00Z",
+      "wakeFromAlarm": false,
+      "slot": 1,
+      "wakeUpStart": "2026-10-24T06:48Z",
+      "endsAt": "2026-10-24T07:12Z",
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "profile": {
+        "$ref": "profile"
+      },
+      "wakeOrigin": "OVERRIDE",
+      "revision": 7,
+      "applied": {
+        "$ref": "applied"
+      },
+      "confidence": "CONFIRMED",
+      "pending": {
+        "$ref": "pending"
+      },
+      "actualEnd": "2026-10-24T07:00Z",
+      "trackingManual": true
+    }
+  },
+  "models": {
+    "io.github.willzy12h.nocturne.core.night.ActiveNight": [
+      {
+        "$ref": "active"
+      },
+      {
+        "$ref": "activeBase"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.night.AppliedProgram": [
+      {
+        "$ref": "applied"
+      },
+      {}
+    ],
+    "io.github.willzy12h.nocturne.core.night.ChangeKind": [
+      "START",
+      "RETIME",
+      "REAPPLY",
+      "RESUME",
+      "STOP",
+      "MANUAL"
+    ],
+    "io.github.willzy12h.nocturne.core.night.Confidence": [
+      "CONFIRMED",
+      "PENDING",
+      "FAILED",
+      "UNKNOWN"
+    ],
+    "io.github.willzy12h.nocturne.core.night.NightIdentity": [
+      {
+        "$ref": "identity"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.night.PendingChange": [
+      {
+        "$ref": "pending"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.night.ResumeOffer": [
+      {
+        "$ref": "resume"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.night.WakeOrigin": [
+      "ALARM",
+      "PROFILE_DEFAULT",
+      "OVERRIDE"
+    ],
+    "io.github.willzy12h.nocturne.core.plan.Block": [
+      "START",
+      "MIDDLE",
+      "WAKE",
+      "AFTER_WAKE"
+    ],
+    "io.github.willzy12h.nocturne.core.plan.Middle": [
+      {
+        "$ref": "middle"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.plan.Phase": [
+      {
+        "$ref": "phase"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.plan.Profile": [
+      {
+        "$ref": "profile"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.plan.ProfileLimits": [
+      {
+        "$ref": "limits"
+      },
+      {}
+    ],
+    "io.github.willzy12h.nocturne.core.plan.Season": [
+      "NONE",
+      "SUMMER",
+      "WINTER",
+      "SPRING_AUTUMN"
+    ],
+    "io.github.willzy12h.nocturne.core.plan.TonightChoice": [
+      {
+        "$ref": "tonightChoice"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.plan.TonightOverride": [
+      {
+        "$ref": "tonightOverride"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.plan.TurboChain": [
+      "TURBO_THEN_HEAT",
+      "REPEAT_TURBO"
+    ],
+    "io.github.willzy12h.nocturne.core.plan.WakeSource": [
+      {
+        "$ref": "wakeSource"
+      },
+      {}
+    ],
+    "io.github.willzy12h.nocturne.core.protocol.Mode": [
+      "STANDBY",
+      "HEAT",
+      "TURBO",
+      "EXTENDED_HEAT",
+      "COOL",
+      "DRY",
+      "WAIT"
+    ],
+    "io.github.willzy12h.nocturne.core.protocol.ProgramStep": [
+      {
+        "$ref": "programStep"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.protocol.StoredProgram": [
+      {
+        "$ref": "program"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.ActionPreset": [
+      {
+        "$ref": "action"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.BackupBundle": [
+      {
+        "$ref": "backup"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.EventKind": [
+      "STARTED",
+      "RETIMED",
+      "SNOOZED",
+      "EXTENDED",
+      "STOPPED",
+      "ENDED",
+      "UNIT_NOTICE",
+      "ERROR",
+      "REMOTE_CHANGE",
+      "RECOVERED",
+      "MORNING_FEEDBACK",
+      "MORNING_SUGGESTION_APPLIED"
+    ],
+    "io.github.willzy12h.nocturne.core.store.HistoryEvent": [
+      {
+        "$ref": "event"
+      },
+      {
+        "at": "2026-10-23T22:30Z",
+        "kind": "STARTED",
+        "detail": "Before feedback",
+        "comfort": null
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.LoggedNotice": [
+      {
+        "$ref": "notice"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.MorningComfort": [
+      "TOO_HOT",
+      "JUST_RIGHT",
+      "TOO_COLD"
+    ],
+    "io.github.willzy12h.nocturne.core.store.NightRecord": [
+      {
+        "$ref": "record"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.NoticeKind": [
+      "INFO",
+      "WAKE_UP",
+      "PROBLEM",
+      "UPDATE"
+    ],
+    "io.github.willzy12h.nocturne.core.store.PlatformSettings": [
+      {
+        "$ref": "platform"
+      },
+      {}
+    ],
+    "io.github.willzy12h.nocturne.core.store.RecordedStep": [
+      {
+        "$ref": "recordedStep"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.Settings": [
+      {
+        "$ref": "settings"
+      },
+      {}
+    ],
+    "io.github.willzy12h.nocturne.core.store.SlotBackup": [
+      {
+        "$ref": "slotBackup"
+      },
+      {
+        "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+        "slot": 0,
+        "program": null,
+        "savedAt": "2026-10-23T22:30Z",
+        "empty": true,
+        "imported": false,
+        "uncertain": false
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.SnapshotStore$SnapshotFile": [
+      {
+        "$ref": "snapshot"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.TempSample": [
+      {
+        "$ref": "temperature"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.ThemeMode": [
+      "SYSTEM",
+      "DARK",
+      "LIGHT",
+      "SCHEDULED"
+    ],
+    "io.github.willzy12h.nocturne.core.store.WakeAction": [
+      "SNOOZE_WARM",
+      "SNOOZE_COOL",
+      "EXTEND_WARM",
+      "EXTEND_COOL",
+      "OFF"
+    ],
+    "io.github.willzy12h.nocturne.data.Repository$JournalWrite": [
+      {
+        "$ref": "journalWrite"
+      }
+    ],
+    "io.github.willzy12h.nocturne.data.Repository$RestoreJournal": [
+      {
+        "$ref": "journal"
+      }
+    ],
+    "io.github.willzy12h.nocturne.night.AlarmObservation": [
+      {
+        "$ref": "observation"
+      }
+    ],
+    "io.github.willzy12h.nocturne.night.LocalDelivery": [
+      {
+        "$ref": "delivery"
+      }
+    ],
+    "io.github.willzy12h.nocturne.night.PendingEnd": [
+      {
+        "$ref": "end"
+      }
+    ],
+    "io.github.willzy12h.nocturne.night.PendingRetime": [
+      {
+        "$ref": "retime"
+      }
+    ],
+    "io.github.willzy12h.nocturne.night.RuntimeState": [
+      {
+        "$ref": "runtime"
+      },
+      {}
+    ],
+    "io.github.willzy12h.nocturne.night.SlotWrite": [
+      {
+        "$ref": "slotWrite"
+      }
+    ],
+    "io.github.willzy12h.nocturne.night.WakeSourceChange": [
+      {
+        "$ref": "wakeChange"
+      }
+    ],
+    "io.github.willzy12h.nocturne.platform.AutomationState": [
+      {
+        "$ref": "automation"
+      },
+      {}
+    ],
+    "io.github.willzy12h.nocturne.platform.DeviceObservation": [
+      {
+        "$ref": "deviceObservation"
+      }
+    ]
+  }
+}

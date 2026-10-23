@@ -11,8 +11,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.ui.MainActivity
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
@@ -32,7 +33,7 @@ import kotlinx.coroutines.runBlocking
 
 /**
  * Renders the real app's screens to PNG for before/after comparison. Off unless SCREENSHOT_TAG is set, e.g.
- * `SCREENSHOT_TAG=baseline ./gradlew :app:testDebugUnitTest --tests '*ScreenshotCapture*'`. Images land in
+ * `SCREENSHOT_TAG=after ./gradlew :app:testDebugUnitTest --tests '*ScreenshotCapture*' --rerun-tasks`. Images land in
  * `app/build/screenshots/<tag>/`. Rendered by Robolectric's native graphics on the JVM against the demo BedJet:
  * real Compose layout and drawing, not a device, and not Bluetooth evidence.
  */
@@ -40,16 +41,26 @@ import kotlinx.coroutines.runBlocking
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class ScreenshotCapture {
+    private val tag = System.getenv("SCREENSHOT_TAG")
+    private val captureInstant = Instant.parse("2026-10-22T22:30:00Z")
+    private val captureZone = ZoneId.of("Europe/London")
+    private var expectedWidthDp = 411
+    private var expectedFontScale = 1f
     private val compose = createAndroidComposeRule<MainActivity>()
     private val pinClock = TestRule { base, description ->
         object : org.junit.runners.model.Statement() {
           override fun evaluate() {
+            assumeTrue("set SCREENSHOT_TAG to capture", !tag.isNullOrBlank())
+            require(tag!!.matches(Regex("[A-Za-z0-9][A-Za-z0-9_-]*"))) { "SCREENSHOT_TAG must be a simple directory name" }
             val app = RuntimeEnvironment.getApplication() as App
             val oldClock = app.graph.clock
             val oldScale = app.resources.configuration.fontScale
-            app.graph.clock = Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"), ZoneId.of("Europe/London"))
-            if (description.methodName.contains("combined320And200")) {
-                val config = android.content.res.Configuration(app.resources.configuration).apply { fontScale = 2f }
+            app.graph.clock = Clock.fixed(captureInstant, captureZone)
+            val combined = description.methodName.contains("combined320And200")
+            expectedWidthDp = if (combined) 320 else 411
+            expectedFontScale = if (combined) 2f else 1f
+            if (oldScale != expectedFontScale) {
+                val config = android.content.res.Configuration(app.resources.configuration).apply { fontScale = expectedFontScale }
                 @Suppress("DEPRECATION")
                 app.resources.updateConfiguration(config, app.resources.displayMetrics)
             }
@@ -66,11 +77,7 @@ class ScreenshotCapture {
     }
     @get:Rule val rules: TestRule = RuleChain.outerRule(pinClock).around(compose)
 
-    private val tag = System.getenv("SCREENSHOT_TAG")
     private val graph get() = compose.activity.graph
-
-    @Before
-    fun only() = assumeTrue("set SCREENSHOT_TAG to capture", !tag.isNullOrBlank())
 
     @Test fun dark() = capture("dark", ThemeMode.DARK, simple = false)
     @Test fun light() = capture("light", ThemeMode.LIGHT, simple = false)
@@ -136,10 +143,28 @@ class ScreenshotCapture {
 
     private fun shot(name: String) {
         val dir = File("build/screenshots/$tag").apply { mkdirs() }
+        val config = compose.activity.resources.configuration
+        assertEquals("Capture must use the pinned Graph.clock instant", captureInstant, graph.clock.instant())
+        assertEquals("Capture must use the pinned Graph.clock zone", captureZone, graph.clock.zone)
+        assertEquals("Capture width in dp", expectedWidthDp, config.screenWidthDp)
+        assertEquals("Capture font scale", expectedFontScale, config.fontScale, 0.001f)
         // Drawing the window directly; captureToImage waits on frame callbacks Robolectric's paused clock never sends.
         val view = compose.activity.window.decorView
+        assertTrue("Capture window must be laid out", view.width > 0 && view.height > 0)
         val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
         compose.runOnUiThread { view.draw(Canvas(bitmap)) }
-        File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        File(dir, "$name.png").outputStream().use {
+            assertTrue("PNG compression must succeed", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+        }
+        File(dir, "$name.json").writeText("""
+            {"renderer":"Robolectric native graphics","sdk":34,"tag":"$tag",
+             "clockInstant":"${graph.clock.instant()}","clockZone":"${graph.clock.zone}",
+             "screenWidthDp":${config.screenWidthDp},"screenHeightDp":${config.screenHeightDp},
+             "fontScale":${config.fontScale},"densityDpi":${config.densityDpi},
+             "pixelWidth":${view.width},"pixelHeight":${view.height},
+             "theme":"${graph.repository.settings.value.themeMode}",
+             "simpleView":${graph.repository.settings.value.simpleView},"demoMode":${graph.repository.settings.value.demoMode}}
+        """.trimIndent() + "\n")
+        bitmap.recycle()
     }
 }
