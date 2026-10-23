@@ -207,6 +207,8 @@ jobs:
             ${{ runner.temp }}/nocturne-release/unsigned/signature.txt
             ${{ runner.temp }}/nocturne-release/unsigned/r8/
             app/build/reports/release-manifest/
+            app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml
+            app/build/generated/manifests/generateReleaseSecurityManifest/AndroidManifest.xml
             app/build/reports/release-screenshots/
             app/build/screenshots/after/
             docs/screenshots/baseline/

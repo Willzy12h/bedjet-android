@@ -6,7 +6,7 @@
 
 **Architecture:** retain the candidate's Android/Gradle toolchain and production implementation. Add reproducible release checks under `.github/workflows/`, narrow build configuration, test fixtures and evidence. Verify release JVM JSON behaviour separately from the actual R8 APK's mapped DEX definitions; neither is described as executing the APK on Android.
 
-**Specification:** William's six-point release/build request in this session. It authorises implementation, testing and pushing this branch, with Claude retaining merge ownership. No additional design approval is required for routine implementation choices.
+**Specification:** The six-point release/build request in this session. It authorises implementation, testing and pushing this branch, with Claude retaining merge ownership. No additional design approval is required for routine implementation choices.
 
 ## Constraints and decisions
 
@@ -20,12 +20,12 @@
 
 ## Work and verification
 
-- [ ] **1. Build/signing:** validate absent, partial, invalid and complete signing configuration; build unsigned and explicitly test-signed shrunk releases; compare their signer identities with the debug certificate. Verify APK metadata with Android tools.
-- [ ] **2. Serialization:** inventory serializable persistence models; round-trip every covered model using release-variant classes; inspect the actual APK's defined DEX classes against its R8 mapping/usage and fail on missing coverage.
-- [ ] **3. Manifest:** inspect the merged release manifest including library components; restrict unnecessary exported receivers through a generated overlay; document each component and permission.
-- [ ] **4. CI:** run the required debug/core/lint gates, release checks and signing build test; upload evidence and the explicitly test-signed APK; isolate production tag signing and require increasing version codes plus the expected certificate.
-- [ ] **5. Screenshots:** render with `SCREENSHOT_TAG=after` and fixed `Graph.clock`; compare all existing baseline images and record new, missing or changed images, including narrow/large-font coverage. No redesign.
-- [ ] **6. Handover:** review the whole scoped diff; record exact test counts, APK/version/hash/certificate/source metadata and limitations in `release-candidate-report.md`; commit, push only `gpt/nocturne-release`, verify CI on its exact head and provide that SHA.
+- **1. Build/signing:** validate absent, partial, invalid and complete signing configuration; build unsigned and explicitly test-signed shrunk releases; compare their signer identities with the debug certificate. Verify APK metadata with Android tools.
+- **2. Serialisation:** inventory serialisable persistence models; round-trip every covered model using release-variant classes; inspect the actual APK's defined DEX classes against its R8 mapping/usage and fail on missing coverage.
+- **3. Manifest:** inspect the merged release manifest including library components; restrict unnecessary exported receivers through a generated overlay; document each component and permission.
+- **4. CI:** run the required debug/core/lint gates, release checks and signing build test; upload evidence and the explicitly test-signed APK; isolate production tag signing and require increasing version codes plus the expected certificate.
+- **5. Screenshots:** render with `SCREENSHOT_TAG=after` and fixed `Graph.clock`; compare all existing baseline images and record new, missing or changed images, including narrow/large-font coverage. No redesign.
+- **6. Handover:** review the whole scoped diff; record exact test counts, APK/version/hash/certificate/source metadata and limitations in `release-candidate-report.md`; commit, push only `gpt/nocturne-release`, verify CI on its exact head and provide that SHA.
 
 ## Review focus
 
@@ -38,4 +38,4 @@
 
 ## Progress
 
-Implementation and evidence are maintained in the scoped release reports and CI artefacts. The SDK and build caches are task-local. A transient environment disconnect occurred during initial inspection and recovered before implementation.
+Implementation, independent review and all local build/test/signing/manifest/screenshot checks are complete. The scoped release reports record the exact results and visual limitations. Final verification is the Build run on the pushed report commit; its source SHA, conclusion and artefact metadata are recorded in the delivery message. The initial toolchain setup issue was resolved before the successful required gate.
