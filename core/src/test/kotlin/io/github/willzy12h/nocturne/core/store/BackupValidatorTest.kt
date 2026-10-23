@@ -113,6 +113,27 @@ class BackupValidatorTest {
         assertEquals(emptyList<String>(), errors(good.copy(slotBackups = listOf(original.copy(program = StoredProgram("old", emptyList()))))))
     }
 
+    /**
+     * A recorded original is what the BedJet held, written back as it is: only what the codec can carry is checked,
+     * never the official app's per-mode range or its heat cut-off table, or the app would refuse its own snapshots.
+     */
+    @Test
+    fun aRecordedOriginalOutsideTheModeRangeStillPasses() {
+        val original = good.slotBackups.first()
+        val hot = original.copy(program = StoredProgram("bedjet", listOf(
+            ProgramStep(Mode.HEAT, 5, 200, 1, 0),
+            ProgramStep(Mode.COOL, 19, 10, 0, 30),
+            ProgramStep(Mode.HEAT, 19, 80, 11, 0),
+        )))
+        assertEquals(emptyList<String>(), errors(good.copy(slotBackups = listOf(hot))))
+        assertRejected(good.copy(slotBackups = listOf(original.copy(program = StoredProgram("bad", listOf(
+            ProgramStep(Mode.HEAT, 5, 256, 1, 0)
+        ))))), "temperature")
+        assertRejected(good.copy(slotBackups = listOf(original.copy(program = StoredProgram("bad", listOf(
+            ProgramStep(Mode.HEAT, 5, -1, 1, 0)
+        ))))), "temperature")
+    }
+
     @Test
     fun settingsRanges() {
         assertRejected(good.copy(settings = Settings(boostMinutes = 0)), "boost")

@@ -26,6 +26,8 @@ object BackupValidator {
     private val MINUTE_OF_DAY = 0 until 24 * 60
     private val DAYS = 1..7
     private const val MAX_NOTIFICATION_ACTIONS = 3
+    /** A stored programme step's temperature is one byte on the wire. */
+    private val CODEC_BYTE = 0..255
     /** Every temperature any mode allows, Turbo's included. */
     private val allTemps = Mode.entries.minOf { it.temperatureRange.first }..Mode.entries.maxOf { it.temperatureRange.last }
 
@@ -66,10 +68,13 @@ object BackupValidator {
                     add("A saved slot programme must have at most ${Limits.STEPS_PER_PROGRAM} steps.")
                 program.steps.forEachIndexed { index, step ->
                     val what = "Saved slot ${backup.slot + 1}, step ${index + 1}"
+                    // A recorded original is put back exactly as the BedJet held it, so it is checked against what
+                    // the codec carries, not the official app's per-mode range or heat cut-off table: a BedJet can
+                    // hold a programme another app wrote, and the app's own snapshots must restore (IR-16).
                     if (step.fanStep !in 0..19) add("$what has a fan setting outside 5 to 100%.")
-                    temperature("$what: the temperature", step.mode, step.temperature)
+                    if (step.temperature !in CODEC_BYTE) add("$what has a temperature value the BedJet cannot hold.")
                     if (step.minutes !in 0..59 || step.hours !in (if (step.endsAtClockTime) 0..23 else 0..11) ||
-                        (!step.endsAtClockTime && (step.durationMinutes !in 1..Limits.MAX_STEP_MINUTES || !step.fitsUnitLimits)))
+                        (!step.endsAtClockTime && step.durationMinutes !in 1..Limits.MAX_STEP_MINUTES))
                         add("$what has a time the BedJet cannot run.")
                 }
             }

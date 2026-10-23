@@ -645,6 +645,19 @@ class RepositoryTest {
     }
 
     @Test
+    fun aSnapshotHoldingARecordedOriginalOutsideTheModeRangeStillRestores() = runBlocking {
+        val repo = repository()
+        // What the BedJet held, recorded as it was: hotter than the official app allows for Heat.
+        val recorded = StoredProgram("bedjet", listOf(ProgramStep(Mode.HEAT, 5, 200, 1, 0)))
+        repo.recordOriginalSlot("ble:AA:BB", 2, recorded)
+        repo.snapshotNow("Mine")
+        val id = repo.snapshots.list().single { it.label == "Mine" }.id
+
+        assertTrue(repo.restoreSnapshot(id))
+        assertEquals(recorded, repo.originalSlot("ble:AA:BB", 2)!!.program)
+    }
+
+    @Test
     fun importedHistoryOlderThanSixtyDaysIsDropped() = runBlocking {
         val repo = repository()
         val old = NightRecord("old", "p", "P", now.minusDays(61).toString(), now.minusDays(61).toString(), false)
