@@ -423,11 +423,12 @@ class Repository(
             val restoreAt = now()
             val current = _settings.value.migrateTonightChoice(restoreAt)
             val profiles = bundle.profiles
-            val importedSettings = bundle.settings.migrateTonightChoice(restoreAt)
+            // Tonight's choice and override stay as they are. A version 1 selection in the bundle is migrated, as the
+            // app's own is, so it becomes tonight's choice only when there is none (IR-30).
+            val importedSettings = bundle.settings.copy(tonightChoice = current.tonightChoice, tonightOverride = current.tonightOverride)
+                .migrateTonightChoice(restoreAt)
             val settings = importedSettings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
                 setupFanCheckedDevice = current.setupFanCheckedDevice,
-                tonightChoice = current.tonightChoice,
-                tonightOverride = current.tonightOverride,
                 platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null))
             // Tonight's record, and that of a night being ended (its end is still to be added), are kept as they are.
             val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)

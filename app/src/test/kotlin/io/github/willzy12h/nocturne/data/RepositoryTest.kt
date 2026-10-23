@@ -629,16 +629,22 @@ class RepositoryTest {
         assertEquals(current.tonightChoice, repository().settings.value.tonightChoice)
     }
 
+    /**
+     * IR-30: an empty current override stays empty, but a version 1 selection in the backup is migrated, as the
+     * app's own version 1 settings are, and becomes tonight's choice when none is set.
+     */
     @Test
-    fun restoreDoesNotReplaceAnEmptyCurrentTonightChoiceOrWakeOverride() = runBlocking {
+    fun restoreMigratesAVersion1SelectionIntoAnEmptyTonightChoiceButKeepsAnEmptyWakeOverride() = runBlocking {
         val repo = repository()
         val imported = Settings(selectedProfileId = "imported").setWakeOverride(now.plusHours(8), now)
         repo.restore(importable().copy(settings = imported))
 
-        assertNull(repo.settings.value.tonightChoice)
+        val migrated = Settings().chooseTonight("imported", now).tonightChoice
+        assertEquals(migrated, repo.settings.value.tonightChoice)
+        assertEquals("imported", repo.tonightsProfile(now)?.id)
         assertNull(repo.settings.value.tonightOverride)
         assertNull(repo.settings.value.selectedProfileId)
-        assertNull(repository().settings.value.tonightChoice)
+        assertEquals(migrated, repository().settings.value.tonightChoice)
         assertNull(repository().settings.value.tonightOverride)
     }
 
