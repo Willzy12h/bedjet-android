@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.core.store
 
+import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.protocol.Limits
@@ -60,6 +61,9 @@ object BackupValidator {
         bundle.slotBackups.forEach { backup ->
             if (backup.slot !in SLOTS) add("A saved slot is numbered ${backup.slot + 1}; it must be 1 to ${Limits.SLOTS}.")
             time("The time slot ${backup.slot + 1} was saved", backup.savedAt)
+            val device = backup.deviceId
+            if (device != DeviceId.DEMO && device != Migrations.UNKNOWN_DEVICE && DeviceId.address(device).isNullOrBlank())
+                add("The original of slot ${backup.slot + 1} was saved for \"$device\", which isn't a BedJet this app knows.")
             if (backup.empty != (backup.program == null)) add("A saved slot's empty marker disagrees with its programme.")
             backup.program?.let { program ->
                 if (program.name.toByteArray(Charsets.UTF_8).size > Limits.NAME_LENGTH)

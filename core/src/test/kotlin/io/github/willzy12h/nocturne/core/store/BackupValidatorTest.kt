@@ -134,6 +134,17 @@ class BackupValidatorTest {
         ))))), "temperature")
     }
 
+    /** IR-16: a saved original names the demo unit, a BedJet saved before devices were recorded, or a real one. */
+    @Test
+    fun aSlotBackupMustNameABedJet() {
+        val original = good.slotBackups.first()
+        assertRejected(good.copy(slotBackups = listOf(original.copy(deviceId = "toaster"))), "toaster", "isn't a BedJet")
+        assertRejected(good.copy(slotBackups = listOf(original.copy(deviceId = "ble:"))), "isn't a BedJet")
+        listOf("demo", "unknown", "ble:AA:BB:CC:DD:EE:FF").forEach { id ->
+            assertEquals(emptyList<String>(), errors(good.copy(slotBackups = listOf(original.copy(deviceId = id)))), id)
+        }
+    }
+
     @Test
     fun settingsRanges() {
         assertRejected(good.copy(settings = Settings(boostMinutes = 0)), "boost")
