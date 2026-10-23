@@ -118,6 +118,44 @@ class LinkSessionsTest {
     }
 
     @Test
+    fun aTimedReleaseStillEndsAfterTheClockMovesBack() = runBlocking {
+        link.gate.complete(Unit)
+        val until = now + 1_000
+        sessions.suspendAutoConnect(untilMs = until)
+        // The wall clock is corrected backwards during the release, so when its timer runs out it is not yet over.
+        now -= 1_500
+        delay(1_300)
+        assertTrue(sessions.released.value)
+        // Once the wall clock does pass the deadline, the release ends by itself.
+        now = until + 1
+        eventually(timeoutMs = 4_000) { !sessions.released.value }
+    }
+
+    @Test
+    fun aTimedReleaseThatEndsAfterATargetSwitchOnlyConnectsToTheNewBedJet() = runBlocking {
+        val radio = FakeRadio()
+        var target: String? = DeviceId.ble(GattLinkTest.ADDRESS)
+        val gatt = GattLink(radio.radio, { target }, GattLinkTest.TIMINGS)
+        val sessions = LinkSessions(scope, { gatt }, { now }, graceMs = 10_000)
+        try {
+            sessions.holdForScreen(true)
+            eventually { gatt.state.value == LinkState.READY }
+            val until = now + 1_000
+            sessions.suspendAutoConnect(untilMs = until).join()
+            assertEquals(LinkState.SEARCHING, gatt.state.value)
+            target = DeviceId.ble(GattLinkTest.OTHER)
+            val before = radio.connects.size
+            now = until
+            // The release runs out by itself and the screen's hold reconnects.
+            eventually(timeoutMs = 4_000) { !sessions.released.value && gatt.state.value == LinkState.READY }
+            assertEquals(listOf(GattLinkTest.OTHER), radio.connects.drop(before))
+            assertTrue(radio.ports.filter { it.address == GattLinkTest.ADDRESS }.all { it.closed })
+        } finally {
+            gatt.shutdown()
+        }
+    }
+
+    @Test
     fun aScreenReconnectDuringATargetSwitchOnlyConnectsToTheNewBedJet() = runBlocking {
         val radio = FakeRadio()
         var target: String? = DeviceId.ble(GattLinkTest.ADDRESS)

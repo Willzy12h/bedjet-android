@@ -120,8 +120,12 @@ class LinkSessions(
         releasedUntil = untilMs ?: Long.MAX_VALUE
         _released.value = true
         releaseEnds?.cancel()
-        // Checking once the time has come ends the release.
-        releaseEnds = untilMs?.let { scope.launch { delay(it - now()); isReleased() } }
+        // Checking once the time has come ends the release. The timer runs on monotonic time and the deadline is
+        // wall-clock time, so it checks again until the wall clock has really passed it: a clock moved back during
+        // the release would otherwise leave it released for good.
+        releaseEnds = untilMs?.let { until ->
+            scope.launch { while (isReleased()) delay((until - now()).coerceAtLeast(RECHECK_MIN_MS)) }
+        }
         return scope.launch {
             lock.withLock {
                 connects.forEach { it.cancel() }
@@ -189,6 +193,8 @@ class LinkSessions(
 
     private companion object {
         const val GRACE_MS = 5_000L
+        /** The shortest wait between checks of a timed release, so a deadline a moment away is no busy loop. */
+        const val RECHECK_MIN_MS = 250L
         const val RELEASED = "Released for another phone"
     }
 }
