@@ -232,11 +232,7 @@ class Repository(
      * lets a snapshot's originals win over ones recorded from now on.
      */
     suspend fun dismissUnreadable() = serially {
-        if (slotBackupsUnreadable) {
-            val at = now()
-            writeFile(File(dir, SLOT_BACKUPS_LOST), at.toString().toByteArray())
-            slotBackupsLostAt = at
-        }
+        if (slotBackupsUnreadable) markSlotBackupsLost()
         clearUnreadable()
     }
 
@@ -268,8 +264,9 @@ class Repository(
      * The chosen BedJet, demo mode, the update token and the night under way are kept: a restore changes what the app
      * knows, never which BedJet it talks to or what that BedJet is doing. Slot backups are merged, current ones
      * winning: an older bundle's backup of a slot may be one of the app's own programs, not the user's original. The
-     * exception is a current one saved after an unreadable slot-backups file was dismissed: that may be the app's own
-     * program, so the bundle's backup of the same slot wins.
+     * exception is a current one saved after the loss of an unreadable slot-backups file was accepted (dismissed, or
+     * a restore while it was unreadable): that may be the app's own program, so the bundle's backup of the same slot
+     * wins.
      * Everything is written before anything is published; if a write fails the files already written are put back.
      */
     suspend fun restore(bundle: BackupBundle, label: String = "Before import") {
@@ -293,6 +290,9 @@ class Repository(
                 Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)),
                 Write(SLOT_BACKUPS, encode(ListSerializer(SlotBackup.serializer()), _slotBackups.value), encode(ListSerializer(SlotBackup.serializer()), slotBackups)),
             )
+            // Restoring while the originals are unreadable accepts their loss, as a dismiss does: a snapshot taken
+            // meanwhile holds none, and originals recorded after this one must not outrank an older good snapshot's.
+            if (slotBackupsUnreadable) markSlotBackupsLost()
             writeAllOrNone(writes)
             _profiles.value = profiles
             _settings.value = settings
@@ -419,6 +419,13 @@ class Repository(
         if (adopted == list) return
         writeValue(SLOT_BACKUPS, ListSerializer(SlotBackup.serializer()), adopted)
         _slotBackups.value = adopted
+    }
+
+    /** Saves, durably, that the loss of unreadable slot backups was accepted now. Call on the writer. */
+    private fun markSlotBackupsLost() {
+        val at = now()
+        writeFile(File(dir, SLOT_BACKUPS_LOST), at.toString().toByteArray())
+        slotBackupsLostAt = at
     }
 
     /** True when [backup] was saved once the loss of unreadable slot backups had been accepted. */

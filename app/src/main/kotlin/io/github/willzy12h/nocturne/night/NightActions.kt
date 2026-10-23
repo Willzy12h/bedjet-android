@@ -85,7 +85,7 @@ class NightActions(private val graph: Graph) {
         } catch (e: CancellationException) { throw e
         } catch (e: SlotBackupsUnreadable) {
             // Thrown before any slot write; the night's confidence is left as it was.
-            return slotBackupsRefusal()!!.also { _outcomes.emit(it) }
+            return refused(R.string.runtime_slot_backups_unreadable).also { _outcomes.emit(it) }
         } catch (e: Exception) {
             recordError("$label: ${e.message.orEmpty()}")
             return CommandOutcome(if (repo.activeNight.value?.confidence == Confidence.UNKNOWN || repo.runtime.value.slotWrite?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
@@ -359,7 +359,10 @@ class NightActions(private val graph: Graph) {
             repo.updateRuntime { it.copy(retime = null) }; NightAlarms.cancelRetry(context); return stale()
         }
         slotBackupsRefusal()?.let { refusal ->
-            repo.updateRuntime { it.copy(retime = null, reason = refusal.message) }; NightAlarms.cancelRetry(context); return refusal
+            repo.updateRuntime { it.copy(retime = null, reason = refusal.message) }; NightAlarms.cancelRetry(context)
+            // A background retry has no screen to show the refusal, so the wake-up change isn't dropped silently.
+            Notifications.showError(context, text(R.string.runtime_retime_refused), refusal.message)
+            return refusal
         }
         return try {
             connected {

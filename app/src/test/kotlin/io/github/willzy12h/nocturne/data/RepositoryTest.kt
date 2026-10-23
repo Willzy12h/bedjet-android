@@ -335,6 +335,30 @@ class RepositoryTest {
         assertEquals(program, repository().originalSlot("ble:AA:BB", 2)?.program)
     }
 
+    @Test
+    fun restoringASnapshotWithoutOriginalsDuringTheLossStillLetsAnOlderGoodOneWin() = runBlocking {
+        val before = repository()
+        before.recordOriginalSlot("ble:AA:BB", 2, program)
+        before.snapshotNow("Good")
+        val good = before.snapshots.list().first { it.manual }
+
+        File(dir, "slot-backups.json").writeText("{garbage")
+        val repo = repository()
+        // Taken while the file is unreadable, so it holds no originals: the newest and likeliest to be picked.
+        repo.snapshotNow("During the loss")
+        val empty = repo.snapshots.list().first { it.manual && it.id != good.id }
+        assertTrue(repo.restoreSnapshot(empty.id))
+        assertEquals(emptyList<String>(), repo.unreadable.value)
+
+        val fake = repo.recordOriginalSlot("ble:AA:BB", 2, StoredProgram("Spring/Autumn", emptyList()))
+        assertEquals("Spring/Autumn", fake.program?.name)
+        // After a restart too: the time the loss was accepted is saved.
+        val restarted = repository()
+        assertTrue(restarted.restoreSnapshot(good.id))
+        assertEquals(program, restarted.originalSlot("ble:AA:BB", 2)?.program)
+        assertEquals(program, repository().originalSlot("ble:AA:BB", 2)?.program)
+    }
+
     // Originals saved before devices were recorded
 
     private val migrated = SlotBackup("unknown", 2, program, "2026-10-20T22:30Z")
