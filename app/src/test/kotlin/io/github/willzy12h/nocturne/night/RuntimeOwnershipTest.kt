@@ -157,9 +157,10 @@ class RuntimeOwnershipTest {
         assertTrue(restarted.repository.unreadable.value.isEmpty())
         sent.clear()
 
-        assertEquals(OutcomeKind.FAILED, restarted.actions.pin(restarted.repository.profiles.value.first().id, 0).kind)
-        assertEquals(OutcomeKind.FAILED, restarted.actions.execute(restarted.actions.capture(NightActions.Command.BOOST)).kind)
-        assertEquals(OutcomeKind.FAILED, restarted.actions.execute(restarted.actions.capture(NightActions.Command.START_NIGHT)).kind)
+        // IR-03: refused with that reason before any work, rather than failed partway.
+        assertEquals(OutcomeKind.REFUSED, restarted.actions.pin(restarted.repository.profiles.value.first().id, 0).kind)
+        assertEquals(OutcomeKind.REFUSED, restarted.actions.execute(restarted.actions.capture(NightActions.Command.BOOST)).kind)
+        assertEquals(OutcomeKind.REFUSED, restarted.actions.execute(restarted.actions.capture(NightActions.Command.START_NIGHT)).kind)
         assertTrue("A corrupt originals file allowed a hardware write", sent.isEmpty())
         assertTrue(demo.slots.all { it == null })
     }

@@ -289,7 +289,7 @@ class Repository(
      */
     suspend fun recordOriginalSlot(deviceId: String, slot: Int, program: StoredProgram?): SlotBackup = serially {
         if (originalsIntegrityBlocked && _slotBackups.value.none { it.deviceId == deviceId && it.slot == slot }) {
-            throw IOException("Saved slot originals are unreadable. Restore a backup of this BedJet's slot before writing it.")
+            throw SlotBackupsUnreadable()
         }
         adoptMigrated(deviceId)
         originalSlot(deviceId, slot) ?: SlotBackup(deviceId, slot, program, now().toString()).also { backup ->
@@ -298,6 +298,10 @@ class Repository(
             _slotBackups.value = list
         }
     }
+
+    /** Whether [deviceId]'s [slot] has no saved original while the saved originals are unreadable, so it must not be
+     * written: the check [recordOriginalSlot] makes, asked before any work starts (IR-03). */
+    fun originalsUnreadableFor(deviceId: String, slot: Int): Boolean = originalsIntegrityBlocked && originalSlot(deviceId, slot) == null
 
     /** What [deviceId]'s [slot] held before the app first wrote to it, or null when that wasn't recorded. */
     fun originalSlot(deviceId: String, slot: Int): SlotBackup? =
@@ -598,3 +602,6 @@ class Repository(
         }
     }
 }
+
+/** The saved slot originals are unreadable and this slot has none, so it must not be written (IR-03). */
+class SlotBackupsUnreadable : IOException("Saved slot originals are unreadable. Restore a backup of this BedJet's slot before writing it.")
