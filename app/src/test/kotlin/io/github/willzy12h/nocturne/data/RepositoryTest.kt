@@ -363,6 +363,24 @@ class RepositoryTest {
         assertTrue(restarted.recordOriginalSlot("ble:AA:BB", 1, null).uncertain)
     }
 
+    /** An original saved after the accepted loss may be the app's own programme, so a backup's exact one replaces it. */
+    @Test
+    fun aBackupsExactOriginalReplacesOneSavedAfterTheAcceptedLoss() = runBlocking {
+        File(dir, "slot-backups.json").writeText("[{ broken")
+        val repo = repository()
+        repo.dismissUnreadable(acceptLostOriginals = true)
+        val unsure = repo.recordOriginalSlot("ble:AA:BB", 2, StoredProgram("Spring/Autumn", emptyList()))
+        val unsureOther = repo.recordOriginalSlot("ble:AA:BB", 1, null)
+        assertTrue(unsure.uncertain)
+
+        val known = backup(2, "known original")
+        repo.restore(repo.bundle().copy(slotBackups = listOf(known)))
+        assertEquals(known.copy(imported = true), repo.originalSlot("ble:AA:BB", 2))
+        // A slot the backup has nothing for keeps what was saved.
+        assertEquals(unsureOther, repo.originalSlot("ble:AA:BB", 1))
+        assertEquals(known.copy(imported = true), repository().originalSlot("ble:AA:BB", 2))
+    }
+
     @Test
     fun acceptingTheLossChangesNothingWhileTheOriginalsAreReadable() = runBlocking {
         val repo = repository()

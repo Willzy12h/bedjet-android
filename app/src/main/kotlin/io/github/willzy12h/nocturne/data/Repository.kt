@@ -130,8 +130,10 @@ class Repository(
     private var originalsIntegrityBlocked: Boolean
         get() = _originalsBlocked.value
         set(value) { _originalsBlocked.value = value }
-    /** Whether the loss of unreadable originals was accepted; originals saved since are marked uncertain. */
-    private var originalsLossAccepted = File(dir, SLOT_BACKUPS_LOSS).exists()
+    /** When the loss of unreadable originals was accepted, or null; originals saved since are marked uncertain. */
+    private var originalsLossAcceptedAt: String? = if (!File(dir, SLOT_BACKUPS_LOSS).exists()) null else
+        runCatching { decode(String.serializer(), AtomicFile(File(dir, SLOT_BACKUPS_LOSS)).readFully().decodeToString()) }
+            .getOrDefault(ZonedDateTime.ofInstant(java.time.Instant.EPOCH, java.time.ZoneOffset.UTC).toString())
     /**
      * Files that couldn't be read, so their defaults are showing instead. Each was moved aside as
      * `<name>.corrupt-<millis>`. Kept across restarts until a restore or [dismissUnreadable]; automatic snapshots are
@@ -320,7 +322,7 @@ class Repository(
         }
         adoptMigrated(deviceId)
         // After the loss was accepted the slot may hold the app's own programme, so the record says it may.
-        originalSlot(deviceId, slot) ?: SlotBackup(deviceId, slot, program, now().toString(), uncertain = originalsLossAccepted).also { backup ->
+        originalSlot(deviceId, slot) ?: SlotBackup(deviceId, slot, program, now().toString(), uncertain = originalsLossAcceptedAt != null).also { backup ->
             val list = _slotBackups.value + backup
             writeValue(SLOT_BACKUPS, ListSerializer(SlotBackup.serializer()), list)
             _slotBackups.value = list
@@ -376,8 +378,9 @@ class Repository(
         if (!File(dir, SLOT_BACKUPS_BLOCK).exists()) {
             throw IOException("The unreadable saved originals haven't been set aside yet. Reopen Nocturne, then try again.")
         }
-        writeValue(SLOT_BACKUPS_LOSS, String.serializer(), now().toString())
-        originalsLossAccepted = true
+        val at = now().toString()
+        writeValue(SLOT_BACKUPS_LOSS, String.serializer(), at)
+        originalsLossAcceptedAt = at
         AtomicFile(File(dir, SLOT_BACKUPS_BLOCK)).delete()
         if (File(dir, SLOT_BACKUPS_BLOCK).exists()) throw IOException("Couldn't lift the block on slots with no saved original.")
         originalsIntegrityBlocked = false
@@ -434,8 +437,11 @@ class Repository(
             val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
             val carried = _history.value.filter { it.id in tonight }
             val history = History.prune(bundle.history, now()).filterNot { restored -> carried.any { it.id == restored.id } } + carried
-            val slotBackups = _slotBackups.value.let { list ->
+            val slotBackups = _slotBackups.value.let { current ->
                 val incoming = bundle.slotBackups.map { it.copy(imported = true) }
+                // One saved after the loss of unreadable originals was accepted may be the app's own programme, so
+                // the bundle's exact record of that BedJet's slot replaces it.
+                val list = current.filterNot { saved -> savedAfterLoss(saved) && incoming.any { it.deviceId == saved.deviceId && it.slot == saved.slot } }
                 list + incoming.filter { restored -> list.none { it.covers(restored) } }
             }
             writeAllOrNone(listOf(
@@ -675,6 +681,13 @@ class Repository(
             Log.e(TAG, "Couldn't save $UNREADABLE", it)
             _unreadable.value = (names + UNREADABLE).distinct()
         }
+    }
+
+    /** Whether [backup] was saved by this app after the loss of unreadable originals was accepted. */
+    private fun savedAfterLoss(backup: SlotBackup): Boolean {
+        val lossAt = originalsLossAcceptedAt ?: return false
+        return backup.uncertain && !backup.imported &&
+            runCatching { !ZonedDateTime.parse(backup.savedAt).isBefore(ZonedDateTime.parse(lossAt)) }.getOrDefault(true)
     }
 
     /** True when [deviceId] takes over an original saved with [recordedFor] before devices were recorded. */
