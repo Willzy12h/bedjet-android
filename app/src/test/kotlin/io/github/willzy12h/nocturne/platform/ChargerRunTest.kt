@@ -107,6 +107,28 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
         assertEquals(1,notices)
     }
 
+    // F04: the job has no screen, so what each attempt did is kept in the notification log.
+
+    @Test fun aStartedAutoStartIsLogged() = runBlocking {
+        val graph=graph()
+        ChargerRun(graph,{true},{_,_->true},{},{true}).execute()
+        assertNotNull(graph.repository.activeNight.value)
+        val notice=graph.repository.notices.value.single { it.title == "Charger auto-start attempt" }
+        assertEquals(io.github.willzy12h.nocturne.core.store.NoticeKind.INFO,notice.kind)
+        assertTrue(notice.text,notice.text.contains("started"))
+    }
+    @Test fun anAutoStartRefusedAtItsFinalCheckIsLogged() = runBlocking {
+        lateinit var demo: DemoBedJet
+        // The last report the eligibility check sees is none; the job's own fresh read finds a manual run.
+        val graph=graph { demo=it; object : BedJetLink by it { override fun latestSourcedStatus(): SourcedStatus? = null } }
+        demo.connect(); demo.send(io.github.willzy12h.nocturne.core.protocol.Codec.setMode(Mode.COOL)!!)
+        ChargerRun(graph,{true},{_,_->true},{},{true}).execute()
+        assertNull(graph.repository.activeNight.value)
+        val notice=graph.repository.notices.value.single { it.title == "Charger auto-start attempt" }
+        assertEquals(io.github.willzy12h.nocturne.core.store.NoticeKind.PROBLEM,notice.kind)
+        assertEquals("This action is no longer eligible.",notice.text)
+    }
+
     /** A demo unit whose last report is a manual run, attributed to [source]. */
     private class OtherUnitReport(demo: DemoBedJet, source: String) : BedJetLink by demo {
         private val running = DeviceStatus(remainingSeconds = 600, actualTemperature = 60, targetTemperature = 70,

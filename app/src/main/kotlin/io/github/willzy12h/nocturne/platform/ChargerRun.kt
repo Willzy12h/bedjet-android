@@ -7,6 +7,14 @@ import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions.Command
+import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.core.store.LoggedNotice
+import io.github.willzy12h.nocturne.core.store.NoticeKind
+import io.github.willzy12h.nocturne.night.CommandOutcome
+import io.github.willzy12h.nocturne.night.OutcomeKind
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withTimeout
@@ -55,12 +63,24 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
         if (!eligible(candidate)) return
         if (!graph.repository.claimAutomation("charger:${candidate.key}")) return
         val request=graph.actions.capture(Command.START_NIGHT,candidate.profile.id,requireIdentity=true)
-        withTimeout(120_000) {
-            graph.actions.performJobOwned(request) { fresh ->
-                currentCoroutineContext().ensureActive()
-                !fresh.isRunning && fresh.extra?.programStep == 0 && eligible(candidate,ownAttempt=true)
+        val outcome=try {
+            withTimeout(120_000) {
+                graph.actions.performJobOwned(request) { fresh ->
+                    currentCoroutineContext().ensureActive()
+                    !fresh.isRunning && fresh.extra?.programStep == 0 && eligible(candidate,ownAttempt=true)
+                }
             }
+        } catch (e: TimeoutCancellationException) {
+            withContext(NonCancellable) { record(CommandOutcome(OutcomeKind.FAILED,graph.context.getString(R.string.runtime_failed))) }
+            throw e
         }
         // An attempt stays claimed even if transport fails: an accepted partial write cannot be replayed.
+        record(outcome)
+    }
+    /** The job has no screen, so what the attempt did is kept in the notification log, not dropped (F04). */
+    private suspend fun record(outcome: CommandOutcome) {
+        graph.repository.addNotice(LoggedNotice(graph.now().toString(),
+            if (outcome.kind == OutcomeKind.CONFIRMED) NoticeKind.INFO else NoticeKind.PROBLEM,
+            graph.context.getString(R.string.feature_charger_outcome),outcome.message))
     }
 }
