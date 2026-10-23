@@ -4,6 +4,7 @@
     <string name="runtime_stale">This action belongs to an older night. Open Nocturne for current controls.</string>
     <string name="runtime_choose_target">Choose a BedJet in setup first.</string>
     <string name="runtime_failed">The command did not finish.</string>
+    <string name="runtime_slot_write_acknowledged">Marked as checked.</string>
     <string name="runtime_waited_too_long">This request waited too long. Try again.</string>
     <string name="runtime_add_profile">Add a profile first.</string>
     <string name="runtime_profile_deleted">That profile was deleted.</string>

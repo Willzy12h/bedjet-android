@@ -2,7 +2,6 @@ package io.github.willzy12h.nocturne.platform
 
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.core.link.latestStatusFrom
-import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.store.deviceId
@@ -42,7 +41,8 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
             inWindow=c.window.contains(now), active=repo.activeNight.value != null,
             // Only the chosen BedJet's own report counts: one from a session still on another unit says nothing.
             manual=graph.link.latestStatusFrom(c.device)?.isRunning == true,
-            uncertain=repo.runtime.value.slotWrite?.confidence in setOf(Confidence.PENDING,Confidence.UNKNOWN,Confidence.FAILED),
+            // IR-06: only a write still in question on this BedJet holds the start back.
+            uncertain=repo.runtime.value.unresolvedSlotWrite?.deviceId == c.device,
             takeover=graph.sessions.released.value, prerequisites=permitted() && repo.unreadable.value.isEmpty() && settings.platform.validationErrors().isEmpty(),
             alreadyAttempted="cancel:${c.key}" in claims || (!ownAttempt && "charger:${c.key}" in claims)))
     }
