@@ -20,7 +20,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.time.*
 
-/** An unresolved manual end keeps the command's label and only accepts reports received from its request onward. */
+/** An unresolved manual end keeps its label and only accepts later receipts, independently of wall-clock changes. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ManualEndRequestTest {
@@ -75,10 +75,14 @@ class ManualEndRequestTest {
         assertNull(runtime.endRequested)
         assertEquals("the cleared request leaves no command label or request time", null to null,
             runtime.endRequestedLabel to runtime.endRequestedAt)
+        assertEquals("the cleared request leaves no receipt boundary", null to null,
+            runtime.endRequestedEpoch to runtime.endRequestedSequence)
     }
 
-    private suspend fun standby(receivedAt: ZonedDateTime = graph.now()) {
-        graph.actions.observeStatus(demo.status.value!!.copy(mode = Mode.STANDBY, extra = null), "demo", receivedAt)
+    private suspend fun standby(receivedAt: ZonedDateTime = graph.now(),
+        receipt: NightActions.StatusReceipt = graph.actions.statusReceipt()) {
+        graph.actions.observeStatus(demo.status.value!!.copy(mode = Mode.STANDBY, extra = null), "demo", receivedAt,
+            receipt = receipt)
     }
 
     private suspend fun assertLateLabel(command: NightActions.Command, label: String) {
@@ -129,27 +133,81 @@ class ManualEndRequestTest {
         assertEquals("Off", stopped(night).single().detail)
     }
 
-    @Test fun aStandbyReceivedBeforeTheRequestCannotFinishItButAnEqualTimeCan() = runBlocking {
-        val night = unresolved(NightActions.Command.OFF)
+    @Test fun aStandbyReceivedBeforeOrAtTheRequestCannotFinishItButALaterReceiptCan() = runBlocking {
+        val night = start()
+        val staleReceipt = graph.actions.statusReceipt()
+        swallow = true
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
         val requestedAt = graph.now()
-        standby(requestedAt.minusNanos(1))
+        standby(requestedAt.minusNanos(1), staleReceipt)
         assertEquals("an old report cannot confirm this command", night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
         assertTrue(stopped(night).isEmpty())
 
+        val request = graph.repository.runtime.value
+        standby(requestedAt, NightActions.StatusReceipt(request.endRequestedEpoch!!, request.endRequestedSequence!!))
+        assertEquals("the request boundary itself is not a later report", night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(night.identity, graph.repository.runtime.value.endRequested)
+        assertTrue(stopped(night).isEmpty())
+
         standby(requestedAt.withZoneSameInstant(ZoneOffset.ofHours(1)))
-        assertNull("the request instant is inclusive, regardless of the report's zone", graph.repository.activeNight.value)
+        assertNull("a later receipt may share the request's wall instant in any zone", graph.repository.activeNight.value)
         assertNoEndRequest()
         assertEquals("BedJet off.", stopped(night).single().detail)
         standby(requestedAt.plusSeconds(1))
         assertEquals("a repeated report cannot finish twice", 1, stopped(night).size)
     }
 
+    @Test fun aLaterStandbyConfirmsUnknownOffAfterTheWallClockMovesBackwards() = runBlocking {
+        val night = unresolved(NightActions.Command.OFF)
+        graph.clock = Clock.offset(graph.clock, Duration.ofHours(-1))
+        context.graph.clock = graph.clock
+
+        graph.actions.observeStatus(demo.status.value!!.copy(mode = Mode.STANDBY, extra = null), "demo")
+
+        assertNull("receipt order survives a backwards wall-clock correction", graph.repository.activeNight.value)
+        assertNoEndRequest()
+        assertEquals("BedJet off.", stopped(night).single().detail)
+    }
+
+    @Test fun aFreshStandbyAfterRestartConfirmsOffDespiteAnEarlierWallClock() = runBlocking {
+        val night = unresolved(NightActions.Command.OFF)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        buildGraph(Clock.offset(graph.clock, Duration.ofHours(-1)))
+
+        graph.actions.reconcile()
+
+        assertNull("a fresh post-restart read cannot be older than the persisted Off", graph.repository.activeNight.value)
+        assertNoEndRequest()
+        assertEquals("BedJet off.", stopped(night).single().detail)
+    }
+
+    @Test fun takeBackConfirmsPendingOffAfterABackwardsClockCorrection() = runBlocking {
+        val night = unresolved(NightActions.Command.OFF)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.clock = Clock.offset(graph.clock, Duration.ofHours(-1))
+        context.graph.clock = graph.clock
+
+        assertEquals(OutcomeKind.LOCAL, graph.actions.takeBack().kind)
+
+        assertNull("the take-back read is later than Off despite its timestamp", graph.repository.activeNight.value)
+        assertNoEndRequest()
+        assertEquals("BedJet off.", stopped(night).single().detail)
+    }
+
     @Test fun restartingRetainsTheRequestTimeAndLabel() = runBlocking {
-        val night = unresolved(NightActions.Command.TURBO)
+        val night = start()
+        val staleReceipt = graph.actions.statusReceipt()
+        swallow = true
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.TURBO).kind)
+        val savedRequest = graph.repository.runtime.value
+        assertNotNull(savedRequest.endRequestedEpoch)
+        assertNotNull(savedRequest.endRequestedSequence)
         val requestedAt = graph.now()
         buildGraph(Clock.fixed(requestedAt.plusMinutes(1).toInstant(), ZoneOffset.UTC))
-        standby(requestedAt.minusSeconds(1))
+        assertEquals(savedRequest.endRequestedEpoch to savedRequest.endRequestedSequence,
+            graph.repository.runtime.value.let { it.endRequestedEpoch to it.endRequestedSequence })
+        standby(requestedAt.minusSeconds(1), staleReceipt)
         assertEquals("a restart must not make an old report fresh", night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
         assertTrue(stopped(night).isEmpty())
@@ -157,6 +215,22 @@ class ManualEndRequestTest {
         assertNull(graph.repository.activeNight.value)
         assertNoEndRequest()
         assertEquals("Turbo for 10 minutes.", stopped(night).single().detail)
+    }
+
+    @Test fun aReceiptFromThePreviousRuntimeCannotFinishTheRestoredRequest() = runBlocking {
+        val night = unresolved(NightActions.Command.OFF)
+        val previousRuntimeReceipt = graph.actions.statusReceipt()
+        buildGraph(Clock.offset(graph.clock, Duration.ofHours(-1)))
+
+        standby(receipt = previousRuntimeReceipt)
+
+        assertEquals("a prior runtime's receipt cannot be reclassified as fresh", night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(night.identity, graph.repository.runtime.value.endRequested)
+        assertTrue(stopped(night).isEmpty())
+        standby()
+        assertNull(graph.repository.activeNight.value)
+        assertNoEndRequest()
+        assertEquals("BedJet off.", stopped(night).single().detail)
     }
 
     @Test fun reconcileUsesTheSavedCommandLabelAfterRestart() = runBlocking {
@@ -181,10 +255,11 @@ class ManualEndRequestTest {
     @Test fun aNewManualEndReplacesBothTheOldLabelAndRequestTime() = runBlocking {
         val night = unresolved(NightActions.Command.OFF)
         val oldRequestAt = graph.now()
+        val oldReceipt = graph.actions.statusReceipt()
         graph.clock = Clock.fixed(oldRequestAt.plusSeconds(1).toInstant(), ZoneOffset.UTC)
         context.graph.clock = graph.clock
         assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.TURBO).kind)
-        standby(oldRequestAt)
+        standby(oldRequestAt, oldReceipt)
         assertEquals("the old command's report cannot confirm the newer command", night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
         standby(graph.now())
@@ -236,6 +311,30 @@ class ManualEndRequestTest {
         assertNull(graph.repository.activeNight.value)
         assertNoEndRequest()
         assertEquals("Night stopped.", stopped(night).single().detail)
+    }
+
+    @Test fun oldRuntimeJournalsDecodeWithoutReceiptFields() {
+        val identity = """{"nightId":"old-night","revision":7}"""
+        val oldJournals = listOf("{}", """{"endRequested":$identity}""",
+            """{"endRequested":$identity,"endRequestedLabel":"BedJet off.","endRequestedAt":"2026-10-21T22:30Z"}""")
+        for (journal in oldJournals) {
+            val restored = BackupCodec.json.decodeFromString(RuntimeState.serializer(), journal)
+            assertNull(restored.endRequestedEpoch)
+            assertNull(restored.endRequestedSequence)
+        }
+    }
+
+    @Test fun aLegacyTimedMarkerCanFinishAfterRestartWithAnEarlierWallClock() = runBlocking {
+        val night = start()
+        val oldJournal = """{"endRequested":{"nightId":"${night.recordId}","revision":${night.revision}},"endRequestedLabel":"BedJet off.","endRequestedAt":"${graph.now()}"}"""
+        graph.repository.updateRuntime { BackupCodec.json.decodeFromString(RuntimeState.serializer(), oldJournal) }
+        buildGraph(Clock.offset(graph.clock, Duration.ofHours(-1)))
+
+        standby()
+
+        assertNull("a legacy wall time cannot overrule a new receipt", graph.repository.activeNight.value)
+        assertNoEndRequest()
+        assertEquals("BedJet off.", stopped(night).single().detail)
     }
 
     @Test fun reconcileClearsTheRequestForAnIdentitySupersededBeforeACrash() = runBlocking {

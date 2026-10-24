@@ -380,6 +380,8 @@
       },
       "endRequestedLabel": "Turbo for 10 minutes.",
       "endRequestedAt": "2026-10-23T22:30Z",
+      "endRequestedEpoch": "release-observation-epoch",
+      "endRequestedSequence": 4294967298,
       "wakeSourceChange": {
         "$ref": "wakeChange"
       },

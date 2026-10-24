@@ -19,6 +19,7 @@ import java.time.ZonedDateTime
 import java.time.Duration
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /** The only owner of complete BedJet transactions, target changes and local night transitions.
  * Callers own the coroutine lifecycle: foreground UI, bounded service, or cancellable JobService. */
@@ -27,6 +28,11 @@ class NightActions(private val graph: Graph) {
     internal val repo get() = graph.repository
     private val context get() = graph.context
     private val lock = Mutex()
+    /** Receipt order is local to this runtime; an earlier runtime's queued report is never a fresh observation. */
+    data class StatusReceipt internal constructor(val epoch: String, val sequence: Long)
+    private val statusEpoch = UUID.randomUUID().toString()
+    private val statusSequence = AtomicLong()
+    internal fun statusReceipt() = StatusReceipt(statusEpoch, statusSequence.incrementAndGet())
     /** Monotonic milliseconds for the admission check; tests move it by hand. */
     internal var elapsedMs: () -> Long = { System.nanoTime() / 1_000_000 }
     private val _busy = MutableStateFlow(BusyState())
@@ -317,13 +323,13 @@ class NightActions(private val graph: Graph) {
             (!preset.mode.usesFan || s.fanStep == fan) }
     }
     /**
-     * Runs [send] and says whether the BedJet then showed what was sent: a report from the target received after
-     * [send] began that [matches], or, if none comes within [confirmMs], one fresh read. A packet the link accepted is
-     * not proof that the unit acted on it, so nothing is reported as done on the write alone. Null [matches] confirms
-     * nothing.
+     * Always runs [send]. A value the target already reports as [matches] needs no second, possibly conflated report.
+     * A changed value needs a matching report after [send] began or, after [confirmMs], one fresh read. An accepted
+     * write alone does not prove a change took effect. Null [matches] confirms nothing.
      */
     private suspend fun sentAndConfirmed(matches: ((DeviceStatus) -> Boolean)?, send: suspend () -> Unit): Boolean = coroutineScope {
         val target = repo.settings.value.deviceId()
+        val alreadyMatches = matches != null && graph.link.latestStatusFrom(target)?.let(matches) == true
         val reports = Channel<DeviceStatus>(64, BufferOverflow.DROP_OLDEST)
         // Subscribed before anything is sent; the report already current is dropped.
         val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -332,7 +338,7 @@ class NightActions(private val graph: Graph) {
         try {
             send()
             if (matches == null) false
-            else withTimeoutOrNull(confirmMs) { reports.receiveAsFlow().first { matches(it) } } != null || freshlyShows(matches)
+            else alreadyMatches || withTimeoutOrNull(confirmMs) { reports.receiveAsFlow().first { matches(it) } } != null || freshlyShows(matches)
         } finally { watcher.cancel() }
     }
     /** One fresh read of the target; a read that fails confirms nothing. */
@@ -354,6 +360,7 @@ class NightActions(private val graph: Graph) {
         work: suspend () -> Unit): CommandOutcome {
         val night = repo.activeNight.value
         val requestedAt = graph.now()
+        val requestedReceipt = statusReceipt()
         val pending = night?.copy(confidence = Confidence.PENDING, pending = PendingChange(UUID.randomUUID().toString(),
             ChangeKind.MANUAL, null, requestedAt.toString(), requestedAt.plusMinutes(1).toString(), night.identity))
         pending?.let { publishNight(it) }
@@ -361,7 +368,8 @@ class NightActions(private val graph: Graph) {
             // Persist before the write: a lost acknowledgement or process death cannot erase the ending intention.
             // This records intent, not successful delivery; only the target's stopped state completes it.
             repo.updateRuntime { it.copy(endRequested = night.identity, endRequestedLabel = message,
-                endRequestedAt = requestedAt.toString(), retime = null, alarmInbox = null) }
+                endRequestedAt = requestedAt.toString(), endRequestedEpoch = requestedReceipt.epoch,
+                endRequestedSequence = requestedReceipt.sequence, retime = null, alarmInbox = null) }
             NightAlarms.cancelRetry(context)
         }
         val confirmed = sentAndConfirmed(confirms) {
@@ -434,6 +442,7 @@ class NightActions(private val graph: Graph) {
         // IR-06: a slot write made in this night, or one that displaced it, ends with it.
         repo.updateRuntime { it.copy(ending = PendingEnd(night.identity, event(kind, detail)),
             endRequested = null, endRequestedLabel = null, endRequestedAt = null, retime = null,
+            endRequestedEpoch = null, endRequestedSequence = null,
             resumeOffer = if (kind == EventKind.ENDED) null else transition.resumeOffer, reason = null,
             wakeShown = null, manualWakeShown = false, slotWrite = it.slotWrite?.takeUnless { w -> w.belongsTo(night.recordId) }) }
         completeLocalEnd()
@@ -764,10 +773,11 @@ class NightActions(private val graph: Graph) {
             }
             repo.runtime.value.endRequested?.let { expected ->
                 if (repo.activeNight.value?.identity != expected) repo.updateRuntime {
-                    it.copy(endRequested = null, endRequestedLabel = null, endRequestedAt = null) }
+                    it.copy(endRequested = null, endRequestedLabel = null, endRequestedAt = null,
+                        endRequestedEpoch = null, endRequestedSequence = null) }
                 else try {
                     // Standby is in the head; no programme-progress tail is needed to confirm an ending command.
-                    connected { finishRequestedEnd(freshStatus(requireProgress = false)) }
+                    connected { finishRequestedEnd(freshStatus(requireProgress = false), statusReceipt()) }
                 } catch (e: CancellationException) { throw e
                 } catch (_: Exception) { /* Keep the durable intention and UNKNOWN state until a target report arrives. */ }
             }
@@ -789,7 +799,8 @@ class NightActions(private val graph: Graph) {
         repo.updateRuntime { it.copy(wakeShown = n.identity, manualWakeShown = false) }
         Notifications.showWakeUp(context, n, repo.settings.value)
     }
-    suspend fun observeStatus(status: DeviceStatus, target: String?, receivedAt: ZonedDateTime = graph.now(), source: String? = target) {
+    suspend fun observeStatus(status: DeviceStatus, target: String?, receivedAt: ZonedDateTime = graph.now(), source: String? = target,
+        receipt: StatusReceipt = statusReceipt()) {
         // Intermediate reports during our own upload/manual packets must not become a takeover after queuing.
         if (lock.isLocked) return
         lock.withLock {
@@ -797,7 +808,7 @@ class NightActions(private val graph: Graph) {
             if (target != repo.settings.value.deviceId() || !DeviceId.same(source, target) ||
                 graph.link.state.value != LinkState.READY) return@withLock
             val n = repo.activeNight.value ?: return@withLock
-            if (finishRequestedEnd(status, receivedAt)) return@withLock
+            if (finishRequestedEnd(status, receipt)) return@withLock
             val extra = status.extra ?: return@withLock
             if (extra.notification != 0 && lastNotice != (n.recordId to extra.notification)) {
                 lastNotice = n.recordId to extra.notification
@@ -810,12 +821,14 @@ class NightActions(private val graph: Graph) {
             recordTakeover(n)
         }
     }
-    /** Called only with a report attributed to the selected target, under command ownership. */
-    private suspend fun finishRequestedEnd(status: DeviceStatus, receivedAt: ZonedDateTime = graph.now()): Boolean {
+    /** Called with an attributed target report under ownership; receipt order never depends on the wall clock.
+     * Restored and legacy markers accept this runtime's new reports, but never an earlier runtime's receipts. */
+    private suspend fun finishRequestedEnd(status: DeviceStatus, receipt: StatusReceipt): Boolean {
         val night = repo.activeNight.value ?: return false
         val request = repo.runtime.value
-        if (request.endRequested != night.identity || status.isRunning ||
-            request.endRequestedAt?.let { receivedAt.isBefore(ZonedDateTime.parse(it)) } == true) return false
+        if (request.endRequested != night.identity || status.isRunning || receipt.epoch != statusEpoch ||
+            (request.endRequestedEpoch == receipt.epoch &&
+                request.endRequestedSequence?.let { receipt.sequence <= it } == true)) return false
         finishLocked(night, EventKind.STOPPED, request.endRequestedLabel ?: text(R.string.runtime_stopped))
         return true
     }
@@ -1070,7 +1083,7 @@ class NightActions(private val graph: Graph) {
         connected {
             val pendingEnd = repo.runtime.value.endRequested?.let { it == repo.activeNight.value?.identity } == true
             val status = freshStatus(requireProgress = !pendingEnd)
-            if (finishRequestedEnd(status)) return@connected CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_taken_back))
+            if (finishRequestedEnd(status, statusReceipt())) return@connected CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_taken_back))
             // Uncertain hardware is never replayed. The user can keep a fresh manual run or stop tracking.
             repo.activeNight.value?.let { n ->
                 // The same comparison as takeover detection: a kept manual run against its own step (IR-08).
@@ -1122,7 +1135,8 @@ class NightActions(private val graph: Graph) {
         // published identity supersedes it; a leftover marker after a crash is also checked by reconcile.
         if (repo.runtime.value.endRequested?.let { it != night?.identity } == true)
             repo.updateRuntime { if (it.endRequested == night?.identity) it
-                else it.copy(endRequested = null, endRequestedLabel = null, endRequestedAt = null) }
+                else it.copy(endRequested = null, endRequestedLabel = null, endRequestedAt = null,
+                    endRequestedEpoch = null, endRequestedSequence = null) }
         refreshQuietNotification()
     }
     internal fun refreshQuietNotification() {

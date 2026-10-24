@@ -9,7 +9,10 @@ import io.github.willzy12h.nocturne.core.protocol.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.map
 import org.junit.Assert.*
 import org.junit.Before
@@ -21,8 +24,8 @@ import org.robolectric.annotation.Config
 import java.time.*
 
 /**
- * P3b: a command sent to the BedJet is reported as done only when the BedJet's own report, received after it was
- * sent, shows it. A write the link accepted is not that proof: here [swallow] lets such a write through the link
+ * A requested value already reported by the target is confirmed after sending, even when the identical report
+ * is conflated. A changed value needs a later report or fresh read: here [swallow] lets a write through the link
  * without the unit acting on it.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -37,11 +40,18 @@ class SendConfirmationTest {
     private var swallow: (ByteArray) -> Boolean = { false }
     private var foreign: SourcedStatus? = null
     private var headsOnly = false
+    private var disconnects = 0
+    private var afterSend: (ByteArray) -> Unit = {}
     private val link: BedJetLink by lazy {
         demo = DemoBedJet(now = { graph.now() })
         object : BedJetLink by demo {
-            override suspend fun send(command: ByteArray) { sent += command; if (!swallow(command)) demo.send(command) }
+            override suspend fun send(command: ByteArray) {
+                sent += command
+                if (!swallow(command)) demo.send(command)
+                afterSend(command)
+            }
             override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) { beforeWrite(); send(command) }
+            override suspend fun disconnect() { disconnects++; demo.disconnect() }
             override val sourcedStatus: kotlinx.coroutines.flow.Flow<SourcedStatus?>
                 get() = foreign?.let { kotlinx.coroutines.flow.MutableStateFlow<SourcedStatus?>(it) }
                     ?: demo.sourcedStatus.map { report -> if (headsOnly) report?.copy(status = report.status.copy(extra = null)) else report }
@@ -303,6 +313,71 @@ class SendConfirmationTest {
     }
 
     // Remote
+
+    @Test fun anUnchangedRemoteValueIsSentAndConfirmedWithoutReconnecting() = runBlocking {
+        demo.connect()
+        demo.send(Codec.setMode(Mode.HEAT)!!)
+        demo.send(Codec.setTemperature(70))
+        val before = sent.size
+
+        val outcome = graph.actions.remote("Temperature set", confirms = { it.targetTemperature == 70 }) {
+            it.setTemperature(70)
+        }
+
+        assertEquals(OutcomeKind.CONFIRMED, outcome.kind)
+        assertEquals("an unchanged request is still sent", before + 1, sent.size)
+        assertTrue(sent.last().contentEquals(Codec.setTemperature(70)))
+        assertEquals("the target already reports the requested value", 0, disconnects)
+    }
+
+    @Test fun aChangedRemoteValueWaitsForItsLaterTargetReport() = runBlocking {
+        demo.connect()
+        demo.send(Codec.setMode(Mode.HEAT)!!)
+        demo.send(Codec.setTemperature(70))
+        val written = CompletableDeferred<Unit>()
+        swallow = { it.contentEquals(Codec.setTemperature(72)) }
+        afterSend = { if (it.contentEquals(Codec.setTemperature(72))) written.complete(Unit) }
+        graph.actions.confirmMs = 10_000
+        val outcome = async {
+            graph.actions.remote("Temperature set", confirms = { it.targetTemperature == 72 }) { it.setTemperature(72) }
+        }
+        try {
+            withTimeout(5_000) { written.await() }
+            assertFalse("a different current value cannot confirm an accepted write", outcome.isCompleted)
+            demo.send(Codec.setTemperature(72))
+            assertEquals(OutcomeKind.CONFIRMED, withTimeout(5_000) { outcome.await() }.kind)
+            assertEquals("the later target report avoids the fallback read", 0, disconnects)
+        } finally { outcome.cancel() }
+    }
+
+    @Test fun anotherUnitsAlreadyMatchingValueCannotConfirmTheWrite() = runBlocking {
+        demo.connect()
+        foreign = SourcedStatus("ble:AA:BB:CC:DD:EE:FF", demo.status.value!!.copy(targetTemperature = 70))
+        val outcome = graph.actions.remote("Temperature set", confirms = { it.targetTemperature == 70 }) {
+            it.setTemperature(70)
+        }
+        assertEquals(OutcomeKind.ACCEPTED, outcome.kind)
+        assertTrue("the guarded request is still sent", sent.single().contentEquals(Codec.setTemperature(70)))
+    }
+
+    @Test fun anAlreadyMatchingStatusCannotHideASendFailure() = runBlocking {
+        demo.connect()
+        val outcome = graph.actions.remote("Off", confirms = { it.mode == Mode.STANDBY }) {
+            throw BedJetError.NotConnected()
+        }
+        assertEquals(OutcomeKind.FAILED, outcome.kind)
+    }
+
+    @Test fun aFailedSendStillMakesTheTrackedNightUnknownWhenItsCurrentStatusMatches() = runBlocking {
+        val night = start()
+        val mode = demo.status.value!!.mode
+        val outcome = graph.actions.remote("Mode set", endsNight = true, expected = night.identity,
+            confirms = { it.mode == mode }) { throw BedJetError.NotConnected() }
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
+        assertEquals(night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+        assertTrue(events(night).none { it.kind == EventKind.STOPPED })
+    }
 
     @Test fun aRemoteChangeIsConfirmedOnlyByAMatchingReport() = runBlocking {
         demo.connect()
