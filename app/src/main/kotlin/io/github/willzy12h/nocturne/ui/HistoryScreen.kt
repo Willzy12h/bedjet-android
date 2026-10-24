@@ -90,9 +90,9 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                         night.steps.forEach { step ->
                             Text(
                                 if (step.mode.usesTemperature) stringResource(R.string.history_step_temp, Format.clock(step.startsAt), blockName(step.block),
-                                    modeName(step.mode), Format.temp(step.temperature, settings.fahrenheit), step.fanPercent, Format.duration(step.minutes))
+                                    modeName(step.mode), tempText(step.temperature, settings.fahrenheit), step.fanPercent, durationText(step.minutes))
                                 else stringResource(R.string.history_step, Format.clock(step.startsAt), blockName(step.block), modeName(step.mode),
-                                    step.fanPercent, Format.duration(step.minutes)),
+                                    step.fanPercent, durationText(step.minutes)),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
@@ -144,10 +144,10 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                             } else {
                                 Text(stringResource(R.string.checkin_change_intro, name,
                                     stringResource(if (proposal.comfort == MorningComfort.TOO_HOT) R.string.checkin_lower else R.string.checkin_raise)))
-                                Text(stringResource(R.string.checkin_start_change, Format.temp(proposal.expectedMiddle.tempStart, settings.fahrenheit),
-                                    Format.temp(proposal.proposedMiddle.tempStart, settings.fahrenheit)))
-                                Text(stringResource(R.string.checkin_end_change, Format.temp(proposal.expectedMiddle.tempEnd, settings.fahrenheit),
-                                    Format.temp(proposal.proposedMiddle.tempEnd, settings.fahrenheit)))
+                                Text(stringResource(R.string.checkin_start_change, tempText(proposal.expectedMiddle.tempStart, settings.fahrenheit),
+                                    tempText(proposal.proposedMiddle.tempStart, settings.fahrenheit)))
+                                Text(stringResource(R.string.checkin_end_change, tempText(proposal.expectedMiddle.tempEnd, settings.fahrenheit),
+                                    tempText(proposal.proposedMiddle.tempEnd, settings.fahrenheit)))
                             }
                             Text(stringResource(R.string.checkin_future_only))
                         }

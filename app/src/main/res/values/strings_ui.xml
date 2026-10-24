@@ -366,4 +366,16 @@
     <string name="setup_checks_alarms_why">So the wake-up notification appears on the minute.</string>
     <string name="setup_checks_battery">Unrestricted battery</string>
     <string name="setup_checks_battery_why">Samsung stops background apps. Without this, an alarm change overnight may not reach the BedJet.</string>
+    <!-- Units and the simple-view timeline, read through Format.Words (fix round 1). minutes_short is shared. -->
+    <string name="duration_hours">%1$d h</string>
+    <string name="duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="temp_celsius">%1$s°C</string>
+    <string name="temp_fahrenheit">%1$d°F</string>
+    <string name="timeline_warming_up">warming up</string>
+    <string name="timeline_easing_off">easing off</string>
+    <string name="timeline_building">building</string>
+    <!-- "Cool, easing off": the mode, then which way the step is heading. -->
+    <string name="timeline_title_trend">%1$s, %2$s</string>
+    <string name="timeline_fan">fan %1$d%%</string>
+    <string name="timeline_fan_range">fan %1$d%% → %2$d%%</string>
 </resources>

@@ -172,10 +172,10 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                                 pluralStringResource(R.plurals.pin_step_count, plan.steps.size, plan.steps.size)))
                             plan.steps.forEach { step ->
                                 Text(if (step.step.mode.usesTemperature) stringResource(R.string.pin_preview_step_temp,
-                                    Format.clock(step.startsAt), modeName(step.step.mode), Format.duration(step.minutes),
-                                    Format.temp(step.step.temperature, settings.fahrenheit), (step.step.fanStep + 1) * 5)
+                                    Format.clock(step.startsAt), modeName(step.step.mode), durationText(step.minutes),
+                                    tempText(step.step.temperature, settings.fahrenheit), (step.step.fanStep + 1) * 5)
                                 else stringResource(R.string.pin_preview_step_no_temp,
-                                    Format.clock(step.startsAt), modeName(step.step.mode), Format.duration(step.minutes),
+                                    Format.clock(step.startsAt), modeName(step.step.mode), durationText(step.minutes),
                                     (step.step.fanStep + 1) * 5), style = MaterialTheme.typography.bodySmall)
                             }
                             Text(stringResource(R.string.pin_duration_help))

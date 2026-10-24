@@ -148,9 +148,14 @@
     <string name="snapshot_label_manual">Manual snapshot</string>
     <string name="snapshot_label_before_import">Before import</string>
     <string name="snapshot_label_before_restore">Before restore</string>
-    <!-- History details of an accepted morning suggestion. -->
+    <!-- History details of an accepted morning suggestion. Each holds a bare % and is read with getString(id) and no
+         format arguments; give it arguments and the % must become %%. -->
     <string name="history_accepted_more_fan">Accepted 10% more fan in Middle</string>
     <string name="history_accepted_less_fan">Accepted 10% less fan in Middle</string>
     <string name="history_accepted_lower_temp">Accepted a 1 °C lower Middle temperature</string>
     <string name="history_accepted_higher_temp">Accepted a 1 °C higher Middle temperature</string>
+    <!-- Fix round 1: snapshot restore result and the BLE link's no-target message. -->
+    <string name="runtime_snapshot_restored">Restored. What you had before is saved as a snapshot.</string>
+    <string name="runtime_snapshot_unreadable">That snapshot couldn\'t be read.</string>
+    <string name="ble_no_target">No BedJet chosen yet. Choose yours in Setup.</string>
 </resources>

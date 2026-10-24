@@ -160,7 +160,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         onValueChange = { profile = profile.copy(limits = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())) },
                         valueRange = 5f..100f, steps = 18,
                     )
-                    Text(stringResource(R.string.editor_temp_limits, Format.temp(limits.minTemp, f), Format.temp(limits.maxTemp, f)))
+                    Text(stringResource(R.string.editor_temp_limits, tempText(limits.minTemp, f), tempText(limits.maxTemp, f)))
                     RangeSlider(
                         modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp_limits),
                             spokenRange(spokenTemp(limits.minTemp, f), spokenTemp(limits.maxTemp, f))),
@@ -182,8 +182,8 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         Labelled(stringResource(R.string.editor_fan_end, m.fanEnd)) { FanSlider(m.fanEnd, stringResource(R.string.slider_fan_end)) { profile = profile.copy(middle = m.copy(fanEnd = it)) } }
                     }
                     if (m.mode.usesTemperature) {
-                        Labelled(stringResource(R.string.editor_temp_start, Format.temp(m.tempStart, f))) { TempSlider(m.mode, m.tempStart, stringResource(R.string.slider_temp_start), f) { profile = profile.copy(middle = m.copy(tempStart = it)) } }
-                        Labelled(stringResource(R.string.editor_temp_end, Format.temp(m.tempEnd, f))) { TempSlider(m.mode, m.tempEnd, stringResource(R.string.slider_temp_end), f) { profile = profile.copy(middle = m.copy(tempEnd = it)) } }
+                        Labelled(stringResource(R.string.editor_temp_start, tempText(m.tempStart, f))) { TempSlider(m.mode, m.tempStart, stringResource(R.string.slider_temp_start), f) { profile = profile.copy(middle = m.copy(tempStart = it)) } }
+                        Labelled(stringResource(R.string.editor_temp_end, tempText(m.tempEnd, f))) { TempSlider(m.mode, m.tempEnd, stringResource(R.string.slider_temp_end), f) { profile = profile.copy(middle = m.copy(tempEnd = it)) } }
                     }
                     Labelled(stringResource(R.string.editor_steps, m.rampSteps)) {
                         Slider(m.rampSteps.toFloat(), { profile = profile.copy(middle = m.copy(rampSteps = it.roundToInt())) }, valueRange = 1f..8f, steps = 6,
@@ -214,14 +214,14 @@ private fun PhaseList(title: String, hint: String, phases: List<Phase>, f: Boole
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${modeName(phase.mode)} · ${Format.duration(phase.minutes)}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        Text("${modeName(phase.mode)} · ${durationText(phase.minutes)}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                         TextButton(onClick = { onChange(phases.filterIndexed { i, _ -> i != index }) }) { Text(stringResource(R.string.editor_remove)) }
                     }
                     fun update(p: Phase) = onChange(phases.mapIndexed { i, old -> if (i == index) p else old })
                     ModeChips(phase.mode) { update(phase.copy(mode = it, temperature = it.clampTemp(phase.temperature))) }
-                    if (phase.mode.usesTemperature) Labelled(stringResource(R.string.label_temperature, Format.temp(phase.temperature, f))) { TempSlider(phase.mode, phase.temperature, stringResource(R.string.slider_temp), f) { update(phase.copy(temperature = it)) } }
+                    if (phase.mode.usesTemperature) Labelled(stringResource(R.string.label_temperature, tempText(phase.temperature, f))) { TempSlider(phase.mode, phase.temperature, stringResource(R.string.slider_temp), f) { update(phase.copy(temperature = it)) } }
                     if (phase.mode.usesFan) Labelled(stringResource(R.string.label_fan, phase.fanPercent)) { FanSlider(phase.fanPercent, stringResource(R.string.slider_fan)) { update(phase.copy(fanPercent = it)) } }
-                    Labelled(stringResource(R.string.editor_length, Format.duration(phase.minutes))) {
+                    Labelled(stringResource(R.string.editor_length, durationText(phase.minutes))) {
                         Slider(phase.minutes.toFloat(), { update(phase.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..240f,
                             modifier = Modifier.sliderSemantics(stringResource(R.string.slider_length), spokenMinutes(phase.minutes)))
                     }

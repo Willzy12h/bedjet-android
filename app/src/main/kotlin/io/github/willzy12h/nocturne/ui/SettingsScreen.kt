@@ -307,7 +307,7 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, onChan
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(if (preset.mode.usesTemperature) stringResource(R.string.settings_preset_summary_temp, title, modeName(preset.mode),
-                Format.temp(preset.temperature, f), preset.fanPercent, preset.minutes)
+                tempText(preset.temperature, f), preset.fanPercent, preset.minutes)
                 else stringResource(R.string.settings_preset_summary, title, modeName(preset.mode), preset.fanPercent, preset.minutes), style = MaterialTheme.typography.bodyMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY).forEach { mode ->

@@ -35,7 +35,8 @@ class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, 
     private val names = DeviceNames(context, target)
     val verifiedNames: StateFlow<Pair<String, String?>?> get() = names.verified
     private val engine = GattLink(radio ?: AndroidRadio(context, ::hasPermissions), target,
-        onName = names::display, onVerifiedName = names::verify)
+        onName = names::display, onVerifiedName = names::verify,
+        noTargetMessage = { context.getString(io.github.willzy12h.nocturne.R.string.ble_no_target) })
 
     override val state: StateFlow<LinkState> get() = engine.state
     override val status: StateFlow<DeviceStatus?> get() = engine.status
@@ -81,6 +82,8 @@ class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, 
 
 /** The phone's adapter, for [GattLink]. Calls can throw [SecurityException]; [GattLink] handles that. */
 @SuppressLint("MissingPermission") // GattLink checks availability() first and turns a SecurityException into an error.
+// Exception messages from the radio and port are diagnostic only: GattLink.platform turns every one into
+// BedJetError.NotConnected, whose message comes from core, so none of these words reaches the screen.
 private class AndroidRadio(private val context: Context, private val permitted: () -> Boolean) : GattRadio {
     private val manager = context.getSystemService(BluetoothManager::class.java)
 

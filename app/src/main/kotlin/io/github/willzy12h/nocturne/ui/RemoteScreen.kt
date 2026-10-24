@@ -59,8 +59,8 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(modeName(s.mode), style = MaterialTheme.typography.headlineSmall)
-                Text(stringResource(R.string.remote_air_room, Format.temp(s.actualTemperature, f), Format.temp(s.ambientTemperature, f)))
-                if (s.isRunning) Text(stringResource(R.string.remote_running, Format.temp(s.targetTemperature, f), s.fanPercent, Format.duration(s.remainingSeconds / 60)))
+                Text(stringResource(R.string.remote_air_room, tempText(s.actualTemperature, f), tempText(s.ambientTemperature, f)))
+                if (s.isRunning) Text(stringResource(R.string.remote_running, tempText(s.targetTemperature, f), s.fanPercent, durationText(s.remainingSeconds / 60)))
                 s.extra?.takeIf { it.programStep > 0 }?.let { Text(stringResource(R.string.remote_program_step, it.programStep), style = MaterialTheme.typography.bodySmall) }
             }
         }
@@ -74,7 +74,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         if (s.isRunning && s.mode.usesTemperature) {
             var temp by remember(s.targetTemperature) { mutableFloatStateOf(s.targetTemperature.toFloat()) }
             val temperatureSet = stringResource(R.string.remote_temperature_set)
-            Text(stringResource(R.string.label_temperature, Format.temp(temp.roundToInt(), f)))
+            Text(stringResource(R.string.label_temperature, tempText(temp.roundToInt(), f)))
             Slider(
                 temp, { temp = it }, valueRange = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(temp.roundToInt(), f)),
@@ -97,7 +97,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Text(stringResource(R.string.remote_run_for), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60, 120, 240, 480).forEach { minutes ->
-                    AssistChip({ model.remote(timerSet, affectsProgramme = true, confirms = { kotlin.math.abs(it.remainingSeconds - minutes * 60) <= 90 }) { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
+                    AssistChip({ model.remote(timerSet, affectsProgramme = true, confirms = { kotlin.math.abs(it.remainingSeconds - minutes * 60) <= 90 }) { it.setRuntime(minutes) } }, label = { Text(durationText(minutes)) })
                 }
             }
         }

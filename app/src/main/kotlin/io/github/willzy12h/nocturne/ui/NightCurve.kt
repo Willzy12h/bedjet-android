@@ -133,25 +133,31 @@ data class TimelineEntry(
     // Cooling is felt as fan speed, so only the heating modes name a temperature.
     private val heats: Boolean get() = mode == Mode.HEAT || mode == Mode.EXTENDED_HEAT || mode == Mode.TURBO
 
+    /** "Cool, easing off" in English, for Context-free callers; screens use [title] with their [Format.Words]. */
+    val title: String get() = title(null)
+
     /** "Cool, easing off": the mode, and which way the step is heading when it changes. */
-    val title: String get() {
+    fun title(words: Format.Words?): String {
         val trend = when {
-            heats && tempEnd > tempStart -> "warming up"
-            heats && tempEnd < tempStart -> "easing off"
-            fanEnd < fanStart -> "easing off"
-            fanEnd > fanStart -> "building"
+            heats && tempEnd > tempStart -> words?.text(R.string.timeline_warming_up) ?: "warming up"
+            heats && tempEnd < tempStart -> words?.text(R.string.timeline_easing_off) ?: "easing off"
+            fanEnd < fanStart -> words?.text(R.string.timeline_easing_off) ?: "easing off"
+            fanEnd > fanStart -> words?.text(R.string.timeline_building) ?: "building"
             else -> null
         }
-        return Format.modeName(mode) + (trend?.let { ", $it" } ?: "")
+        val name = Format.modeName(mode, words)
+        return trend?.let { words?.text(R.string.timeline_title_trend, name, it) ?: "$name, $it" } ?: name
     }
 
-    /** "7 h · fan 75% → 40%", with the temperature first for modes that heat. */
-    fun detail(fahrenheit: Boolean): String {
-        val parts = mutableListOf(Format.duration(minutes))
+    /** "7 h · fan 75% → 40%", with the temperature first for modes that heat. English unless [words] is given. */
+    fun detail(fahrenheit: Boolean, words: Format.Words? = null): String {
+        val parts = mutableListOf(Format.duration(minutes, words))
         if (heats) {
-            parts += if (tempStart == tempEnd) Format.temp(tempStart, fahrenheit) else "${Format.temp(tempStart, fahrenheit)} → ${Format.temp(tempEnd, fahrenheit)}"
+            parts += if (tempStart == tempEnd) Format.temp(tempStart, fahrenheit, words)
+                else "${Format.temp(tempStart, fahrenheit, words)} → ${Format.temp(tempEnd, fahrenheit, words)}"
         }
-        if (mode != Mode.STANDBY && mode != Mode.WAIT) parts += if (fanStart == fanEnd) "fan $fanStart%" else "fan $fanStart% → $fanEnd%"
+        if (mode != Mode.STANDBY && mode != Mode.WAIT) parts += if (fanStart == fanEnd) words?.text(R.string.timeline_fan, fanStart) ?: "fan $fanStart%"
+            else words?.text(R.string.timeline_fan_range, fanStart, fanEnd) ?: "fan $fanStart% → $fanEnd%"
         return parts.joinToString(" · ")
     }
 }
@@ -181,14 +187,15 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
     val entries = timelineEntries(plan)
     val (before, after) = entries.partition { it.block != Block.AFTER_WAKE }
     val colors = nocturneColors
+    val words = rememberWords()
     Column(modifier) {
         before.forEach { entry ->
             val current = now != null && !now.isBefore(entry.startsAt) && now.isBefore(entry.endsAt)
             TimelineRow(
                 time = Format.clock(entry.startsAt),
                 dot = colors.mode(entry.mode),
-                title = entry.title,
-                detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit)) else entry.detail(fahrenheit),
+                title = entry.title(words),
+                detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words)) else entry.detail(fahrenheit, words),
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 bold = current,
                 last = false,
@@ -204,7 +211,7 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
             dot = colors.accent,
             title = wakeOriginLabel(origin, WakeLabelStyle.TIMELINE),
             detail = after.takeIf { it.isNotEmpty() }?.let { rest ->
-                stringResource(R.string.timeline_then, rest.map { stringResource(R.string.timeline_after_item, modeName(it.mode).lowercase(), Format.duration(it.minutes)) }
+                stringResource(R.string.timeline_then, rest.map { stringResource(R.string.timeline_after_item, modeName(it.mode).lowercase(), durationText(it.minutes)) }
                     .joinToString(", "))
             },
             titleColor = colors.accent,

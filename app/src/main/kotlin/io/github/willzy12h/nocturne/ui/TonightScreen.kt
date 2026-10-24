@@ -364,8 +364,8 @@ fun ConnectionLine(model: AppViewModel) {
     val settings by model.settings.collectAsState()
     val colors = nocturneColors
     val text = when (state) {
-        LinkState.READY -> status?.let { stringResource(R.string.connection_status, modeName(it.mode), Format.temp(it.ambientTemperature, settings.fahrenheit),
-            Format.temp(it.actualTemperature, settings.fahrenheit)) } ?: stringResource(R.string.connection_ready)
+        LinkState.READY -> status?.let { stringResource(R.string.connection_status, modeName(it.mode), tempText(it.ambientTemperature, settings.fahrenheit),
+            tempText(it.actualTemperature, settings.fahrenheit)) } ?: stringResource(R.string.connection_ready)
         LinkState.CONNECTING -> stringResource(R.string.connection_connecting)
         LinkState.SEARCHING -> stringResource(R.string.connection_searching)
         LinkState.BLUETOOTH_OFF -> stringResource(R.string.connection_bluetooth_off)

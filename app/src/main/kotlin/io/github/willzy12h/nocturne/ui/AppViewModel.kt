@@ -334,7 +334,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit(text(R.string.runtime_snapshot_saved)) }
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
-    fun restoreSnapshot(id: String) = save { _messages.tryEmit(snapshotRestoreMessage { repo.restoreSnapshot(id) }) }
+    fun restoreSnapshot(id: String) = save { _messages.tryEmit(snapshotRestoreMessage(text(R.string.runtime_snapshot_restored), text(R.string.runtime_snapshot_unreadable)) { repo.restoreSnapshot(id) }) }
 
     fun export(uri: android.net.Uri) {
         graph.scope.launch {
@@ -446,8 +446,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
  * What restoring a snapshot says. A restore that is kept but not yet finished says so in its own words; any other
  * failure is thrown, for the caller's "Couldn't save" message.
  */
-internal suspend fun snapshotRestoreMessage(restore: suspend () -> Boolean): String = try {
-    if (restore()) "Restored. What you had before is saved as a snapshot." else "That snapshot couldn't be read."
+internal suspend fun snapshotRestoreMessage(
+    // The app passes runtime_snapshot_restored and runtime_snapshot_unreadable; these English defaults are for
+    // callers without a Context.
+    restored: String = "Restored. What you had before is saved as a snapshot.",
+    unreadable: String = "That snapshot couldn't be read.",
+    restore: suspend () -> Boolean,
+): String = try {
+    if (restore()) restored else unreadable
 } catch (e: io.github.willzy12h.nocturne.data.RestoreUnfinished) {
     e.message.orEmpty()
 }
