@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- P5 UI copy (UK English). Older literals move here in the later strings task. -->
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Unreadable data and unfinished restore -->
     <string name="unreadable_banner">Some saved data couldn\'t be read — restore from a snapshot or dismiss.</string>
     <string name="unreadable_details">Set aside: %1$s. Nocturne kept the unreadable copies and is using defaults in their place. Dismissing this notice doesn\'t make an unknown slot safe to overwrite.</string>
@@ -67,7 +67,8 @@
     <string name="slider_fan_limits">Fan limits</string>
     <string name="slider_temp_limits">Temperature limits</string>
     <string name="slider_boost">Boost length</string>
-    <string name="a11y_percent">%1$d per cent</string>
+    <!-- "per cent" does not change with the number in English. -->
+    <string name="a11y_percent" tools:ignore="PluralsCandidate">%1$d per cent</string>
     <string name="a11y_celsius">%1$s degrees Celsius</string>
     <string name="a11y_fahrenheit">%1$s degrees Fahrenheit</string>
     <string name="a11y_range">%1$s to %2$s</string>
