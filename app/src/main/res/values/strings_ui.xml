@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- P5 UI copy (UK English). Older literals move here in the later strings task. -->
+<!-- Screen copy (UK English): P5 additions and the strings moved out of the screens in P6. -->
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Unreadable data and unfinished restore -->
     <string name="unreadable_banner">Some saved data couldn\'t be read — restore from a snapshot or dismiss.</string>
@@ -97,4 +97,285 @@
     <string name="checkin_fan_end_change">Fan at the end: %1$d%% → %2$d%%</string>
     <!-- Stop tracking (F16) -->
     <string name="stop_tracking_text">This doesn\'t turn the BedJet off. Nocturne stops following this night and keeps it in History. Check the BedJet before starting another programme.</string>
+    <!-- Shared labels (P6) -->
+    <string name="minutes_short">%1$d min</string>
+    <string name="action_edit">Edit</string>
+    <string name="tonights_night">Tonight\'s night</string>
+    <string name="block_start">Start</string>
+    <string name="block_middle">Middle</string>
+    <string name="block_wake">Wake-up</string>
+    <string name="block_after_wake">After wake</string>
+    <!-- Settings (P6) -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_scheduled">Scheduled</string>
+    <string name="settings_scheduled_help">Use Midnight Ink at night and Daylight during the day. Equal times keep Midnight Ink all day.</string>
+    <string name="settings_dark_from">Midnight Ink from</string>
+    <string name="settings_light_from">Daylight from</string>
+    <string name="settings_simple_view">Simple view</string>
+    <string name="settings_simple_view_help">Show tonight as a list of steps instead of the curve.</string>
+    <string name="settings_bedjet">BedJet</string>
+    <string name="settings_connected_unit">Connected unit: %1$s</string>
+    <string name="settings_none_yet">none yet</string>
+    <string name="settings_demo">Demo BedJet</string>
+    <string name="settings_demo_help">Try everything with a simulated BedJet instead of the real one.</string>
+    <string name="settings_slot_title">Slot used for tonight\'s night</string>
+    <string name="settings_slot_help">The other two slots are left alone. What was in a slot before is kept below.</string>
+    <string name="settings_slot">Slot %1$d</string>
+    <plurals name="settings_saved_from">
+        <item quantity="one">Saved from slot %1$d: %2$s (%3$d step)</item>
+        <item quantity="other">Saved from slot %1$d: %2$s (%3$d steps)</item>
+    </plurals>
+    <string name="settings_preview_put_back">Preview &amp; put back</string>
+    <string name="settings_show_f">Show °F</string>
+    <string name="settings_forget">Forget this BedJet</string>
+    <string name="settings_wake_notification">Wake-up notification</string>
+    <string name="settings_wake_buttons_help">Choose up to three buttons, in order.</string>
+    <string name="settings_preset_snooze_warm">Snooze warm</string>
+    <string name="settings_preset_snooze_cool">Snooze cool</string>
+    <string name="settings_preset_extend_warm">Extend warm (also the Warm button)</string>
+    <string name="settings_preset_extend_cool">Extend cool (also the Cool button)</string>
+    <string name="settings_preset_summary_temp">%1$s: %2$s, %3$s, fan %4$d%%, %5$d min</string>
+    <string name="settings_preset_summary">%1$s: %2$s, fan %3$d%%, %4$d min</string>
+    <!-- A preset's slider name, e.g. "Snooze warm: Fan". -->
+    <string name="settings_preset_slider">%1$s: %2$s</string>
+    <plurals name="settings_boost">
+        <item quantity="one">Boost: Turbo, then Heat, for %1$d minute</item>
+        <item quantity="other">Boost: Turbo, then Heat, for %1$d minutes</item>
+    </plurals>
+    <string name="settings_alarms">Alarms</string>
+    <string name="settings_no_alarm">No alarm is set on this phone.</string>
+    <string name="settings_next_alarm">Next alarm %1$s from %2$s.</string>
+    <string name="settings_next_alarm_unused">Next alarm %1$s from %2$s — not used.</string>
+    <string name="settings_unknown_app">an unknown app</string>
+    <string name="settings_use_alarms_from">Use alarms from %1$s</string>
+    <string name="settings_used_from">Used from: %1$s</string>
+    <string name="settings_phone_setup">Phone setup</string>
+    <string name="settings_backups">Backups and snapshots</string>
+    <string name="settings_snapshots_help">A snapshot is taken automatically when you change profiles or settings (the last 20 are kept) and once a day. Your own snapshots are kept until you delete them.</string>
+    <string name="settings_label">Label</string>
+    <string name="settings_snapshot_now">Snapshot now</string>
+    <string name="settings_export_file">Export file</string>
+    <string name="settings_restore_from_file">Restore from file</string>
+    <string name="settings_automatic">Automatic</string>
+    <string name="settings_restore">Restore</string>
+    <string name="settings_delete">Delete</string>
+    <string name="settings_updates">Updates</string>
+    <string name="settings_repo">GitHub repository (owner/name)</string>
+    <string name="settings_token">Token (only for a private repository)</string>
+    <string name="settings_check_weekly">Check weekly</string>
+    <string name="settings_check_weekly_help">Only when the app is opened. This is the app\'s only internet use.</string>
+    <string name="settings_check_now">Check now</string>
+    <string name="settings_installed">Installed: %1$s</string>
+    <string name="settings_notice_log">Notification log</string>
+    <string name="settings_notice_log_empty">Notifications Nocturne shows will be listed here.</string>
+    <string name="settings_show_fewer">Show fewer</string>
+    <string name="settings_show_all">Show all %1$d</string>
+    <string name="settings_clear_log">Clear log</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_text">Nocturne plans BedJet 3 nights around your alarm. It talks to the BedJet over Bluetooth only. BedJet protocol work by the Lull project (github.com/rkanjani/lull, MIT). Not affiliated with BedJet LLC.</string>
+    <string name="settings_restore_snapshot_title">Restore this snapshot?</string>
+    <string name="settings_restore_snapshot_text">Profiles, settings and history go back to %1$s. What you have now is saved as a snapshot first.</string>
+    <string name="settings_restore_slot_title">Restore original slot %1$d?</string>
+    <string name="settings_restore_slot_text">This writes the saved original back to slot %1$d on the selected BedJet 3. It does not start a night. An active night must be ended first.</string>
+    <plurals name="settings_saved_programme">
+        <item quantity="one">Saved programme: %1$s · %2$d step</item>
+        <item quantity="other">Saved programme: %1$s · %2$d steps</item>
+    </plurals>
+    <string name="settings_step_ends_at">ends at %1$s</string>
+    <!-- A saved original's step: "1. Heat, fan 40%, 30 min". -->
+    <string name="settings_slot_step">%1$d. %2$s, fan %3$d%%, %4$s</string>
+    <string name="settings_put_original_back">Put original back</string>
+    <!-- Tonight (P6) -->
+    <string name="tonight_title">Tonight</string>
+    <string name="tonight_release_text">A new version is ready to download.</string>
+    <string name="tonight_release_download">Download</string>
+    <string name="tonight_release_later">Later</string>
+    <string name="tonight_state_pending">Change pending: the BedJet has not confirmed it.</string>
+    <string name="tonight_state_failed">Change failed. Check the BedJet before trying again.</string>
+    <string name="tonight_state_unknown">BedJet state unknown. Check the unit before another programme.</string>
+    <string name="tonight_state_manual">Tracking manually. Nocturne has not resumed the programme.</string>
+    <string name="tonight_started">Started</string>
+    <string name="tonight_planned_start">Planned start</string>
+    <string name="tonight_waking_at">Waking you at</string>
+    <string name="tonight_planned_wake">Planned wake</string>
+    <string name="tonight_wakes_at">Wakes you at</string>
+    <string name="tonight_starts">Starts</string>
+    <!-- The step running now: block, mode and fan. -->
+    <string name="tonight_now">Now: %1$s · %2$s · fan %3$d%%</string>
+    <string name="tonight_end_night">End night</string>
+    <string name="tonight_alarm_not_clock">Your next alarm at %1$s is from %2$s, which isn\'t a clock app. Allow it in Settings.</string>
+    <string name="tonight_no_alarm">No alarm set, so the profile\'s wake time is used.</string>
+    <string name="tonight_start_now">Start night now</string>
+    <string name="tonight_set_wake">Set tonight-only wake</string>
+    <string name="tonight_change_wake">Change tonight-only wake · %1$s</string>
+    <string name="tonight_clear_wake">Clear wake override</string>
+    <string name="tonight_follow_schedule">Tonight only · Follow schedule</string>
+    <string name="tonight_the_night">The night</string>
+    <string name="tonight_quick">Quick</string>
+    <!-- The connection chip: mode, room and air temperatures. -->
+    <string name="connection_status">%1$s · room %2$s · air %3$s</string>
+    <string name="connection_ready">Connected</string>
+    <string name="connection_connecting">Connecting to your BedJet…</string>
+    <string name="connection_searching">Not connected</string>
+    <string name="connection_bluetooth_off">Bluetooth is off</string>
+    <string name="connection_unauthorized">Allow Nearby devices to reach your BedJet</string>
+    <string name="connection_demo">Demo · %1$s</string>
+    <!-- Night guard: "This will …" completions, and the dialog itself. -->
+    <string name="guard_turn_off">turn the BedJet off</string>
+    <string name="guard_start_boost">start Boost</string>
+    <string name="guard_start_warming">start warming</string>
+    <string name="guard_start_cooling">start cooling</string>
+    <string name="guard_resume_saved">resume the saved programme</string>
+    <string name="guard_resume_previous">resume the previous night</string>
+    <string name="guard_switch_to">switch to %1$s</string>
+    <string name="guard_title">Stop tonight\'s night?</string>
+    <string name="guard_running_waking">%1$s is running, waking you at %2$s. This will %3$s, and the night won\'t continue.</string>
+    <string name="guard_confirm">Stop night and continue</string>
+    <string name="guard_keep">Keep tonight</string>
+    <!-- Night recovery controls (P6) -->
+    <string name="recovery_more">More</string>
+    <string name="recovery_resume_programme">Resume programme</string>
+    <string name="recovery_resume_previous">Resume previous night</string>
+    <string name="recovery_recheck_alarm">Re-check alarm</string>
+    <string name="recovery_stop_tracking_title">Stop tracking this night?</string>
+    <!-- Remote (P6). The "… set" and "… on/off" labels also name the command while it waits for the BedJet. -->
+    <string name="label_temperature">Temperature %1$s</string>
+    <string name="label_fan">Fan %1$d%%</string>
+    <string name="remote_title">Remote</string>
+    <string name="remote_connect">Connect to your BedJet to use the remote.</string>
+    <string name="remote_air_room">Air %1$s · room %2$s</string>
+    <string name="remote_running">Target %1$s · fan %2$d%% · %3$s left</string>
+    <string name="remote_program_step">Running step %1$d of a night</string>
+    <string name="remote_temperature_set">Temperature set</string>
+    <string name="remote_fan_set">Fan set</string>
+    <string name="remote_run_for">Run for</string>
+    <string name="remote_timer_set">Timer set</string>
+    <string name="remote_boost">Boost %1$dm</string>
+    <string name="remote_lights">Lights</string>
+    <string name="remote_lights_on">Lights on</string>
+    <string name="remote_lights_off">Lights off</string>
+    <string name="remote_beeps">Beeps</string>
+    <string name="remote_beeps_on">Beeps on</string>
+    <string name="remote_beeps_off">Beeps off</string>
+    <string name="remote_reminder_cleared">Reminder cleared</string>
+    <string name="remote_clear_reminder">Filter cleaned — clear reminder</string>
+    <!-- Profile editor (P6) -->
+    <string name="editor_discard_title">Discard changes?</string>
+    <string name="editor_discard_text">Your edits to %1$s haven\'t been saved.</string>
+    <string name="editor_discard">Discard</string>
+    <string name="editor_keep_editing">Keep editing</string>
+    <string name="editor_update_tonight_title">Update tonight too?</string>
+    <string name="editor_update_tonight_text">%1$s is running now. Your changes can wait for the next night, or replace the rest of tonight on the BedJet.</string>
+    <string name="editor_update_tonight">Update tonight</string>
+    <string name="editor_next_night">Next night</string>
+    <string name="editor_title">Edit profile</string>
+    <string name="editor_save">Save</string>
+    <string name="editor_running_tonight">This profile is running tonight. When you save, you can choose to update tonight or start with the next night.</string>
+    <string name="editor_preview">Tonight at %1$s: %2$d of 32 BedJet steps</string>
+    <string name="editor_name">Name</string>
+    <string name="editor_timing">Timing</string>
+    <string name="editor_bedtime">Usual bedtime</string>
+    <string name="editor_wake_with_alarm">Wake with my alarm</string>
+    <string name="editor_wake_with_alarm_help">Uses the next Samsung or Google Clock alarm when there is one.</string>
+    <string name="editor_wake_no_alarm">Wake time when there\'s no alarm</string>
+    <string name="editor_days">Default for these days</string>
+    <string name="editor_limits">Limits</string>
+    <string name="editor_limits_help">Nothing in this profile, or a snooze or extend while it runs, goes outside these.</string>
+    <string name="editor_fan_limits">Fan %1$d–%2$d%%</string>
+    <string name="editor_temp_limits">Temperature %1$s–%2$s</string>
+    <string name="editor_reset_limits">Reset limits</string>
+    <string name="editor_start_help">Runs as soon as the night starts.</string>
+    <string name="editor_middle_help">Fills the time between Start and Wake-up, moving gently from the first values to the second.</string>
+    <string name="editor_fan_start">Fan at the start: %1$d%%</string>
+    <string name="editor_fan_end">Fan at the end: %1$d%%</string>
+    <string name="editor_temp_start">Temperature at the start: %1$s</string>
+    <string name="editor_temp_end">Temperature at the end: %1$s</string>
+    <string name="editor_steps">Steps: %1$d</string>
+    <string name="editor_wake_help">Ends exactly at your wake time.</string>
+    <string name="editor_after_wake_help">Keeps going after the wake time, e.g. stay warm while you get up. Optional.</string>
+    <string name="editor_repeat_turbo">Repeat Turbo past 10 minutes</string>
+    <string name="editor_repeat_turbo_help">The BedJet runs Turbo for 10 minutes at a time. Off: carry on as Heat at your top temperature. On: start Turbo again (the BedJet runs the repeat at about 40 °C).</string>
+    <string name="editor_remove">Remove</string>
+    <string name="editor_length">Length %1$s</string>
+    <string name="editor_add_phase">Add phase</string>
+    <string name="season_any">any time</string>
+    <string name="season_summer">summer</string>
+    <string name="season_winter">winter</string>
+    <string name="season_spring_autumn">spring/autumn</string>
+    <!-- Profiles (P6) -->
+    <string name="profiles_title">Profiles</string>
+    <string name="profiles_tonight">Tonight</string>
+    <string name="profiles_wake_alarm">Would wake you at %1$s · your alarm</string>
+    <string name="profiles_wake_default">Would wake you at %1$s · default %2$s</string>
+    <string name="profiles_use_tonight">Use tonight</string>
+    <string name="profiles_copy">Copy</string>
+    <!-- The name a copied profile gets. -->
+    <string name="profiles_copy_name">%1$s copy</string>
+    <string name="profiles_delete">Delete</string>
+    <string name="profiles_new">New profile</string>
+    <string name="profiles_start_from">Start from</string>
+    <string name="profiles_delete_title">Delete %1$s?</string>
+    <string name="profiles_delete_text">Snapshots keep a copy, so you can restore it from Settings.</string>
+    <!-- A profile's one-line summary on its card. -->
+    <string name="profiles_summary">Start: %1$s · Middle: %2$s · Wake-up: %3$s</string>
+    <string name="profiles_nothing">nothing</string>
+    <string name="profiles_phase_short">%1$s %2$dm</string>
+    <string name="profiles_middle_short">%1$s fan %2$d→%3$d%%</string>
+    <!-- History (P6) -->
+    <string name="history_title">History</string>
+    <string name="history_empty">Nights you run appear here, with every change made during them.</string>
+    <string name="history_times">%1$s → wake %2$s</string>
+    <string name="history_times_alarm">%1$s → wake %2$s (alarm)</string>
+    <!-- A recorded step: time, block, mode, [temperature,] fan and length. -->
+    <string name="history_step_temp">%1$s  %2$s: %3$s, %4$s, fan %5$d%%, %6$s</string>
+    <string name="history_step">%1$s  %2$s: %3$s, fan %4$d%%, %5$s</string>
+    <plurals name="history_events">
+        <item quantity="one">%1$d event · tap for details</item>
+        <item quantity="other">%1$d events · tap for details</item>
+    </plurals>
+    <!-- The night curve and simple view (P6) -->
+    <string name="curve_description">Night plan from %1$s to %2$s; %3$s. %4$s</string>
+    <string name="curve_wake_lower">wake %1$s</string>
+    <plurals name="curve_step">
+        <item quantity="one">%1$s %2$s %3$s, fan %4$d%%, %5$d minute</item>
+        <item quantity="other">%1$s %2$s %3$s, fan %4$d%%, %5$d minutes</item>
+    </plurals>
+    <string name="curve_wake">Wake %1$s</string>
+    <string name="timeline_now">%1$s · now</string>
+    <string name="timeline_then">Then %1$s</string>
+    <string name="timeline_after_item">%1$s for %2$s</string>
+    <!-- Navigation and phone setup checks (P6) -->
+    <string name="tab_tonight">Tonight</string>
+    <string name="tab_profiles">Profiles</string>
+    <string name="tab_remote">Remote</string>
+    <string name="tab_history">History</string>
+    <string name="tab_settings">Settings</string>
+    <string name="main_resume_draft">Resume editing draft</string>
+    <string name="setup_checks_finish">Finish setting up</string>
+    <string name="setup_checks_fix">Fix</string>
+    <string name="setup_checks_nearby">Nearby devices</string>
+    <string name="setup_checks_nearby_why">To find and talk to your BedJet over Bluetooth.</string>
+    <string name="setup_checks_notifications">Notifications</string>
+    <string name="setup_checks_notifications_why">For the wake-up buttons and to tell you if something didn\'t work.</string>
+    <string name="setup_checks_alarms">Alarms &amp; reminders</string>
+    <string name="setup_checks_alarms_why">So the wake-up notification appears on the minute.</string>
+    <string name="setup_checks_battery">Unrestricted battery</string>
+    <string name="setup_checks_battery_why">Samsung stops background apps. Without this, an alarm change overnight may not reach the BedJet.</string>
+    <!-- Units and the simple-view timeline, read through Format.Words (fix round 1). minutes_short is shared. -->
+    <string name="duration_hours">%1$d h</string>
+    <string name="duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="temp_celsius">%1$s°C</string>
+    <string name="temp_fahrenheit">%1$d°F</string>
+    <string name="timeline_warming_up">warming up</string>
+    <string name="timeline_easing_off">easing off</string>
+    <string name="timeline_building">building</string>
+    <!-- "Cool, easing off": the mode, then which way the step is heading. -->
+    <string name="timeline_title_trend">%1$s, %2$s</string>
+    <string name="timeline_fan">fan %1$d%%</string>
+    <string name="timeline_fan_range">fan %1$d%% → %2$d%%</string>
 </resources>

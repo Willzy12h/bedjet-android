@@ -82,31 +82,31 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     if (confirmDiscard) {
         AlertDialog(
             onDismissRequest = { confirmDiscard = false },
-            title = { Text("Discard changes?") },
-            text = { Text("Your edits to ${original.name} haven't been saved.") },
-            confirmButton = { TextButton(onClick = { confirmDiscard = false; onDone() }) { Text("Discard") } },
-            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Keep editing") } },
+            title = { Text(stringResource(R.string.editor_discard_title)) },
+            text = { Text(stringResource(R.string.editor_discard_text, original.name)) },
+            confirmButton = { TextButton(onClick = { confirmDiscard = false; onDone() }) { Text(stringResource(R.string.editor_discard)) } },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(stringResource(R.string.editor_keep_editing)) } },
         )
     }
     if (askApplyTonight) {
         AlertDialog(
             onDismissRequest = { askApplyTonight = false },
-            title = { Text("Update tonight too?") },
-            text = { Text("${original.name} is running now. Your changes can wait for the next night, or replace the rest of tonight on the BedJet.") },
+            title = { Text(stringResource(R.string.editor_update_tonight_title)) },
+            text = { Text(stringResource(R.string.editor_update_tonight_text, original.name)) },
             confirmButton = {
-                TextButton(onClick = { model.saveProfileThenReapply(profile); askApplyTonight = false; onDone() }) { Text("Update tonight") }
+                TextButton(onClick = { model.saveProfileThenReapply(profile); askApplyTonight = false; onDone() }) { Text(stringResource(R.string.editor_update_tonight)) }
             },
-            dismissButton = { TextButton(onClick = { model.saveProfileForNextNight(profile); askApplyTonight = false; onDone() }) { Text("Next night") } },
+            dismissButton = { TextButton(onClick = { model.saveProfileForNextNight(profile); askApplyTonight = false; onDone() }) { Text(stringResource(R.string.editor_next_night)) } },
         )
     }
 
     Surface(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = leave) { Icon(Icons.Filled.Close, "Cancel") }
-                Text("Edit profile", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                IconButton(onClick = leave) { Icon(Icons.Filled.Close, stringResource(R.string.feature_cancel)) }
+                Text(stringResource(R.string.editor_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 val plan = model.previewPlan(profile)
-                Button(onClick = { if (runningTonight && profile != original) askApplyTonight = true else { model.saveProfile(profile); onDone() } }, enabled = plan.isSuccess && profile.name.isNotBlank()) { Text("Save") }
+                Button(onClick = { if (runningTonight && profile != original) askApplyTonight = true else { model.saveProfile(profile); onDone() } }, enabled = plan.isSuccess && profile.name.isNotBlank()) { Text(stringResource(R.string.editor_save)) }
             }
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -114,32 +114,32 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
             ) {
                 if (runningTonight) {
                     Text(
-                        "This profile is running tonight. When you save, you can choose to update tonight or start with the next night.",
+                        stringResource(R.string.editor_running_tonight),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
                 model.previewPlan(profile).fold(
                     onSuccess = { plan ->
-                        Text("Tonight at ${Format.clock(plan.start)}: ${plan.steps.size} of 32 BedJet steps", style = MaterialTheme.typography.labelLarge)
+                        Text(stringResource(R.string.editor_preview, Format.clock(plan.start), plan.steps.size), style = MaterialTheme.typography.labelLarge)
                         NightCurve(plan)
                     },
                     onFailure = { Text(it.message.orEmpty(), color = MaterialTheme.colorScheme.error) },
                 )
-                OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(seasonName(s)) }) }
+                    Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }) }
                 }
 
-                Section("Timing") {
-                    TimeRow("Usual bedtime", profile.bedtimeMinute) { profile = profile.copy(bedtimeMinute = it) }
-                    SwitchRow("Wake with my alarm", "Uses the next Samsung or Google Clock alarm when there is one.", profile.wakeSource.useAlarm) {
+                Section(stringResource(R.string.editor_timing)) {
+                    TimeRow(stringResource(R.string.editor_bedtime), profile.bedtimeMinute) { profile = profile.copy(bedtimeMinute = it) }
+                    SwitchRow(stringResource(R.string.editor_wake_with_alarm), stringResource(R.string.editor_wake_with_alarm_help), profile.wakeSource.useAlarm) {
                         profile = profile.copy(wakeSource = profile.wakeSource.copy(useAlarm = it))
                     }
-                    TimeRow(if (profile.wakeSource.useAlarm) "Wake time when there's no alarm" else "Wake time", profile.wakeSource.defaultWakeMinute) {
+                    TimeRow(stringResource(if (profile.wakeSource.useAlarm) R.string.editor_wake_no_alarm else R.string.wake_time), profile.wakeSource.defaultWakeMinute) {
                         profile = profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = it))
                     }
-                    Text("Default for these days", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.editor_days), style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         DayOfWeek.entries.forEach { day ->
                             FilterChip(day.value in profile.days, {
@@ -149,10 +149,10 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     }
                 }
 
-                Section("Limits") {
-                    Text("Nothing in this profile, or a snooze or extend while it runs, goes outside these.", style = MaterialTheme.typography.bodySmall)
+                Section(stringResource(R.string.editor_limits)) {
+                    Text(stringResource(R.string.editor_limits_help), style = MaterialTheme.typography.bodySmall)
                     val limits = profile.limits
-                    Text("Fan ${limits.minFan}–${limits.maxFan}%")
+                    Text(stringResource(R.string.editor_fan_limits, limits.minFan, limits.maxFan))
                     RangeSlider(
                         modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan_limits),
                             spokenRange(spokenPercent(limits.minFan), spokenPercent(limits.maxFan))),
@@ -160,7 +160,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         onValueChange = { profile = profile.copy(limits = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())) },
                         valueRange = 5f..100f, steps = 18,
                     )
-                    Text("Temperature ${Format.temp(limits.minTemp, f)}–${Format.temp(limits.maxTemp, f)}")
+                    Text(stringResource(R.string.editor_temp_limits, tempText(limits.minTemp, f), tempText(limits.maxTemp, f)))
                     RangeSlider(
                         modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp_limits),
                             spokenRange(spokenTemp(limits.minTemp, f), spokenTemp(limits.maxTemp, f))),
@@ -168,36 +168,36 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         onValueChange = { profile = profile.copy(limits = limits.copy(minTemp = it.start.roundToInt(), maxTemp = it.endInclusive.roundToInt())) },
                         valueRange = 38f..86f, steps = 47,
                     )
-                    TextButton(onClick = { profile = profile.copy(limits = ProfileLimits()) }) { Text("Reset limits") }
+                    TextButton(onClick = { profile = profile.copy(limits = ProfileLimits()) }) { Text(stringResource(R.string.editor_reset_limits)) }
                 }
 
-                PhaseList("Start", "Runs as soon as the night starts.", profile.start, f) { profile = profile.copy(start = it) }
+                PhaseList(stringResource(R.string.block_start), stringResource(R.string.editor_start_help), profile.start, f) { profile = profile.copy(start = it) }
 
-                Section("Middle") {
-                    Text("Fills the time between Start and Wake-up, moving gently from the first values to the second.", style = MaterialTheme.typography.bodySmall)
+                Section(stringResource(R.string.block_middle)) {
+                    Text(stringResource(R.string.editor_middle_help), style = MaterialTheme.typography.bodySmall)
                     val m = profile.middle
                     ModeChips(m.mode) { profile = profile.copy(middle = m.copy(mode = it, tempStart = it.clampTemp(m.tempStart), tempEnd = it.clampTemp(m.tempEnd))) }
                     if (m.mode.usesFan) {
-                        Labelled("Fan at the start: ${m.fanStart}%") { FanSlider(m.fanStart, stringResource(R.string.slider_fan_start)) { profile = profile.copy(middle = m.copy(fanStart = it)) } }
-                        Labelled("Fan at the end: ${m.fanEnd}%") { FanSlider(m.fanEnd, stringResource(R.string.slider_fan_end)) { profile = profile.copy(middle = m.copy(fanEnd = it)) } }
+                        Labelled(stringResource(R.string.editor_fan_start, m.fanStart)) { FanSlider(m.fanStart, stringResource(R.string.slider_fan_start)) { profile = profile.copy(middle = m.copy(fanStart = it)) } }
+                        Labelled(stringResource(R.string.editor_fan_end, m.fanEnd)) { FanSlider(m.fanEnd, stringResource(R.string.slider_fan_end)) { profile = profile.copy(middle = m.copy(fanEnd = it)) } }
                     }
                     if (m.mode.usesTemperature) {
-                        Labelled("Temperature at the start: ${Format.temp(m.tempStart, f)}") { TempSlider(m.mode, m.tempStart, stringResource(R.string.slider_temp_start), f) { profile = profile.copy(middle = m.copy(tempStart = it)) } }
-                        Labelled("Temperature at the end: ${Format.temp(m.tempEnd, f)}") { TempSlider(m.mode, m.tempEnd, stringResource(R.string.slider_temp_end), f) { profile = profile.copy(middle = m.copy(tempEnd = it)) } }
+                        Labelled(stringResource(R.string.editor_temp_start, tempText(m.tempStart, f))) { TempSlider(m.mode, m.tempStart, stringResource(R.string.slider_temp_start), f) { profile = profile.copy(middle = m.copy(tempStart = it)) } }
+                        Labelled(stringResource(R.string.editor_temp_end, tempText(m.tempEnd, f))) { TempSlider(m.mode, m.tempEnd, stringResource(R.string.slider_temp_end), f) { profile = profile.copy(middle = m.copy(tempEnd = it)) } }
                     }
-                    Labelled("Steps: ${m.rampSteps}") {
+                    Labelled(stringResource(R.string.editor_steps, m.rampSteps)) {
                         Slider(m.rampSteps.toFloat(), { profile = profile.copy(middle = m.copy(rampSteps = it.roundToInt())) }, valueRange = 1f..8f, steps = 6,
                             modifier = Modifier.sliderSemantics(stringResource(R.string.slider_steps), pluralStringResource(R.plurals.a11y_steps, m.rampSteps, m.rampSteps)))
                     }
                 }
 
-                PhaseList("Wake-up", "Ends exactly at your wake time.", profile.wake, f) { profile = profile.copy(wake = it) }
-                PhaseList("After wake", "Keeps going after the wake time, e.g. stay warm while you get up. Optional.", profile.afterWake, f) { profile = profile.copy(afterWake = it) }
+                PhaseList(stringResource(R.string.block_wake), stringResource(R.string.editor_wake_help), profile.wake, f) { profile = profile.copy(wake = it) }
+                PhaseList(stringResource(R.string.block_after_wake), stringResource(R.string.editor_after_wake_help), profile.afterWake, f) { profile = profile.copy(afterWake = it) }
 
-                Section("Turbo") {
+                Section(stringResource(R.string.mode_turbo)) {
                     SwitchRow(
-                        "Repeat Turbo past 10 minutes",
-                        "The BedJet runs Turbo for 10 minutes at a time. Off: carry on as Heat at your top temperature. On: start Turbo again (the BedJet runs the repeat at about 40 °C).",
+                        stringResource(R.string.editor_repeat_turbo),
+                        stringResource(R.string.editor_repeat_turbo_help),
                         profile.turboChain == TurboChain.REPEAT_TURBO,
                     ) { profile = profile.copy(turboChain = if (it) TurboChain.REPEAT_TURBO else TurboChain.TURBO_THEN_HEAT) }
                 }
@@ -214,21 +214,21 @@ private fun PhaseList(title: String, hint: String, phases: List<Phase>, f: Boole
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${Format.modeName(phase.mode)} · ${Format.duration(phase.minutes)}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { onChange(phases.filterIndexed { i, _ -> i != index }) }) { Text("Remove") }
+                        Text("${modeName(phase.mode)} · ${durationText(phase.minutes)}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { onChange(phases.filterIndexed { i, _ -> i != index }) }) { Text(stringResource(R.string.editor_remove)) }
                     }
                     fun update(p: Phase) = onChange(phases.mapIndexed { i, old -> if (i == index) p else old })
                     ModeChips(phase.mode) { update(phase.copy(mode = it, temperature = it.clampTemp(phase.temperature))) }
-                    if (phase.mode.usesTemperature) Labelled("Temperature ${Format.temp(phase.temperature, f)}") { TempSlider(phase.mode, phase.temperature, stringResource(R.string.slider_temp), f) { update(phase.copy(temperature = it)) } }
-                    if (phase.mode.usesFan) Labelled("Fan ${phase.fanPercent}%") { FanSlider(phase.fanPercent, stringResource(R.string.slider_fan)) { update(phase.copy(fanPercent = it)) } }
-                    Labelled("Length ${Format.duration(phase.minutes)}") {
+                    if (phase.mode.usesTemperature) Labelled(stringResource(R.string.label_temperature, tempText(phase.temperature, f))) { TempSlider(phase.mode, phase.temperature, stringResource(R.string.slider_temp), f) { update(phase.copy(temperature = it)) } }
+                    if (phase.mode.usesFan) Labelled(stringResource(R.string.label_fan, phase.fanPercent)) { FanSlider(phase.fanPercent, stringResource(R.string.slider_fan)) { update(phase.copy(fanPercent = it)) } }
+                    Labelled(stringResource(R.string.editor_length, durationText(phase.minutes))) {
                         Slider(phase.minutes.toFloat(), { update(phase.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..240f,
                             modifier = Modifier.sliderSemantics(stringResource(R.string.slider_length), spokenMinutes(phase.minutes)))
                     }
                 }
             }
         }
-        TextButton(onClick = { onChange(phases + Phase(Mode.COOL, 44, 40, 30)) }) { Text("Add phase") }
+        TextButton(onClick = { onChange(phases + Phase(Mode.COOL, 44, 40, 30)) }) { Text(stringResource(R.string.editor_add_phase)) }
     }
 }
 
@@ -250,7 +250,7 @@ private fun Labelled(label: String, content: @Composable () -> Unit) {
 @Composable
 private fun ModeChips(selected: Mode, onSelect: (Mode) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        PHASE_MODES.forEach { FilterChip(selected == it, { onSelect(it) }, label = { Text(Format.modeName(it)) }) }
+        PHASE_MODES.forEach { FilterChip(selected == it, { onSelect(it) }, label = { Text(modeName(it)) }) }
     }
 }
 

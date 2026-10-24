@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.github.willzy12h.nocturne.night.NightAlarms
@@ -54,14 +56,14 @@ fun SetupChecks(showAll: Boolean = false) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (showAll) "Phone setup" else "Finish setting up", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(if (showAll) R.string.settings_phone_setup else R.string.setup_checks_finish), style = MaterialTheme.typography.titleMedium)
             shown.forEach { check ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text((if (check.ok) "✓ " else "• ") + check.title, style = MaterialTheme.typography.bodyLarge)
                         Text(check.why, style = MaterialTheme.typography.bodySmall)
                     }
-                    if (!check.ok) FilledTonalButton(onClick = check.fix) { Text("Fix") }
+                    if (!check.ok) FilledTonalButton(onClick = check.fix) { Text(stringResource(R.string.setup_checks_fix)) }
                 }
             }
         }
@@ -73,20 +75,20 @@ private fun checks(context: Context, request: (Array<String>) -> Unit): List<Set
     val bluetooth = arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
     val power = context.getSystemService(PowerManager::class.java)
     return listOf(
-        SetupCheck("Nearby devices", "To find and talk to your BedJet over Bluetooth.", bluetooth.all(::granted)) { request(bluetooth) },
-        SetupCheck("Notifications", "For the wake-up buttons and to tell you if something didn't work.", Notifications.canPost(context)) {
+        SetupCheck(context.getString(R.string.setup_checks_nearby), context.getString(R.string.setup_checks_nearby_why), bluetooth.all(::granted)) { request(bluetooth) },
+        SetupCheck(context.getString(R.string.setup_checks_notifications), context.getString(R.string.setup_checks_notifications_why), Notifications.canPost(context)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !granted(Manifest.permission.POST_NOTIFICATIONS)) {
                 request(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
             } else {
                 context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
             }
         },
-        SetupCheck("Alarms & reminders", "So the wake-up notification appears on the minute.", NightAlarms.canScheduleExact(context)) {
+        SetupCheck(context.getString(R.string.setup_checks_alarms), context.getString(R.string.setup_checks_alarms_why), NightAlarms.canScheduleExact(context)) {
             context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
         },
         SetupCheck(
-            "Unrestricted battery",
-            "Samsung stops background apps. Without this, an alarm change overnight may not reach the BedJet.",
+            context.getString(R.string.setup_checks_battery),
+            context.getString(R.string.setup_checks_battery_why),
             power.isIgnoringBatteryOptimizations(context.packageName),
         ) {
             @Suppress("BatteryLife")

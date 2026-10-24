@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -54,11 +55,12 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
     // A kept manual run has no wake programme: it is described, labelled and drawn by its own end instead.
-    val description = "Night plan from ${Format.clock(plan.start)} to ${Format.clock(plan.end)}; " +
-        (end?.let { "${it.label} ${Format.clock(it.at)}. " } ?: "wake ${Format.clock(plan.wake)}. ") +
-        plan.steps.joinToString("; ") { step ->
-            "${Format.clock(step.startsAt)} ${blockName(step.block)} ${Format.modeName(step.step.mode)}, fan ${(step.step.fanStep + 1) * 5}%, ${step.minutes} minutes"
-        }
+    val description = stringResource(R.string.curve_description, Format.clock(plan.start), Format.clock(plan.end),
+        end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake_lower, Format.clock(plan.wake)),
+        plan.steps.map { step ->
+            pluralStringResource(R.plurals.curve_step, step.minutes, Format.clock(step.startsAt), blockName(step.block),
+                modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes)
+        }.joinToString("; "))
     Column(modifier) {
         Canvas(Modifier.fillMaxWidth().height(110.dp).semantics { contentDescription = description }) {
             val mid = size.height / 2
@@ -82,7 +84,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
         Row(Modifier.fillMaxWidth()) {
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Text(Format.clock(plan.start), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f))
-            Text(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: "Wake ${Format.clock(plan.wake)}", style = MaterialTheme.typography.labelSmall,
+            Text(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake, Format.clock(plan.wake)), style = MaterialTheme.typography.labelSmall,
                 color = if (end == null) wakeColor else muted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text(Format.clock(plan.end), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
@@ -91,7 +93,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 plan.steps.map { it.step.mode }.distinct().forEach { mode ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Dot(colors.mode(mode), 10)
-                        Text(Format.modeName(mode), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
+                        Text(modeName(mode), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
                     }
                 }
             }
@@ -131,25 +133,31 @@ data class TimelineEntry(
     // Cooling is felt as fan speed, so only the heating modes name a temperature.
     private val heats: Boolean get() = mode == Mode.HEAT || mode == Mode.EXTENDED_HEAT || mode == Mode.TURBO
 
+    /** "Cool, easing off" in English, for Context-free callers; screens use [title] with their [Format.Words]. */
+    val title: String get() = title(null)
+
     /** "Cool, easing off": the mode, and which way the step is heading when it changes. */
-    val title: String get() {
+    fun title(words: Format.Words?): String {
         val trend = when {
-            heats && tempEnd > tempStart -> "warming up"
-            heats && tempEnd < tempStart -> "easing off"
-            fanEnd < fanStart -> "easing off"
-            fanEnd > fanStart -> "building"
+            heats && tempEnd > tempStart -> words?.text(R.string.timeline_warming_up) ?: "warming up"
+            heats && tempEnd < tempStart -> words?.text(R.string.timeline_easing_off) ?: "easing off"
+            fanEnd < fanStart -> words?.text(R.string.timeline_easing_off) ?: "easing off"
+            fanEnd > fanStart -> words?.text(R.string.timeline_building) ?: "building"
             else -> null
         }
-        return Format.modeName(mode) + (trend?.let { ", $it" } ?: "")
+        val name = Format.modeName(mode, words)
+        return trend?.let { words?.text(R.string.timeline_title_trend, name, it) ?: "$name, $it" } ?: name
     }
 
-    /** "7 h · fan 75% → 40%", with the temperature first for modes that heat. */
-    fun detail(fahrenheit: Boolean): String {
-        val parts = mutableListOf(Format.duration(minutes))
+    /** "7 h · fan 75% → 40%", with the temperature first for modes that heat. English unless [words] is given. */
+    fun detail(fahrenheit: Boolean, words: Format.Words? = null): String {
+        val parts = mutableListOf(Format.duration(minutes, words))
         if (heats) {
-            parts += if (tempStart == tempEnd) Format.temp(tempStart, fahrenheit) else "${Format.temp(tempStart, fahrenheit)} → ${Format.temp(tempEnd, fahrenheit)}"
+            parts += if (tempStart == tempEnd) Format.temp(tempStart, fahrenheit, words)
+                else "${Format.temp(tempStart, fahrenheit, words)} → ${Format.temp(tempEnd, fahrenheit, words)}"
         }
-        if (mode != Mode.STANDBY && mode != Mode.WAIT) parts += if (fanStart == fanEnd) "fan $fanStart%" else "fan $fanStart% → $fanEnd%"
+        if (mode != Mode.STANDBY && mode != Mode.WAIT) parts += if (fanStart == fanEnd) words?.text(R.string.timeline_fan, fanStart) ?: "fan $fanStart%"
+            else words?.text(R.string.timeline_fan_range, fanStart, fanEnd) ?: "fan $fanStart% → $fanEnd%"
         return parts.joinToString(" · ")
     }
 }
@@ -179,14 +187,15 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
     val entries = timelineEntries(plan)
     val (before, after) = entries.partition { it.block != Block.AFTER_WAKE }
     val colors = nocturneColors
+    val words = rememberWords()
     Column(modifier) {
         before.forEach { entry ->
             val current = now != null && !now.isBefore(entry.startsAt) && now.isBefore(entry.endsAt)
             TimelineRow(
                 time = Format.clock(entry.startsAt),
                 dot = colors.mode(entry.mode),
-                title = entry.title,
-                detail = entry.detail(fahrenheit) + if (current) " · now" else "",
+                title = entry.title(words),
+                detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words)) else entry.detail(fahrenheit, words),
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 bold = current,
                 last = false,
@@ -201,7 +210,10 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
             time = Format.clock(plan.wake),
             dot = colors.accent,
             title = wakeOriginLabel(origin, WakeLabelStyle.TIMELINE),
-            detail = after.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Then ") { "${Format.modeName(it.mode).lowercase()} for ${Format.duration(it.minutes)}" },
+            detail = after.takeIf { it.isNotEmpty() }?.let { rest ->
+                stringResource(R.string.timeline_then, rest.map { stringResource(R.string.timeline_after_item, modeName(it.mode).lowercase(), durationText(it.minutes)) }
+                    .joinToString(", "))
+            },
             titleColor = colors.accent,
             bold = true,
             last = true,

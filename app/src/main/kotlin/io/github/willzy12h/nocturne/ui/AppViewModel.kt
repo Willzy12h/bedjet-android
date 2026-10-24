@@ -243,9 +243,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun restoreSlot(backup: SlotBackup) = act {
-        if (backup.deviceId != repo.settings.value.deviceId()) refusal("The selected BedJet changed. Check the saved slot before restoring.")
+        if (backup.deviceId != repo.settings.value.deviceId()) refusal(text(R.string.runtime_restore_target_changed))
         else if (repo.slotBackups.value.firstOrNull { it.deviceId == backup.deviceId && it.slot == backup.slot } != backup)
-            refusal("The saved original changed. Check the slot before restoring.")
+            refusal(text(R.string.runtime_restore_original_changed))
         else graph.actions.restoreOriginal(backup.slot)
     }
 
@@ -271,6 +271,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Commands wait for saves asked for before them, so they act on what the person just saved. */
     private fun refusal(message: String) = CommandOutcome(OutcomeKind.REFUSED, message)
 
+    /** A message from resources, for outcomes and snackbars. */
+    private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
+
     private fun act(hardware: Boolean = true, work: suspend () -> CommandOutcome) {
         val pending = lastSave
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
@@ -281,9 +284,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (hardware) kotlinx.coroutines.withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target)) {
                     io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false) { work() }
                 } else work()
-            } catch (e: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, e.message ?: "The BedJet did not answer in time. Check its state before trying again.")
+            } catch (e: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, e.message ?: text(R.string.runtime_no_answer))
             } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: "Something went wrong.") }
+            } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: text(R.string.runtime_something_wrong)) }
             finally { _busy.value = false }
             report(outcome)
         }
@@ -309,7 +312,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setTonightWake(wake: ZonedDateTime?) {
         val expected = activeNight.value?.identity
         act(hardware = expected != null) {
-            if (activeNight.value?.identity != expected) refusal("Tonight's night changed. Check it before setting a wake time.")
+            if (activeNight.value?.identity != expected) refusal(text(R.string.runtime_wake_night_changed))
             else graph.actions.setWakeOverride(wake, expected)
         }
     }
@@ -328,16 +331,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         repo.updateSettings { it.copy(alarmPackages = it.alarmPackages + creator) }
         refreshAlarm()
     }
-    fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit("Snapshot saved.") }
+    fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit(text(R.string.runtime_snapshot_saved)) }
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
-    fun restoreSnapshot(id: String) = save { _messages.tryEmit(snapshotRestoreMessage { repo.restoreSnapshot(id) }) }
+    fun restoreSnapshot(id: String) = save { _messages.tryEmit(snapshotRestoreMessage(text(R.string.runtime_snapshot_restored), text(R.string.runtime_snapshot_unreadable)) { repo.restoreSnapshot(id) }) }
 
     fun export(uri: android.net.Uri) {
         graph.scope.launch {
             runCatching { repo.exportTo(uri) }
-                .onSuccess { _messages.tryEmit("Backup saved.") }
-                .onFailure { _messages.tryEmit("Couldn't save the backup: ${it.message}") }
+                .onSuccess { _messages.tryEmit(text(R.string.runtime_backup_saved)) }
+                .onFailure { _messages.tryEmit(text(R.string.runtime_backup_save_failed, it.message.toString())) }
         }
     }
 
@@ -356,8 +359,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun import(uri: android.net.Uri) {
         graph.scope.launch {
             runCatching { repo.restore(repo.importFrom(uri)) }
-                .onSuccess { _messages.tryEmit("Backup restored. What you had before is saved as a snapshot.") }
-                .onFailure { _messages.tryEmit(it.message ?: "Couldn't read that file.") }
+                .onSuccess { _messages.tryEmit(text(R.string.runtime_backup_restored)) }
+                .onFailure { _messages.tryEmit(it.message ?: text(R.string.runtime_read_failed)) }
         }
     }
 
@@ -373,7 +376,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _messages.tryEmit("Couldn't save: ${e.message ?: "something went wrong"}.")
+                _messages.tryEmit(text(R.string.runtime_save_failed, e.message ?: text(R.string.runtime_something_wrong_lower)))
             }
         }
     }
@@ -386,7 +389,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _foundBedJets.value = emptyList()
             try { _foundBedJets.value = graph.bleLink.discover(10_000) }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { _messages.tryEmit(e.message ?: "Could not look for BedJets. Check Nearby devices permission.") }
+            catch (e: Exception) { _messages.tryEmit(e.message ?: text(R.string.runtime_discover_failed)) }
             finally { _discovering.value = false }
         }
     }
@@ -415,8 +418,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     connection.readTimeout = 10_000
                     when (val code = connection.responseCode) {
                         200 -> UpdateChecker.parseLatest(connection.inputStream.bufferedReader().readText())
-                        404 -> error("No release found. A private repository needs a token in Settings.")
-                        else -> error("GitHub answered $code.")
+                        404 -> error(text(R.string.runtime_update_no_release))
+                        else -> error(text(R.string.runtime_update_http, code))
                     }
                 }
             }
@@ -425,8 +428,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (latest != null && UpdateChecker.isNewer(latest.tag, version)) {
                     _release.value = latest
                     if (quiet) Notifications.showUpdate(getApplication(), latest.tag, latest.pageUrl)
-                } else if (!quiet) _messages.tryEmit("You're on the latest version ($version).")
-            }.onFailure { if (!quiet) _messages.tryEmit("Update check failed: ${it.message}") }
+                } else if (!quiet) _messages.tryEmit(text(R.string.runtime_update_latest, version))
+            }.onFailure { if (!quiet) _messages.tryEmit(text(R.string.runtime_update_failed, it.message.toString())) }
         }
     }
 
@@ -443,8 +446,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
  * What restoring a snapshot says. A restore that is kept but not yet finished says so in its own words; any other
  * failure is thrown, for the caller's "Couldn't save" message.
  */
-internal suspend fun snapshotRestoreMessage(restore: suspend () -> Boolean): String = try {
-    if (restore()) "Restored. What you had before is saved as a snapshot." else "That snapshot couldn't be read."
+internal suspend fun snapshotRestoreMessage(
+    // The app passes runtime_snapshot_restored and runtime_snapshot_unreadable; these English defaults are for
+    // callers without a Context.
+    restored: String = "Restored. What you had before is saved as a snapshot.",
+    unreadable: String = "That snapshot couldn't be read.",
+    restore: suspend () -> Boolean,
+): String = try {
+    if (restore()) restored else unreadable
 } catch (e: io.github.willzy12h.nocturne.data.RestoreUnfinished) {
     e.message.orEmpty()
 }

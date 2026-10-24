@@ -43,7 +43,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     val guard = rememberNightGuard(model)
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Remote", style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.remote_title), style = MaterialTheme.typography.headlineMedium)
         ConnectionLine(model)
         BusyIndicator(model)
         // No BedJet chosen: the route to choosing one, as on Tonight.
@@ -53,57 +53,68 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         }
         val s = status
         if (state != LinkState.READY || s == null) {
-            Text("Connect to your BedJet to use the remote.", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.remote_connect), style = MaterialTheme.typography.bodyLarge)
             return@Column
         }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(Format.modeName(s.mode), style = MaterialTheme.typography.headlineSmall)
-                Text("Air ${Format.temp(s.actualTemperature, f)} · room ${Format.temp(s.ambientTemperature, f)}")
-                if (s.isRunning) Text("Target ${Format.temp(s.targetTemperature, f)} · fan ${s.fanPercent}% · ${Format.duration(s.remainingSeconds / 60)} left")
-                s.extra?.takeIf { it.programStep > 0 }?.let { Text("Running step ${it.programStep} of a night", style = MaterialTheme.typography.bodySmall) }
+                Text(modeName(s.mode), style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.remote_air_room, tempText(s.actualTemperature, f), tempText(s.ambientTemperature, f)))
+                if (s.isRunning) Text(stringResource(R.string.remote_running, tempText(s.targetTemperature, f), s.fanPercent, durationText(s.remainingSeconds / 60)))
+                s.extra?.takeIf { it.programStep > 0 }?.let { Text(stringResource(R.string.remote_program_step, it.programStep), style = MaterialTheme.typography.bodySmall) }
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.TURBO, Mode.DRY, Mode.STANDBY).forEach { mode ->
-                FilterChip(s.mode == mode, { guard.confirm(if (mode == Mode.STANDBY) "turn the BedJet off" else "switch to ${Format.modeName(mode)}") { model.remote(Format.modeName(mode), endsNight = true, confirms = { it.mode == mode }) { it.setMode(mode) } } }, label = { Text(Format.modeName(mode)) })
+                val name = modeName(mode)
+                val what = if (mode == Mode.STANDBY) stringResource(R.string.guard_turn_off) else stringResource(R.string.guard_switch_to, name)
+                FilterChip(s.mode == mode, { guard.confirm(what) { model.remote(name, endsNight = true, confirms = { it.mode == mode }) { it.setMode(mode) } } }, label = { Text(name) })
             }
         }
         if (s.isRunning && s.mode.usesTemperature) {
             var temp by remember(s.targetTemperature) { mutableFloatStateOf(s.targetTemperature.toFloat()) }
-            Text("Temperature ${Format.temp(temp.roundToInt(), f)}")
+            val temperatureSet = stringResource(R.string.remote_temperature_set)
+            Text(stringResource(R.string.label_temperature, tempText(temp.roundToInt(), f)))
             Slider(
                 temp, { temp = it }, valueRange = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(temp.roundToInt(), f)),
                 steps = (s.maxTemperature - s.minTemperature - 1).coerceAtLeast(0),
-                onValueChangeFinished = { val t = temp.roundToInt(); model.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == t }) { it.setTemperature(t) } },
+                onValueChangeFinished = { val t = temp.roundToInt(); model.remote(temperatureSet, affectsProgramme = true, confirms = { it.targetTemperature == t }) { it.setTemperature(t) } },
             )
         }
         if (s.isRunning && s.mode.usesFan) {
             var fan by remember(s.fanStep) { mutableFloatStateOf(s.fanPercent.toFloat()) }
-            Text("Fan ${fan.roundToInt()}%")
+            val fanSet = stringResource(R.string.remote_fan_set)
+            Text(stringResource(R.string.label_fan, fan.roundToInt()))
             Slider(
                 fan, { fan = it }, valueRange = 5f..100f, steps = 18,
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(fan.roundToInt())),
-                onValueChangeFinished = { val step = (fan / 5).roundToInt() - 1; model.remote("Fan set", affectsProgramme = true, confirms = { it.fanStep == step }) { it.setFan(step) } },
+                onValueChangeFinished = { val step = (fan / 5).roundToInt() - 1; model.remote(fanSet, affectsProgramme = true, confirms = { it.fanStep == step }) { it.setFan(step) } },
             )
         }
         if (s.isRunning) {
-            Text("Run for", style = MaterialTheme.typography.titleSmall)
+            val timerSet = stringResource(R.string.remote_timer_set)
+            Text(stringResource(R.string.remote_run_for), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60, 120, 240, 480).forEach { minutes ->
-                    AssistChip({ model.remote("Timer set", affectsProgramme = true, confirms = { kotlin.math.abs(it.remainingSeconds - minutes * 60) <= 90 }) { it.setRuntime(minutes) } }, label = { Text(Format.duration(minutes)) })
+                    AssistChip({ model.remote(timerSet, affectsProgramme = true, confirms = { kotlin.math.abs(it.remainingSeconds - minutes * 60) <= 90 }) { it.setRuntime(minutes) } }, label = { Text(durationText(minutes)) })
                 }
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton({ guard.confirm("start Boost") { model.run(Command.BOOST, replacementConfirmed = true) } }) { Text("Boost ${settings.boostMinutes}m") }
+            val startBoost = stringResource(R.string.guard_start_boost)
+            FilledTonalButton({ guard.confirm(startBoost) { model.run(Command.BOOST, replacementConfirmed = true) } }) { Text(stringResource(R.string.remote_boost, settings.boostMinutes)) }
         }
         s.extra?.let { extra ->
-            SwitchRow("Lights", null, extra.ledEnabled) { on -> model.remote("Lights ${if (on) "on" else "off"}", confirms = { it.extra?.ledEnabled == on }) { it.setLed(on) } }
-            SwitchRow("Beeps", null, !extra.beepsMuted) { on -> model.remote("Beeps ${if (on) "on" else "off"}", confirms = { it.extra?.beepsMuted == !on }) { it.setMuted(!on) } }
+            val lightsOn = stringResource(R.string.remote_lights_on)
+            val lightsOff = stringResource(R.string.remote_lights_off)
+            val beepsOn = stringResource(R.string.remote_beeps_on)
+            val beepsOff = stringResource(R.string.remote_beeps_off)
+            val reminderCleared = stringResource(R.string.remote_reminder_cleared)
+            SwitchRow(stringResource(R.string.remote_lights), null, extra.ledEnabled) { on -> model.remote(if (on) lightsOn else lightsOff, confirms = { it.extra?.ledEnabled == on }) { it.setLed(on) } }
+            SwitchRow(stringResource(R.string.remote_beeps), null, !extra.beepsMuted) { on -> model.remote(if (on) beepsOn else beepsOff, confirms = { it.extra?.beepsMuted == !on }) { it.setMuted(!on) } }
             if (extra.notification == 1) {
-                FilledTonalButton({ model.remote("Reminder cleared", confirms = { it.extra?.notification == 0 }) { it.acknowledge() } }) { Text("Filter cleaned — clear reminder") }
+                FilledTonalButton({ model.remote(reminderCleared, confirms = { it.extra?.notification == 0 }) { it.acknowledge() } }) { Text(stringResource(R.string.remote_clear_reminder)) }
             }
         }
     }

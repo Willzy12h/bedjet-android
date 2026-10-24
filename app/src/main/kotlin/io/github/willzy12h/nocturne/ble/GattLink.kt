@@ -43,6 +43,8 @@ class GattLink(
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val onName: (String, String) -> Unit = { _, _ -> },
     private val onVerifiedName: (String, String?) -> Unit = { _, _ -> },
+    /** What to say when no BedJet is chosen; the app passes its resource, Context-free callers keep [NO_TARGET]. */
+    private val noTargetMessage: () -> String = { NO_TARGET },
 ) : BedJetLink {
     data class Timings(
         val operationMs: Long = 5_000,
@@ -82,7 +84,7 @@ class GattLink(
             val address = DeviceId.address(target()) ?: run {
                 current?.let(::retire)
                 _state.value = LinkState.SEARCHING
-                throw BedJetError.NotConnected(NO_TARGET)
+                throw BedJetError.NotConnected(noTargetMessage())
             }
             if (current?.takeIf { it.ready && it.address == address } != null) return
             current?.let(::retire)

@@ -38,31 +38,33 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
         candidate.night.deviceId == settings.deviceId() && candidate.commandVersion == runtime.generation &&
             runCatching { now.isBefore(ZonedDateTime.parse(candidate.expiresAt)) }.getOrDefault(false)
     }
+    val resumeSaved = stringResource(R.string.guard_resume_saved)
+    val resumePrevious = stringResource(R.string.guard_resume_previous)
     var more by remember { mutableStateOf(false) }
     var stopTracking by remember { mutableStateOf(false) }
     Column {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { more = true }) { Text("More") }
+            OutlinedButton(onClick = { more = true }) { Text(stringResource(R.string.recovery_more)) }
             if (night?.confidence == Confidence.UNKNOWN) {
-                OutlinedButton(onClick = { model.run(Command.KEEP_TRACKING) }) { Text("Keep tracking") }
+                OutlinedButton(onClick = { model.run(Command.KEEP_TRACKING) }) { Text(stringResource(R.string.runtime_command_keep_tracking)) }
             }
             if (night != null) {
-                OutlinedButton(onClick = { stopTracking = true }) { Text("Stop tracking") }
+                OutlinedButton(onClick = { stopTracking = true }) { Text(stringResource(R.string.runtime_command_stop_tracking)) }
             }
             // The offer is for this night's own programme, which a manual run left (P3b).
             if (night?.trackingManual == true && offer?.night?.recordId == night.recordId) {
-                OutlinedButton(onClick = { guard.confirm("resume the saved programme") { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text("Resume programme") }
+                OutlinedButton(onClick = { guard.confirm(resumeSaved) { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text(stringResource(R.string.recovery_resume_programme)) }
             }
             if (night == null && offer != null) {
-                OutlinedButton(onClick = { model.run(Command.RESUME) }) { Text("Resume previous night") }
+                OutlinedButton(onClick = { model.run(Command.RESUME) }) { Text(stringResource(R.string.recovery_resume_previous)) }
             }
             // A night replaced by this one can still be resumed while its offer lasts.
             if (night != null && offer != null && offer.night.recordId != night.recordId) {
-                OutlinedButton(onClick = { guard.confirm("resume the previous night") { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text("Resume previous night") }
+                OutlinedButton(onClick = { guard.confirm(resumePrevious) { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text(stringResource(R.string.recovery_resume_previous)) }
             }
         }
         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-            if (night != null) DropdownMenuItem(text = { Text("Re-check alarm") }, onClick = {
+            if (night != null) DropdownMenuItem(text = { Text(stringResource(R.string.recovery_recheck_alarm)) }, onClick = {
                 more = false
                 model.run(Command.RETIME)
             })
@@ -71,9 +73,9 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
     }
     if (stopTracking) AlertDialog(
         onDismissRequest = { stopTracking = false },
-        title = { Text("Stop tracking this night?") },
+        title = { Text(stringResource(R.string.recovery_stop_tracking_title)) },
         text = { Text(stringResource(R.string.stop_tracking_text)) },
-        confirmButton = { TextButton(onClick = { stopTracking = false; model.run(Command.STOP_TRACKING) }) { Text("Stop tracking") } },
-        dismissButton = { TextButton(onClick = { stopTracking = false }) { Text("Keep tracking") } },
+        confirmButton = { TextButton(onClick = { stopTracking = false; model.run(Command.STOP_TRACKING) }) { Text(stringResource(R.string.runtime_command_stop_tracking)) } },
+        dismissButton = { TextButton(onClick = { stopTracking = false }) { Text(stringResource(R.string.runtime_command_keep_tracking)) } },
     )
 }

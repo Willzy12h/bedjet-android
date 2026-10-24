@@ -9,6 +9,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import io.github.willzy12h.nocturne.R
 
 /** Asks before something replaces the night that's running, so a stray tap doesn't cancel tonight's wake-up. */
 fun interface NightGuard {
@@ -23,18 +25,15 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
     var pending by remember { mutableStateOf<Triple<String, io.github.willzy12h.nocturne.core.night.ActiveNight, () -> Unit>?>(null) }
 
     pending?.let { (what, running, action) ->
-        val name = profiles.firstOrNull { it.id == running?.profileId }?.name ?: "Tonight's night"
+        val name = profiles.firstOrNull { it.id == running?.profileId }?.name ?: stringResource(R.string.tonights_night)
         AlertDialog(
             onDismissRequest = { pending = null },
-            title = { Text("Stop tonight's night?") },
+            title = { Text(stringResource(R.string.guard_title)) },
             text = {
-                Text(
-                    "$name is running" + (running?.let { ", waking you at ${Format.clock(it.wakeAt)}" } ?: "") +
-                        ". This will $what, and the night won't continue.",
-                )
+                Text(stringResource(R.string.guard_running_waking, name, Format.clock(running.wakeAt), what))
             },
-            confirmButton = { TextButton(onClick = { pending = null; model.withConfirmedNight(running.identity, action) }) { Text("Stop night and continue") } },
-            dismissButton = { TextButton(onClick = { pending = null }) { Text("Keep tonight") } },
+            confirmButton = { TextButton(onClick = { pending = null; model.withConfirmedNight(running.identity, action) }) { Text(stringResource(R.string.guard_confirm)) } },
+            dismissButton = { TextButton(onClick = { pending = null }) { Text(stringResource(R.string.guard_keep)) } },
         )
     }
     return NightGuard { what, action -> if (night == null) action() else pending = Triple(what, night!!, action) }

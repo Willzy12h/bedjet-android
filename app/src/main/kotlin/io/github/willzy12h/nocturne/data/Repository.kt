@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.data
 
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.night.RuntimeState
 import android.content.Context
 import android.net.Uri
@@ -211,9 +212,8 @@ class Repository(
         if (toSetAside.isNotEmpty()) scope.launch(writer) { serially { setAsidePending() } }
         if (journalStuck) scope.launch {
             runCatching {
-                addNotice(LoggedNotice(now().toString(), NoticeKind.PROBLEM, "A restore isn't finished",
-                    "Nocturne couldn't finish writing a restore. Until it can, changes to profiles, settings, history " +
-                        "and saved originals aren't saved. Free some storage space, then reopen Nocturne."))
+                addNotice(LoggedNotice(now().toString(), NoticeKind.PROBLEM, context.getString(R.string.restore_unfinished_title),
+                    context.getString(R.string.runtime_restore_unfinished_notice)))
             }.onFailure { Log.e(TAG, "Couldn't log the unfinished restore", it) }
         }
         if (_settings.value.selectedProfileId != null) scope.launch {
@@ -262,11 +262,11 @@ class Repository(
         val night = _history.value.firstOrNull { it.id == nightId } ?: return@serially null
         if (_activeNight.value?.recordId == nightId || night.events.any { it.kind == EventKind.MORNING_FEEDBACK }) return@serially null
         val end = night.events.lastOrNull { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED } ?: return@serially null
-        val detail = when (comfort) {
-            MorningComfort.TOO_HOT -> "Too hot"
-            MorningComfort.JUST_RIGHT -> "Just right"
-            MorningComfort.TOO_COLD -> "Too cold"
-        }
+        val detail = context.getString(when (comfort) {
+            MorningComfort.TOO_HOT -> R.string.checkin_too_hot
+            MorningComfort.JUST_RIGHT -> R.string.checkin_just_right
+            MorningComfort.TOO_COLD -> R.string.checkin_too_cold
+        })
         val updated = History.addEvent(_history.value, nightId, HistoryEvent(now().toString(), EventKind.MORNING_FEEDBACK, detail, comfort))
         writeValue(HISTORY, ListSerializer(NightRecord.serializer()), updated)
         _history.value = updated
@@ -304,8 +304,9 @@ class Repository(
         if (profile.middle != suggestion.expectedMiddle || profile.limits != suggestion.expectedLimits ||
             proposedMiddle(profile, suggestion.comfort) != suggestion.proposedMiddle) return@serially false
         val profiles = _profiles.value.map { if (it.id == profile.id) it.copy(middle = suggestion.proposedMiddle) else it }
-        val detail = if (suggestion.changesFan) "Accepted 10% ${if (suggestion.comfort == MorningComfort.TOO_HOT) "more" else "less"} fan in Middle"
-            else "Accepted a 1 °C ${if (suggestion.comfort == MorningComfort.TOO_HOT) "lower" else "higher"} Middle temperature"
+        val hot = suggestion.comfort == MorningComfort.TOO_HOT
+        val detail = context.getString(if (suggestion.changesFan) { if (hot) R.string.history_accepted_more_fan else R.string.history_accepted_less_fan }
+            else if (hot) R.string.history_accepted_lower_temp else R.string.history_accepted_higher_temp)
         val history = History.addEvent(_history.value, night.id,
             HistoryEvent(now().toString(), EventKind.MORNING_SUGGESTION_APPLIED, detail))
         writeAllOrNone(listOf(
@@ -413,13 +414,13 @@ class Repository(
     private fun acceptOriginalsLoss() {
         // With no barrier file the unreadable file couldn't be set aside yet; the next start tries again first.
         if (!File(dir, SLOT_BACKUPS_BLOCK).exists()) {
-            throw IOException("The unreadable saved originals haven't been set aside yet. Reopen Nocturne, then try again.")
+            throw IOException(context.getString(R.string.runtime_originals_not_set_aside))
         }
         val at = now().toString()
         writeValue(SLOT_BACKUPS_LOSS, String.serializer(), at)
         originalsLossAcceptedAt = at
         runCatching { deleteFile(File(dir, SLOT_BACKUPS_BLOCK)) }.onFailure { Log.w(TAG, "Couldn't remove $SLOT_BACKUPS_BLOCK", it) }
-        if (File(dir, SLOT_BACKUPS_BLOCK).exists()) throw IOException("Couldn't lift the block on slots with no saved original.")
+        if (File(dir, SLOT_BACKUPS_BLOCK).exists()) throw IOException(context.getString(R.string.runtime_originals_block_stuck))
         originalsIntegrityBlocked = false
     }
 
@@ -435,7 +436,7 @@ class Repository(
     )
 
     suspend fun snapshotNow(label: String) = serially {
-        snapshots.save(bundle(), label.ifBlank { "Manual snapshot" }, manual = true)
+        snapshots.save(bundle(), label.ifBlank { context.getString(R.string.snapshot_label_manual) }, manual = true)
         _snapshotList.value = snapshots.list()
     }
 
@@ -454,7 +455,7 @@ class Repository(
      * Everything is written before anything is published; if a write fails the files already written are put back.
      * If that fails too the restore stays committed and is finished later: see [writeAllOrNone] and [RestoreUnfinished].
      */
-    suspend fun restore(bundle: BackupBundle, label: String = "Before import") {
+    suspend fun restore(bundle: BackupBundle, label: String = context.getString(R.string.snapshot_label_before_import)) {
         val errors = BackupValidator.validate(bundle)
         if (errors.isNotEmpty()) throw BackupException(errors)
         serially {
@@ -503,14 +504,14 @@ class Repository(
     /** Restores a snapshot; false when it couldn't be read. */
     suspend fun restoreSnapshot(id: String): Boolean {
         val bundle = withContext(writer) { snapshots.load(id) } ?: return false
-        restore(bundle, "Before restore")
+        restore(bundle, context.getString(R.string.snapshot_label_before_restore))
         return true
     }
 
     suspend fun exportTo(uri: Uri) {
         val bytes = serially { BackupCodec.encode(bundle()).toByteArray() }
         withContext(Dispatchers.IO) {
-            openOutput(uri)?.use { it.write(bytes) } ?: throw IOException("Couldn't open the file to save to.")
+            openOutput(uri)?.use { it.write(bytes) } ?: throw IOException(context.getString(R.string.runtime_export_open_failed))
         }
     }
 
@@ -519,7 +520,7 @@ class Repository(
      * with [restore], which validates it before changing anything.
      */
     suspend fun importFrom(uri: Uri): BackupBundle = withContext(Dispatchers.IO) {
-        openInput(uri)?.use { importFrom(it) } ?: throw IOException("Couldn't open that file.")
+        openInput(uri)?.use { importFrom(it) } ?: throw IOException(context.getString(R.string.runtime_import_open_failed))
     }
 
     /** As [importFrom], from a stream. The size is checked before any decoding. */
@@ -582,7 +583,7 @@ class Repository(
                 if (putBack && removeJournal()) throw e
                 pendingJournal = entries
                 writes.forEach { it.publish() }
-                throw if (e is Exception) RestoreUnfinished(e) else e
+                throw if (e is Exception) RestoreUnfinished(e, context.getString(R.string.runtime_change_unfinished)) else e
             }
         }
         writes.forEach { it.publish() }
@@ -602,7 +603,7 @@ class Repository(
         try {
             finishJournal()
         } catch (e: Exception) {
-            throw RestoreUnfinished(e, "An earlier change couldn't be finished, so this one wasn't saved. Try again, or reopen Nocturne.")
+            throw RestoreUnfinished(e, context.getString(R.string.runtime_earlier_change_unfinished))
         }
     }
 
@@ -848,6 +849,7 @@ class Repository(
  */
 class RestoreUnfinished(
     cause: Throwable,
+    // The repository passes runtime_change_unfinished from resources; this English default is for callers without a Context.
     message: String = "The change is kept, but not every file could be written yet. Nocturne finishes it before your next change, or when it next starts.",
 ) : IOException(message, cause)
 
