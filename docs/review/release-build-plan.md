@@ -1,5 +1,9 @@
 # Nocturne release/build package implementation plan
 
+**Historical plan:** this records the 23 October release implementation and its
+original branch scope. Current follow-up status and separately identified CI
+artefacts are recorded in the [Part A release report](release-candidate-report.md#part-a--24-october-2026).
+
 **Goal:** deliver a verified, test-signed, shrunk BedJet 3 APK and a scoped branch for Claude to merge.
 
 **Baseline:** `4fe524375fa2652ff3b97f3c1e942b35bf280155`, fetched from `origin/claude/nocturne-final-candidate` on 23 October 2026. Work branch: `gpt/nocturne-release`.

@@ -125,6 +125,16 @@ class ApkStructureTest(unittest.TestCase):
                 "sample.Foo -> a:\nsample.Foo$$serializer -> b:\n", "sample.Foo$$serializer\n", {"a"},
             )
 
+    def test_usage_removed_model_or_serializer_fails_even_with_a_defined_mapping(self):
+        # R8 usage is an independent rejection signal, including class-merge mappings.
+        for removed in ("sample.Foo", "sample.Foo$$serializer"):
+            with self.subTest(removed=removed), self.assertRaisesRegex(
+                    gate.VerificationError, "listed as removed in R8 usage.txt"):
+                gate.verify_structure(
+                    {"sample.Foo": object()}, {"sample.Foo": {"serializer": "sample.Foo$$serializer"}},
+                    "sample.Foo -> a:\nsample.Foo$$serializer -> b:\n", removed + "\n", {"a", "b"},
+                )
+
     def test_horizontal_merge_does_not_require_original_class_names(self):
         result = gate.verify_structure(
             {"sample.Foo": object()}, {"sample.Foo": {"serializer": "sample.Foo$$serializer"}},
@@ -133,14 +143,27 @@ class ApkStructureTest(unittest.TestCase):
         )
         self.assertEqual(result["sample.Foo"]["serializer"]["definedClass"], "b")
 
-    def test_inlined_serializer_member_has_a_defined_owner(self):
-        result = gate.verify_structure(
-            {"sample.Foo": object()}, {"sample.Foo": {"serializer": "sample.Foo$$serializer"}},
-            "sample.Foo -> a:\nsample.Helper -> b:\n"
-            "    1:2:void sample.Foo$$serializer.serialize(java.lang.Object):20:21 -> c\n",
-            "sample.Foo$$serializer\n", {"a", "b"},
-        )
-        self.assertEqual(result["sample.Foo"]["serializer"]["evidence"], "mapped-member")
+    def test_moved_serializer_member_is_not_a_packaged_serializer(self):
+        # A constructor, descriptor or one inlined direction cannot prove a codec survives.
+        for method in ("<init>", "getDescriptor", "serialize", "deserialize"):
+            with self.subTest(method=method), self.assertRaisesRegex(
+                    gate.VerificationError, "No packaged implementation.*Foo\\$\\$serializer"):
+                gate.verify_structure(
+                    {"sample.Foo": object()}, {"sample.Foo": {"serializer": "sample.Foo$$serializer"}},
+                    "sample.Foo -> a:\nsample.Helper -> b:\n"
+                    f"    1:2:void sample.Foo$$serializer.{method}(java.lang.Object):20:21 -> c\n",
+                    "sample.Foo$$serializer\n", {"a", "b"},
+                )
+
+    def test_moved_members_in_both_directions_still_require_a_defined_serializer(self):
+        with self.assertRaisesRegex(gate.VerificationError, "No packaged implementation.*Foo\\$\\$serializer"):
+            gate.verify_structure(
+                {"sample.Foo": object()}, {"sample.Foo": {"serializer": "sample.Foo$$serializer"}},
+                "sample.Foo -> a:\nsample.Helper -> b:\n"
+                "    1:2:void sample.Foo$$serializer.serialize(java.lang.Object):20:21 -> c\n"
+                "    1:2:java.lang.Object sample.Foo$$serializer.deserialize(java.lang.Object):30:31 -> d\n",
+                "sample.Foo$$serializer\n", {"a", "b"},
+            )
 
     def test_enum_uses_its_real_shared_serializer(self):
         result = gate.verify_structure(
@@ -208,6 +231,143 @@ class RoundTripEvidenceTest(unittest.TestCase):
         with self.assertRaisesRegex(gate.VerificationError, "Duplicate execution record"):
             self.verify()
 
+
+class ShrunkRuntimeEvidenceTest(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.path = self.root / "shrunk.json"
+        self.input_bytes = classfile("sample.Foo")
+        self.output_bytes = classfile("a")
+        self.models = {"sample.Foo": gate.Model("sample.Foo", "class", hashlib.sha256(self.input_bytes).hexdigest(), "Foo.class")}
+        self.fixtures = {"sample.Foo": [{"value": 17}]}
+        self.jar = self.root / "shrunk.jar"
+        with zipfile.ZipFile(self.jar, "w") as archive:
+            archive.writestr("a.class", self.output_bytes)
+        self.input_jar = self.root / "input.jar"
+        with zipfile.ZipFile(self.input_jar, "w") as archive:
+            archive.writestr("sample/Foo.class", self.input_bytes)
+            archive.writestr("sample/Unused.class", classfile("sample.Unused", serializable=False))
+        self.mapping = self.root / "mapping.txt"
+        self.mapping.write_text("# compiler_version: 8.10.24\nsample.Foo -> a:\n")
+        self.usage = self.root / "usage.txt"
+        self.usage.write_text("sample.Unused\n")
+        self.log = self.root / "runtime.log"
+        self.record = {"model": "sample.Foo", "executedClass": "a",
+                       "classSha256": hashlib.sha256(self.output_bytes).hexdigest(),
+                       "fixtureSha256": "b" * 64, "serializer": "s", "cases": 1}
+        self.log.write_text("NOCTURNE_SERIALIZATION " + json.dumps(self.record) + "\n"
+                            "NOCTURNE_SERIALIZATION_COMPLETE both fixture methods passed\n")
+        self.report = {
+            "format": 1, "status": "passed", "execution": "r8-classfile-jvm",
+            "apkRuntimeExecuted": False, "r8Version": "8.10.24", "fixtureSha256": "b" * 64,
+            "inputModels": {"sample.Foo": self.models["sample.Foo"].sha256},
+            "artifacts": {"outputJar": gate.artifact(self.jar), "mapping": gate.artifact(self.mapping),
+                          "runtimeLog": gate.artifact(self.log), "inputJar": gate.artifact(self.input_jar),
+                          "usage": gate.artifact(self.usage)},
+            "dependencies": [],
+            "bootClasspath": [],
+            "roundTrips": {"sample.Foo": self.record},
+            "optimisation": {"renamedModels": ["sample.Foo"], "removedProductionClasses": ["sample.Unused"]},
+        }
+        for name in ("rules", "r8", "inputsManifest"):
+            path = self.root / name
+            path.write_text(name)
+            self.report["artifacts"][name] = gate.artifact(path)
+
+    def verify(self):
+        self.path.write_text(json.dumps(self.report))
+        return gate.read_shrunk_round_trips(self.path, self.models, self.fixtures, "b" * 64, "8.10.24")
+
+    def test_passing_shrunk_output_is_bound_to_loaded_class_bytes(self):
+        self.assertEqual(self.verify()["roundTrips"], {"sample.Foo": self.record})
+
+    def test_output_changed_after_execution_fails(self):
+        self.jar.write_bytes(b"changed after execution")
+        with self.assertRaisesRegex(gate.VerificationError, "Stale shrunk artifact.*outputJar"):
+            self.verify()
+
+    def test_pre_r8_bytes_cannot_be_reported_as_shrunk_execution(self):
+        self.report["roundTrips"]["sample.Foo"]["classSha256"] = self.models["sample.Foo"].sha256
+        with self.assertRaisesRegex(gate.VerificationError, "Loaded shrunk class hash"):
+            self.verify()
+
+    def test_missing_output_class_with_null_hash_is_not_execution(self):
+        with zipfile.ZipFile(self.jar, "w"):
+            pass
+        self.report["artifacts"]["outputJar"] = gate.artifact(self.jar)
+        self.record["classSha256"] = None
+        self.log.write_text("NOCTURNE_SERIALIZATION " + json.dumps(self.record) + "\n"
+                            "NOCTURNE_SERIALIZATION_COMPLETE both fixture methods passed\n")
+        self.report["artifacts"]["runtimeLog"] = gate.artifact(self.log)
+        with self.assertRaisesRegex(gate.VerificationError, "Loaded shrunk class hash"):
+            self.verify()
+
+    def test_changed_rules_or_shrinker_cannot_reuse_runtime_evidence(self):
+        for name in ("rules", "r8"):
+            with self.subTest(artifact=name):
+                path = Path(self.report["artifacts"][name]["path"])
+                original = path.read_bytes()
+                path.write_bytes(b"replaced")
+                with self.assertRaisesRegex(gate.VerificationError, f"Stale shrunk artifact: {name}"):
+                    self.verify()
+                path.write_bytes(original)
+
+    def test_missing_library_inventory_fails_closed(self):
+        for name in ("dependencies", "bootClasspath"):
+            with self.subTest(inventory=name):
+                value = self.report.pop(name)
+                with self.assertRaisesRegex(gate.VerificationError, "Missing shrunk library inventory"):
+                    self.verify()
+                self.report[name] = value
+
+    def test_unshrunk_model_on_runtime_classpath_is_rejected(self):
+        self.report["dependencies"] = [gate.artifact(self.input_jar)]
+        with self.assertRaisesRegex(gate.VerificationError, "Original model classes"):
+            self.verify()
+
+    def test_changed_compiler_input_fails(self):
+        self.report["inputModels"]["sample.Foo"] = "c" * 64
+        with self.assertRaisesRegex(gate.VerificationError, "Stale shrunk input model"):
+            self.verify()
+
+    def test_changed_fixtures_fail(self):
+        self.report["fixtureSha256"] = "c" * 64
+        with self.assertRaisesRegex(gate.VerificationError, "Stale shrunk fixture"):
+            self.verify()
+
+    def test_different_shrinker_version_to_apk_fails(self):
+        self.report["r8Version"] = "other"
+        with self.assertRaisesRegex(gate.VerificationError, "R8 version.*APK"):
+            self.verify()
+
+    def test_missing_case_after_shrinking_fails(self):
+        self.report["roundTrips"]["sample.Foo"]["cases"] = 0
+        with self.assertRaisesRegex(gate.VerificationError, "Shrunk fixture case count"):
+            self.verify()
+
+    def test_no_obfuscation_is_not_a_shrunk_runtime_gate(self):
+        self.report["optimisation"]["renamedModels"] = []
+        with self.assertRaisesRegex(gate.VerificationError, "obfuscation and shrinking"):
+            self.verify()
+
+    def test_no_shrinking_is_not_a_shrunk_runtime_gate(self):
+        self.report["optimisation"]["removedProductionClasses"] = []
+        with self.assertRaisesRegex(gate.VerificationError, "obfuscation and shrinking"):
+            self.verify()
+
+    def test_incomplete_harness_execution_fails(self):
+        self.log.write_text("NOCTURNE_SERIALIZATION " + json.dumps(self.record) + "\n")
+        self.report["artifacts"]["runtimeLog"] = gate.artifact(self.log)
+        with self.assertRaisesRegex(gate.VerificationError, "completion marker"):
+            self.verify()
+
+
+class GateCliTest(unittest.TestCase):
+    setUp = RoundTripEvidenceTest.setUp
+    write_result = RoundTripEvidenceTest.write_result
+
     def test_cli_produces_hash_bound_separate_evidence(self):
         root = Path(self.directory.name)
         classes = root / "classes"
@@ -222,13 +382,24 @@ class RoundTripEvidenceTest(unittest.TestCase):
         with zipfile.ZipFile(apk, "w") as archive:
             archive.writestr("classes.dex", dexfile(["a", "b"]))
         mapping = root / "mapping.txt"
-        mapping.write_text("# pg_map_id: fixture\nsample.Foo -> a:\nsample.Foo$$serializer -> b:\n")
+        mapping.write_text("# pg_map_id: fixture\n# compiler_version: 8.10.24\nsample.Foo -> a:\nsample.Foo$$serializer -> b:\n")
         usage = root / "usage.txt"
         usage.write_text("")
+        shrunk = ShrunkRuntimeEvidenceTest()
+        shrunk.setUp()
+        self.addCleanup(shrunk.doCleanups)
+        fixture_hash = hashlib.sha256(fixture.read_bytes()).hexdigest()
+        shrunk.report["fixtureSha256"] = fixture_hash
+        shrunk.record["fixtureSha256"] = fixture_hash
+        shrunk.log.write_text("NOCTURNE_SERIALIZATION " + json.dumps(shrunk.record) + "\n"
+                              "NOCTURNE_SERIALIZATION_COMPLETE both fixture methods passed\n")
+        shrunk.report["artifacts"]["runtimeLog"] = gate.artifact(shrunk.log)
+        shrunk.path.write_text(json.dumps(shrunk.report))
         report = root / "report.json"
         result = subprocess.run([sys.executable, "-B", str(Path(gate.__file__)),
             "--apk", str(apk), "--mapping", str(mapping), "--usage", str(usage),
             "--junit", str(self.path), "--fixtures", str(fixture), "--classes", str(classes),
+            "--shrunk-report", str(shrunk.path),
             "--report", str(report)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(report.exists(), "Gate did not create the evidence report")
@@ -236,6 +407,7 @@ class RoundTripEvidenceTest(unittest.TestCase):
         self.assertEqual(evidence["status"], "passed")
         self.assertEqual(evidence["modelCount"], 1)
         self.assertFalse(evidence["apkRuntimeExecuted"])
+        self.assertTrue(evidence["shrunkJvmRuntimeExecuted"])
         self.assertEqual(evidence["artifacts"]["apk"]["sha256"], hashlib.sha256(apk.read_bytes()).hexdigest())
 
 
