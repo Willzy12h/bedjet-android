@@ -27,6 +27,10 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+private annotation class PlatformRowsSeed
+
 /** U06: every slider instance and switch row in the real app, at 320 dp / 200% text. */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
@@ -40,7 +44,8 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         private const val TARGET = "ble:AA:BB:CC:DD:EE:FF"
     }
 
-    private val fixture = U06Fixture(look) { f, method ->
+    private val fixture = U06Fixture(look) { f, description ->
+        val platformRows = description.getAnnotation(PlatformRowsSeed::class.java) != null
         // Fixed, distinct values make a missing/wrong unit or another preset's state observable.
         runBlocking {
             f.graph.repository.saveProfile(Presets.summerCool)
@@ -53,14 +58,14 @@ internal class U06ControlSemanticsTest(look: U06Look) {
                     extendCool = ActionPreset(Mode.COOL, 44, 40, 35),
                 ).chooseTonight(Presets.summerCool.id, f.graph.now())
             }
-            if (method == "platformRowsAreSingleToggleableTargets") {
+            if (platformRows) {
                 f.graph.repository.updateSettings {
                     it.copy(demoMode = false, targetDevice = TARGET,
                         platform = it.platform.copy(healthSleepOverlay = true))
                 }
             }
         }
-        if (method == "platformRowsAreSingleToggleableTargets") {
+        if (platformRows) {
             val app: Application = RuntimeEnvironment.getApplication()
             shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.BLUETOOTH_ADVERTISE)
             PlatformNotifications.channel(app)
@@ -218,7 +223,8 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         toggleTwice(s(R.string.remote_beeps)) { !graph.link.status.value!!.extra!!.beepsMuted }
     }
 
-    @Test fun platformRowsAreSingleToggleableTargets() {
+    @Test @PlatformRowsSeed
+    fun platformRowsAreSingleToggleableTargets() {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
         toggleTwice(s(R.string.feature_reminders)) { graph.repository.settings.value.platform.bedtimeReminder }

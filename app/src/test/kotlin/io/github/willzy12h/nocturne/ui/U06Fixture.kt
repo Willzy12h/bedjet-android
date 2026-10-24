@@ -23,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
+import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
@@ -40,13 +41,15 @@ enum class U06Look(val theme: ThemeMode, val simple: Boolean) {
 }
 
 /**
- * Real Activity, screens, repository and demo connection at 320 dp / 200% text. Seeded screen states deliberately
+ * Real Activity, screens, repository and demo connection; defaults to 320 dp / 200% text. Seeded states deliberately
  * do not start the background reconciler: these tests prove layout, while AppSmokeTest covers runtime transitions.
  * Every graph is finished before replacing it or tearing down Robolectric storage.
  */
 internal class U06Fixture(
     val look: U06Look,
-    beforeLaunch: (U06Fixture, String) -> Unit = { _, _ -> },
+    private val widthDp: Int = 320,
+    private val fontScale: Float = 2f,
+    beforeLaunch: (U06Fixture, Description) -> Unit = { _, _ -> },
 ) {
     val compose = createAndroidComposeRule<MainActivity>()
     val graphs = GraphLifecycle()
@@ -62,7 +65,9 @@ internal class U06Fixture(
             val app = RuntimeEnvironment.getApplication() as App
             val previous = Configuration(app.resources.configuration)
             @Suppress("DEPRECATION")
-            app.resources.updateConfiguration(Configuration(previous).apply { fontScale = 2f }, app.resources.displayMetrics)
+            app.resources.updateConfiguration(Configuration(previous).apply {
+                fontScale = this@U06Fixture.fontScale
+            }, app.resources.displayMetrics)
             // Keep real SnackbarHost feedback visible while semantic scrolling advances Compose's clock.
             // This is Android's accessibility "time to take action" setting, not a frozen animation clock.
             shadowOf(app.getSystemService(android.view.accessibility.AccessibilityManager::class.java)).apply {
@@ -88,7 +93,7 @@ internal class U06Fixture(
                 ) }
                 replacement.repository.setActiveNight(null)
             }
-            beforeLaunch(this@U06Fixture, method)
+            beforeLaunch(this@U06Fixture, description)
             base.evaluate()
         }
     } }
@@ -123,30 +128,34 @@ internal class U06Fixture(
 
     /**
      * A partial semantics rectangle can pass assertIsDisplayed. Compare it with the actual un-clipped layout,
-     * check the full touch rectangle and text layout, and compare against the real bar and visible snackbar.
+     * check the full text layout, and compare the visible control against its scroll viewport, bar and snackbar.
+     * Material may expand a chip's touch target beyond its drawn bounds. performScrollTo aligns those drawn
+     * bounds with a viewport edge; that extra touch overhang is allowed, but clipping the control itself is not.
      */
     fun checkLayout(node: SemanticsNodeInteraction, label: String, scroll: Boolean = true): SemanticsNodeInteraction {
-        assertEquals("The Activity must really be 320 dp wide", 320, compose.activity.resources.configuration.screenWidthDp)
-        assertEquals("The Activity must really use 200% text", 2f, compose.activity.resources.configuration.fontScale, .001f)
-        assertEquals("Compose must inherit 200% text", 2f, compose.density.fontScale, .001f)
+        assertConfiguration()
         if (scroll) node.performScrollTo()
         layout()
         capture(label)
         node.assertIsDisplayed()
         val semantics = node.fetchSemanticsNode()
-        assertEquals("The composed node must use 200% text", 2f, semantics.layoutInfo.density.fontScale, .001f)
+        assertEquals("The composed node must use the requested font scale", fontScale, semantics.layoutInfo.density.fontScale, .001f)
         val density = semantics.layoutInfo.density.density
-        val touch = semantics.touchBoundsInRoot
         val uncut = node.getUnclippedBoundsInRoot().let { Rect(
             it.left.value * density, it.top.value * density, it.right.value * density, it.bottom.value * density,
         ) }
         val visible = semantics.boundsInRoot
         assertContained("$label layout is clipped", uncut, visible)
         val root = generateSequence(semantics) { it.parent }.last().boundsInRoot
-        assertContained("$label touch target leaves its window", touch, root)
+        assertContained("$label visible control leaves its window", visible, root)
+        generateSequence(semantics.parent) { it.parent }
+            .filter { it.config.contains(SemanticsProperties.VerticalScrollAxisRange) }
+            .forEach { viewport ->
+                assertContained("$label visible control leaves its scroll viewport", visible, viewport.boundsInRoot)
+            }
         val bar = compose.onAllNodesWithTag("main-navigation").fetchSemanticsNodes().singleOrNull()
         if (bar != null && semantics.root === bar.root) {
-            assertTrue("$label is covered by bottom navigation: $touch / ${bar.boundsInRoot}", touch.bottom <= bar.boundsInRoot.top + 1f)
+            assertTrue("$label is covered by bottom navigation: $visible / ${bar.boundsInRoot}", visible.bottom <= bar.boundsInRoot.top + 1f)
         }
         feedback?.let { message ->
             val notice = compose.onNodeWithText(message, useUnmergedTree = true).fetchSemanticsNode()
@@ -159,7 +168,7 @@ internal class U06Fixture(
                 val surface = ancestors.take(liveRegion).firstOrNull {
                     it.config.getOrNull(SemanticsProperties.IsTraversalGroup) == true
                 } ?: error("Visible feedback must expose its opaque Material Surface")
-                assertTrue("$label is covered by visible snackbar: $touch / ${surface.boundsInRoot}", touch.bottom <= surface.boundsInRoot.top + 1f)
+                assertTrue("$label is covered by visible snackbar: $visible / ${surface.boundsInRoot}", visible.bottom <= surface.boundsInRoot.top + 1f)
             }
         }
         assertTextFits(semantics, label)
@@ -169,6 +178,29 @@ internal class U06Fixture(
     private fun assertContained(message: String, inside: Rect, outside: Rect) {
         assertTrue("$message: expected $inside inside $outside", inside.left >= outside.left - 1f &&
             inside.top >= outside.top - 1f && inside.right <= outside.right + 1f && inside.bottom <= outside.bottom + 1f)
+    }
+
+    private fun assertConfiguration() {
+        assertEquals("The Activity must really use the requested width", widthDp, compose.activity.resources.configuration.screenWidthDp)
+        assertEquals("The Activity must really use the requested font scale", fontScale, compose.activity.resources.configuration.fontScale, .001f)
+        assertEquals("Compose must inherit the requested font scale", fontScale, compose.density.fontScale, .001f)
+    }
+
+    /** Shared by control labels and the scrollable loss explanation; no ellipsis, lost characters or clipped lines. */
+    fun assertLinesFit(result: TextLayoutResult, label: String) {
+        assertTrue("$label must render at least one line", result.lineCount > 0)
+        // Compose 1.7.6 rebuilds the semantic MultiParagraph at its original maximum width even if Text
+        // shrank to its contents. Check actual line spans instead of hasVisualOverflow's false width result.
+        assertFalse("$label loses text lines", result.multiParagraph.didExceedMaxLines)
+        assertEquals("$label must render every character", result.layoutInput.text.length,
+            result.getLineEnd(result.lineCount - 1))
+        (0 until result.lineCount).forEach { line ->
+            assertFalse("$label ellipsises line $line", result.isLineEllipsized(line))
+            val width = result.getLineRight(line) - result.getLineLeft(line)
+            assertTrue("$label clips line $line horizontally: $width > ${result.size.width}", width <= result.size.width + 1f)
+            assertTrue("$label clips line $line vertically: ${result.getLineBottom(line)} > ${result.size.height}",
+                result.getLineTop(line) >= -1f && result.getLineBottom(line) <= result.size.height + 1f)
+        }
     }
 
     private fun assertTextFits(control: SemanticsNode, label: String) {
@@ -184,21 +216,7 @@ internal class U06Fixture(
             val layouts = mutableListOf<TextLayoutResult>()
             compose.runOnIdle { text.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts) }
             assertTrue("$label must expose its rendered text layout", layouts.isNotEmpty())
-            layouts.forEach { result ->
-                // Compose 1.7.6's GetTextLayoutResult rebuilds a MultiParagraph at the original maximum
-                // width, even when the rendered Text shrank to its contents. hasVisualOverflow therefore
-                // falsely reports width overflow. Check the actual line spans and character coverage.
-                assertFalse("$label loses text lines", result.multiParagraph.didExceedMaxLines)
-                assertEquals("$label must render every character", result.layoutInput.text.length,
-                    result.getLineEnd(result.lineCount - 1))
-                (0 until result.lineCount).forEach { line ->
-                    assertFalse("$label ellipsises line $line", result.isLineEllipsized(line))
-                    val width = result.getLineRight(line) - result.getLineLeft(line)
-                    assertTrue("$label clips line $line horizontally: $width > ${result.size.width}", width <= result.size.width + 1f)
-                    assertTrue("$label clips line $line vertically: ${result.getLineBottom(line)} > ${result.size.height}",
-                        result.getLineTop(line) >= -1f && result.getLineBottom(line) <= result.size.height + 1f)
-                }
-            }
+            layouts.forEach { result -> assertLinesFit(result, label) }
             val fullText = Rect(text.positionInRoot.x, text.positionInRoot.y,
                 text.positionInRoot.x + text.size.width, text.positionInRoot.y + text.size.height)
             assertContained("$label text is clipped", fullText, text.boundsInRoot)
@@ -226,6 +244,7 @@ internal class U06Fixture(
     /** Opt-in evidence is separate from assertions: these tests still run without SCREENSHOT_TAG. */
     fun capture(name: String) {
         val tag = System.getenv("SCREENSHOT_TAG")?.takeIf { it.isNotBlank() } ?: return
+        assertConfiguration()
         require(tag.matches(Regex("[A-Za-z0-9][A-Za-z0-9_-]*")))
         val safeName = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(90)
         val directory = File("build/screenshots/$tag/u06").apply { mkdirs() }

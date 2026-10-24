@@ -27,22 +27,30 @@ import java.io.IOException
 import java.time.ZonedDateTime
 import kotlin.math.abs
 
+private enum class RecoveryScenario { UNREADABLE, UNFINISHED_RESTORE, LOST_ORIGINALS, UNCONFIRMED_SLOT }
+
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+private annotation class RecoverySeed(val value: RecoveryScenario)
+
 /** U06: recovery actions in the actual Activity remain usable at 320 dp / 200% text, with visible feedback. */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class U06RecoveryLayoutTest(look: U06Look) {
-    private val ui = U06Fixture(look) { fixture, method ->
-        when {
-            method.startsWith("ordinaryUnreadable") -> unreadableFile(fixture, "profiles.json")
-            method.startsWith("unfinishedRestore") -> unfinishedRestoreWithUnreadableFile(fixture)
-            method.startsWith("lostOriginals") -> unreadableFile(fixture, "slot-backups.json")
-            method.startsWith("unconfirmedSlotWrite") -> runBlocking {
+    private val ui = U06Fixture(look) { fixture, description ->
+        val scenario = requireNotNull(description.getAnnotation(RecoverySeed::class.java)) {
+            "Each recovery test must explicitly choose its seed"
+        }.value
+        when (scenario) {
+            RecoveryScenario.UNREADABLE -> unreadableFile(fixture, "profiles.json")
+            RecoveryScenario.UNFINISHED_RESTORE -> unfinishedRestoreWithUnreadableFile(fixture)
+            RecoveryScenario.LOST_ORIGINALS -> unreadableFile(fixture, "slot-backups.json")
+            RecoveryScenario.UNCONFIRMED_SLOT -> runBlocking {
                 fixture.graph.repository.updateRuntime {
                     it.copy(slotWrite = SlotWrite("demo", 1, null, Confidence.UNKNOWN, "Keep on slot 2"))
                 }
             }
-            else -> error("No recovery fixture for $method")
         }
     }
     @get:Rule val rules = ui.rules
@@ -52,7 +60,8 @@ class U06RecoveryLayoutTest(look: U06Look) {
         fun looks(): List<Array<Any>> = U06Look.entries.map { arrayOf(it) }
     }
 
-    @Test fun ordinaryUnreadableActionsStayReachableOnTonightAndSettings() {
+    @Test @RecoverySeed(RecoveryScenario.UNREADABLE)
+    fun ordinaryUnreadableActionsStayReachableOnTonightAndSettings() {
         assertEquals(listOf("profiles.json"), ui.graph.repository.unreadable.value)
         assertFalse(ui.graph.repository.restoreUnfinished.value)
         ui.snackbar()
@@ -75,7 +84,8 @@ class U06RecoveryLayoutTest(look: U06Look) {
         ui.compose.onNodeWithText(ui.s(R.string.unreadable_banner)).assertDoesNotExist()
     }
 
-    @Test fun unfinishedRestoreAndUnreadableActionsStayReachableOnTonightAndSettings() {
+    @Test @RecoverySeed(RecoveryScenario.UNFINISHED_RESTORE)
+    fun unfinishedRestoreAndUnreadableActionsStayReachableOnTonightAndSettings() {
         val repository = ui.graph.repository
         assertTrue("The fixture must contain a real unfinished restore", repository.restoreUnfinished.value)
         assertEquals(setOf(Repository.RESTORE_JOURNAL, "notices.json"), repository.unreadable.value.toSet())
@@ -106,7 +116,8 @@ class U06RecoveryLayoutTest(look: U06Look) {
         viewAndHideUnfinishedRestoreDetails()
     }
 
-    @Test fun lostOriginalsConfirmationStaysReachableOnTonightAndSettings() {
+    @Test @RecoverySeed(RecoveryScenario.LOST_ORIGINALS)
+    fun lostOriginalsConfirmationStaysReachableOnTonightAndSettings() {
         val repository = ui.graph.repository
         assertTrue("Unreadable saved originals must engage the real barrier", repository.originalsBlocked.value)
         assertEquals(listOf("slot-backups.json"), repository.unreadable.value)
@@ -139,7 +150,8 @@ class U06RecoveryLayoutTest(look: U06Look) {
         ui.compose.onNodeWithText(ui.s(R.string.originals_blocked_text)).assertDoesNotExist()
     }
 
-    @Test fun unconfirmedSlotWriteCanBeCheckedAboveFeedbackOnTonight() {
+    @Test @RecoverySeed(RecoveryScenario.UNCONFIRMED_SLOT)
+    fun unconfirmedSlotWriteCanBeCheckedAboveFeedbackOnTonight() {
         val repository = ui.graph.repository
         assertEquals(Confidence.UNKNOWN, repository.runtime.value.unresolvedSlotWrite?.confidence)
         ui.snackbar()
@@ -195,23 +207,13 @@ class U06RecoveryLayoutTest(look: U06Look) {
         ui.compose.runOnIdle { initial.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts) }
         assertEquals("The explanation must expose its real text layout", 1, layouts.size)
         val result = layouts.single()
-        assertTrue("The explanation must render at least one line", result.lineCount > 0)
+        ui.assertLinesFit(result, "Accept-loss explanation")
         val lastLine = result.lineCount - 1
-        // Compose 1.7.6 reconstructs the paragraph at the original maximum width. As in U06Fixture,
-        // measure the actual line spans and character coverage, not hasVisualOverflow's false width result.
         assertEquals("The explanation must retain its complete warning", explanation, result.layoutInput.text.text)
-        assertFalse("The explanation loses text lines", result.multiParagraph.didExceedMaxLines)
-        assertEquals("The explanation must render its final sentence", explanation.length, result.getLineEnd(lastLine))
         (0..lastLine).forEach { line ->
-            assertFalse("The explanation ellipsises line $line", result.isLineEllipsized(line))
-            val width = result.getLineRight(line) - result.getLineLeft(line)
-            assertTrue("The explanation clips line $line horizontally: $width > ${result.size.width}",
-                width <= result.size.width + 1f)
             assertTrue("The explanation's line $line leaves the visible width",
                 initial.positionInRoot.x + result.getLineLeft(line) >= initial.boundsInRoot.left - 1f &&
                     initial.positionInRoot.x + result.getLineRight(line) <= initial.boundsInRoot.right + 1f)
-            assertTrue("The explanation clips line $line inside its text layout",
-                result.getLineTop(line) >= -1f && result.getLineBottom(line) <= result.size.height + 1f)
         }
 
         fun lineIsVisible(line: Int): Boolean {
