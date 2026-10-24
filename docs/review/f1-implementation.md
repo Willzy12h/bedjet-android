@@ -4,14 +4,14 @@ Branch: `gpt/nocturne-f1`.
 
 Base: `c59e974fd8dfeb4d29ed58f8567514ac6b7b345d`, fetched from `origin/claude/nocturne-final-candidate` before branching.
 
-This review covers the owner's six F1 requests. The final verification section is completed after the integrated gate; earlier candidate results remain historical evidence.
+This review covers the owner's six F1 requests. The complete F1 gate and release-journal compatibility check passed; earlier candidate results remain historical evidence.
 
 ## Corrections
 
 | Request | Implementation |
 |---|---|
 | 1. Silent final background re-time failures | `retryRetimeLocked` reports terminal partial-write, permanent-refusal and exception outcomes. Background timeouts have one service-owned notice even when routine notifications are suppressed. Routine retryable failures retain their alarm without a notice. |
-| 2. Off contract | The Task 4 contract now names Off as the night/revision-identity exception, including old notification/widget/dialog requests. Captured-target validation remains mandatory. The Off implementation and three inverted regression tests are unchanged. |
+| 2. Off contract | The Task 4 contract now names Off as the night/revision-identity exception, including old notification/widget/dialog requests. Captured-target validation remains mandatory. The Off identity/target validation and three inverted regression tests are unchanged. |
 | 3. Wrong delayed-end history label | The end marker retains the label of the attempted manual command; a later qualifying stopped-state report records that label instead of always recording “BedJet off.” |
 | 4. Reflective capability lookup | `ManualTrackingTest` accesses the public `hasPlannedManualEnd` property directly. Its behavioural assertions are retained. |
 | 5. Missing report timestamp guard | The marker also retains the request time. Reports received before that instant cannot complete it. Equal instants, including different zone representations, are accepted. |
@@ -64,6 +64,40 @@ The fixture now finishes the application graph through `GraphLifecycle.fresh`, i
 
 ## Final integrated verification
 
-Pending the required complete gate and release-journal compatibility check.
+**PASS — code commit `7725b442999e28ec13d1dc24021409147be3cd69`.** The subsequent hand-off commit changes documentation only. After clearing the two test tasks' outputs, the required gate completed successfully:
+
+```sh
+./gradlew :core:cleanTest :app:cleanTestDebugUnitTest --offline --max-workers=2 --console=plain
+export SCREENSHOT_TAG=f1
+./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline --max-workers=2 --console=plain
+```
+
+The retained JUnit XML reports these exact counts:
+
+| Scope | Suites | Tests | Passed | Failures | Errors | Skipped |
+|---|---:|---:|---:|---:|---:|---:|
+| Core | 20 | 156 | 156 | 0 | 0 | 0 |
+| App debug | 60 | 504 | 504 | 0 | 0 | 0 |
+| **Required gate total** | **80** | **660** | **660** | **0** | **0** | **0** |
+
+All six existing opt-in screenshot tests ran, producing 38 capture PNGs. **Debug assembly passed. Lint passed with 0 Error, 0 Fatal, 14 Warning and 1 Hint**: 11 `UseKtx`, one each of `ObsoleteSdkInt`, `OldTargetApi` and `SpecifyJobSchedulerIdRange`, and one `AutoboxingStateCreation` hint. The gate took **8 minutes**, with **59 tasks: 41 executed and 18 up-to-date**.
+
+The debug APK is **66,181,662 bytes**, SHA-256 `863d0d3880309b8b97f6ea628443aa849ca35de79a87fd8bdf7768abb3b90c0c`.
+
+The additional release-variant serialisation check also passed:
+
+```sh
+./gradlew -I .github/workflows/release-serialization.init.gradle :app:testReleaseUnitTest --tests io.github.willzy12h.nocturne.releasegate.ReleaseSerializationTest :app:exportReleaseSerializationInputs --offline --max-workers=2 --console=plain
+```
+
+`ReleaseSerializationTest` passed **2/2**, with **0 failures, errors or skips**; release serialisation inputs were exported successfully. The fixtures cover the populated new end-marker fields and a legacy identity-only marker. This is a JVM release-variant check, not a new minified-APK or installation verification.
+
+The session evidence is retained under `/workspace/scratch/1b34905af893/f1-evidence/`: `required-gate-summary.json`, `required-gate.log`, `required-gate-xml/`, `release-serialization.log` and `release-serialization-xml/`. The test-first counts above describe separate focused runs and are not added to the required-gate total.
+
+## Independent code review
+
+A separate read-only review of `c59e974..7725b44` found no Critical or Important correctness issues. Its documentation-completion note is addressed in this final evidence update. Claude's independent review and merge remain separate.
+
+The timeout regression injects a real `TimeoutCancellationException` using a short nested timeout after a write. It verifies the receiver-to-service timeout-handling branch and UNKNOWN outcome; it does not measure expiry of the full `SERVICE_MS` wall-clock budget.
 
 Physical BedJet 3 behaviour, Android phone delivery and installation remain untested by this work. The automated tests and any Robolectric captures are not hardware evidence. No production release or merge is part of F1.
