@@ -394,6 +394,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         graph.actions.selectTarget("ble:$address", useRealDevice = true)
     }
 
+    /** Setup's separate "Use demo instead": Demo on, the real target left as it is (null stays null). */
+    fun useDemo() = act(hardware = false) { graph.actions.setDemoMode(true) }
+
     fun runSetupFanCheck() = act { graph.actions.setupFanCheck() }
 
     fun bedJetName(): String? = if (settings.value.demoMode) "BEDJET-DEMO" else graph.bleLink.deviceName

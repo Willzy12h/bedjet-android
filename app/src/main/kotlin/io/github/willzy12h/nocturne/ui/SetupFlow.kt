@@ -9,6 +9,11 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,6 +50,17 @@ fun SetupFlow(model: AppViewModel, compact: Boolean = false) {
                 OutlinedButton(onClick = model::runSetupFanCheck) { Text(stringResource(if (checked) R.string.setup_fan_repeat else R.string.setup_fan_run)) }
             }
             if (settings.demoMode) Text(stringResource(R.string.setup_demo_help), style = MaterialTheme.typography.bodySmall)
+            else {
+                // A clearly separate choice: the demo never becomes the selected real BedJet.
+                HorizontalDivider()
+                Text(stringResource(R.string.setup_use_demo_help), style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = model::useDemo) { Text(stringResource(R.string.setup_use_demo)) }
+            }
+            if (!compact) {
+                var samsung by rememberSaveable { mutableStateOf(false) }
+                TextButton(onClick = { samsung = !samsung }) { Text(stringResource(R.string.setup_samsung_title)) }
+                if (samsung) Text(stringResource(R.string.setup_samsung_help), style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }

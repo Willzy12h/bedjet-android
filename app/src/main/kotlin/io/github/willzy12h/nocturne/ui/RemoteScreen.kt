@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlin.math.roundToInt
 
@@ -43,6 +44,11 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         Text("Remote", style = MaterialTheme.typography.headlineMedium)
         ConnectionLine(model)
         BusyIndicator(model)
+        // No BedJet chosen: the route to choosing one, as on Tonight.
+        if (settings.deviceId() == null) {
+            SetupFlow(model, compact = true)
+            return@Column
+        }
         val s = status
         if (state != LinkState.READY || s == null) {
             Text("Connect to your BedJet to use the remote.", style = MaterialTheme.typography.bodyLarge)
