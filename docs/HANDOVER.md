@@ -1,37 +1,54 @@
-# Nocturne handover
+# Nocturne — current engineering handover
 
-**Updated:** 23 October 2026. **Branch:** `claude/nocturne-completion`, based on independent-review commit `ae6e4d52a38dc2f295dd5c26f0f4614a24fed587`, which contains hardening commit `7fffabcb58741c48b765285d78c9284ce9967c27`. The remote had no newer fix branch at the completion fetch. Task 5 checkpoint commits named in the old handover could not be fetched or found in the clone; the remaining UI integration was reconstructed from the task report and current APIs.
+## Branch state and ownership
 
-## Quick read
+This is the GPT-5 documentation handover, dated 24 October 2026. Branch/review assignments below come from the owner's workstream brief; they are not inferred from a passing test suite.
 
-- [Completion review](review/nocturne-completion.md): individual IR-01–IR-32 dispositions, implementation scope and qualifications.
-- [Register](review/register.md): original workstream rows and the current completion summary at the top.
-- [SDD ledger](review/sdd-ledger.md): design rulings, previous task history and completion decisions.
-- [Physical acceptance](review/samsung-bedjet-acceptance.md): executable Samsung/BedJet 3 checklist. **Every physical result is NOT RUN.**
-- [Plan](superpowers/plans/2026-10-22-nocturne-hardening.md), [independent review](review/independent-review-tasks-1-4.md) and [final pass](review/final-pass.md): source requirements and independent findings. Preserve the final-pass qualification for IR-24.
+| Work | State |
+|---|---|
+| Candidate | `claude/nocturne-final-candidate` @ `262c52fc7a2416f6b5d93a7abafb11079ec29d76` — the nominated candidate checkpoint. |
+| F1 | `gpt/nocturne-f1` @ `c15c515a4dabbeae719c12323b6a6c0639c8406e` — approved in the owner's brief; this is GPT-5's exact code base. See [F1 implementation evidence](review/f1-implementation.md). |
+| GPT-5 | `gpt/nocturne-docs2` — documentation reconciliation and acceptance preparation. Only `docs/review/**` and this file change. |
+| Final review and merge | Claude owns both. GPT-5 does not merge, open a PR, or push to the candidate or `main`. |
 
-## Current implementation
+The nominated candidate checkpoint and F1 approval do not imply that all open workstreams have been integrated. Later branch tips are outside this source review.
 
-Transport and runtime operations are target-bound, with guarded fresh-status automatic re-time and physical Off handling. Originals have a persistent integrity barrier; import/check-in have recovery journals; stale actions, widget Off identity and interrupted writes have regression coverage. An unknown imported original is not silently adopted for another BedJet. Legacy v1 `[]` slot provenance remains unknowable (IR-31), so upgraded real installations need a supervised inventory and restore check.
+## Open workstreams
 
-Task 5 integrates explicit BedJet 3 setup, preview and scheduled theme, History export, optional Health Connect overlay, hand-over controls, recovery/Resume, tonight-only wake override, morning check-in, and explicit spare-slot profile pinning. Midnight Ink, Daylight and Simple remain. New copy is in UK English resources; migration of every older literal UI string remains incomplete. Phone layout and TalkBack are not verified by Robolectric.
+| Workstream | Remaining responsibility / order |
+|---|---|
+| GPT-2 | Runtime follow-ups: D2–D6, D8, M1, M2, M3 and M5, with their register/completion text. GPT-5 preserves that runtime scope. |
+| GPT-4 | Independent source audit. |
+| GPT-6a | Narrow-screen/large-font layout work; U06 remains partial. |
+| GPT-6b | Haptic timing and origin work; F13 remains partial. Run after GPT-2. |
+| GPT-3 | Integration and the final combined gate, last after the other workstreams and Claude's reviews. |
+| Claude | Final engineering pass, disposition of source discrepancies and merge decisions; V06 remains pending. |
 
-Task 7 configures fail-safe release signing and enables R8/resource shrinking. An incomplete signing configuration fails; with no key, release output is unsigned. There is no debug-key fallback or blanket keep rule. The tag workflow requires an explicit certificate fingerprint and increasing version code. This branch is a test candidate only: **do not merge, tag or publish a production release on the basis of automated results.**
+## Documents to use
 
-## Verification recorded for this completion source
+- [Register](review/register.md): current scoped dispositions, with historical checkpoints labelled.
+- [GPT-5 reconciliation and gate evidence](review/docs2-reconciliation.md): every changed register row, source references, test counts and limits.
+- [Known limitations](review/known-limitations.md): storage provenance, background work, platform limits, unmeasured timing, unresolved Off and notice-loss behaviour.
+- [Recovery procedures](review/recovery-procedures.md): user steps and consequences for unreadable data, unfinished restore, lost originals, unresolved writes, UNKNOWN nights and refused imported-original restores.
+- [Release instructions](review/release-instructions.md): TEST-ONLY versus production artefacts and version/hash/signer checks.
+- [Samsung + BedJet 3 acceptance](review/samsung-bedjet-acceptance.md): ordered supervised plan; every physical result remains **NOT RUN**.
+- [Production settings](review/release-production-settings.md) and [release candidate evidence](review/release-candidate-report.md): owner configuration and historical release evidence, kept separate from this pass's debug gate.
+- [Frozen runtime contract](review/task-4-implementation.md) and [completion dispositions](review/nocturne-completion.md): unchanged by GPT-5.
 
-The full local Gradle gate passed **148 core tests and 238 of 244 app tests**, with **six app screenshot tests skipped** and **zero failures**. Debug assembly passed. Lint reported **zero errors, 22 warnings and one hint**. The unsigned shrunk release build passed and measured **4,217,595 bytes**. Fixed-clock Robolectric before/after captures are rendered-app evidence; they do not establish BedJet hardware or Samsung behaviour.
+## Source findings for Claude
 
-The shrunk test candidate is `outputs/nocturne-0.2.0-hardening-test.1.apk`: version name `0.2.0-hardening-test.1`, version code `2`, **4,229,883 bytes**. APK SHA-256: `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d`. Throwaway test signer certificate SHA-256: `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67` (RSA 3072, APK Signature Scheme v2 verified with `apksigner`). Its key is outside Git. This is not a production signing identity; same-signer upgrade and installation on a phone are **NOT RUN**.
+The scheduled theme is implemented; the remaining process-absent widget refresh limit is documented. Source: `core/src/main/kotlin/io/github/willzy12h/nocturne/core/store/Settings.kt:62–74`; `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetUpdater.kt:47–59`.
 
-The physical checklist is entirely **NOT RUN**. Start with hash/certificate and same-signer upgrade, then explicit BedJet selection, transport and physical Off, all three original-slot backups and read-back restoration, preview/override, and interrupted-write recovery. Use an awake supervisor, modest settings and a separate verified wake alarm. IR-24 platform timing and IR-29 power-loss durability also remain physical limits.
+R13 remains partial: the History curve selects the last confirmed revision, but expanded step text still uses the original steps. Source: `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/HistoryScreen.kt:78–98,176–177`; `core/src/main/kotlin/io/github/willzy12h/nocturne/core/night/NightChanges.kt:25–31`.
 
-## Reproduce automated gate
+R33/R36 remain partial: the UI preview supplies the known alarm creator, whereas START supplies only its time. With unknown alarm sources disabled, the shared resolver can accept that alarm in the preview and fall back at START. This is source-traced, not a newly executed regression. Source: `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/AppViewModel.kt:202–205`; `app/src/main/kotlin/io/github/willzy12h/nocturne/night/NightActions.kt:168–175`; `core/src/main/kotlin/io/github/willzy12h/nocturne/core/night/NightRunner.kt:39–45`; `core/src/main/kotlin/io/github/willzy12h/nocturne/core/plan/NightPreview.kt:17–33`.
 
-Use a local JDK 17 and Android SDK with `local.properties` pointing to the SDK. On Windows, from the repository root:
+R38 remains partial: Quick Off still asks for confirmation while a night is tracked, although the runtime policy exempts Off from replacement confirmation. Claude should decide the intended UI treatment. Source: `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt:325–329`; `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/NightGuard.kt:27–39`; `app/src/main/kotlin/io/github/willzy12h/nocturne/night/RuntimeState.kt:59–68`.
 
-```powershell
-.\gradlew.bat --no-daemon :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
-```
+A consumed re-time failure can lose its notice if the process ends after saving but before posting. The reason is durable, but is not universally displayed for a still-CONFIRMED night. KL-13 records the precise visibility gap for Claude/GPT-2. Source: `app/src/main/kotlin/io/github/willzy12h/nocturne/night/NightActions.kt:576–579,607–641`; `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt:124–133`.
 
-`ScreenshotCapture` is opt-in; use its fixed-clock fixture and record the generated image files separately. For a test release, use a throwaway key **outside Git**, verify it with the SDK's APK signer and record version, size, certificate and APK SHA-256. The target PR base is `claude/lucid-mayer-i1h2gy`; push only the completion branch without force and open a **draft** PR. Hardware acceptance must remain visibly pending in the PR.
+## Verification and release boundary
+
+The required gate is `./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`; this pass's actual result and host-startup qualifications are recorded in the [reconciliation evidence](review/docs2-reconciliation.md). No code, tests, resources, Gradle or workflow files are changed. A debug gate does not establish a fresh minified or production APK.
+
+Production environment settings, signing identity and tag protection require owner evidence. Physical installation, same-signer upgrade, Samsung behaviour, BedJet timing, Lull interoperability, Health Connect provider behaviour and TalkBack are **NOT RUN**. Identify the exact APK before starting the supervised plan; retain a separate wake alarm and an awake supervisor.
