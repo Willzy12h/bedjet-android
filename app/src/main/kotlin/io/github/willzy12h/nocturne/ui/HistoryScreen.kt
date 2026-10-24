@@ -46,9 +46,9 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
     val settings by model.settings.collectAsState()
     val activeNight by model.activeNight.collectAsState()
     LazyColumn(modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text("History", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
+        item { Text(stringResource(R.string.history_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
         item { HistoryExportButton(model.graph) }
-        if (history.isEmpty()) item { Text("Nights you run appear here, with every change made during them.") }
+        if (history.isEmpty()) item { Text(stringResource(R.string.history_empty)) }
         items(history.sortedByDescending { it.startedAt }, key = { it.id }) { night ->
             var open by remember { mutableStateOf(false) }
             var checkingIn by remember(night.id) { mutableStateOf(false) }
@@ -62,7 +62,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val day = runCatching { ZonedDateTime.parse(night.startedAt).format(DateTimeFormatter.ofPattern("EEE d MMM")) }.getOrDefault("")
                     Text("$day · ${night.profileName}", style = MaterialTheme.typography.titleMedium)
-                    Text("${Format.clock(night.startedAt)} → wake ${Format.clock(night.wakeAt)}" + if (night.wakeFromAlarm) " (alarm)" else "")
+                    Text(stringResource(if (night.wakeFromAlarm) R.string.history_times_alarm else R.string.history_times, Format.clock(night.startedAt), Format.clock(night.wakeAt)))
                     historyPlan(night)?.let { NightCurve(it) }
                     HealthSleepOverlay(model.graph, night)
                     if (completed && !checkedIn && activeNight?.recordId != night.id) {
@@ -89,14 +89,15 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                         }
                         night.steps.forEach { step ->
                             Text(
-                                "${Format.clock(step.startsAt)}  ${blockName(step.block)}: ${Format.modeName(step.mode)}, " +
-                                    (if (step.mode.usesTemperature) "${Format.temp(step.temperature, settings.fahrenheit)}, " else "") +
-                                    "fan ${step.fanPercent}%, ${Format.duration(step.minutes)}",
+                                if (step.mode.usesTemperature) stringResource(R.string.history_step_temp, Format.clock(step.startsAt), blockName(step.block),
+                                    modeName(step.mode), Format.temp(step.temperature, settings.fahrenheit), step.fanPercent, Format.duration(step.minutes))
+                                else stringResource(R.string.history_step, Format.clock(step.startsAt), blockName(step.block), modeName(step.mode),
+                                    step.fanPercent, Format.duration(step.minutes)),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     } else if (night.events.size > 1) {
-                        Text("${night.events.size} events · tap for details", style = MaterialTheme.typography.labelSmall)
+                        Text(pluralStringResource(R.plurals.history_events, night.events.size, night.events.size), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

@@ -43,7 +43,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.R
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.annotation.StringRes
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
 import io.github.willzy12h.nocturne.core.store.SlotBackup
@@ -68,6 +71,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     LaunchedEffect(backupsRequest) { if (backupsRequest > 0) { delay(100); backups.bringIntoView() } }
     val alarm by model.nextAlarm.collectAsState()
     val f = settings.fahrenheit
+    val context = LocalContext.current
     var restoring by remember { mutableStateOf<SnapshotInfo?>(null) }
     var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
     var snapshotLabel by remember { mutableStateOf("") }
@@ -76,53 +80,53 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
 
-        Group("Appearance") {
-            Text("Theme", style = MaterialTheme.typography.bodyLarge)
+        Group(stringResource(R.string.settings_appearance)) {
+            Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeMode.entries.forEach { mode ->
-                    FilterChip(settings.themeMode == mode, { model.updateSettings { it.copy(themeMode = mode) } }, label = { Text(themeName(mode)) })
+                    FilterChip(settings.themeMode == mode, { model.updateSettings { it.copy(themeMode = mode) } }, label = { Text(stringResource(themeName(mode))) })
                 }
             }
             if (settings.themeMode == ThemeMode.SCHEDULED) {
-                Text("Use Midnight Ink at night and Daylight during the day. Equal times keep Midnight Ink all day.", style = MaterialTheme.typography.bodySmall)
-                TimeRow("Midnight Ink from", settings.scheduledDarkMinute) { minute ->
+                Text(stringResource(R.string.settings_scheduled_help), style = MaterialTheme.typography.bodySmall)
+                TimeRow(stringResource(R.string.settings_dark_from), settings.scheduledDarkMinute) { minute ->
                     model.updateSettings { it.copy(scheduledDarkMinute = minute) }
                 }
-                TimeRow("Daylight from", settings.scheduledLightMinute) { minute ->
+                TimeRow(stringResource(R.string.settings_light_from), settings.scheduledLightMinute) { minute ->
                     model.updateSettings { it.copy(scheduledLightMinute = minute) }
                 }
             }
-            SwitchRow("Simple view", "Show tonight as a list of steps instead of the curve.", settings.simpleView) { on ->
+            SwitchRow(stringResource(R.string.settings_simple_view), stringResource(R.string.settings_simple_view_help), settings.simpleView) { on ->
                 model.updateSettings { it.copy(simpleView = on) }
             }
         }
 
-        Group("BedJet") {
-            Text("Connected unit: ${model.bedJetName() ?: "none yet"}", style = MaterialTheme.typography.bodyMedium)
-            SwitchRow("Demo BedJet", "Try everything with a simulated BedJet instead of the real one.", settings.demoMode) { on ->
+        Group(stringResource(R.string.settings_bedjet)) {
+            Text(stringResource(R.string.settings_connected_unit, model.bedJetName() ?: stringResource(R.string.settings_none_yet)), style = MaterialTheme.typography.bodyMedium)
+            SwitchRow(stringResource(R.string.settings_demo), stringResource(R.string.settings_demo_help), settings.demoMode) { on ->
                 model.updateSettings { it.copy(demoMode = on) }
             }
-            Text("Slot used for tonight's night", style = MaterialTheme.typography.bodyLarge)
-            Text("The other two slots are left alone. What was in a slot before is kept below.", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.settings_slot_title), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.settings_slot_help), style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                (0..2).forEach { slot -> FilterChip(settings.workingSlot == slot, { model.updateSettings { it.copy(workingSlot = slot) } }, label = { Text("Slot ${slot + 1}") }) }
+                (0..2).forEach { slot -> FilterChip(settings.workingSlot == slot, { model.updateSettings { it.copy(workingSlot = slot) } }, label = { Text(stringResource(R.string.settings_slot, slot + 1)) }) }
             }
             slotBackups.filter { it.deviceId == settings.deviceId() }.forEach { backup ->
                 // An empty-slot marker has nothing to put back yet.
                 val program = backup.program ?: return@forEach
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Saved from slot ${backup.slot + 1}: ${program.name} (${program.steps.size} steps)", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { restoringSlot = backup }) { Text("Preview & put back") }
+                    Text(pluralStringResource(R.plurals.settings_saved_from, program.steps.size, backup.slot + 1, program.name, program.steps.size), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { restoringSlot = backup }) { Text(stringResource(R.string.settings_preview_put_back)) }
                 }
             }
-            SwitchRow("Show °F", null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
-            OutlinedButton(onClick = model::forgetBedJet) { Text("Forget this BedJet") }
+            SwitchRow(stringResource(R.string.settings_show_f), null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
+            OutlinedButton(onClick = model::forgetBedJet) { Text(stringResource(R.string.settings_forget)) }
         }
 
-        Group("Wake-up notification") {
-            Text("Choose up to three buttons, in order.", style = MaterialTheme.typography.bodySmall)
+        Group(stringResource(R.string.settings_wake_notification)) {
+            Text(stringResource(R.string.settings_wake_buttons_help), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WakeAction.entries.forEach { action ->
                     val selected = action in settings.notificationActions
@@ -134,64 +138,66 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                                 it.copy(notificationActions = list)
                             }
                         },
-                        label = { Text(Notifications.title(action, settings)) },
+                        label = { Text(Notifications.title(context, action, settings)) },
                     )
                 }
             }
             SwitchRow(stringResource(R.string.settings_quiet_title), stringResource(R.string.settings_quiet_help), settings.quietNightNotification) { on ->
                 model.updateSettings { it.copy(quietNightNotification = on) }
             }
-            PresetEditor("Snooze warm", settings.snoozeWarm, f) { p -> model.updateSettings { it.copy(snoozeWarm = p) } }
-            PresetEditor("Snooze cool", settings.snoozeCool, f) { p -> model.updateSettings { it.copy(snoozeCool = p) } }
-            PresetEditor("Extend warm (also the Warm button)", settings.extendWarm, f) { p -> model.updateSettings { it.copy(extendWarm = p) } }
-            PresetEditor("Extend cool (also the Cool button)", settings.extendCool, f) { p -> model.updateSettings { it.copy(extendCool = p) } }
-            Text("Boost: Turbo, then Heat, for ${settings.boostMinutes} minutes")
+            PresetEditor(stringResource(R.string.settings_preset_snooze_warm), settings.snoozeWarm, f) { p -> model.updateSettings { it.copy(snoozeWarm = p) } }
+            PresetEditor(stringResource(R.string.settings_preset_snooze_cool), settings.snoozeCool, f) { p -> model.updateSettings { it.copy(snoozeCool = p) } }
+            PresetEditor(stringResource(R.string.settings_preset_extend_warm), settings.extendWarm, f) { p -> model.updateSettings { it.copy(extendWarm = p) } }
+            PresetEditor(stringResource(R.string.settings_preset_extend_cool), settings.extendCool, f) { p -> model.updateSettings { it.copy(extendCool = p) } }
+            Text(pluralStringResource(R.plurals.settings_boost, settings.boostMinutes, settings.boostMinutes))
             Slider(settings.boostMinutes.toFloat(), { v -> model.updateSettings { it.copy(boostMinutes = v.roundToInt()) } }, valueRange = 10f..30f, steps = 3,
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)))
         }
 
-        Group("Alarms") {
+        Group(stringResource(R.string.settings_alarms)) {
             val next = alarm
             Text(
-                if (next == null) "No alarm is set on this phone." else "Next alarm ${Format.clock(next.time)} from ${next.creator ?: "an unknown app"}" + if (next.counts) "." else " — not used.",
+                if (next == null) stringResource(R.string.settings_no_alarm)
+                else stringResource(if (next.counts) R.string.settings_next_alarm else R.string.settings_next_alarm_unused,
+                    Format.clock(next.time), next.creator ?: stringResource(R.string.settings_unknown_app)),
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (next?.creator != null && !next.counts) {
                 FilledTonalButton(onClick = { model.useAlarmsFrom(next.creator!!) }) {
-                    Text("Use alarms from ${next.creator}")
+                    Text(stringResource(R.string.settings_use_alarms_from, next.creator.orEmpty()))
                 }
             }
-            Text("Used from: ${settings.alarmPackages.joinToString()}", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.settings_used_from, settings.alarmPackages.joinToString()), style = MaterialTheme.typography.bodySmall)
         }
 
-        Group("Phone setup") {
+        Group(stringResource(R.string.settings_phone_setup)) {
             SetupChecks(showAll = true)
             SetupFlow(model)
         }
 
         PlatformSettingsSection(model.graph)
 
-        Group("Backups and snapshots", Modifier.bringIntoViewRequester(backups)) {
+        Group(stringResource(R.string.settings_backups), Modifier.bringIntoViewRequester(backups)) {
             // The same calm banner as Tonight; the snapshots to restore from are listed just below it.
             UnreadableDataBanner(UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked),
                 onDismiss = model::dismissUnreadable, onRestore = null, onAcceptLoss = model::acceptLostOriginals)
-            Text("A snapshot is taken automatically when you change profiles or settings (the last 20 are kept) and once a day. Your own snapshots are kept until you delete them.", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.settings_snapshots_help), style = MaterialTheme.typography.bodySmall)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(snapshotLabel, { snapshotLabel = it.take(40) }, label = { Text("Label") }, singleLine = true, modifier = Modifier.weight(1f))
-                FilledTonalButton(onClick = { model.snapshotNow(snapshotLabel); snapshotLabel = "" }) { Text("Snapshot now") }
+                OutlinedTextField(snapshotLabel, { snapshotLabel = it.take(40) }, label = { Text(stringResource(R.string.settings_label)) }, singleLine = true, modifier = Modifier.weight(1f))
+                FilledTonalButton(onClick = { model.snapshotNow(snapshotLabel); snapshotLabel = "" }) { Text(stringResource(R.string.settings_snapshot_now)) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }) { Text("Export file") }
-                OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Restore from file") }
+                OutlinedButton(onClick = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }) { Text(stringResource(R.string.settings_export_file)) }
+                OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text(stringResource(R.string.settings_restore_from_file)) }
             }
             snapshots.forEach { snap ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(snap.label ?: "Automatic", style = MaterialTheme.typography.bodyMedium)
+                        Text(snap.label ?: stringResource(R.string.settings_automatic), style = MaterialTheme.typography.bodyMedium)
                         Text(snap.createdAt.take(16).replace('T', ' '), style = MaterialTheme.typography.bodySmall)
                     }
-                    TextButton(onClick = { restoring = snap }) { Text("Restore") }
-                    if (snap.manual) TextButton(onClick = { model.deleteSnapshot(snap.id) }) { Text("Delete") }
+                    TextButton(onClick = { restoring = snap }) { Text(stringResource(R.string.settings_restore)) }
+                    if (snap.manual) TextButton(onClick = { model.deleteSnapshot(snap.id) }) { Text(stringResource(R.string.settings_delete)) }
                 }
             }
         }
@@ -203,30 +209,30 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             }
         }
 
-        Group("Updates") {
+        Group(stringResource(R.string.settings_updates)) {
             var repo by remember { mutableStateOf(settings.updateRepo) }
             var token by remember { mutableStateOf(model.updateToken) }
-            OutlinedTextField(repo, { repo = it }, label = { Text("GitHub repository (owner/name)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(repo, { repo = it }, label = { Text(stringResource(R.string.settings_repo)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(
-                token, { token = it }, label = { Text("Token (only for a private repository)") }, singleLine = true,
+                token, { token = it }, label = { Text(stringResource(R.string.settings_token)) }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.fillMaxWidth(),
             )
-            SwitchRow("Check weekly", "Only when the app is opened. This is the app's only internet use.", settings.autoUpdateCheck) { on ->
+            SwitchRow(stringResource(R.string.settings_check_weekly), stringResource(R.string.settings_check_weekly_help), settings.autoUpdateCheck) { on ->
                 model.updateSettings { it.copy(autoUpdateCheck = on) }
             }
             FilledTonalButton(onClick = {
                 model.updateSettings { it.copy(updateRepo = repo.trim()) }
                 model.updateToken = token
                 model.checkForUpdates()
-            }) { Text("Check now") }
-            Text("Installed: ${model.version}", style = MaterialTheme.typography.bodySmall)
+            }) { Text(stringResource(R.string.settings_check_now)) }
+            Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodySmall)
         }
 
-        Group("Notification log") {
+        Group(stringResource(R.string.settings_notice_log)) {
             val notices by model.notices.collectAsState()
             var showAll by remember { mutableStateOf(false) }
-            if (notices.isEmpty()) Text("Notifications Nocturne shows will be listed here.", style = MaterialTheme.typography.bodySmall)
+            if (notices.isEmpty()) Text(stringResource(R.string.settings_notice_log_empty), style = MaterialTheme.typography.bodySmall)
             (if (showAll) notices else notices.take(10)).forEach { notice ->
                 Column {
                     Text("${noticeDay(notice.at)} ${Format.clock(notice.at)} · ${notice.title}", style = MaterialTheme.typography.bodyMedium)
@@ -234,15 +240,14 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (notices.size > 10) TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) "Show fewer" else "Show all ${notices.size}") }
-                if (notices.isNotEmpty()) TextButton(onClick = model::clearNotices) { Text("Clear log") }
+                if (notices.size > 10) TextButton(onClick = { showAll = !showAll }) { Text(if (showAll) stringResource(R.string.settings_show_fewer) else stringResource(R.string.settings_show_all, notices.size)) }
+                if (notices.isNotEmpty()) TextButton(onClick = model::clearNotices) { Text(stringResource(R.string.settings_clear_log)) }
             }
         }
 
-        Group("About") {
+        Group(stringResource(R.string.settings_about)) {
             Text(
-                "Nocturne plans BedJet 3 nights around your alarm. It talks to the BedJet over Bluetooth only. " +
-                    "BedJet protocol work by the Lull project (github.com/rkanjani/lull, MIT). Not affiliated with BedJet LLC.",
+                stringResource(R.string.settings_about_text),
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -251,40 +256,42 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     restoring?.let { snap ->
         AlertDialog(
             onDismissRequest = { restoring = null },
-            title = { Text("Restore this snapshot?") },
-            text = { Text("Profiles, settings and history go back to ${snap.createdAt.take(16).replace('T', ' ')}. What you have now is saved as a snapshot first.") },
-            confirmButton = { TextButton(onClick = { model.restoreSnapshot(snap.id); restoring = null }) { Text("Restore") } },
-            dismissButton = { TextButton(onClick = { restoring = null }) { Text("Cancel") } },
+            title = { Text(stringResource(R.string.settings_restore_snapshot_title)) },
+            text = { Text(stringResource(R.string.settings_restore_snapshot_text, snap.createdAt.take(16).replace('T', ' '))) },
+            confirmButton = { TextButton(onClick = { model.restoreSnapshot(snap.id); restoring = null }) { Text(stringResource(R.string.settings_restore)) } },
+            dismissButton = { TextButton(onClick = { restoring = null }) { Text(stringResource(R.string.feature_cancel)) } },
         )
     }
     restoringSlot?.let { backup ->
         val program = backup.program
         AlertDialog(
             onDismissRequest = { restoringSlot = null },
-            title = { Text("Restore original slot ${backup.slot + 1}?") },
+            title = { Text(stringResource(R.string.settings_restore_slot_title, backup.slot + 1)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This writes the saved original back to slot ${backup.slot + 1} on the selected BedJet 3. It does not start a night. An active night must be ended first.")
+                    Text(stringResource(R.string.settings_restore_slot_text, backup.slot + 1))
                     if (program != null) {
-                        Text("Saved programme: ${program.name} · ${program.steps.size} steps")
+                        Text(pluralStringResource(R.plurals.settings_saved_programme, program.steps.size, program.name, program.steps.size))
                         program.steps.forEachIndexed { index, step ->
-                            val duration = if (step.endsAtClockTime) "ends at ${Format.clockOfDay(step.hours * 60 + step.minutes)}" else "${step.durationMinutes} min"
-                            Text("${index + 1}. ${Format.modeName(step.mode)}, fan ${(step.fanStep + 1) * 5}%, $duration", style = MaterialTheme.typography.bodySmall)
+                            val duration = if (step.endsAtClockTime) stringResource(R.string.settings_step_ends_at, Format.clockOfDay(step.hours * 60 + step.minutes))
+                                else stringResource(R.string.minutes_short, step.durationMinutes)
+                            Text(stringResource(R.string.settings_slot_step, index + 1, modeName(step.mode), (step.fanStep + 1) * 5, duration), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { model.restoreSlot(backup); restoringSlot = null }) { Text("Put original back") } },
-            dismissButton = { TextButton(onClick = { restoringSlot = null }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = { model.restoreSlot(backup); restoringSlot = null }) { Text(stringResource(R.string.settings_put_original_back)) } },
+            dismissButton = { TextButton(onClick = { restoringSlot = null }) { Text(stringResource(R.string.feature_cancel)) } },
         )
     }
 }
 
+@StringRes
 private fun themeName(mode: ThemeMode) = when (mode) {
-    ThemeMode.SYSTEM -> "System"
-    ThemeMode.DARK -> "Dark"
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.SCHEDULED -> "Scheduled"
+    ThemeMode.SYSTEM -> R.string.theme_system
+    ThemeMode.DARK -> R.string.theme_dark
+    ThemeMode.LIGHT -> R.string.theme_light
+    ThemeMode.SCHEDULED -> R.string.theme_scheduled
 }
 
 @Composable
@@ -299,23 +306,25 @@ private fun Group(title: String, modifier: Modifier = Modifier, content: @Compos
 private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, onChange: (ActionPreset) -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
-            Text("$title: ${Format.modeName(preset.mode)}, ${if (preset.mode.usesTemperature) Format.temp(preset.temperature, f) + ", " else ""}fan ${preset.fanPercent}%, ${preset.minutes} min", style = MaterialTheme.typography.bodyMedium)
+            Text(if (preset.mode.usesTemperature) stringResource(R.string.settings_preset_summary_temp, title, modeName(preset.mode),
+                Format.temp(preset.temperature, f), preset.fanPercent, preset.minutes)
+                else stringResource(R.string.settings_preset_summary, title, modeName(preset.mode), preset.fanPercent, preset.minutes), style = MaterialTheme.typography.bodyMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY).forEach { mode ->
-                    FilterChip(preset.mode == mode, { onChange(preset.copy(mode = mode, temperature = preset.temperature.coerceIn(mode.temperatureRange))) }, label = { Text(Format.modeName(mode)) })
+                    FilterChip(preset.mode == mode, { onChange(preset.copy(mode = mode, temperature = preset.temperature.coerceIn(mode.temperatureRange))) }, label = { Text(modeName(mode)) })
                 }
             }
             if (preset.mode.usesTemperature) {
                 val range = preset.mode.temperatureRange
                 Slider(preset.temperature.toFloat(), { onChange(preset.copy(temperature = it.roundToInt())) }, valueRange = range.first.toFloat()..range.last.toFloat(),
-                    modifier = Modifier.sliderSemantics("$title: ${stringResource(R.string.slider_temp)}", spokenTemp(preset.temperature, f)))
+                    modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_temp)), spokenTemp(preset.temperature, f)))
             }
-            Text("Fan", style = MaterialTheme.typography.labelSmall)
+            Text(stringResource(R.string.slider_fan), style = MaterialTheme.typography.labelSmall)
             Slider(preset.fanPercent.toFloat(), { onChange(preset.copy(fanPercent = ((it / 5).roundToInt() * 5).coerceIn(5, 100))) }, valueRange = 5f..100f, steps = 18,
-                modifier = Modifier.sliderSemantics("$title: ${stringResource(R.string.slider_fan)}", spokenPercent(preset.fanPercent)))
-            Text("Minutes", style = MaterialTheme.typography.labelSmall)
+                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_fan)), spokenPercent(preset.fanPercent)))
+            Text(stringResource(R.string.slider_minutes), style = MaterialTheme.typography.labelSmall)
             Slider(preset.minutes.toFloat(), { onChange(preset.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..120f, steps = 22,
-                modifier = Modifier.sliderSemantics("$title: ${stringResource(R.string.slider_minutes)}", spokenMinutes(preset.minutes)))
+                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_minutes)), spokenMinutes(preset.minutes)))
         }
     }
 }

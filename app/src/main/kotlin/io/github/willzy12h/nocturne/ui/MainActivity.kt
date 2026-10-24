@@ -100,12 +100,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val label: String, val icon: ImageVector) {
-    TONIGHT("Tonight", Icons.Filled.Bedtime),
-    PROFILES("Profiles", Icons.Filled.ViewList),
-    REMOTE("Remote", Icons.Filled.SettingsRemote),
-    HISTORY("History", Icons.Filled.History),
-    SETTINGS("Settings", Icons.Filled.Settings),
+private enum class Tab(@androidx.annotation.StringRes val label: Int, val icon: ImageVector) {
+    TONIGHT(io.github.willzy12h.nocturne.R.string.tab_tonight, Icons.Filled.Bedtime),
+    PROFILES(io.github.willzy12h.nocturne.R.string.tab_profiles, Icons.Filled.ViewList),
+    REMOTE(io.github.willzy12h.nocturne.R.string.tab_remote, Icons.Filled.SettingsRemote),
+    HISTORY(io.github.willzy12h.nocturne.R.string.tab_history, Icons.Filled.History),
+    SETTINGS(io.github.willzy12h.nocturne.R.string.tab_settings, Icons.Filled.Settings),
 }
 
 @androidx.compose.runtime.Composable
@@ -168,16 +168,17 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
                         val draft = runCatching { Json.decodeFromString<Profile>(draftJson!!) }.getOrNull()
                         editingId = draft?.id
                         parkedDraft = false
-                    }) { Text("Resume editing draft") }
+                    }) { Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.main_resume_draft)) }
                 }
                 NavigationBar(modifier = Modifier.testTag("main-navigation")) {
                     Tab.entries.forEach {
+                        val label = androidx.compose.ui.res.stringResource(it.label)
                         NavigationBarItem(
                             selected = tab == it,
                             onClick = { tab = it },
-                            modifier = if (compactNavigation) Modifier.semantics { contentDescription = it.label } else Modifier,
+                            modifier = if (compactNavigation) Modifier.semantics { contentDescription = label } else Modifier,
                             icon = { Icon(it.icon, null) },
-                            label = if (compactNavigation) null else { { Text(it.label) } },
+                            label = if (compactNavigation) null else { { Text(label) } },
                         )
                     }
                 }

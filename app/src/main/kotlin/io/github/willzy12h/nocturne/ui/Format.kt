@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -39,6 +41,10 @@ object Format {
         Mode.WAIT -> io.github.willzy12h.nocturne.R.string.mode_pause
     }
 
+    /**
+     * Context-free English mode names, kept only for [TimelineEntry.title], which plain JVM tests read without
+     * resources. Screens use [modeName], which reads the same words from resources.
+     */
     fun modeName(mode: Mode): String = when (mode) {
         Mode.STANDBY -> "Off"
         Mode.HEAT -> "Heat"
@@ -49,3 +55,7 @@ object Format {
         Mode.WAIT -> "Pause"
     }
 }
+
+/** The mode's name from resources, for screens. */
+@Composable
+fun modeName(mode: Mode): String = stringResource(Format.modeNameRes(mode))

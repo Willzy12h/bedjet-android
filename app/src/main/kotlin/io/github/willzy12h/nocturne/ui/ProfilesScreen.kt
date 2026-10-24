@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import io.github.willzy12h.nocturne.R
+import androidx.annotation.StringRes
 import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.plan.Preview
@@ -65,26 +66,28 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
 
     Box(modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text("Profiles", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
+            item { Text(stringResource(R.string.profiles_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
             items(profiles, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }
+                val copyName = stringResource(R.string.profiles_copy_name, profile.name)
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(profile.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            if (settings.resolveTonightChoice(model.now())?.profileId == profile.id) Text("Tonight", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                            if (settings.resolveTonightChoice(model.now())?.profileId == profile.id) Text(stringResource(R.string.profiles_tonight), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                         }
                         val wake = model.wakePreview(profile)
                         Text(
-                            "Would wake you at ${Format.clock(wake.time)} " + if (wake.fromAlarm) "· your alarm" else "· default ${Format.clockOfDay(profile.wakeSource.defaultWakeMinute)}",
+                            if (wake.fromAlarm) stringResource(R.string.profiles_wake_alarm, Format.clock(wake.time))
+                            else stringResource(R.string.profiles_wake_default, Format.clock(wake.time), Format.clockOfDay(profile.wakeSource.defaultWakeMinute)),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(describe(profile), style = MaterialTheme.typography.bodySmall)
                         model.previewPlan(profile).getOrNull()?.let { NightCurve(it) }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick = { model.updateSettings { it.chooseTonight(profile.id, model.now()) } }) { Text("Use tonight") }
-                            TextButton(onClick = { onEdit(profile) }) { Text("Edit") }
-                            TextButton(onClick = { more = true }) { Text("More") }
+                            TextButton(onClick = { model.updateSettings { it.chooseTonight(profile.id, model.now()) } }) { Text(stringResource(R.string.profiles_use_tonight)) }
+                            TextButton(onClick = { onEdit(profile) }) { Text(stringResource(R.string.action_edit)) }
+                            TextButton(onClick = { more = true }) { Text(stringResource(R.string.recovery_more)) }
                             DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                                 DropdownMenuItem(text = { Text(stringResource(R.string.pin_menu)) }, onClick = {
                                     more = false
@@ -93,11 +96,11 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                                         NightPreview.forStartNow(profile, at, null, settings = settings))
                                     pinSlot = (0..2).first { it != settings.workingSlot }
                                 })
-                                DropdownMenuItem(text = { Text("Copy") }, onClick = {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.profiles_copy)) }, onClick = {
                                     more = false
-                                    model.saveProfile(profile.copy(id = UUID.randomUUID().toString(), name = "${profile.name} copy"))
+                                    model.saveProfile(profile.copy(id = UUID.randomUUID().toString(), name = copyName))
                                 })
-                                DropdownMenuItem(text = { Text("Delete") }, onClick = { more = false; deleting = profile })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.profiles_delete)) }, onClick = { more = false; deleting = profile })
                             }
                         }
                     }
@@ -105,33 +108,33 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             }
             item { Box(Modifier.padding(40.dp)) }
         }
-        ExtendedFloatingActionButton(onClick = { adding = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Text("New profile") }
+        ExtendedFloatingActionButton(onClick = { adding = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Text(stringResource(R.string.profiles_new)) }
     }
 
     if (adding) {
         AlertDialog(
             onDismissRequest = { adding = false },
-            title = { Text("Start from") },
+            title = { Text(stringResource(R.string.profiles_start_from)) },
             text = {
                 Column {
                     Presets.all.forEach { preset ->
                         TextButton(onClick = {
                             adding = false
                             onEdit(preset.copy(id = UUID.randomUUID().toString(), name = preset.name))
-                        }) { Text("${preset.name} (${seasonName(preset.season)})") }
+                        }) { Text("${preset.name} (${stringResource(seasonName(preset.season))})") }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { adding = false }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = { adding = false }) { Text(stringResource(R.string.feature_cancel)) } },
         )
     }
     deleting?.let { profile ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Delete ${profile.name}?") },
-            text = { Text("Snapshots keep a copy, so you can restore it from Settings.") },
-            confirmButton = { TextButton(onClick = { model.deleteProfile(profile.id); deleting = null }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            title = { Text(stringResource(R.string.profiles_delete_title, profile.name)) },
+            text = { Text(stringResource(R.string.profiles_delete_text)) },
+            confirmButton = { TextButton(onClick = { model.deleteProfile(profile.id); deleting = null }) { Text(stringResource(R.string.profiles_delete)) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.feature_cancel)) } },
         )
     }
     pinning?.let { request ->
@@ -169,10 +172,10 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                                 pluralStringResource(R.plurals.pin_step_count, plan.steps.size, plan.steps.size)))
                             plan.steps.forEach { step ->
                                 Text(if (step.step.mode.usesTemperature) stringResource(R.string.pin_preview_step_temp,
-                                    Format.clock(step.startsAt), Format.modeName(step.step.mode), Format.duration(step.minutes),
+                                    Format.clock(step.startsAt), modeName(step.step.mode), Format.duration(step.minutes),
                                     Format.temp(step.step.temperature, settings.fahrenheit), (step.step.fanStep + 1) * 5)
                                 else stringResource(R.string.pin_preview_step_no_temp,
-                                    Format.clock(step.startsAt), Format.modeName(step.step.mode), Format.duration(step.minutes),
+                                    Format.clock(step.startsAt), modeName(step.step.mode), Format.duration(step.minutes),
                                     (step.step.fanStep + 1) * 5), style = MaterialTheme.typography.bodySmall)
                             }
                             Text(stringResource(R.string.pin_duration_help))
@@ -190,16 +193,19 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     }
 }
 
+@Composable
 private fun describe(profile: Profile): String {
-    val start = profile.start.joinToString(" → ") { "${Format.modeName(it.mode)} ${it.minutes}m" }.ifEmpty { "nothing" }
-    val middle = "${Format.modeName(profile.middle.mode)} fan ${profile.middle.fanStart}→${profile.middle.fanEnd}%"
-    val wake = profile.wake.joinToString(" → ") { "${Format.modeName(it.mode)} ${it.minutes}m" }.ifEmpty { "nothing" }
-    return "Start: $start · Middle: $middle · Wake-up: $wake"
+    val nothing = stringResource(R.string.profiles_nothing)
+    val start = profile.start.map { stringResource(R.string.profiles_phase_short, modeName(it.mode), it.minutes) }.joinToString(" → ").ifEmpty { nothing }
+    val middle = stringResource(R.string.profiles_middle_short, modeName(profile.middle.mode), profile.middle.fanStart, profile.middle.fanEnd)
+    val wake = profile.wake.map { stringResource(R.string.profiles_phase_short, modeName(it.mode), it.minutes) }.joinToString(" → ").ifEmpty { nothing }
+    return stringResource(R.string.profiles_summary, start, middle, wake)
 }
 
+@StringRes
 fun seasonName(season: Season) = when (season) {
-    Season.NONE -> "any time"
-    Season.SUMMER -> "summer"
-    Season.WINTER -> "winter"
-    Season.SPRING_AUTUMN -> "spring/autumn"
+    Season.NONE -> R.string.season_any
+    Season.SUMMER -> R.string.season_summer
+    Season.WINTER -> R.string.season_winter
+    Season.SPRING_AUTUMN -> R.string.season_spring_autumn
 }

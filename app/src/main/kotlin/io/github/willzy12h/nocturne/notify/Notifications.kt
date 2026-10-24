@@ -43,15 +43,15 @@ object Notifications {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannels(
             listOf(
-                NotificationChannel(CHANNEL_WAKE, "Wake-up", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Shown while your BedJet is waking you, with snooze and extend buttons."
+                NotificationChannel(CHANNEL_WAKE, context.getString(R.string.notify_channel_wake), NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = context.getString(R.string.notify_channel_wake_help)
                     setSound(null, null)
                 },
-                NotificationChannel(CHANNEL_WORKING, "Talking to BedJet", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Shown briefly while a command is sent."
+                NotificationChannel(CHANNEL_WORKING, context.getString(R.string.notify_channel_working), NotificationManager.IMPORTANCE_LOW).apply {
+                    description = context.getString(R.string.notify_channel_working_help)
                 },
-                NotificationChannel(CHANNEL_ALERTS, "Changes, problems and updates", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                    description = "When your wake-up moves with your alarm, when something didn't work, and new versions."
+                NotificationChannel(CHANNEL_ALERTS, context.getString(R.string.notify_channel_alerts), NotificationManager.IMPORTANCE_DEFAULT).apply {
+                    description = context.getString(R.string.notify_channel_alerts_help)
                 },
             ),
         )
@@ -60,7 +60,7 @@ object Notifications {
     fun working(context: Context): Notification =
         Notification.Builder(context, CHANNEL_WORKING)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Talking to your BedJet…")
+            .setContentTitle(context.getString(R.string.notify_working))
             .setOngoing(true)
             .build()
 
@@ -72,20 +72,21 @@ object Notifications {
             night.hasPlannedManualEnd -> context.getString(R.string.feature_manual_until,
                 ZonedDateTime.parse(night.endsAt).format(DateTimeFormatter.ofPattern("HH:mm")))
             night.trackingManual -> context.getString(R.string.runtime_manual_unconfirmed)
-            else -> "Waking you at $wake"
+            else -> context.getString(R.string.notify_waking, wake)
         }
-        if (logNotice) log(context, NoticeKind.WAKE_UP, title, status ?: "Your BedJet is getting you ready to wake up.")
+        val text = status ?: context.getString(R.string.notify_waking_text)
+        if (logNotice) log(context, NoticeKind.WAKE_UP, title, text)
         if (!canPost(context)) return
         val builder = Notification.Builder(context, CHANNEL_WAKE)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText(status ?: "Your BedJet is getting you ready to wake up.")
+            .setContentText(text)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_STATUS)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setContentIntent(openApp(context))
         settings.notificationActions.take(3).forEach { action ->
-            builder.addAction(Notification.Action.Builder(null, title(action, settings), BedJetService.pendingIntent(context, command(action))).build())
+            builder.addAction(Notification.Action.Builder(null, title(context, action, settings), BedJetService.pendingIntent(context, command(action))).build())
         }
         context.getSystemService(NotificationManager::class.java).notify(WAKE_ID, builder.build())
     }
@@ -171,25 +172,26 @@ object Notifications {
 
     /** Opens the release page: the APK link itself needs signing in when the repository is private. */
     fun showUpdate(context: Context, tag: String, pageUrl: String) {
-        log(context, NoticeKind.UPDATE, "Nocturne $tag is available", pageUrl)
+        val title = context.getString(R.string.notify_update_title, tag)
+        log(context, NoticeKind.UPDATE, title, pageUrl)
         if (!canPost(context)) return
         val open = PendingIntent.getActivity(context, 0, Intent(Intent.ACTION_VIEW, Uri.parse(pageUrl)), PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Nocturne $tag is available")
-            .setContentText("Tap to open the release and download it.")
+            .setContentTitle(title)
+            .setContentText(context.getString(R.string.notify_update_text))
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()
         context.getSystemService(NotificationManager::class.java).notify(UPDATE_ID, notification)
     }
 
-    fun title(action: WakeAction, settings: Settings): String = when (action) {
-        WakeAction.SNOOZE_WARM -> "Snooze warm ${settings.snoozeWarm.minutes}m"
-        WakeAction.SNOOZE_COOL -> "Snooze cool ${settings.snoozeCool.minutes}m"
-        WakeAction.EXTEND_WARM -> "Warm ${settings.extendWarm.minutes}m"
-        WakeAction.EXTEND_COOL -> "Cool ${settings.extendCool.minutes}m"
-        WakeAction.OFF -> "Off"
+    fun title(context: Context, action: WakeAction, settings: Settings): String = when (action) {
+        WakeAction.SNOOZE_WARM -> context.getString(R.string.notify_action_snooze_warm, settings.snoozeWarm.minutes)
+        WakeAction.SNOOZE_COOL -> context.getString(R.string.notify_action_snooze_cool, settings.snoozeCool.minutes)
+        WakeAction.EXTEND_WARM -> context.getString(R.string.notify_action_warm, settings.extendWarm.minutes)
+        WakeAction.EXTEND_COOL -> context.getString(R.string.notify_action_cool, settings.extendCool.minutes)
+        WakeAction.OFF -> context.getString(R.string.runtime_command_off)
     }
 
     private fun command(action: WakeAction) = when (action) {

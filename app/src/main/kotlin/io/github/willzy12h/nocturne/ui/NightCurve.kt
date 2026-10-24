@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -54,11 +55,12 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
     // A kept manual run has no wake programme: it is described, labelled and drawn by its own end instead.
-    val description = "Night plan from ${Format.clock(plan.start)} to ${Format.clock(plan.end)}; " +
-        (end?.let { "${it.label} ${Format.clock(it.at)}. " } ?: "wake ${Format.clock(plan.wake)}. ") +
-        plan.steps.joinToString("; ") { step ->
-            "${Format.clock(step.startsAt)} ${blockName(step.block)} ${Format.modeName(step.step.mode)}, fan ${(step.step.fanStep + 1) * 5}%, ${step.minutes} minutes"
-        }
+    val description = stringResource(R.string.curve_description, Format.clock(plan.start), Format.clock(plan.end),
+        end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake_lower, Format.clock(plan.wake)),
+        plan.steps.map { step ->
+            pluralStringResource(R.plurals.curve_step, step.minutes, Format.clock(step.startsAt), blockName(step.block),
+                modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes)
+        }.joinToString("; "))
     Column(modifier) {
         Canvas(Modifier.fillMaxWidth().height(110.dp).semantics { contentDescription = description }) {
             val mid = size.height / 2
@@ -82,7 +84,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
         Row(Modifier.fillMaxWidth()) {
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Text(Format.clock(plan.start), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f))
-            Text(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: "Wake ${Format.clock(plan.wake)}", style = MaterialTheme.typography.labelSmall,
+            Text(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake, Format.clock(plan.wake)), style = MaterialTheme.typography.labelSmall,
                 color = if (end == null) wakeColor else muted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text(Format.clock(plan.end), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
@@ -91,7 +93,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 plan.steps.map { it.step.mode }.distinct().forEach { mode ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Dot(colors.mode(mode), 10)
-                        Text(Format.modeName(mode), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
+                        Text(modeName(mode), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
                     }
                 }
             }
@@ -186,7 +188,7 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
                 time = Format.clock(entry.startsAt),
                 dot = colors.mode(entry.mode),
                 title = entry.title,
-                detail = entry.detail(fahrenheit) + if (current) " · now" else "",
+                detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit)) else entry.detail(fahrenheit),
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 bold = current,
                 last = false,
@@ -201,7 +203,10 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
             time = Format.clock(plan.wake),
             dot = colors.accent,
             title = wakeOriginLabel(origin, WakeLabelStyle.TIMELINE),
-            detail = after.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Then ") { "${Format.modeName(it.mode).lowercase()} for ${Format.duration(it.minutes)}" },
+            detail = after.takeIf { it.isNotEmpty() }?.let { rest ->
+                stringResource(R.string.timeline_then, rest.map { stringResource(R.string.timeline_after_item, modeName(it.mode).lowercase(), Format.duration(it.minutes)) }
+                    .joinToString(", "))
+            },
             titleColor = colors.accent,
             bold = true,
             last = true,
