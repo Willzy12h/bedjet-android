@@ -146,7 +146,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             PresetEditor("Extend warm (also the Warm button)", settings.extendWarm, f) { p -> model.updateSettings { it.copy(extendWarm = p) } }
             PresetEditor("Extend cool (also the Cool button)", settings.extendCool, f) { p -> model.updateSettings { it.copy(extendCool = p) } }
             Text("Boost: Turbo, then Heat, for ${settings.boostMinutes} minutes")
-            Slider(settings.boostMinutes.toFloat(), { v -> model.updateSettings { it.copy(boostMinutes = v.roundToInt()) } }, valueRange = 10f..30f, steps = 3)
+            Slider(settings.boostMinutes.toFloat(), { v -> model.updateSettings { it.copy(boostMinutes = v.roundToInt()) } }, valueRange = 10f..30f, steps = 3,
+                modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)))
         }
 
         Group("Alarms") {
@@ -306,12 +307,15 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, onChan
             }
             if (preset.mode.usesTemperature) {
                 val range = preset.mode.temperatureRange
-                Slider(preset.temperature.toFloat(), { onChange(preset.copy(temperature = it.roundToInt())) }, valueRange = range.first.toFloat()..range.last.toFloat())
+                Slider(preset.temperature.toFloat(), { onChange(preset.copy(temperature = it.roundToInt())) }, valueRange = range.first.toFloat()..range.last.toFloat(),
+                    modifier = Modifier.sliderSemantics("$title: ${stringResource(R.string.slider_temp)}", spokenTemp(preset.temperature, f)))
             }
             Text("Fan", style = MaterialTheme.typography.labelSmall)
-            Slider(preset.fanPercent.toFloat(), { onChange(preset.copy(fanPercent = ((it / 5).roundToInt() * 5).coerceIn(5, 100))) }, valueRange = 5f..100f, steps = 18)
+            Slider(preset.fanPercent.toFloat(), { onChange(preset.copy(fanPercent = ((it / 5).roundToInt() * 5).coerceIn(5, 100))) }, valueRange = 5f..100f, steps = 18,
+                modifier = Modifier.sliderSemantics("$title: ${stringResource(R.string.slider_fan)}", spokenPercent(preset.fanPercent)))
             Text("Minutes", style = MaterialTheme.typography.labelSmall)
-            Slider(preset.minutes.toFloat(), { onChange(preset.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..120f, steps = 22)
+            Slider(preset.minutes.toFloat(), { onChange(preset.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..120f, steps = 22,
+                modifier = Modifier.sliderSemantics("$title: ${stringResource(R.string.slider_minutes)}", spokenMinutes(preset.minutes)))
         }
     }
 }

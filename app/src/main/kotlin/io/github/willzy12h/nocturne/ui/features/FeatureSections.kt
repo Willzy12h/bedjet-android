@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,9 +29,12 @@ import io.github.willzy12h.nocturne.service.BedJetService
 import kotlinx.coroutines.launch
 
 @Composable private fun FeatureSwitch(label:String,checked:Boolean,enabled:Boolean=true,onChange:(Boolean)->Unit) {
-    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-        Text(label,Modifier.weight(1f).padding(top=12.dp,end=8.dp))
-        Switch(checked,onChange,modifier=Modifier.semantics {contentDescription=label},enabled=enabled)
+    // One toggle for the whole row, at least 48 dp tall; the Switch inside only shows the state (U05).
+    Row(Modifier.fillMaxWidth().heightIn(min=48.dp)
+        .toggleable(value=checked,enabled=enabled,role=androidx.compose.ui.semantics.Role.Switch,onValueChange=onChange)
+        .semantics {contentDescription=label},verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+        Text(label,Modifier.weight(1f).padding(end=8.dp))
+        Switch(checked,onCheckedChange=null,enabled=enabled)
     }
 }
 

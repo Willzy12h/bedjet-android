@@ -54,4 +54,23 @@
     <string name="setup_use_demo_help">Try Nocturne with a simulated BedJet. It never sends anything to a real one, and you can choose a real BedJet later.</string>
     <string name="setup_samsung_title">Samsung battery tips</string>
     <string name="setup_samsung_help">Some Samsung phones put apps to sleep to save battery, even with unrestricted battery use. If overnight changes don\'t reach your BedJet, open Settings › Battery › Background usage limits and check that Nocturne isn\'t listed under Sleeping apps or Deep sleeping apps; you can add it to Never sleeping apps. Menu names vary between One UI versions, and Nocturne can\'t check these settings for you.</string>
+    <!-- Slider names and spoken values (U05) -->
+    <string name="slider_fan">Fan</string>
+    <string name="slider_fan_start">Fan at the start</string>
+    <string name="slider_fan_end">Fan at the end</string>
+    <string name="slider_temp">Temperature</string>
+    <string name="slider_temp_start">Temperature at the start</string>
+    <string name="slider_temp_end">Temperature at the end</string>
+    <string name="slider_steps">Steps</string>
+    <string name="slider_length">Length</string>
+    <string name="slider_minutes">Minutes</string>
+    <string name="slider_fan_limits">Fan limits</string>
+    <string name="slider_temp_limits">Temperature limits</string>
+    <string name="slider_boost">Boost length</string>
+    <string name="a11y_percent">%1$d per cent</string>
+    <string name="a11y_celsius">%1$s degrees Celsius</string>
+    <string name="a11y_fahrenheit">%1$s degrees Fahrenheit</string>
+    <string name="a11y_range">%1$s to %2$s</string>
+    <plurals name="a11y_minutes"><item quantity="one">%d minute</item><item quantity="other">%d minutes</item></plurals>
+    <plurals name="a11y_steps"><item quantity="one">%d step</item><item quantity="other">%d steps</item></plurals>
 </resources>

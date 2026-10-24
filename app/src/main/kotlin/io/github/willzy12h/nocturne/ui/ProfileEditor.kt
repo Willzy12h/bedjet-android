@@ -47,6 +47,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.plan.Phase
+import io.github.willzy12h.nocturne.R
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.ProfileLimits
 import io.github.willzy12h.nocturne.core.plan.Season
@@ -151,12 +154,16 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     val limits = profile.limits
                     Text("Fan ${limits.minFan}–${limits.maxFan}%")
                     RangeSlider(
+                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan_limits),
+                            spokenRange(spokenPercent(limits.minFan), spokenPercent(limits.maxFan))),
                         value = limits.minFan.toFloat()..limits.maxFan.toFloat(),
                         onValueChange = { profile = profile.copy(limits = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())) },
                         valueRange = 5f..100f, steps = 18,
                     )
                     Text("Temperature ${Format.temp(limits.minTemp, f)}–${Format.temp(limits.maxTemp, f)}")
                     RangeSlider(
+                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp_limits),
+                            spokenRange(spokenTemp(limits.minTemp, f), spokenTemp(limits.maxTemp, f))),
                         value = limits.minTemp.toFloat()..limits.maxTemp.toFloat(),
                         onValueChange = { profile = profile.copy(limits = limits.copy(minTemp = it.start.roundToInt(), maxTemp = it.endInclusive.roundToInt())) },
                         valueRange = 38f..86f, steps = 47,
@@ -171,15 +178,16 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     val m = profile.middle
                     ModeChips(m.mode) { profile = profile.copy(middle = m.copy(mode = it, tempStart = it.clampTemp(m.tempStart), tempEnd = it.clampTemp(m.tempEnd))) }
                     if (m.mode.usesFan) {
-                        Labelled("Fan at the start: ${m.fanStart}%") { FanSlider(m.fanStart) { profile = profile.copy(middle = m.copy(fanStart = it)) } }
-                        Labelled("Fan at the end: ${m.fanEnd}%") { FanSlider(m.fanEnd) { profile = profile.copy(middle = m.copy(fanEnd = it)) } }
+                        Labelled("Fan at the start: ${m.fanStart}%") { FanSlider(m.fanStart, stringResource(R.string.slider_fan_start)) { profile = profile.copy(middle = m.copy(fanStart = it)) } }
+                        Labelled("Fan at the end: ${m.fanEnd}%") { FanSlider(m.fanEnd, stringResource(R.string.slider_fan_end)) { profile = profile.copy(middle = m.copy(fanEnd = it)) } }
                     }
                     if (m.mode.usesTemperature) {
-                        Labelled("Temperature at the start: ${Format.temp(m.tempStart, f)}") { TempSlider(m.mode, m.tempStart) { profile = profile.copy(middle = m.copy(tempStart = it)) } }
-                        Labelled("Temperature at the end: ${Format.temp(m.tempEnd, f)}") { TempSlider(m.mode, m.tempEnd) { profile = profile.copy(middle = m.copy(tempEnd = it)) } }
+                        Labelled("Temperature at the start: ${Format.temp(m.tempStart, f)}") { TempSlider(m.mode, m.tempStart, stringResource(R.string.slider_temp_start), f) { profile = profile.copy(middle = m.copy(tempStart = it)) } }
+                        Labelled("Temperature at the end: ${Format.temp(m.tempEnd, f)}") { TempSlider(m.mode, m.tempEnd, stringResource(R.string.slider_temp_end), f) { profile = profile.copy(middle = m.copy(tempEnd = it)) } }
                     }
                     Labelled("Steps: ${m.rampSteps}") {
-                        Slider(m.rampSteps.toFloat(), { profile = profile.copy(middle = m.copy(rampSteps = it.roundToInt())) }, valueRange = 1f..8f, steps = 6)
+                        Slider(m.rampSteps.toFloat(), { profile = profile.copy(middle = m.copy(rampSteps = it.roundToInt())) }, valueRange = 1f..8f, steps = 6,
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_steps), pluralStringResource(R.plurals.a11y_steps, m.rampSteps, m.rampSteps)))
                     }
                 }
 
@@ -211,10 +219,11 @@ private fun PhaseList(title: String, hint: String, phases: List<Phase>, f: Boole
                     }
                     fun update(p: Phase) = onChange(phases.mapIndexed { i, old -> if (i == index) p else old })
                     ModeChips(phase.mode) { update(phase.copy(mode = it, temperature = it.clampTemp(phase.temperature))) }
-                    if (phase.mode.usesTemperature) Labelled("Temperature ${Format.temp(phase.temperature, f)}") { TempSlider(phase.mode, phase.temperature) { update(phase.copy(temperature = it)) } }
-                    if (phase.mode.usesFan) Labelled("Fan ${phase.fanPercent}%") { FanSlider(phase.fanPercent) { update(phase.copy(fanPercent = it)) } }
+                    if (phase.mode.usesTemperature) Labelled("Temperature ${Format.temp(phase.temperature, f)}") { TempSlider(phase.mode, phase.temperature, stringResource(R.string.slider_temp), f) { update(phase.copy(temperature = it)) } }
+                    if (phase.mode.usesFan) Labelled("Fan ${phase.fanPercent}%") { FanSlider(phase.fanPercent, stringResource(R.string.slider_fan)) { update(phase.copy(fanPercent = it)) } }
                     Labelled("Length ${Format.duration(phase.minutes)}") {
-                        Slider(phase.minutes.toFloat(), { update(phase.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..240f)
+                        Slider(phase.minutes.toFloat(), { update(phase.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..240f,
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_length), spokenMinutes(phase.minutes)))
                     }
                 }
             }
@@ -246,13 +255,15 @@ private fun ModeChips(selected: Mode, onSelect: (Mode) -> Unit) {
 }
 
 @Composable
-private fun FanSlider(value: Int, onChange: (Int) -> Unit) =
-    Slider(value.toFloat(), { onChange(it.round5()) }, valueRange = 5f..100f, steps = 18)
+private fun FanSlider(value: Int, label: String, onChange: (Int) -> Unit) =
+    Slider(value.toFloat(), { onChange(it.round5()) }, valueRange = 5f..100f, steps = 18,
+        modifier = Modifier.sliderSemantics(label, spokenPercent(value)))
 
 @Composable
-private fun TempSlider(mode: Mode, value: Int, onChange: (Int) -> Unit) {
+private fun TempSlider(mode: Mode, value: Int, label: String, fahrenheit: Boolean, onChange: (Int) -> Unit) {
     val range = mode.temperatureRange
-    Slider(value.coerceIn(range).toFloat(), { onChange(it.roundToInt()) }, valueRange = range.first.toFloat()..range.last.toFloat(), steps = (range.last - range.first - 1).coerceAtLeast(0))
+    Slider(value.coerceIn(range).toFloat(), { onChange(it.roundToInt()) }, valueRange = range.first.toFloat()..range.last.toFloat(), steps = (range.last - range.first - 1).coerceAtLeast(0),
+        modifier = Modifier.sliderSemantics(label, spokenTemp(value.coerceIn(range), fahrenheit)))
 }
 
 @Composable

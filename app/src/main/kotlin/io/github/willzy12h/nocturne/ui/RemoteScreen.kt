@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.R
+import androidx.compose.ui.res.stringResource
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlin.math.roundToInt
@@ -72,6 +74,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Text("Temperature ${Format.temp(temp.roundToInt(), f)}")
             Slider(
                 temp, { temp = it }, valueRange = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
+                modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(temp.roundToInt(), f)),
                 steps = (s.maxTemperature - s.minTemperature - 1).coerceAtLeast(0),
                 onValueChangeFinished = { val t = temp.roundToInt(); model.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == t }) { it.setTemperature(t) } },
             )
@@ -81,6 +84,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Text("Fan ${fan.roundToInt()}%")
             Slider(
                 fan, { fan = it }, valueRange = 5f..100f, steps = 18,
+                modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(fan.roundToInt())),
                 onValueChangeFinished = { val step = (fan / 5).roundToInt() - 1; model.remote("Fan set", affectsProgramme = true, confirms = { it.fanStep == step }) { it.setFan(step) } },
             )
         }
