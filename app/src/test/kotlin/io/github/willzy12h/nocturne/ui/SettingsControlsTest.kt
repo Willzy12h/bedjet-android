@@ -12,6 +12,7 @@ import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.graph
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -46,7 +47,7 @@ class SettingsControlsTest {
     @get:Rule val rules: TestRule = RuleChain.outerRule(fixture).around(compose)
     @get:Rule val temp = TemporaryFolder()
     private val graph get() = compose.activity.graph
-    private fun s(id: Int) = compose.activity.getString(id)
+    private fun s(id: Int, vararg args: Any) = compose.activity.getString(id, *args)
     private fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10_000) {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
         condition()
@@ -74,11 +75,25 @@ class SettingsControlsTest {
         compose.onNodeWithText(s(R.string.settings_diagnostics_help)).assertExists()
         val file = temp.newFile("diagnostics.json")
         val model = ViewModelProvider(compose.activity)[AppViewModel::class.java]
-        compose.runOnUiThread { model.exportDiagnostics(Uri.fromFile(file)) }
-        waitUntil { compose.onAllNodesWithText(s(R.string.settings_diagnostics_saved)).fetchSemanticsNodes().isNotEmpty() }
-        val text = file.readText()
-        assertTrue(text, text.contains("\"linkState\""))
-        assertFalse("the update token never leaves the phone", text.contains("updateToken"))
-        assertEquals(graph.actions.diagnostics().length > 0, true)
+        model.updateToken = "secret-xyz-token"
+        try {
+            compose.runOnUiThread { model.exportDiagnostics(Uri.fromFile(file)) }
+            waitUntil { compose.onAllNodesWithText(s(R.string.settings_diagnostics_saved)).fetchSemanticsNodes().isNotEmpty() }
+            val text = file.readText()
+            assertTrue(text, text.contains("\"linkState\""))
+            assertFalse("the update token never leaves the phone", text.contains("secret-xyz-token"))
+        } finally { model.updateToken = "" }
+    }
+
+    @Test fun aFileThatCannotBeOpenedIsReportedAsNotSaved() {
+        compose.onNodeWithText("Settings").performClick()
+        val model = ViewModelProvider(compose.activity)[AppViewModel::class.java]
+        val seen = java.util.Collections.synchronizedList(mutableListOf<String>())
+        compose.runOnUiThread {
+            graph.scope.launch { model.messages.collect { seen += it } }
+            model.exportDiagnostics(Uri.parse("content://nowhere/diagnostics.json")) { null }
+        }
+        waitUntil { seen.isNotEmpty() }
+        assertEquals(listOf(s(R.string.settings_diagnostics_failed, s(R.string.runtime_export_failed))), seen.toList())
     }
 }

@@ -156,4 +156,20 @@ class WakeFeedbackTest {
         assertEquals(before, graph.repository.profiles.value)
         assertFalse(has("Never saved"))
     }
+
+    @Test fun anUpdateTonightUnderWayDoesNotSayTheEditsWaitForTheNextNight() {
+        startNight()
+        val graph = graph
+        val night = graph.repository.activeNight.value!!
+        val edited = graph.repository.profiles.value.first { it.id == night.profileId }.copy(name = "Being applied")
+        compose.runOnUiThread { runBlocking {
+            graph.repository.saveProfile(edited)
+            graph.repository.setActiveNight(night.copy(confidence = Confidence.PENDING,
+                pending = PendingChange("r2", ChangeKind.REAPPLY, null, graph.now().toString(), graph.now().plusMinutes(10).toString(), night.identity)))
+        } }
+        waitFor("Change pending", substring = true)
+        assertFalse(has(s(R.string.tonight_edits_next_night, "Being applied")))
+        compose.runOnUiThread { runBlocking { graph.repository.setActiveNight(night) } }
+        waitFor(s(R.string.tonight_edits_next_night, "Being applied"))
+    }
 }

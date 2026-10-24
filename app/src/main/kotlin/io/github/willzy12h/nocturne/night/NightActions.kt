@@ -970,10 +970,12 @@ class NightActions(private val graph: Graph) {
             manualChange(label, endsNight, affectsProgramme, confirms) { work(graph.controller()) }
         }
     }
-    suspend fun exportDiagnostics(uri: android.net.Uri) {
+    /** [open] is how the file is opened; tests make it fail. A file that can't be opened throws, so nothing claims it saved. */
+    suspend fun exportDiagnostics(uri: android.net.Uri,
+        open: (android.net.Uri) -> java.io.OutputStream? = { context.contentResolver.openOutputStream(it, "wt") }) {
         val snapshot = diagnostics()
         withContext(Dispatchers.IO) {
-            context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(snapshot.toByteArray()) }
+            open(uri)?.use { it.write(snapshot.toByteArray()) }
                 ?: throw java.io.IOException(text(R.string.runtime_export_failed))
         }
     }

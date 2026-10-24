@@ -342,10 +342,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Writes the diagnostics file the person chose (NightActions.diagnostics: no update token). */
-    fun exportDiagnostics(uri: android.net.Uri) {
+    fun exportDiagnostics(uri: android.net.Uri,
+        open: ((android.net.Uri) -> java.io.OutputStream?)? = null) {
         val app = getApplication<Application>()
         graph.scope.launch {
-            runCatching { graph.actions.exportDiagnostics(uri) }
+            runCatching { if (open == null) graph.actions.exportDiagnostics(uri) else graph.actions.exportDiagnostics(uri, open) }
                 .onSuccess { _messages.tryEmit(app.getString(R.string.settings_diagnostics_saved)) }
                 .onFailure { if (it is CancellationException) throw it
                     _messages.tryEmit(app.getString(R.string.settings_diagnostics_failed, it.message.orEmpty())) }

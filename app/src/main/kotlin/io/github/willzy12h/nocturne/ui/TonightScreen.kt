@@ -96,8 +96,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         val unreadable by model.unreadable.collectAsState()
         val restoreUnfinished by model.restoreUnfinished.collectAsState()
         val originalsBlocked by model.originalsBlocked.collectAsState()
-        UnreadableDataBanner(UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked),
-            onDismiss = model::dismissUnreadable, onRestore = onOpenBackups, onAcceptLoss = model::acceptLostOriginals)
+        val bannerState = UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked)
+        UnreadableDataBanner(bannerState, onDismiss = model::dismissUnreadable,
+            onRestore = onOpenBackups.takeIf { bannerState.offersRestore }, onAcceptLoss = model::acceptLostOriginals)
         val runtime by model.runtime.collectAsState()
         runtime.unresolvedSlotWrite?.takeIf { DeviceId.same(it.deviceId, settings.deviceId()) }?.let { write ->
             SlotWriteNotice(write, onChecked = model::acknowledgeSlotWrite)
@@ -141,7 +142,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
             // "Next night" edits don't touch tonight; say so while the saved profile differs from tonight's snapshot.
             val live = profiles.firstOrNull { it.id == running.profileId }
-            if (running.profile != null && live != null && live != running.profile) Note(stringResource(R.string.tonight_edits_next_night, live.name))
+            // Not while "Update tonight" is applying those very edits to tonight.
+            if (running.profile != null && live != null && live != running.profile && running.pending?.kind != ChangeKind.REAPPLY) Note(stringResource(R.string.tonight_edits_next_night, live.name))
             // A kept manual run has no wake programme: it runs until its own end, so that is what is shown.
             val manualUntil = if (!running.trackingManual) null
                 else stringResource(if (confirmed) R.string.tonight_manual_until else R.string.planned_end)

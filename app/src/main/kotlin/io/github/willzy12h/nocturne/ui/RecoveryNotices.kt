@@ -34,6 +34,8 @@ data class UnreadableBannerState(val files: List<String>, val restoreUnfinished:
     val setAside: List<String> get() = if (restoreUnfinished) files - Repository.RESTORE_JOURNAL else files
     val visible: Boolean get() = files.isNotEmpty() || originalsBlocked
     val dismissible: Boolean get() = setAside.isNotEmpty()
+    /** A stuck restore alone isn't fixed by restoring a snapshot (that waits on the same unfinished write). */
+    val offersRestore: Boolean get() = !(restoreUnfinished && setAside.isEmpty())
 }
 
 /** A calm card near the top of Tonight (and in Settings > Backups): View, Restore and Dismiss. */
@@ -63,7 +65,7 @@ fun UnreadableDataBanner(state: UnreadableBannerState, onDismiss: () -> Unit, on
                 if (state.files.isNotEmpty()) TextButton(onClick = { details = !details }) {
                     Text(stringResource(if (details) R.string.unreadable_hide else R.string.unreadable_view))
                 }
-                onRestore?.let { TextButton(onClick = it) { Text(stringResource(R.string.unreadable_restore)) } }
+                onRestore?.takeIf { state.offersRestore }?.let { TextButton(onClick = it) { Text(stringResource(R.string.unreadable_restore)) } }
                 if (state.dismissible) TextButton(onClick = onDismiss) { Text(stringResource(R.string.unreadable_dismiss)) }
                 if (state.originalsBlocked) TextButton(onClick = { accepting = true }) { Text(stringResource(R.string.originals_accept_button)) }
             }
