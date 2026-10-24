@@ -73,4 +73,21 @@
     <string name="a11y_range">%1$s to %2$s</string>
     <plurals name="a11y_minutes"><item quantity="one">%d minute</item><item quantity="other">%d minutes</item></plurals>
     <plurals name="a11y_steps"><item quantity="one">%d step</item><item quantity="other">%d steps</item></plurals>
+    <!-- History (U09) -->
+    <string name="history_revision">Revision %1$d · wake %2$s · %3$s</string>
+    <plurals name="history_steps"><item quantity="one">%d step</item><item quantity="other">%d steps</item></plurals>
+    <string name="history_curve_applied">The curve shows the last programme the BedJet confirmed.</string>
+    <string name="history_event">%1$s  %2$s: %3$s</string>
+    <string name="event_started">Started</string>
+    <string name="event_retimed">Wake time changed</string>
+    <string name="event_snoozed">Snoozed</string>
+    <string name="event_extended">Extended</string>
+    <string name="event_stopped">Stopped</string>
+    <string name="event_ended">Ended</string>
+    <string name="event_unit_notice">BedJet notice</string>
+    <string name="event_error">Problem</string>
+    <string name="event_remote_change">Changed outside Nocturne</string>
+    <string name="event_recovered">Recovered</string>
+    <string name="event_feedback">Morning check-in</string>
+    <string name="event_suggestion">Profile change accepted</string>
 </resources>

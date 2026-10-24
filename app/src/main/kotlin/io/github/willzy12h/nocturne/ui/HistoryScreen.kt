@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.plan.Plan
@@ -62,7 +63,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                     val day = runCatching { ZonedDateTime.parse(night.startedAt).format(DateTimeFormatter.ofPattern("EEE d MMM")) }.getOrDefault("")
                     Text("$day · ${night.profileName}", style = MaterialTheme.typography.titleMedium)
                     Text("${Format.clock(night.startedAt)} → wake ${Format.clock(night.wakeAt)}" + if (night.wakeFromAlarm) " (alarm)" else "")
-                    planOf(night)?.let { NightCurve(it) }
+                    historyPlan(night)?.let { NightCurve(it) }
                     HealthSleepOverlay(model.graph, night)
                     if (completed && !checkedIn && activeNight?.recordId != night.id) {
                         OutlinedButton(onClick = { checkingIn = true }) { Text(stringResource(R.string.checkin_button)) }
@@ -74,7 +75,18 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                         TextButton(onClick = { showSuggestion = true }) { Text(stringResource(R.string.checkin_review)) }
                     }
                     if (open) {
-                        night.events.forEach { Text("${Format.clock(it.at)}  ${it.detail}", style = MaterialTheme.typography.bodySmall) }
+                        night.events.forEach {
+                            Text(stringResource(R.string.history_event, Format.clock(it.at), eventKindName(it.kind), it.detail), style = MaterialTheme.typography.bodySmall)
+                        }
+                        // Each programme the BedJet confirmed for this night, in order; only confirmed ones are recorded.
+                        if (night.revisions.size > 1) {
+                            night.revisions.forEachIndexed { index, revision ->
+                                Text(stringResource(R.string.history_revision, index + 1, Format.clock(revision.wake),
+                                    pluralStringResource(R.plurals.history_steps, revision.steps.size, revision.steps.size)),
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text(stringResource(R.string.history_curve_applied), style = MaterialTheme.typography.labelSmall)
+                        }
                         night.steps.forEach { step ->
                             Text(
                                 "${Format.clock(step.startsAt)}  ${blockName(step.block)}: ${Format.modeName(step.mode)}, " +
@@ -146,3 +158,26 @@ private fun planOf(night: NightRecord): Plan? = runCatching {
     }
     if (steps.isEmpty()) null else Plan(ZonedDateTime.parse(night.startedAt), ZonedDateTime.parse(night.wakeAt), steps)
 }.getOrNull()
+
+/**
+ * The plan the History card draws: the last revision the BedJet confirmed (after a re-time or "Update tonight"), so
+ * the curve and the "→ wake" line agree; the recorded steps for a night with no revisions (U09).
+ */
+internal fun historyPlan(night: NightRecord): Plan? =
+    night.revisions.lastOrNull()?.let { runCatching { it.plan() }.getOrNull() } ?: planOf(night)
+
+@Composable
+private fun eventKindName(kind: EventKind): String = stringResource(when (kind) {
+    EventKind.STARTED -> R.string.event_started
+    EventKind.RETIMED -> R.string.event_retimed
+    EventKind.SNOOZED -> R.string.event_snoozed
+    EventKind.EXTENDED -> R.string.event_extended
+    EventKind.STOPPED -> R.string.event_stopped
+    EventKind.ENDED -> R.string.event_ended
+    EventKind.UNIT_NOTICE -> R.string.event_unit_notice
+    EventKind.ERROR -> R.string.event_error
+    EventKind.REMOTE_CHANGE -> R.string.event_remote_change
+    EventKind.RECOVERED -> R.string.event_recovered
+    EventKind.MORNING_FEEDBACK -> R.string.event_feedback
+    EventKind.MORNING_SUGGESTION_APPLIED -> R.string.event_suggestion
+})
