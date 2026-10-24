@@ -1,0 +1,249 @@
+package io.github.willzy12h.nocturne.ui
+
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.os.Looper
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.lifecycle.ViewModelProvider
+import io.github.willzy12h.nocturne.App
+import io.github.willzy12h.nocturne.Graph
+import io.github.willzy12h.nocturne.GraphLifecycle
+import io.github.willzy12h.nocturne.core.store.ThemeMode
+import io.github.willzy12h.nocturne.night.CommandOutcome
+import io.github.willzy12h.nocturne.night.OutcomeKind
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.*
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
+import org.junit.runners.model.Statement
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.util.ReflectionHelpers
+import java.io.File
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+
+/** Simple view is exercised with both palettes; it is an independent preference, not a third theme. */
+enum class U06Look(val theme: ThemeMode, val simple: Boolean) {
+    MIDNIGHT(ThemeMode.DARK, false), DAYLIGHT(ThemeMode.LIGHT, false),
+    SIMPLE_MIDNIGHT(ThemeMode.DARK, true), SIMPLE_DAYLIGHT(ThemeMode.LIGHT, true),
+}
+
+/**
+ * Real Activity, screens, repository and demo connection at 320 dp / 200% text. Seeded screen states deliberately
+ * do not start the background reconciler: these tests prove layout, while AppSmokeTest covers runtime transitions.
+ * Every graph is finished before replacing it or tearing down Robolectric storage.
+ */
+internal class U06Fixture(
+    val look: U06Look,
+    beforeLaunch: (U06Fixture, String) -> Unit = { _, _ -> },
+) {
+    val compose = createAndroidComposeRule<MainActivity>()
+    val graphs = GraphLifecycle()
+    val graph: Graph get() = (RuntimeEnvironment.getApplication() as App).graph
+    val model: AppViewModel get() = ViewModelProvider(compose.activity)[AppViewModel::class.java]
+    private val fixedClock = Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"), ZoneId.of("Europe/London"))
+    private var method = ""
+    private var feedback: String? = null
+    private var captureNumber = 0
+
+    private val configuration = TestRule { base, _ -> object : Statement() {
+        override fun evaluate() {
+            val app = RuntimeEnvironment.getApplication() as App
+            val previous = Configuration(app.resources.configuration)
+            @Suppress("DEPRECATION")
+            app.resources.updateConfiguration(Configuration(previous).apply { fontScale = 2f }, app.resources.displayMetrics)
+            // Keep real SnackbarHost feedback visible while semantic scrolling advances Compose's clock.
+            // This is Android's accessibility "time to take action" setting, not a frozen animation clock.
+            shadowOf(app.getSystemService(android.view.accessibility.AccessibilityManager::class.java)).apply {
+                setInteractiveUiTimeout(60_000)
+                setNonInteractiveUiTimeout(60_000)
+            }
+            try { base.evaluate() } finally {
+                @Suppress("DEPRECATION")
+                app.resources.updateConfiguration(previous, app.resources.displayMetrics)
+            }
+        }
+    } }
+    private val seed = TestRule { base, description -> object : Statement() {
+        override fun evaluate() {
+            method = description.methodName.substringBefore('[')
+            val app = RuntimeEnvironment.getApplication() as App
+            val replacement = graphs.fresh { Graph(app).also { it.clock = fixedClock } }
+            ReflectionHelpers.setField(app, "graph", replacement)
+            runBlocking {
+                replacement.repository.updateSettings { it.copy(
+                    demoMode = true, themeMode = look.theme, simpleView = look.simple,
+                    fahrenheit = false, autoUpdateCheck = false,
+                ) }
+                replacement.repository.setActiveNight(null)
+            }
+            beforeLaunch(this@U06Fixture, method)
+            base.evaluate()
+        }
+    } }
+    val rules: TestRule = RuleChain.outerRule(configuration).around(graphs).around(seed).around(compose)
+
+    fun s(id: Int, vararg args: Any): String = RuntimeEnvironment.getApplication().getString(id, *args)
+
+    fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10_000) {
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10))
+        if (!compose.mainClock.autoAdvance) compose.mainClock.advanceTimeByFrame()
+        condition()
+    }
+
+    fun tab(label: String) {
+        compose.onNode(hasContentDescription(label) and hasClickAction()).performClick()
+        layout()
+    }
+
+    fun control(label: String, scroll: Boolean = true): SemanticsNodeInteraction =
+        checkControl(compose.onNode(hasText(label) and hasClickAction()), label, scroll).assertHasClickAction()
+
+    fun checkControl(node: SemanticsNodeInteraction, label: String, scroll: Boolean = true): SemanticsNodeInteraction {
+        checkLayout(node, label, scroll)
+        val semantics = node.fetchSemanticsNode()
+        val density = semantics.layoutInfo.density.density
+        val touch = semantics.touchBoundsInRoot
+        val geometry = "touch=$touch, visible=${semantics.boundsInRoot}, size=${semantics.size}, position=${semantics.positionInRoot}"
+        assertTrue("$label touch width ${touch.width / density} dp < 48 dp; $geometry", touch.width >= 48f * density - 1f)
+        assertTrue("$label touch height ${touch.height / density} dp < 48 dp; $geometry", touch.height >= 48f * density - 1f)
+        return node
+    }
+
+    /**
+     * A partial semantics rectangle can pass assertIsDisplayed. Compare it with the actual un-clipped layout,
+     * check the full touch rectangle and text layout, and compare against the real bar and visible snackbar.
+     */
+    fun checkLayout(node: SemanticsNodeInteraction, label: String, scroll: Boolean = true): SemanticsNodeInteraction {
+        assertEquals("The Activity must really be 320 dp wide", 320, compose.activity.resources.configuration.screenWidthDp)
+        assertEquals("The Activity must really use 200% text", 2f, compose.activity.resources.configuration.fontScale, .001f)
+        assertEquals("Compose must inherit 200% text", 2f, compose.density.fontScale, .001f)
+        if (scroll) node.performScrollTo()
+        layout()
+        capture(label)
+        node.assertIsDisplayed()
+        val semantics = node.fetchSemanticsNode()
+        assertEquals("The composed node must use 200% text", 2f, semantics.layoutInfo.density.fontScale, .001f)
+        val density = semantics.layoutInfo.density.density
+        val touch = semantics.touchBoundsInRoot
+        val uncut = node.getUnclippedBoundsInRoot().let { Rect(
+            it.left.value * density, it.top.value * density, it.right.value * density, it.bottom.value * density,
+        ) }
+        val visible = semantics.boundsInRoot
+        assertContained("$label layout is clipped", uncut, visible)
+        val root = generateSequence(semantics) { it.parent }.last().boundsInRoot
+        assertContained("$label touch target leaves its window", touch, root)
+        val bar = compose.onAllNodesWithTag("main-navigation").fetchSemanticsNodes().singleOrNull()
+        if (bar != null && semantics.root === bar.root) {
+            assertTrue("$label is covered by bottom navigation: $touch / ${bar.boundsInRoot}", touch.bottom <= bar.boundsInRoot.top + 1f)
+        }
+        feedback?.let { message ->
+            val notice = compose.onNodeWithText(message, useUnmergedTree = true).fetchSemanticsNode()
+            if (semantics.root === notice.root) {
+                val ancestors = generateSequence(notice) { it.parent }.toList()
+                val liveRegion = ancestors.indexOfFirst { it.config.getOrNull(SemanticsProperties.LiveRegion) != null }
+                check(liveRegion >= 0) { "Visible feedback must expose a live region" }
+                // The host's live-region wrapper includes transparent outer padding. The inner Material
+                // Surface is the actual obstruction and marks its own traversal group.
+                val surface = ancestors.take(liveRegion).firstOrNull {
+                    it.config.getOrNull(SemanticsProperties.IsTraversalGroup) == true
+                } ?: error("Visible feedback must expose its opaque Material Surface")
+                assertTrue("$label is covered by visible snackbar: $touch / ${surface.boundsInRoot}", touch.bottom <= surface.boundsInRoot.top + 1f)
+            }
+        }
+        assertTextFits(semantics, label)
+        return node
+    }
+
+    private fun assertContained(message: String, inside: Rect, outside: Rect) {
+        assertTrue("$message: expected $inside inside $outside", inside.left >= outside.left - 1f &&
+            inside.top >= outside.top - 1f && inside.right <= outside.right + 1f && inside.bottom <= outside.bottom + 1f)
+    }
+
+    private fun assertTextFits(control: SemanticsNode, label: String) {
+        // Use the unmerged descendants: the button's merged text does not itself own a TextLayoutResult.
+        val texts = compose.onAllNodes(SemanticsMatcher("text inside control ${control.id}") { node ->
+            node.config.contains(SemanticsActions.GetTextLayoutResult) &&
+                generateSequence(node) { it.parent }.any { it.id == control.id }
+        }, useUnmergedTree = true).fetchSemanticsNodes()
+        if (!control.config.getOrNull(SemanticsProperties.Text).isNullOrEmpty()) {
+            assertTrue("$label must have rendered text descendants", texts.isNotEmpty())
+        }
+        texts.forEach { text ->
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.runOnIdle { text.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(layouts) }
+            assertTrue("$label must expose its rendered text layout", layouts.isNotEmpty())
+            layouts.forEach { result ->
+                // Compose 1.7.6's GetTextLayoutResult rebuilds a MultiParagraph at the original maximum
+                // width, even when the rendered Text shrank to its contents. hasVisualOverflow therefore
+                // falsely reports width overflow. Check the actual line spans and character coverage.
+                assertFalse("$label loses text lines", result.multiParagraph.didExceedMaxLines)
+                assertEquals("$label must render every character", result.layoutInput.text.length,
+                    result.getLineEnd(result.lineCount - 1))
+                (0 until result.lineCount).forEach { line ->
+                    assertFalse("$label ellipsises line $line", result.isLineEllipsized(line))
+                    val width = result.getLineRight(line) - result.getLineLeft(line)
+                    assertTrue("$label clips line $line horizontally: $width > ${result.size.width}", width <= result.size.width + 1f)
+                    assertTrue("$label clips line $line vertically: ${result.getLineBottom(line)} > ${result.size.height}",
+                        result.getLineTop(line) >= -1f && result.getLineBottom(line) <= result.size.height + 1f)
+                }
+            }
+            val fullText = Rect(text.positionInRoot.x, text.positionInRoot.y,
+                text.positionInRoot.x + text.size.width, text.positionInRoot.y + text.size.height)
+            assertContained("$label text is clipped", fullText, text.boundsInRoot)
+            assertContained("$label text extends outside its control", fullText, control.boundsInRoot)
+        }
+    }
+
+    /** Show actual AppViewModel feedback; the accessibility timeout keeps it visible through scrolling. */
+    fun snackbar(): String {
+        val message = "U06 layout feedback"
+        compose.runOnIdle { model.report(CommandOutcome(OutcomeKind.LOCAL, message)) }
+        waitUntil { compose.onAllNodesWithText(message).fetchSemanticsNodes().isNotEmpty() }
+        compose.mainClock.advanceTimeBy(300) // Finish the snackbar entrance animation, not its display duration.
+        feedback = message
+        layout()
+        compose.onNodeWithText(message).assertIsDisplayed()
+        return message
+    }
+
+    private fun layout() {
+        if (!compose.mainClock.autoAdvance) compose.mainClock.advanceTimeByFrame()
+        compose.waitForIdle()
+    }
+
+    /** Opt-in evidence is separate from assertions: these tests still run without SCREENSHOT_TAG. */
+    fun capture(name: String) {
+        val tag = System.getenv("SCREENSHOT_TAG")?.takeIf { it.isNotBlank() } ?: return
+        require(tag.matches(Regex("[A-Za-z0-9][A-Za-z0-9_-]*")))
+        val safeName = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(90)
+        val directory = File("build/screenshots/$tag/u06").apply { mkdirs() }
+        val stem = "${look.name.lowercase()}-$method-${++captureNumber}-$safeName"
+        // A dialog owns another Compose window; draw each currently visible window, preserving its identity.
+        val views = android.view.inspector.WindowInspector.getGlobalWindowViews().filter { it.isShown && it.width > 0 && it.height > 0 }
+        assertTrue("Native capture must include at least one visible window", views.isNotEmpty())
+        assertTrue("Native capture must include the Activity", views.any { it === compose.activity.window.decorView })
+        views.forEachIndexed { index, view ->
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+            File(directory, "$stem-window$index.png").outputStream().use {
+                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }
+            bitmap.recycle()
+        }
+        val config = compose.activity.resources.configuration
+        val dimensions = views.joinToString(",") { "{\"widthPx\":${it.width},\"heightPx\":${it.height}}" }
+        File(directory, "$stem.json").writeText("""{"renderer":"Robolectric native graphics","sdk":34,"widthDp":${config.screenWidthDp},"heightDp":${config.screenHeightDp},"fontScale":${config.fontScale},"density":${compose.density.density},"look":"$look","clock":"${graph.clock.instant()}","windows":[$dimensions]}""")
+    }
+}

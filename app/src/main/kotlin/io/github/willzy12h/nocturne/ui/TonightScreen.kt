@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -301,13 +300,13 @@ private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: Zo
     }
 }
 
-/** The one primary action on the screen: full width, 56 dp, 16 dp corners. */
+/** The one primary action on the screen: full width, at least 56 dp, 16 dp corners. */
 @Composable
 private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
         shape = RoundedCornerShape(16.dp),
     ) { Text(text, style = MaterialTheme.typography.titleMedium) }
 }

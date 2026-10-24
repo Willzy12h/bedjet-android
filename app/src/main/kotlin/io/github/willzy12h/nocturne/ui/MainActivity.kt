@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.willzy12h.nocturne.core.plan.Profile
@@ -186,7 +187,9 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         },
     ) { padding ->
         val snackbarInset = with(density) { snackbarHeight.toDp() }
-        val modifier = Modifier.padding(padding).padding(bottom = snackbarInset)
+        // Chips draw smaller than their 48 dp touch targets. Protect both expanded edges when scrolling brings
+        // a visible chip to the viewport boundary; a snackbar already reserves more space at the bottom.
+        val modifier = Modifier.padding(padding).padding(top = 8.dp, bottom = maxOf(snackbarInset, 8.dp))
         when (tab) {
             Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onOpenBackups = { tab = Tab.SETTINGS; backupsRequest++ })
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
