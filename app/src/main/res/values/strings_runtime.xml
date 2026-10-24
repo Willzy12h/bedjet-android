@@ -10,6 +10,10 @@
     <string name="runtime_retime_unknown_detail">The BedJet state is unknown. Check it before continuing. %1$s</string>
     <string name="runtime_retime_timeout">The wake-up change timed out.</string>
     <string name="runtime_retime_timeout_detail">Nocturne could not confirm the change. Check the BedJet before continuing.</string>
+    <string name="runtime_retime_timeout_current_wake">Current wake-up: %1$s</string>
+    <string name="runtime_retime_timeout_current_confirmed">The request timed out. The current programme is confirmed. Open Nocturne to review it.</string>
+    <string name="runtime_retime_record_incomplete">The BedJet confirmed the wake-up change, but Nocturne could not finish updating its local record. %1$s</string>
+    <string name="runtime_retime_cleanup_pending">An old wake-up request could not be cleared from Nocturne\'s records. The current programme is unchanged. %1$s</string>
     <string name="runtime_slot_write_acknowledged">Marked as checked.</string>
     <string name="runtime_waited_too_long">This request waited too long. Try again.</string>
     <string name="runtime_add_profile">Add a profile first.</string>

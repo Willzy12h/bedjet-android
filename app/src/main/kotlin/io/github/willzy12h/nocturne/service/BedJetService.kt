@@ -11,12 +11,15 @@ import android.os.Build
 import android.os.IBinder
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.*
 import io.github.willzy12h.nocturne.notify.Notifications
 import io.github.willzy12h.nocturne.platform.PlatformActionActivity
 import io.github.willzy12h.nocturne.ui.ShortcutActivity
 import kotlinx.coroutines.*
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 /** Owns the entire bounded operation, including waiting for the coordinator and connecting. */
 class BedJetService : Service() {
@@ -51,15 +54,30 @@ class BedJetService : Service() {
                 }
                 val result = withTimeout(SERVICE_MS) { graph.actions.execute(request!!) }
                 lastResult = result.message
-                if (!result.succeeded && notifyFailures && !result.notificationHandled)
+                // A stale re-time retry only discards obsolete work. Other stale commands still report their failure.
+                if (!result.succeeded && notifyFailures && !result.notificationHandled &&
+                    !(request?.command == NightActions.Command.RETRY_RETIME && result.kind == OutcomeKind.STALE))
                     Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
             } catch (e: CancellationException) {
                 handoff?.result?.cancel(e)
                 if (e is TimeoutCancellationException) {
                     if (handoff == null && request?.command == NightActions.Command.RETRY_RETIME) {
-                        // Background retries have no screen, even when routine failure notices are disabled.
-                        lastResult = getString(R.string.runtime_retime_timeout_detail)
-                        Notifications.showError(this@BedJetService, getString(R.string.runtime_retime_timeout), lastResult.orEmpty())
+                        val current = graph.actions.currentConfirmedProgramme()
+                        if (graph.actions.rearmRetimeAfterTimeout(request)) {
+                            lastResult = getString(R.string.runtime_retime_pending)
+                        } else if (current != null) {
+                            // Only obsolete journal cleanup may have timed out, or another owner may have published
+                            // this programme. Report current confirmation without attributing it to the timed-out request.
+                            val wake = ZonedDateTime.parse(current.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
+                            lastResult = getString(R.string.runtime_retime_timeout_current_confirmed)
+                            Notifications.showInfo(this@BedJetService, getString(R.string.runtime_retime_timeout_current_wake, wake), lastResult.orEmpty())
+                        } else {
+                            // A possible write cannot be replayed. Background delivery owns one truthful timeout notice.
+                            val detail = getString(R.string.runtime_retime_timeout_detail)
+                            lastResult = if (graph.repository.activeNight.value?.confidence == Confidence.UNKNOWN)
+                                getString(R.string.runtime_retime_unknown_detail, detail) else detail
+                            Notifications.showError(this@BedJetService, getString(R.string.runtime_retime_timeout), lastResult.orEmpty())
+                        }
                     } else failure(this@BedJetService, e, notifyFailures)
                 }
                 throw e
