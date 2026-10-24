@@ -2,9 +2,15 @@
 
 Branch: `gpt/nocturne-f1`.
 
-Base: `c59e974fd8dfeb4d29ed58f8567514ac6b7b345d`, fetched from `origin/claude/nocturne-final-candidate` before branching.
+Required hand-over base: `262c52fc7a2416f6b5d93a7abafb11079ec29d76` from `claude/nocturne-final-candidate`. The original branching base, `c59e974fd8dfeb4d29ed58f8567514ac6b7b345d`, remains part of the historical F1 evidence.
 
-This review covers the owner's six F1 requests. The complete F1 gate and release-journal compatibility check passed; earlier candidate results remain historical evidence.
+The owner's later instruction authorised a normal candidate-to-F1 merge. Local merge commit `1cc689d60da3e38e62f5ed219c6ac27b92811a48` has parents `90deefd681e49a0a482fa6be04cdc01461eeca7d` and the required base `262c52fc7a2416f6b5d93a7abafb11079ec29d76`. No rebase was performed.
+
+The GitHub merged-code commit is `6d3773d0bb9ae2fabeb6fc38493dd250df6bf617`, with parents `4fdb0cfb953c590014b63bede743bb34f407ba66` and `262c52fc7a2416f6b5d93a7abafb11079ec29d76`. Its tree, `3e687391b648cbebe8f0c50f048643f5f5703702`, exactly matches the verified local merge. The first-parent hand-off commits also have identical trees. Publication through the GitHub API changes commit metadata while preserving file trees and normal merge topology; it does not rebase or force-push the work. The delivery adds a documentation-only hand-over commit after this verified code. The final hand-over records the exact delivery SHA.
+
+This review covers the owner's six F1 requests. **The required gate for the merged sources and the additional release-journal check passed.** The earlier 156-core/504-app gate and additional 2-test release-journal check remain historical pre-merge evidence, preserved below.
+
+The merge preserves all 35 upstream UI/non-runtime-string files and all 152 P6 runtime resources. F1 adds five runtime resources. P6's U11/F14 wording and status remain unchanged in the register.
 
 ## Corrections
 
@@ -41,9 +47,22 @@ Older identity-only journals remain readable. Because their command cannot be re
 
 Boost already uses a separate slot-write/start-confirmation path and does not create this manual-end marker. F1 preserves that path. The label correction covers every command that actually creates the marker, including Off/End, Turbo, Warm, Cool and Remote mode commands.
 
-## Test-first evidence
+## Per-item RED → GREEN evidence
 
-Every production correction was preceded by a failing behavioural assertion. No test was disabled or assertion weakened.
+Requests 1, 3 and 5 change production behaviour and have observed failing assertions before their corrections. Requests 2 and 6 are documentation-only, and request 4 replaces reflective test access with the existing public property; their behavioural RED is **N/A**, not an invented failure. No test was disabled or assertion weakened.
+
+The GREEN suite counts in this table were confirmed in the **merged-source gate**, retained under `merged-required-gate-xml/app/`. Earlier focused GREEN runs and the original RED evidence are also retained. XML paths are relative to `/workspace/scratch/1b34905af893/f1-evidence/`; shared suites are not additional tests to add to a gate total.
+
+| Request | Observed RED | Merged GREEN / verification |
+|---|---|---|
+| 1. Final background re-time failures | `retime-red-xml/` records six failed assertions, including `receiverPartialWriteLeavesUnknownAndPostsOneNotice`, `receiverPermanentPreWriteRefusalPostsOneNotice`, both catch-path cases and `receiverTimeoutAfterWritePostsOneTruthfulNotice`. Follow-up RED XML records duplicate takeover notices, a dropped refusal retaining its retry promise and a first observation with no final notice. | `RetimeNotificationTest` **28/28**; focused re-time/expiry/takeover/service-feedback coverage and its intermediate cycles are retained below. |
+| 2. Off contract | **N/A — documentation-only.** The identity-free, captured-target-bound implementation and its three inverted regressions were preserved. | `RuntimeOwnershipTest` **49/49**, including the three unchanged Off cases; those cases also passed **3/3** in `manual/green-final-xml/`. The old notification, recreated widget and wrong-target boundaries retain their assertions. |
+| 3. Delayed-end history label | `manual/red-xml/` records **eight label assertion failures**, including `aLateCoolEndKeepsTheCoolingLabel`, `takeBackUsesTheSavedCommandLabel`, `reconcileUsesTheSavedCommandLabelAfterRestart` and the neutral legacy-marker case. They expected the requested action or “Night stopped.” and received “BedJet off.” | `ManualEndRequestTest` **18/18**; command labels, restart, Take back, legacy markers and metadata cleanup pass. The earlier focused GREEN is retained in `manual/green-final-xml/`. |
+| 4. Direct manual-end property access | **N/A — direct-property test cleanup with no behavioural change.** `ManualTrackingTest` now reads `hasPlannedManualEnd` directly; its assertions were retained. | `ManualTrackingTest` **10/10**; source inspection confirms direct property access. |
+| 5. Report timestamp guard | `manual/red-xml/` records **three timestamp assertion failures**: `aStandbyReceivedBeforeTheRequestCannotFinishItButAnEqualTimeCan`, `restartingRetainsTheRequestTimeAndLabel` and `aNewManualEndReplacesBothTheOldLabelAndRequestTime`. Each showed an older report incorrectly closing the current request. | The same `ManualEndRequestTest` **18/18** GREEN covers old/equal report instants, zone-equivalent instants, restart and replacement of request metadata. The combined label/time RED had 11 failures, not two separate runs. |
+| 6. Unreachable BedJet 3 with Off pending | **N/A — documentation-only.** Existing `endRequested` expiry behaviour was verified by source inspection and documented explicitly. | `SendConfirmationTest` **21/21**, including `anUnconfirmedOffDoesNotExpireAsAnEndedProgramme` and late-report/restart boundaries. The completion review and register describe UNKNOWN tracking past `endsAt` until a qualifying report or **Stop tracking**. |
+
+### Historical focused cycles
 
 | Cycle | RED | GREEN |
 |---|---|---|
@@ -62,9 +81,39 @@ The first complete app baseline stalled in `RuntimeRegressionTest.oldFinishCanno
 
 The fixture now finishes the application graph through `GraphLifecycle.fresh`, injects an explicit demo graph and binds it to `App.graph`. All five test bodies and assertions are unchanged. The isolated class passed **5/5**, with the previously stalled test completing in **3.170 seconds**. This changes test isolation only.
 
-## Final integrated verification
+## Current merged verification
 
-**PASS — code commit `7725b442999e28ec13d1dc24021409147be3cd69`.** The subsequent hand-off commit changes documentation only. After clearing the two test tasks' outputs, the required gate completed successfully:
+**PASS — required gate against local merge `1cc689d60da3e38e62f5ed219c6ac27b92811a48`, identical tree to GitHub merged-code commit `6d3773d0bb9ae2fabeb6fc38493dd250df6bf617`.** Only documentation changes follow this code. The test outputs were cleared before the complete run:
+
+```sh
+./gradlew :core:cleanTest :app:cleanTestDebugUnitTest --offline --max-workers=2 --console=plain
+export SCREENSHOT_TAG=f1
+./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline --max-workers=2 --console=plain
+```
+
+The fresh merged-source JUnit XML reports:
+
+| Scope | Suites | Tests | Passed | Failures | Errors | Skipped |
+|---|---:|---:|---:|---:|---:|---:|
+| Core | 20 | 156 | 156 | 0 | 0 | 0 |
+| App debug | 60 | 504 | 504 | 0 | 0 | 0 |
+| **Required gate total** | **80** | **660** | **660** | **0** | **0** | **0** |
+
+All six opt-in screenshot tests ran. **Debug assembly passed. Lint passed with 0 Error, 0 Fatal, 14 Warning and 1 Hint.** The required gate completed with exit 0 in **8 min 22 s**, with **59 tasks: 27 executed and 32 up-to-date**. The debug APK is **68,038,781 bytes**, SHA-256 `3947a09575d140281ff03a1344e8e9c28de3a5eae079ea33fe78bc3e6d8afc62`.
+
+**The additional merged-source release-journal check passed 2/2, with 0 failures, errors or skips.** Release serialisation inputs were exported successfully. The successful run completed with exit 0 in **50 seconds**, with **34 tasks: 3 executed and 31 up-to-date**. The populated new marker fields and a legacy identity-only marker are covered; this is a JVM release-variant check, not new minified-APK or installation verification.
+
+The first attempt lost the Gradle daemon during `compileReleaseUnitTestKotlin`, before producing test results. The environment's memory controller records out-of-memory kills, but the log does not prove the particular daemon's cause. This is retained as a build-infrastructure failure, not regression RED. The unchanged check passed on retry with one worker, a fresh 1,536 MiB JVM and Kotlin compilation in that process:
+
+```sh
+./gradlew --no-daemon -I .github/workflows/release-serialization.init.gradle :app:testReleaseUnitTest --tests io.github.willzy12h.nocturne.releasegate.ReleaseSerializationTest :app:exportReleaseSerializationInputs --offline --max-workers=1 --console=plain '-Dorg.gradle.jvmargs=-Xmx1536m -Dfile.encoding=UTF-8' -Pkotlin.compiler.execution.strategy=in-process
+```
+
+Current evidence is retained under `/workspace/scratch/1b34905af893/f1-evidence/`: `merged-required-gate-summary.json`, `merged-pre-gate-clean.log`, `merged-required-gate.log`, `merged-required-gate-xml/`, `merged-release-serialization.log`, `merged-release-serialization-retry.log` and `merged-release-serialization-xml/`. These are separate from the pre-merge evidence below.
+
+## Historical pre-merge integrated verification
+
+**PASS before the new candidate merge — code commit `7725b442999e28ec13d1dc24021409147be3cd69`.** The following hand-off commit changed documentation only. These results do not establish the current merged-source gate. After clearing the two test tasks' outputs, that earlier required gate completed successfully:
 
 ```sh
 ./gradlew :core:cleanTest :app:cleanTestDebugUnitTest --offline --max-workers=2 --console=plain
@@ -94,10 +143,33 @@ The additional release-variant serialisation check also passed:
 
 The session evidence is retained under `/workspace/scratch/1b34905af893/f1-evidence/`: `required-gate-summary.json`, `required-gate.log`, `required-gate-xml/`, `release-serialization.log` and `release-serialization-xml/`. The test-first counts above describe separate focused runs and are not added to the required-gate total.
 
+## Files changed against the required base
+
+The F1 delta against `262c52fc7a2416f6b5d93a7abafb11079ec29d76` contains these 14 files:
+
+```text
+.github/workflows/release-serialization-fixtures.json
+app/src/main/kotlin/io/github/willzy12h/nocturne/night/NightActions.kt
+app/src/main/kotlin/io/github/willzy12h/nocturne/night/RuntimeState.kt
+app/src/main/kotlin/io/github/willzy12h/nocturne/service/BedJetService.kt
+app/src/main/res/values/strings_runtime.xml
+app/src/test/kotlin/io/github/willzy12h/nocturne/night/ManualEndRequestTest.kt
+app/src/test/kotlin/io/github/willzy12h/nocturne/night/ManualTrackingTest.kt
+app/src/test/kotlin/io/github/willzy12h/nocturne/night/RuntimeRegressionTest.kt
+app/src/test/kotlin/io/github/willzy12h/nocturne/service/RetimeNotificationTest.kt
+docs/review/f1-implementation.md
+docs/review/nocturne-completion.md
+docs/review/register.md
+docs/review/task-4-implementation.md
+docs/superpowers/plans/2026-10-24-nocturne-f1.md
+```
+
+`RuntimeState.kt` contains the additional persisted end-marker fields and transient notice-ownership field. The release fixture checks the persisted fields and legacy compatibility. `RuntimeRegressionTest.kt` changes fixture setup only, preserving its five test bodies and assertions. `Receivers.kt` and `Notifications.kt` need no F1 edits and match the required base, as do `ui/**` and every other `strings*.xml` resource.
+
 ## Independent code review
 
-A separate read-only review of `c59e974..7725b44` found no Critical or Important correctness issues. Its documentation-completion note is addressed in this final evidence update. Claude's independent review and merge remain separate.
+A separate read-only review of `c59e974..7725b44` found no Critical or Important correctness issues. A further review of the normal merge confirmed that the F1 production and test files match that reviewed version, and that the upstream UI/string migration is preserved. It found no Critical or Important code findings; the remaining base/gate-status documentation note is addressed here. Claude retains independent review and final merge authority.
 
 The timeout regression injects a real `TimeoutCancellationException` using a short nested timeout after a write. It verifies the receiver-to-service timeout-handling branch and UNKNOWN outcome; it does not measure expiry of the full `SERVICE_MS` wall-clock budget.
 
-Physical BedJet 3 behaviour, Android phone delivery and installation remain untested by this work. The automated tests and any Robolectric captures are not hardware evidence. No production release or merge is part of F1.
+Physical BedJet 3 behaviour, Android phone delivery and installation remain untested by this work. The automated tests and any Robolectric captures are not hardware evidence. The authorised candidate-to-F1 merge is recorded above; no production release or merge into a `claude/*` branch is part of this hand-off.
