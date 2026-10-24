@@ -960,6 +960,33 @@ class RepositoryTest {
         assertEquals(emptyList<String>(), repository().unreadable.value)
     }
 
+    /** P5: dismissing the notice must not hide a restore that still isn't finished, and the UI can tell it apart. */
+    @Test
+    fun dismissingTheNoticeKeepsAStuckRestoreReported() = runBlocking {
+        val incoming = importable()
+        var stopped = false
+        val first = repository(writeFile = { file, bytes ->
+            if (stopped) throw AssertionError("process stopped")
+            if (file.name == "settings.json") { stopped = true; throw AssertionError("process stopped between restore files") }
+            Repository.writeDurably(file, bytes)
+        })
+        assertThrows(AssertionError::class.java) { runBlocking { first.restore(incoming) } }
+
+        val second = repository(writeFile = failingFor("profiles.json"))
+        assertTrue(second.restoreUnfinished.value)
+        second.dismissUnreadable()
+        assertEquals(listOf("restore-pending.json"), second.unreadable.value)
+        assertTrue(second.restoreUnfinished.value)
+    }
+
+    @Test
+    fun aDamagedJournalSetAsideIsNotAnUnfinishedRestore() {
+        File(dir, "restore-pending.json").writeText("{bad")
+        val repo = repository()
+        assertEquals(listOf("restore-pending.json"), repo.unreadable.value)
+        assertFalse(repo.restoreUnfinished.value)
+    }
+
     @Test
     fun aStartUpRecoveryThatCantWriteStillStartsAndShowsTheRestore() = runBlocking {
         val incoming = importable()

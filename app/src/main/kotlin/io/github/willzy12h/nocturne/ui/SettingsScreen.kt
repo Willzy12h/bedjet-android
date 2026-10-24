@@ -26,6 +26,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,13 +53,17 @@ import io.github.willzy12h.nocturne.ui.features.PlatformSettingsSection
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
+fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0) {
     val settings by model.settings.collectAsState()
     val snapshots by model.snapshots.collectAsState()
     val slotBackups by model.slotBackups.collectAsState()
     val unreadable by model.unreadable.collectAsState()
+    val restoreUnfinished by model.restoreUnfinished.collectAsState()
+    val originalsBlocked by model.originalsBlocked.collectAsState()
+    val backups = remember { BringIntoViewRequester() }
+    LaunchedEffect(backupsRequest) { if (backupsRequest > 0) { delay(100); backups.bringIntoView() } }
     val alarm by model.nextAlarm.collectAsState()
     val f = settings.fahrenheit
     var restoring by remember { mutableStateOf<SnapshotInfo?>(null) }
@@ -154,16 +164,10 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier) {
 
         PlatformSettingsSection(model.graph)
 
-        Group("Backups and snapshots") {
-            if (unreadable.isNotEmpty()) {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Some saved data could not be read", style = MaterialTheme.typography.titleSmall)
-                        Text("Copies have been set aside: ${unreadable.joinToString()}. Check your backup before restoring. Dismissing this notice does not make an unknown slot safe to overwrite.")
-                        TextButton(onClick = model::dismissUnreadable) { Text("Dismiss notice") }
-                    }
-                }
-            }
+        Group("Backups and snapshots", Modifier.bringIntoViewRequester(backups)) {
+            // The same calm banner as Tonight; the snapshots to restore from are listed just below it.
+            UnreadableDataBanner(UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked),
+                onDismiss = model::dismissUnreadable, onRestore = null, onAcceptLoss = model::acceptLostOriginals)
             Text("A snapshot is taken automatically when you change profiles or settings (the last 20 are kept) and once a day. Your own snapshots are kept until you delete them.", style = MaterialTheme.typography.bodySmall)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(snapshotLabel, { snapshotLabel = it.take(40) }, label = { Text("Label") }, singleLine = true, modifier = Modifier.weight(1f))
@@ -270,9 +274,9 @@ private fun themeName(mode: ThemeMode) = when (mode) {
 }
 
 @Composable
-private fun Group(title: String, content: @Composable () -> Unit) {
+private fun Group(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     HorizontalDivider()
-    Text(title, style = MaterialTheme.typography.titleMedium)
+    Text(title, style = MaterialTheme.typography.titleMedium, modifier = modifier.semantics { heading() })
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
 }
 

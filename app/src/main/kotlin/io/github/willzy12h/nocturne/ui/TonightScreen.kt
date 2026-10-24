@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.willzy12h.nocturne.core.link.LinkState
+import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
@@ -67,7 +68,7 @@ import java.time.ZonedDateTime
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit) {
+fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenBackups: () -> Unit = {}) {
     val profiles by model.profiles.collectAsState()
     val settings by model.settings.collectAsState()
     val night by model.activeNight.collectAsState()
@@ -89,6 +90,15 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         Text("Tonight", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
         ConnectionLine(model)
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        val unreadable by model.unreadable.collectAsState()
+        val restoreUnfinished by model.restoreUnfinished.collectAsState()
+        val originalsBlocked by model.originalsBlocked.collectAsState()
+        UnreadableDataBanner(UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked),
+            onDismiss = model::dismissUnreadable, onRestore = onOpenBackups, onAcceptLoss = model::acceptLostOriginals)
+        val runtime by model.runtime.collectAsState()
+        runtime.unresolvedSlotWrite?.takeIf { DeviceId.same(it.deviceId, settings.deviceId()) }?.let { write ->
+            SlotWriteNotice(write, onChecked = model::acknowledgeSlotWrite)
+        }
         SetupChecks()
         if (settings.deviceId() == null) SetupFlow(model, compact = true)
         release?.let { latest ->

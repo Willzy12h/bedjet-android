@@ -85,6 +85,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val snapshots = repo.snapshotList
     val notices = repo.notices
     val unreadable = repo.unreadable
+    /** A restore still not finished on disk; the banner says so instead of "set aside" (P5). */
+    val restoreUnfinished = repo.restoreUnfinished
     val nightStatus = graph.actions.status
     val runtime = repo.runtime
     private val _foundBedJets = MutableStateFlow<List<FoundBedJet>>(emptyList())
@@ -217,6 +219,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissUnreadable() = save { repo.dismissUnreadable() }
+
+    /** "Mark as checked" on an unconfirmed slot write: local only, through the command owner (IR-06). */
+    fun acknowledgeSlotWrite() = act(hardware = false) { graph.actions.acknowledgeSlotWrite().message }
 
     /** IR-03: true while slots with no saved original are refused because the saved originals were unreadable. */
     val originalsBlocked = repo.originalsBlocked

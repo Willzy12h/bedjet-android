@@ -120,6 +120,11 @@ class Repository(
     private val journalState = recoverPendingRestore()
     /** A journal still pending after start-up recovery: reported in [unreadable] until it is finished. */
     private var journalStuck = journalState == JournalState.STUCK
+        set(value) { field = value; _restoreUnfinished.value = value }
+    private val _restoreUnfinished = MutableStateFlow(journalState == JournalState.STUCK)
+    /** True while a committed restore still isn't finished on disk ([RESTORE_JOURNAL] listed in [unreadable] for that
+     * reason, not because a damaged journal was set aside). Dismissing the notice doesn't clear it. */
+    val restoreUnfinished: StateFlow<Boolean> = _restoreUnfinished.asStateFlow()
     private val _unreadable = MutableStateFlow((readUnreadableMarker() + listOfNotNull(RESTORE_JOURNAL.takeIf { journalState != JournalState.NONE })).distinct())
     // Dismissing the unreadable-file notice must not make an unknown slot original safe to overwrite.
     private val _originalsBlocked = MutableStateFlow(File(dir, SLOT_BACKUPS_BLOCK).exists())
@@ -744,7 +749,8 @@ class Repository(
 
     private fun clearUnreadable() {
         AtomicFile(File(dir, UNREADABLE)).delete()
-        _unreadable.value = emptyList()
+        // A restore that still isn't finished stays reported: dismissing the notice doesn't finish it.
+        _unreadable.value = if (journalStuck) listOf(RESTORE_JOURNAL) else emptyList()
     }
 
     companion object {
@@ -759,7 +765,7 @@ class Repository(
          * in cloud backup and device transfer (res/xml/backup_rules.xml, data_extraction_rules.xml).
          */
         private const val SLOT_BACKUPS_LOSS = "slot-backups-loss-accepted.json"
-        private const val RESTORE_JOURNAL = "restore-pending.json"
+        const val RESTORE_JOURNAL = "restore-pending.json"
         private const val RUNTIME = "runtime.json"
         private const val AUTOMATION = "automation.json"
         private const val ACTIVE_NIGHT = "active-night.json"

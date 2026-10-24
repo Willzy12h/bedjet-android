@@ -128,6 +128,8 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     var parkedDraft by rememberSaveable { mutableStateOf(false) }
     // A new profile isn't in the repository until Save, so the editor keeps its starting point here (it survives recreation).
     var newProfileJson by rememberSaveable { mutableStateOf<String?>(null) }
+    // Tonight's "Restore" opens Settings at the snapshots.
+    var backupsRequest by remember { mutableIntStateOf(0) }
     val profiles by model.profiles.collectAsState()
     val edit: (Profile) -> Unit = { profile ->
         newProfileJson = if (profiles.none { it.id == profile.id }) Json.encodeToString(profile) else null
@@ -185,11 +187,11 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         val snackbarInset = with(density) { snackbarHeight.toDp() }
         val modifier = Modifier.padding(padding).padding(bottom = snackbarInset)
         when (tab) {
-            Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit)
+            Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onOpenBackups = { tab = Tab.SETTINGS; backupsRequest++ })
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
             Tab.REMOTE -> RemoteScreen(model, modifier)
             Tab.HISTORY -> HistoryScreen(model, modifier)
-            Tab.SETTINGS -> SettingsScreen(model, modifier)
+            Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest)
         }
     }
 }

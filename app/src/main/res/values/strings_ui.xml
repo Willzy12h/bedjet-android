@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- P5 UI copy (UK English). Older literals move here in the later strings task. -->
+<resources>
+    <!-- Unreadable data and unfinished restore -->
+    <string name="unreadable_banner">Some saved data couldn\'t be read — restore from a snapshot or dismiss.</string>
+    <string name="unreadable_details">Set aside: %1$s. Nocturne kept the unreadable copies and is using defaults in their place. Dismissing this notice doesn\'t make an unknown slot safe to overwrite.</string>
+    <string name="restore_unfinished_title">A restore isn\'t finished</string>
+    <string name="restore_unfinished_text">Nocturne couldn\'t finish writing a restore. Until it can, changes to profiles, settings, history and saved originals aren\'t saved.</string>
+    <string name="restore_unfinished_details">Free some storage space, then reopen Nocturne. This notice stays until the restore is finished.</string>
+    <string name="unreadable_view">View</string>
+    <string name="unreadable_hide">Hide details</string>
+    <string name="unreadable_restore">Restore</string>
+    <string name="unreadable_dismiss">Dismiss</string>
+    <string name="originals_blocked_text">The saved originals of some BedJet slots couldn\'t be read. Slots with no saved original won\'t be written until you accept that those originals are lost.</string>
+    <string name="originals_accept_button">Accept lost originals…</string>
+    <string name="originals_accept_title">Accept that these originals are lost?</string>
+    <string name="originals_accept_text">The saved originals of some BedJet slots can\'t be recovered. If you accept, Nocturne can write those slots again. Whatever a slot holds at that point is saved as its original and marked as uncertain, because it may be one of Nocturne\'s own programmes. Every original saved from now on is marked uncertain too.</string>
+    <string name="originals_accept_confirm">Accept and continue</string>
+    <string name="originals_accept_cancel">Cancel</string>
+    <!-- Unresolved slot write -->
+    <string name="slot_write_notice">Your BedJet hasn\'t confirmed “%1$s” on slot %2$d. Check the BedJet, then mark it as checked.</string>
+    <string name="slot_write_checked">Mark as checked</string>
+</resources>
