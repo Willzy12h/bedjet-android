@@ -49,7 +49,8 @@ class NightActions(private val graph: Graph) {
 
     enum class Command { START_NIGHT, END_NIGHT, OFF, TURBO, BOOST, COOL, WARM, RETIME, RETRY_RETIME, REAPPLY, SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL, RESUME, STOP_TRACKING, KEEP_TRACKING }
     fun capture(command: Command, profileId: String? = null, requireIdentity: Boolean = false) =
-        CommandRequest(command, profileId, repo.settings.value.deviceId(), repo.activeNight.value?.identity, requireIdentity)
+        CommandRequest(command, profileId, repo.settings.value.deviceId(), repo.activeNight.value?.identity, requireIdentity,
+            origin = defaultCommandOrigin(command))
 
     /** Off resolves the captured target even when a notification/widget carries an older night identity. */
     suspend fun perform(command: Command, profileId: String? = null, replacementConfirmed: Boolean = false): String =
@@ -57,7 +58,8 @@ class NightActions(private val graph: Graph) {
     /** Every command that may reach the BedJet is admitted only with [MIN_BUDGET_MS] left; Stop tracking is local (IR-11). */
     suspend fun execute(request: CommandRequest): CommandOutcome = owned(label(request.command), request.deviceId,
         minimumRemainingMs = if (request.command != Command.STOP_TRACKING) MIN_BUDGET_MS else 0,
-        retimeWork = request.command == Command.RETIME || request.command == Command.RETRY_RETIME) {
+        retimeWork = request.command == Command.RETIME || request.command == Command.RETRY_RETIME,
+        origin = currentCoroutineContext()[CommandOriginContext]?.origin?.takeUnless { it == CommandOrigin.APP } ?: request.origin) {
         if (request.command != Command.OFF && request.requireIdentity && request.expected != repo.activeNight.value?.identity) return@owned stale()
         if (ReplacementPolicy.decide(request.command, repo.activeNight.value).needsConfirmation && !request.replacementConfirmed)
             return@owned CommandOutcome(OutcomeKind.CONFIRMATION_REQUIRED, text(R.string.runtime_replace_confirmation))
@@ -78,7 +80,7 @@ class NightActions(private val graph: Graph) {
     }
     /** No FGS, detached launch or retry. Job cancellation propagates after durable uncertainty is saved. */
     suspend fun performJobOwned(request: CommandRequest, eligible: suspend (DeviceStatus) -> Boolean): CommandOutcome =
-        owned(label(request.command), request.deviceId, minimumRemainingMs = MIN_BUDGET_MS) {
+        owned(label(request.command), request.deviceId, minimumRemainingMs = MIN_BUDGET_MS, origin = CommandOrigin.CHARGER) {
             if (request.requireIdentity && request.expected != repo.activeNight.value?.identity) return@owned stale()
             slotWriteRefusal(request.command)?.let { return@owned it }
             connected {
@@ -95,7 +97,11 @@ class NightActions(private val graph: Graph) {
     }
 
     private suspend fun owned(label: String, target: String?, minimumRemainingMs: Long = 0, retimeWork: Boolean = false,
+        origin: CommandOrigin? = null,
         work: suspend () -> CommandOutcome): CommandOutcome {
+        val source = origin ?: currentCoroutineContext()[CommandOriginContext]?.origin ?: CommandOrigin.APP
+        fun tagged(outcome: CommandOutcome): CommandOutcome =
+            if (outcome.origin == CommandOrigin.APP && source != CommandOrigin.APP) outcome.copy(origin = source) else outcome
         _busy.update { it.copy(queuedCount = it.queuedCount + 1) }
         var acquired = false
         val owner = Any()
@@ -107,21 +113,21 @@ class NightActions(private val graph: Graph) {
                 _busy.update { it.copy(runningLabel = label, queuedCount = it.queuedCount - 1) }
                 val submitted = currentCoroutineContext()[SubmissionTarget]
                 val remainingMs = OPERATION_MS - (elapsedMs() - startedAt)
-                val result = if (minimumRemainingMs > 0 && remainingMs < minimumRemainingMs) waitedTooLong(retimeWork)
+                val result = tagged(if (minimumRemainingMs > 0 && remainingMs < minimumRemainingMs) waitedTooLong(retimeWork)
                 else if (target != repo.settings.value.deviceId() ||
-                    (submitted != null && submitted.deviceId != repo.settings.value.deviceId())) stale(R.string.runtime_target_changed) else work()
+                    (submitted != null && submitted.deviceId != repo.settings.value.deviceId())) stale(R.string.runtime_target_changed) else work())
                 _outcomes.emit(result)
                 result
             }
         } catch (e: CancellationException) { throw e
         } catch (e: SlotBackupsUnreadable) {
             // Thrown before any slot write; the night's confidence is left as it was (IR-03).
-            return refused(R.string.runtime_slot_backups_unreadable).also { _outcomes.emit(it) }
+            return tagged(refused(R.string.runtime_slot_backups_unreadable)).also { _outcomes.emit(it) }
         } catch (e: Exception) {
             recordError("$label: ${e.message.orEmpty()}")
             // A slot write reports its own outcome; an old one in question says nothing about this failure (IR-06).
-            return CommandOutcome(if (repo.activeNight.value?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
-                e.message ?: text(R.string.runtime_failed)).also { _outcomes.emit(it) }
+            return tagged(CommandOutcome(if (repo.activeNight.value?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
+                e.message ?: text(R.string.runtime_failed))).also { _outcomes.emit(it) }
         } finally {
             // Ownership is tested even if timeout raced with resumption after lock.lock().
             _busy.update { if (acquired) it.copy(runningLabel = null) else it.copy(queuedCount = (it.queuedCount - 1).coerceAtLeast(0)) }
@@ -480,10 +486,11 @@ class NightActions(private val graph: Graph) {
     }
     val retimePending: Boolean get() = repo.runtime.value.retime != null || repo.runtime.value.alarmInbox != null
     suspend fun retryPendingRetime(): String? = if (!retimePending) null else owned(label(Command.RETIME), repo.settings.value.deviceId(), MIN_BUDGET_MS,
-        retimeWork = true) { consumeAlarmObservation(); retryRetimeLocked() }.message
+        retimeWork = true, origin = CommandOrigin.ALARM) { consumeAlarmObservation(); retryRetimeLocked() }.message
     /** A coalesced observation inbox, not a second command owner. This only uses the repository writer.
      * The receiver can submit while a whole hardware transaction holds the coordinator mutex. */
-    suspend fun submitAlarmChange(): CommandOutcome {
+    suspend fun submitAlarmChange(): CommandOutcome = submitAlarmChangeLocal().copy(origin = CommandOrigin.ALARM)
+    private suspend fun submitAlarmChangeLocal(): CommandOutcome {
         val night = repo.activeNight.value
         if (night == null) {
             withTimeout(8_000) { repo.updateRuntime { if (repo.activeNight.value == null) it.copy(alarmInbox = null, retime = null) else it } }
@@ -979,7 +986,7 @@ class NightActions(private val graph: Graph) {
         if (n != null && (n.confidence != Confidence.CONFIRMED || n.trackingManual)) return@owned refused(R.string.runtime_reconcile_needed)
         if (n == null) {
             repo.updateSettings { if (wake == null) it.clearWakeOverride() else it.setWakeOverride(wake, graph.now()) }
-            return@owned CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_settings_saved))
+            return@owned CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_settings_saved), origin = CommandOrigin.SETTINGS)
         }
         val profile = n.profile ?: repo.profile(n.profileId) ?: return@owned refused(R.string.runtime_profile_deleted)
         val alarm = AlarmSource.describe(context, repo.settings.value)
@@ -1019,7 +1026,8 @@ class NightActions(private val graph: Graph) {
         }
         repo.updateRuntime { if (it.wakeSourceChange == change) it.copy(wakeSourceChange = null) else it }
     }
-    suspend fun updateSettings(change: (Settings) -> Settings): CommandOutcome = owned(text(R.string.runtime_target_label), repo.settings.value.deviceId()) {
+    suspend fun updateSettings(change: (Settings) -> Settings): CommandOutcome = owned(text(R.string.runtime_target_label), repo.settings.value.deviceId(),
+        origin = CommandOrigin.SETTINGS) {
         val old = repo.settings.value
         val updated = change(old)
         if (updated.deviceId() != old.deviceId() || updated.targetDevice != old.targetDevice) {
@@ -1068,8 +1076,9 @@ class NightActions(private val graph: Graph) {
         }
     }
     suspend fun releaseForOtherPhone(untilMs: Long? = null, declineIfBusy: Boolean = false): CommandOutcome {
-        if (declineIfBusy && lock.isLocked) return refused(R.string.runtime_busy)
-        return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId()) {
+        if (declineIfBusy && lock.isLocked) return refused(R.string.runtime_busy).copy(origin = CommandOrigin.PEER)
+        return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId(),
+            origin = if (declineIfBusy) CommandOrigin.PEER else null) {
             // Handover invalidates queued commands, but an existing recovery reason and
             // short-lived resume offer remain meaningful when this phone releases the link.
             repo.updateRuntime { it.copy(generation = it.generation + 1,

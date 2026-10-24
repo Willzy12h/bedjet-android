@@ -29,6 +29,7 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.night.CommandOutcome
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.CancellationException
@@ -128,12 +129,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Shows [outcome] once. A plain "Settings saved." is not announced: the screen already shows the change. */
+    /** Shows [outcome] once. Local settings saves stay quiet because the screen already shows the change. */
     fun report(outcome: CommandOutcome) {
         if (shownOutcomes.any { it === outcome }) return
         shownOutcomes.addLast(outcome)
         while (shownOutcomes.size > 32) shownOutcomes.removeFirst()
-        if (outcome.kind == OutcomeKind.LOCAL && outcome.message == getApplication<Application>().getString(R.string.runtime_settings_saved)) return
+        if (outcome.kind == OutcomeKind.LOCAL && outcome.origin == CommandOrigin.SETTINGS) return
         _messages.tryEmit(outcome.message)
     }
     private val _nextAlarm = MutableStateFlow<AlarmSource.NextAlarm?>(null)
@@ -228,7 +229,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun run(command: NightActions.Command, profileId: String? = null, replacementConfirmed: Boolean = false) {
         val request = graph.actions.capture(command, profileId, requireIdentity = replacementConfirmed || confirmedNight != null)
-            .let { it.copy(expected = confirmedNight ?: it.expected, replacementConfirmed = replacementConfirmed || confirmedNight != null) }
+            .let { it.copy(expected = confirmedNight ?: it.expected, replacementConfirmed = replacementConfirmed || confirmedNight != null,
+                origin = CommandOrigin.APP) }
         act(hardware = command != NightActions.Command.STOP_TRACKING) { graph.actions.execute(request) }
     }
 

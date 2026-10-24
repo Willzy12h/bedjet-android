@@ -14,6 +14,8 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.*
 import io.github.willzy12h.nocturne.notify.Notifications
+import io.github.willzy12h.nocturne.platform.PlatformActionActivity
+import io.github.willzy12h.nocturne.ui.ShortcutActivity
 import kotlinx.coroutines.*
 
 /** Owns the entire bounded operation, including waiting for the coordinator and connecting. */
@@ -42,7 +44,7 @@ class BedJetService : Service() {
                 if (handoff != null) {
                     if (!handoff.result.isActive) return@launch
                     val value = withTimeout(SERVICE_MS) {
-                        withContext(SubmissionTarget(handoff.target)) { handoff.work() }
+                        withContext(SubmissionTarget(handoff.target) + CommandOriginContext(handoff.origin)) { handoff.work() }
                     }
                     handoff.result.complete(value)
                     return@launch
@@ -79,7 +81,7 @@ class BedJetService : Service() {
         const val SERVICE_MS = NightActions.OPERATION_MS + 10_000L
         /** The UI waits longer still: foreground promotion, the service bound and a margin. */
         const val RUN_OWNED_MS = SERVICE_MS + 15_000L
-        private class Handoff(val target: String?, val notifyFailures: Boolean, val work: suspend () -> Any?) {
+        private class Handoff(val target: String?, val notifyFailures: Boolean, val origin: CommandOrigin, val work: suspend () -> Any?) {
             val result = CompletableDeferred<Any?>()
             @Volatile var operation: Job? = null
         }
@@ -91,12 +93,13 @@ class BedJetService : Service() {
          * exception delivery, lastResult and ownership/cancellation are unchanged. */
         @Suppress("UNCHECKED_CAST")
         suspend fun <T> runOwned(context: Context, notifyFailures: Boolean = true, work: suspend () -> T): T {
+            val origin = entryOrigin(context, currentCoroutineContext()[CommandOriginContext]?.origin ?: CommandOrigin.APP)
             val submitted = currentCoroutineContext()[SubmissionTarget]
             val target = if (submitted != null) submitted.deviceId else context.graph.repository.settings.value.deviceId()
             if (context.graph.repository.settings.value.demoMode)
-                return withContext(SubmissionTarget(target)) { withTimeout(SERVICE_MS) { work() } }
+                return withContext(SubmissionTarget(target) + CommandOriginContext(origin)) { withTimeout(SERVICE_MS) { work() } }
             val id = java.util.UUID.randomUUID().toString()
-            val handoff = Handoff(target, notifyFailures, work)
+            val handoff = Handoff(target, notifyFailures, origin, work)
             handoffs[id] = handoff
             try {
                 if (!permitted(context, NightActions.Command.START_NIGHT)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
@@ -118,21 +121,25 @@ class BedJetService : Service() {
         private const val EXTRA_TARGET = "target"
         private const val EXTRA_CONFIRMED = "replacementConfirmed"
         private const val EXTRA_STRICT = "strictIdentity"
+        private const val EXTRA_ORIGIN = "commandOrigin"
         @Volatile var lastResult: String? = null
         fun intent(context: Context, command: NightActions.Command, profileId: String? = null, requireIdentity: Boolean = false, replacementConfirmed: Boolean = false): Intent {
             val captured = context.graph.actions.capture(command, profileId, requireIdentity)
-            return intent(context, captured.copy(replacementConfirmed = replacementConfirmed))
+            return intent(context, captured.copy(replacementConfirmed = replacementConfirmed, origin = entryOrigin(context, captured.origin)))
         }
         private fun intent(context: Context, captured: CommandRequest) =
             Intent(context, BedJetService::class.java).putExtra(EXTRA_COMMAND, captured.command.name)
                 .putExtra(EXTRA_PROFILE, captured.profileId).putExtra(EXTRA_TARGET, captured.deviceId)
                 .putExtra(EXTRA_CONFIRMED, captured.replacementConfirmed).putExtra(EXTRA_STRICT, captured.requireIdentity)
+                .putExtra(EXTRA_ORIGIN, captured.origin.name)
                 .putExtra(NightAlarms.EXTRA_NIGHT, captured.expected?.nightId)
                 .putExtra(NightAlarms.EXTRA_REVISION, captured.expected?.revision ?: -1)
         private fun request(intent: Intent): CommandRequest? {
             val command = intent.getStringExtra(EXTRA_COMMAND)?.let { runCatching { NightActions.Command.valueOf(it) }.getOrNull() } ?: return null
+            val origin = intent.getStringExtra(EXTRA_ORIGIN)?.let { runCatching { CommandOrigin.valueOf(it) }.getOrNull() }
+                ?: defaultCommandOrigin(command)
             return CommandRequest(command, intent.getStringExtra(EXTRA_PROFILE), intent.getStringExtra(EXTRA_TARGET),
-                NightAlarms.identity(intent), intent.getBooleanExtra(EXTRA_STRICT, false), intent.getBooleanExtra(EXTRA_CONFIRMED, false))
+                NightAlarms.identity(intent), intent.getBooleanExtra(EXTRA_STRICT, false), intent.getBooleanExtra(EXTRA_CONFIRMED, false), origin)
         }
         /** False means no service owns the work. Receivers may only record/schedule a pending retry. */
         fun start(context: Context, command: NightActions.Command, profileId: String? = null,
@@ -141,7 +148,8 @@ class BedJetService : Service() {
                 .copy(replacementConfirmed = replacementConfirmed), notifyFailures)
         fun start(context: Context, captured: CommandRequest, notifyFailures: Boolean = true): Boolean = try {
             if (!permitted(context, captured.command)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
-            deliver(context, intent(context, captured).putExtra(EXTRA_NOTIFY_FAILURES, notifyFailures)); true
+            val request = captured.copy(origin = entryOrigin(context, captured.origin))
+            deliver(context, intent(context, request).putExtra(EXTRA_NOTIFY_FAILURES, notifyFailures)); true
         } catch (e: RuntimeException) { failure(context, e, notifyFailures); false }
         /** Ordinary delivery creates no foreground-start obligation if the handoff is missing or promotion is denied.
          * Valid work is promoted synchronously in onStartCommand. Android may refuse this background start earlier. */
@@ -156,10 +164,24 @@ class BedJetService : Service() {
             if (notifyFailures) Notifications.showError(context, context.getString(R.string.runtime_failed), lastResult.orEmpty())
         }
         fun pendingIntent(context: Context, command: NightActions.Command, profileId: String? = null): PendingIntent {
-            val captured = intent(context, command, profileId, requireIdentity = true)
+            val captured = intent(context, command, profileId, requireIdentity = true).putExtra(EXTRA_ORIGIN, CommandOrigin.NOTIFICATION.name)
             val key = "${command.name}:$profileId:${captured.getStringExtra(NightAlarms.EXTRA_NIGHT)}:${captured.getIntExtra(NightAlarms.EXTRA_REVISION, -1)}"
             return PendingIntent.getService(context, key.hashCode(), captured,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        }
+
+        /** Existing activity entries are identified here, before work crosses the service boundary. */
+        private fun entryOrigin(context: Context, fallback: CommandOrigin): CommandOrigin = when (context) {
+            is PlatformActionActivity -> {
+                val intent = context.intent
+                if (intent == null) fallback
+                else if (intent.getBooleanExtra("rendered", false) ||
+                    intent.data?.let { it.scheme == "nocturne" && it.host == "widget" } == true) CommandOrigin.WIDGET
+                else CommandOrigin.REMINDER
+            }
+            is ShortcutActivity -> if (context.intent?.getBooleanExtra("capturedConfirmation", false) == true)
+                CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT
+            else -> fallback
         }
     }
 }

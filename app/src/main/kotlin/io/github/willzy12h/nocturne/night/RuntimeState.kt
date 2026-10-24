@@ -47,12 +47,20 @@ import kotlinx.serialization.Serializable
     fun affectsNights(workingSlot: Int): Boolean = startRequested || slot == workingSlot
 }
 
+/** The entry that requested work; transient command metadata, never part of the runtime journal or backups. */
+enum class CommandOrigin { APP, WIDGET, SHORTCUT, NOTIFICATION, REMINDER, ALARM, CHARGER, SETTINGS, PEER }
+internal fun defaultCommandOrigin(command: NightActions.Command): CommandOrigin = when (command) {
+    NightActions.Command.RETIME, NightActions.Command.RETRY_RETIME -> CommandOrigin.ALARM
+    else -> CommandOrigin.APP
+}
+
 data class CommandRequest(val command: NightActions.Command, val profileId: String?, val deviceId: String?,
-    val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false)
+    val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false,
+    val origin: CommandOrigin = CommandOrigin.APP)
 enum class OutcomeKind { CONFIRMED, ACCEPTED, LOCAL, REFUSED, STALE, FAILED, UNKNOWN, CONFIRMATION_REQUIRED }
 data class CommandOutcome(val kind: OutcomeKind, val message: String,
     /** The outcome already has its own notice; service delivery must not post another one. */
-    val notificationHandled: Boolean = false) {
+    val notificationHandled: Boolean = false, val origin: CommandOrigin = CommandOrigin.APP) {
     val succeeded: Boolean get() = kind in setOf(OutcomeKind.CONFIRMED, OutcomeKind.ACCEPTED, OutcomeKind.LOCAL)
 }
 data class BusyState(val runningLabel: String? = null, val queuedCount: Int = 0)
@@ -78,6 +86,11 @@ object ReplacementPolicy {
 /** Submission target carried across the service handoff and checked under command ownership. */
 internal class SubmissionTarget(val deviceId: String?) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<SubmissionTarget>
+}
+
+/** Typed entry metadata retained when a service takes ownership of the caller's work. */
+internal class CommandOriginContext(val origin: CommandOrigin) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+    companion object Key : kotlin.coroutines.CoroutineContext.Key<CommandOriginContext>
 }
 
 @Serializable data class LocalDelivery(val id: String, val action: String, val expected: NightIdentity, val receivedAt: String)
