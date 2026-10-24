@@ -172,14 +172,16 @@ class TruthfulOutcomesTest {
         assertTrue(events(n).any { it.kind == EventKind.ERROR && it.detail == outcome.message })
     }
 
-    @Test fun aFirstStartRefusedByItsFinalCheckKeepsItsError() = runBlocking {
+    @Test fun aFirstStartFailingItsFinalCheckMatchesThePublishedFailure() = runBlocking {
         forgetOriginals()
         // The slot read takes so long that the start request has expired by the final check.
         beforeQuery = { if (it == Codec.Query.PROGRAM_NAMES) {
             graph.clock = Clock.fixed(graph.now().plusHours(2).toInstant(), ZoneOffset.UTC); context.graph.clock = graph.clock } }
         val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT))
         beforeQuery = {}
-        assertEquals(outcome.message, OutcomeKind.REFUSED, outcome.kind)
+        assertEquals("the core has published the failed request", Confidence.FAILED, graph.repository.activeNight.value?.confidence)
+        assertEquals("the returned outcome must match the published failure", OutcomeKind.FAILED, outcome.kind)
+        assertTrue("the final check refuses before any programme write or start", sent.none(::isSlotWriteOrStart))
         val record = graph.repository.history.value.single()
         assertTrue("the start's record keeps why it didn't run", record.events.any { it.kind == EventKind.ERROR && it.detail == outcome.message })
         assertEquals(outcome.message, graph.repository.runtime.value.reason)

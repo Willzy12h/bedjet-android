@@ -114,6 +114,28 @@ class TruthfulStateTest {
         assertEquals(text(R.string.runtime_taken_back), outcome.message)
     }
 
+    @Test fun takeBackCancelsThePendingRetryWhenItFindsATakeover() = runBlocking {
+        val night = start(); advance(30)
+        val pending = PendingRetime("pending-takeover", night.identity, "demo", graph.now().plusHours(5).toString(), null, night.wakeUpStart)
+        graph.repository.updateRuntime { it.copy(retime = pending) }
+        NightAlarms.scheduleRetry(context, pending, graph.now())
+        val alarms = org.robolectric.Shadows.shadowOf(context.getSystemService(android.app.AlarmManager::class.java))
+        fun hasRetry() = alarms.scheduledAlarms.any {
+            org.robolectric.Shadows.shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+        }
+        assertTrue(hasRetry())
+        demo.send(Codec.setMode(Mode.COOL)!!)
+
+        val outcome = graph.actions.takeBack()
+
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
+        assertEquals(text(R.string.runtime_taken_back_takeover), outcome.message)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+        assertNull(graph.repository.runtime.value.retime)
+        assertFalse("Take back must cancel the obsolete re-time alarm as every takeover does", hasRetry())
+        assertEquals(1, graph.repository.history.value.first { it.id == night.recordId }.events.count { it.kind == EventKind.REMOTE_CHANGE })
+    }
+
     // Wake override on a running night
 
     @Test fun aWakeOverrideWhoseRewriteFailsIsNotSaved() = runBlocking {
@@ -179,6 +201,58 @@ class TruthfulStateTest {
         val outcome = run(NightActions.Command.RESUME)
         assertEquals(outcome.message, OutcomeKind.CONFIRMED, outcome.kind)
         assertEquals(first.recordId, graph.repository.activeNight.value!!.recordId)
+    }
+
+    @Test fun aValidReplacedProgrammeOfferSurvivesAManualAdjustmentToItsReplacement() = runBlocking {
+        val first = start(); advance(5)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.START_NIGHT).kind)
+        val replacement = graph.repository.activeNight.value!!
+        val offer = graph.repository.runtime.value.resumeOffer!!
+        advance(1)
+
+        graph.actions.remote("Temperature set", affectsProgramme = true, expected = replacement.identity,
+            confirms = { it.targetTemperature == 50 }) { it.setTemperature(50) }
+
+        val retained = graph.repository.runtime.value.resumeOffer!!
+        assertEquals("a manual adjustment must not steal the still-valid offer for the replaced programme", first.recordId, retained.night.recordId)
+        assertEquals(offer.remaining, retained.remaining)
+        assertEquals("preserving an offer must not extend its lifetime", offer.expiresAt, retained.expiresAt)
+        assertEquals(graph.repository.runtime.value.generation, retained.commandVersion)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.RESUME).kind)
+        assertEquals(first.recordId, graph.repository.activeNight.value?.recordId)
+    }
+
+    @Test fun aValidReplacedProgrammeOfferSurvivesSnoozeAndKeepTracking() = runBlocking {
+        val first = start(); advance(5)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.START_NIGHT).kind)
+        val offer = graph.repository.runtime.value.resumeOffer!!
+        advance(1)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.SNOOZE_WARM).kind)
+        assertEquals(OutcomeKind.LOCAL, run(NightActions.Command.KEEP_TRACKING).kind)
+        val retained = graph.repository.runtime.value.resumeOffer!!
+        assertEquals("manual tracking must keep the older programme's valid Resume choice", first.recordId, retained.night.recordId)
+        assertEquals(offer.expiresAt, retained.expiresAt)
+        assertEquals(graph.repository.runtime.value.generation, retained.commandVersion)
+    }
+
+    @Test fun anExpiredReplacedProgrammeOfferGivesWayToTheCurrentProgramme() = runBlocking {
+        val first = start(); advance(5)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.START_NIGHT).kind)
+        val replacement = graph.repository.activeNight.value!!
+        assertEquals(first.recordId, graph.repository.runtime.value.resumeOffer?.night?.recordId)
+        advance(16)
+        graph.actions.remote("Temperature set", affectsProgramme = true, expected = replacement.identity,
+            confirms = { it.targetTemperature == 50 }) { it.setTemperature(50) }
+        assertEquals("only a still-valid older offer has priority", replacement.recordId, graph.repository.runtime.value.resumeOffer?.night?.recordId)
+    }
+
+    @Test fun aNewExplicitProgrammeReplacementSupersedesTheOlderOffer() = runBlocking {
+        start(); advance(5)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.START_NIGHT).kind)
+        val second = graph.repository.activeNight.value!!
+        advance(1)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.START_NIGHT).kind)
+        assertEquals("the latest explicit replacement owns the Resume choice", second.recordId, graph.repository.runtime.value.resumeOffer?.night?.recordId)
     }
 
     // Keep tracking

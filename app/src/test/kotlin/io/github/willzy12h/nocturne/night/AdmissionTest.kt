@@ -125,6 +125,43 @@ class AdmissionTest {
             org.robolectric.Shadows.shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY && it.triggerAtTime == again })
     }
 
+    @Test fun unrelatedQueueRefusalsDoNotMoveAPendingRetimeRetry() = runBlocking {
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT)).kind)
+        val night = graph.repository.activeNight.value!!
+        val pending = PendingRetime("waiting-change", night.identity, "demo", graph.now().plusHours(5).toString(), null, night.wakeUpStart)
+        graph.repository.updateRuntime { it.copy(retime = pending) }
+        NightAlarms.scheduleRetry(context, pending, graph.now())
+        val originalTrigger = retryTrigger()
+        graph.clock = Clock.offset(graph.clock, Duration.ofMinutes(2)); context.graph.clock = graph.clock
+
+        tooLate(afterWaiting(NightActions.OPERATION_MS - 25_000) {
+            graph.actions.execute(graph.actions.capture(NightActions.Command.TURBO))
+        })
+        assertEquals("a refused Turbo must not postpone another command's retry", originalTrigger, retryTrigger())
+        tooLate(afterWaiting(NightActions.OPERATION_MS - 25_000) {
+            graph.actions.pin(graph.repository.profiles.value.first().id, 0)
+        })
+        assertEquals("a refused pin must not postpone another command's retry", originalTrigger, retryTrigger())
+        assertEquals(pending, graph.repository.runtime.value.retime)
+    }
+
+    @Test fun anUnrelatedQueueRefusalDoesNotMoveAnAlarmObservationRetry() = runBlocking {
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT)).kind)
+        graph.actions.submitAlarmChange()
+        val observed = graph.repository.runtime.value.alarmInbox
+        val originalTrigger = retryTrigger()
+        graph.clock = Clock.offset(graph.clock, Duration.ofMinutes(2)); context.graph.clock = graph.clock
+
+        tooLate(afterWaiting(NightActions.OPERATION_MS - 25_000) {
+            graph.actions.remote("Lights off", confirms = { it.extra?.ledEnabled == false }) { it.setLed(false) }
+        })
+        assertEquals("a refused Remote tap must leave the observation's retry alone", originalTrigger, retryTrigger())
+        assertEquals(observed, graph.repository.runtime.value.alarmInbox)
+    }
+
+    private fun retryTrigger(): Long = org.robolectric.Shadows.shadowOf(context.getSystemService(android.app.AlarmManager::class.java))
+        .scheduledAlarms.single { org.robolectric.Shadows.shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY }.triggerAtTime
+
     @Test fun theUiWaitOutlastsTheServiceWhichOutlastsTheOwnerBudget() {
         assertTrue(BedJetService.SERVICE_MS > NightActions.OPERATION_MS)
         assertTrue("the UI's wait covers promotion, the service bound and a margin",
