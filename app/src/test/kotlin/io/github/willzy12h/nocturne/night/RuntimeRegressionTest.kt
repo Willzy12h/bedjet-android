@@ -3,7 +3,10 @@ package io.github.willzy12h.nocturne.night
 import android.content.Context
 import android.app.AlarmManager
 import android.content.Intent
+import io.github.willzy12h.nocturne.App
+import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.deviceId
 import kotlinx.coroutines.runBlocking
@@ -15,6 +18,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 import java.time.*
 import java.util.TimeZone
 
@@ -25,6 +29,10 @@ class RuntimeRegressionTest {
     private val context: Context = RuntimeEnvironment.getApplication()
     private val graph get() = context.graph
     @Before fun setup() = runBlocking {
+        // Direct coordinator calls must not wait on runtime observers queued on Robolectric's paused Main looper.
+        val demo = DemoBedJet(now = { graph.now() })
+        val isolated = graphs.fresh { Graph(context, demo) }
+        ReflectionHelpers.setField(context as App, "graph", isolated)
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
         graph.repository.updateSettings { it.copy(demoMode = true) }
     }
