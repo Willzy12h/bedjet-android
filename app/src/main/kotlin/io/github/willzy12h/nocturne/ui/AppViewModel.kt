@@ -294,6 +294,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Saving happens off the main thread; the screens update once it is on disk.
 
     fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
+    /** "Next night": saved for later nights only; the running night keeps its snapshot, and the person is told so (U10). */
+    fun saveProfileForNextNight(profile: Profile) = save {
+        repo.saveProfile(profile)
+        _messages.tryEmit(getApplication<Application>().getString(R.string.next_night_saved))
+    }
     fun deleteProfile(id: String) = save { repo.deleteProfile(id) }
     fun updateSettings(change: (Settings) -> Settings) = save {
         // Shown once with the owner's feed; a plain save is not announced.

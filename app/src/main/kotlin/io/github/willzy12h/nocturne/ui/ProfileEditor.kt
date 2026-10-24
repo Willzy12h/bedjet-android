@@ -93,7 +93,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
             confirmButton = {
                 TextButton(onClick = { model.saveProfileThenReapply(profile); askApplyTonight = false; onDone() }) { Text("Update tonight") }
             },
-            dismissButton = { TextButton(onClick = { model.saveProfile(profile); askApplyTonight = false; onDone() }) { Text("Next night") } },
+            dismissButton = { TextButton(onClick = { model.saveProfileForNextNight(profile); askApplyTonight = false; onDone() }) { Text("Next night") } },
         )
     }
 

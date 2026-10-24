@@ -32,4 +32,11 @@
     <string name="busy_running">Working on: %1$s</string>
     <string name="busy_waiting">Waiting for the BedJet…</string>
     <plurals name="busy_queued"><item quantity="one">%d more waiting</item><item quantity="other">%d more waiting</item></plurals>
+    <!-- Next-night edits, pending wake changes and the tonight-only wake (U10, F01) -->
+    <string name="next_night_saved">Saved for next night. Tonight\'s night keeps the settings it started with.</string>
+    <string name="tonight_edits_next_night">Your saved edits to %1$s start with the next night. Tonight keeps the settings it started with.</string>
+    <string name="wake_requested">Requested wake %1$s — waiting for your BedJet to confirm.</string>
+    <string name="wake_requested_unknown">A new wake time is waiting for your BedJet to confirm.</string>
+    <string name="override_expiry">Tonight only: it lapses at %1$s on %2$s. After that your profile and alarm decide the wake time again.</string>
+    <string name="quiet_pending">Wake-up change pending (planned %1$s)</string>
 </resources>

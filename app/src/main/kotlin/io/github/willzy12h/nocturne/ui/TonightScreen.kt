@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.night.Confidence
+import io.github.willzy12h.nocturne.core.night.ChangeKind
+import java.time.format.DateTimeFormatter
 import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.plan.Profile
@@ -129,6 +131,17 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 }
                 Note(state + (nightStatus.reason?.let { " $it" } ?: ""))
             }
+            // Pending versus confirmed (U10): the headline keeps the wake the BedJet runs; the request is shown beside it.
+            if (nightStatus.confidence == Confidence.PENDING) {
+                val requested = running.pending?.requestedWake ?: runtime.retime?.alarmAt
+                val wakeChange = requested != null || runtime.retime != null || runtime.alarmInbox != null ||
+                    running.pending?.kind == ChangeKind.RETIME || running.pending?.kind == ChangeKind.REAPPLY
+                if (wakeChange) Note(requested?.let { stringResource(R.string.wake_requested, Format.clock(it)) }
+                    ?: stringResource(R.string.wake_requested_unknown))
+            }
+            // "Next night" edits don't touch tonight; say so while the saved profile differs from tonight's snapshot.
+            val live = profiles.firstOrNull { it.id == running.profileId }
+            if (running.profile != null && live != null && live != running.profile) Note(stringResource(R.string.tonight_edits_next_night, live.name))
             // A kept manual run has no wake programme: it runs until its own end, so that is what is shown.
             val manualUntil = if (running.trackingManual) stringResource(R.string.tonight_manual_until) else null
             when {
@@ -173,7 +186,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             profile?.let {
                 alarm?.let { next ->
                     if (!next.counts) Note("Your next alarm at ${Format.clock(next.time)} is from ${next.creator}, which isn't a clock app. Allow it in Settings.")
-                } ?: if (it.wakeSource.useAlarm) Note("No alarm set, so the profile's wake time is used.") else Unit
+                } ?: if (it.wakeSource.useAlarm && wake?.origin != WakeOrigin.OVERRIDE) Note("No alarm set, so the profile's wake time is used.") else Unit
                 preview?.plan?.let { plan -> PlanCard(plan, settings, wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null) }
                     ?: Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.error)
                 BigButton("Start night now", enabled = !busy && preview?.plan != null, onClick = { model.run(Command.START_NIGHT, it.id) })
@@ -181,18 +194,24 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
 
         val wakeOverride = settings.resolveWakeOverride(now)
+        // The command owner refuses a tonight-only wake for a night that isn't confirmed or runs manually.
+        val overridable = night.let { it == null || (it.confidence == Confidence.CONFIRMED && nightStatus.confidence == Confidence.CONFIRMED && !it.trackingManual) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
+            if (overridable) OutlinedButton(onClick = {
                 val current = model.now()
                 TimePickerDialog(context, { _, hour, minute ->
                     val wake = WakeResolver.nextOccurrence(hour * 60 + minute, model.now())
                     model.setTonightWake(wake)
                 }, current.hour, current.minute, true).show()
             }) { Text(if (wakeOverride == null) "Set tonight-only wake" else "Change tonight-only wake · ${Format.clock(wakeOverride.wakeAt)}") }
-            if (wakeOverride != null) TextButton(onClick = { model.setTonightWake(null) }) { Text("Clear wake override") }
+            if (wakeOverride != null && overridable) TextButton(onClick = { model.setTonightWake(null) }) { Text("Clear wake override") }
             if (settings.resolveTonightChoice(now) != null) TextButton(onClick = { model.updateSettings { it.followSchedule() } }) {
                 Text("Tonight only · Follow schedule")
             }
+        }
+        wakeOverride?.let { override ->
+            val lapses = runCatching { ZonedDateTime.parse(override.expiresAt) }.getOrNull()
+            if (lapses != null) Note(stringResource(R.string.override_expiry, Format.clock(lapses), lapses.format(DateTimeFormatter.ofPattern("EEE d MMM"))))
         }
         NightRecoveryControls(model, night, guard, now)
         QuickButtons(model, settings, guard)
@@ -214,17 +233,27 @@ fun BusyIndicator(model: AppViewModel) {
     }
 }
 
+/** Where a wake label sits: Midnight Ink's headline, Daylight's tile, or simple view's final timeline row. */
+enum class WakeLabelStyle { HEADLINE, TILE, TIMELINE }
+
+/**
+ * The one wording of where tonight's wake time comes from, shared by all four looks, so an override is never called
+ * the profile's time or the alarm's.
+ */
+@Composable
+fun wakeOriginLabel(origin: WakeOrigin, style: WakeLabelStyle): String = stringResource(when (origin) {
+    WakeOrigin.ALARM -> if (style == WakeLabelStyle.HEADLINE) R.string.wake_origin_alarm_headline else R.string.wake_origin_alarm
+    WakeOrigin.OVERRIDE -> R.string.wake_origin_override
+    WakeOrigin.PROFILE_DEFAULT -> if (style == WakeLabelStyle.TIMELINE) R.string.wake_time else R.string.wake_origin_profile
+})
+
 /** Midnight Ink's lead: the wake time, large. */
 @Composable
 private fun WakeHeadline(label: String, time: String, origin: WakeOrigin?) {
     Column(Modifier.semantics(mergeDescendants = true) {}) {
         Text(label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(time, fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.Light, color = MaterialTheme.colorScheme.onSurface)
-        if (origin != null) Text(when (origin) {
-            WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm_headline)
-            WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
-            WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_origin_profile)
-        }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (origin != null) Text(wakeOriginLabel(origin, WakeLabelStyle.HEADLINE), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -234,12 +263,8 @@ private fun StatTiles(startTime: String, startLabel: String, wakeTime: String, o
     wakeLabel: String? = null) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         StatTile(startLabel, startTime, null, Modifier.weight(1f))
-        StatTile(wakeLabel ?: if (planned) "Planned wake" else if (waking) "Waking you at" else "Wakes you at", wakeTime, when (origin) {
-            WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm)
-            WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
-            WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_origin_profile)
-            null -> null
-        }, Modifier.weight(1f))
+        StatTile(wakeLabel ?: if (planned) "Planned wake" else if (waking) "Waking you at" else "Wakes you at", wakeTime,
+            origin?.let { wakeOriginLabel(it, WakeLabelStyle.TILE) }, Modifier.weight(1f))
     }
 }
 

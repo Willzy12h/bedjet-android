@@ -189,11 +189,7 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
         TimelineRow(
             time = Format.clock(plan.wake),
             dot = colors.accent,
-            title = when (origin) {
-                WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm)
-                WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
-                WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_time)
-            },
+            title = wakeOriginLabel(origin, WakeLabelStyle.TIMELINE),
             detail = after.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Then ") { "${Format.modeName(it.mode).lowercase()} for ${Format.duration(it.minutes)}" },
             titleColor = colors.accent,
             bold = true,
