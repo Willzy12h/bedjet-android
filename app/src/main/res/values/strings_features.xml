@@ -71,6 +71,8 @@
     <string name="feature_widget_controls">Nocturne controls</string>
     <string name="feature_widget_button">Nocturne button</string>
     <string name="feature_widget_config">What should this button do?</string>
+    <!-- The widget's unit name when no paired BedJet name is known yet. -->
+    <string name="widget_bedjet_fallback">BedJet</string>
     <string name="feature_start_profile">Start %1$s</string>
     <string name="feature_boost">Boost</string>
     <string name="feature_turbo">Turbo</string>

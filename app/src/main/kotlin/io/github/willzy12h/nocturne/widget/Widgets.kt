@@ -64,7 +64,7 @@ fun widgetActions(context: Context): List<WidgetAction> {
 
 /** Same rule as the app's Settings screen: the demo unit's name, else the paired BedJet's, else a plain "BedJet". */
 fun widgetBedJetName(context: Context, settings: Settings): String =
-    if (settings.demoMode) "BEDJET-DEMO" else settings.deviceId()?.let {context.graph.bleLink.deviceNameFor(it)} ?: "BedJet"
+    if (settings.demoMode) "BEDJET-DEMO" else settings.deviceId()?.let {context.graph.bleLink.deviceNameFor(it)} ?: context.getString(R.string.widget_bedjet_fallback)
 
 /** The app's palettes, so widgets match it: Midnight Ink in dark, Daylight in light, following the theme setting. */
 fun widgetColors(settings: Settings, at: java.time.ZonedDateTime): ColorProviders =
