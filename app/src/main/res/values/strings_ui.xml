@@ -94,4 +94,6 @@
     <string name="checkin_change_intro_fan">%1$s: %2$s the Middle fan by 10 per cent. Cooling is felt as fan speed.</string>
     <string name="checkin_fan_start_change">Fan at the start: %1$d%% → %2$d%%</string>
     <string name="checkin_fan_end_change">Fan at the end: %1$d%% → %2$d%%</string>
+    <!-- Stop tracking (F16) -->
+    <string name="stop_tracking_text">This doesn\'t turn the BedJet off. Nocturne stops following this night and keeps it in History. Check the BedJet before starting another programme.</string>
 </resources>
