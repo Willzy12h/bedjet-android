@@ -6,6 +6,10 @@
     <string name="runtime_failed">The command did not finish.</string>
     <string name="runtime_slot_backups_unreadable">Saved slot originals are unreadable. Restore a backup of this BedJet\'s slot before writing it.</string>
     <string name="runtime_retime_refused">The wake-up change wasn\'t applied.</string>
+    <string name="runtime_retime_failed">The wake-up change did not finish.</string>
+    <string name="runtime_retime_unknown_detail">The BedJet state is unknown. Check it before continuing. %1$s</string>
+    <string name="runtime_retime_timeout">The wake-up change timed out.</string>
+    <string name="runtime_retime_timeout_detail">Nocturne could not confirm the change. Check the BedJet before continuing.</string>
     <string name="runtime_slot_write_acknowledged">Marked as checked.</string>
     <string name="runtime_waited_too_long">This request waited too long. Try again.</string>
     <string name="runtime_add_profile">Add a profile first.</string>

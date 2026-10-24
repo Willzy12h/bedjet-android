@@ -49,10 +49,17 @@ class BedJetService : Service() {
                 }
                 val result = withTimeout(SERVICE_MS) { graph.actions.execute(request!!) }
                 lastResult = result.message
-                if (!result.succeeded && notifyFailures) Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
+                if (!result.succeeded && notifyFailures && !result.notificationHandled)
+                    Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
             } catch (e: CancellationException) {
                 handoff?.result?.cancel(e)
-                if (e is TimeoutCancellationException) failure(this@BedJetService, e, notifyFailures)
+                if (e is TimeoutCancellationException) {
+                    if (handoff == null && request?.command == NightActions.Command.RETRY_RETIME) {
+                        // Background retries have no screen, even when routine failure notices are disabled.
+                        lastResult = getString(R.string.runtime_retime_timeout_detail)
+                        Notifications.showError(this@BedJetService, getString(R.string.runtime_retime_timeout), lastResult.orEmpty())
+                    } else failure(this@BedJetService, e, notifyFailures)
+                }
                 throw e
             } catch (e: Exception) { handoff?.result?.completeExceptionally(e); failure(this@BedJetService, e, notifyFailures)
             } finally { pending--; if (pending == 0) stopSelf() }

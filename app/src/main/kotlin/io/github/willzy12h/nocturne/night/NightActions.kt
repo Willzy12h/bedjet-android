@@ -258,7 +258,7 @@ class NightActions(private val graph: Graph) {
                     repo.updateRuntime { it.copy(reason = reason) }
                     repo.addEvent(change.intended.recordId, event(EventKind.REMOTE_CHANGE, reason))
                     Notifications.showInfo(context, text(R.string.runtime_takeover_title), reason)
-                    CommandOutcome(OutcomeKind.UNKNOWN, reason)
+                    CommandOutcome(OutcomeKind.UNKNOWN, reason, notificationHandled = true)
                 } else {
                     repo.updateRuntime { it.copy(reason = result.cause.message) }
                     if (change.request.kind == ChangeKind.START)
@@ -538,10 +538,15 @@ class NightActions(private val graph: Graph) {
         if (!graph.now().isBefore(deadline)) return local(R.string.runtime_retime_expired)
         val prepared = graph.runner().prepareRetime(n, n.identity, alarm?.time, deadline, repo.profile(n.profileId), repo.settings.value, alarm?.creator)
         if (prepared !is Preparation.Ready) {
-            repo.updateRuntime { it.copy(retime = null) }; NightAlarms.cancelRetry(context)
-            return if (prepared is Preparation.Refused) {
+            val droppedPending = retimePending
+            val outcome = if (prepared is Preparation.Refused) {
                 if (prepared.unchanged) local(R.string.runtime_unchanged) else CommandOutcome(OutcomeKind.REFUSED, prepared.reason)
             } else stale()
+            val failedPending = droppedPending && !outcome.succeeded && outcome.kind != OutcomeKind.STALE
+            repo.updateRuntime { it.copy(retime = null, reason = if (failedPending) outcome.message else it.reason) }
+            NightAlarms.cancelRetry(context)
+            // A newer observation may refuse and consume an older pending change before the retry runs.
+            return if (droppedPending) notifyRetimeFailure(outcome) else outcome
         }
         val pending = PendingRetime(UUID.randomUUID().toString(), n.identity, repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target),
             alarm?.time?.toString(), alarm?.creator, deadline.toString())
@@ -568,8 +573,7 @@ class NightActions(private val graph: Graph) {
         slotBackupsRefusal(n.slot)?.let { refusal ->
             repo.updateRuntime { it.copy(retime = null, reason = refusal.message) }; NightAlarms.cancelRetry(context)
             // A background retry has no screen to show the refusal, so the wake-up change isn't dropped silently (IR-03).
-            Notifications.showError(context, text(R.string.runtime_retime_refused), refusal.message)
-            return refusal
+            return notifyRetimeFailure(refusal)
         }
         return try {
             connected {
@@ -597,7 +601,11 @@ class NightActions(private val graph: Graph) {
                 } else if (result.kind == OutcomeKind.LOCAL) {
                     repo.updateRuntime { if (it.retime?.id == pending.id) it.copy(retime = null, reason = null) else it }
                     if (!retimePending) NightAlarms.cancelRetry(context)
-                } else if (!result.succeeded) { repo.updateRuntime { it.copy(retime = null, reason = result.message) }; NightAlarms.cancelRetry(context) }
+                } else if (!result.succeeded) {
+                    repo.updateRuntime { it.copy(retime = null, reason = result.message) }
+                    NightAlarms.cancelRetry(context)
+                    return@connected notifyRetimeFailure(result)
+                }
                 result
             }
         } catch (e: CancellationException) { throw e
@@ -611,14 +619,23 @@ class NightActions(private val graph: Graph) {
             if (current?.identity != pending.expected || current.confidence in setOf(Confidence.UNKNOWN, Confidence.FAILED)) {
                 repo.updateRuntime { it.copy(retime = null, reason = e.message) }
                 NightAlarms.cancelRetry(context)
-                return CommandOutcome(if (current?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
-                    e.message ?: text(R.string.runtime_failed))
+                return notifyRetimeFailure(CommandOutcome(if (current?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
+                    e.message ?: text(R.string.runtime_failed)))
             }
             repo.updateRuntime { it.copy(reason = text(R.string.runtime_retime_pending)) }
             NightAlarms.scheduleRetry(context, pending, graph.now())
             recordError(e.message.orEmpty())
             CommandOutcome(OutcomeKind.FAILED, text(R.string.runtime_retime_pending))
         }
+    }
+    /** Terminal re-time failures own their notice; routine retries and already-reported outcomes stay quiet. */
+    private fun notifyRetimeFailure(outcome: CommandOutcome): CommandOutcome {
+        if (outcome.succeeded || outcome.kind == OutcomeKind.STALE || outcome.notificationHandled) return outcome
+        val unknown = outcome.kind == OutcomeKind.UNKNOWN || repo.activeNight.value?.confidence == Confidence.UNKNOWN
+        val title = if (!unknown && outcome.kind == OutcomeKind.REFUSED) R.string.runtime_retime_refused else R.string.runtime_retime_failed
+        val detail = if (unknown) text(R.string.runtime_retime_unknown_detail, outcome.message) else outcome.message
+        Notifications.showError(context, text(title), detail)
+        return outcome.copy(notificationHandled = true)
     }
     private suspend fun resumeLocked(): CommandOutcome {
         val offer = repo.runtime.value.resumeOffer ?: return refused(R.string.runtime_resume_expired)
@@ -792,7 +809,7 @@ class NightActions(private val graph: Graph) {
         // manual change may have happened while disconnected.
         if (matchesCurrentProgramme(n, freshStatus(), graph.now())) return null
         recordTakeover(n)
-        return CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover))
+        return CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover), notificationHandled = true)
     }
     private suspend fun recordTakeover(n: ActiveNight) {
         publishNight(n.copy(confidence = Confidence.UNKNOWN))
