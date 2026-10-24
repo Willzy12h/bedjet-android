@@ -1,26 +1,29 @@
 # Nocturne hardening register
 
-**Completion update, 23 October 2026:** Work on `claude/nocturne-completion` is recorded in [nocturne-completion.md](nocturne-completion.md), which gives an individual disposition for **IR-01–IR-32**. This register's task rows and earlier checkpoints below are retained as the hardening work history; their old `open` and `in progress` labels are superseded by the completion status in the table immediately below. Automated verification is separate from physical acceptance.
+**Follow-up reconciliation, 24 October 2026:** `gpt/nocturne-followups` is based on candidate `3c3a64e91a20524f0ed6b39f84123067c38cbe3c`. [nocturne-completion.md](nocturne-completion.md) records IR-01–IR-32 dispositions and the Part A source corrections; [task-5-implementation.md](task-5-implementation.md) distinguishes the current UI from Astra's unpublished report and the earlier candidate audit. Workstream rows and old checkpoints below remain historical records except the current V01–V02 verification rows. Use this summary and the source reconciliation for current status. Automated verification is separate from physical acceptance.
 
 | Area | Completion status | Remaining limit |
 |---|---|---|
-| R01–R38 | Implementation and regressions updated; see the IR dispositions and completion source | Samsung/BedJet 3 acceptance **NOT RUN** |
-| R39–R40, V04 | Fail-safe signing configuration and R8/resource shrinking implemented. Unsigned shrunk release passed (4,217,595 bytes); shrunk test-signed APK version `0.2.0-hardening-test.1` / code `2` was signed and v2 signature verified (4,229,883 bytes) | Physical installation and upgrade **NOT RUN** |
-| U01–U10, F01–F16 | Task 5 placements and feature controls reconstructed and integrated, including explicit setup, pinning and recovery; automated UI/feature coverage in completion gate | TalkBack, narrow-device layout, Bluetooth, optional providers and two-phone hand-over **NOT RUN** |
-| U11/F14 | New copy uses UK English resources | Migration of all older literal UI strings remains incomplete |
-| V01–V02 | Full current gate: 148 core and 238 of 244 app tests passed, six app capture tests skipped, zero failures; debug assembly passed; lint zero errors, 22 warnings and one hint. P4 storage gate on `claude/nocturne-final-candidate` @ `15f652d`: 154 core passed; 323 of 329 app passed, six skipped, zero failures; debug assembly passed; lint zero errors, 23 warnings (none in P4's changed lines) and one hint | Automated/fake-device evidence only |
-| V03 | Fixed-clock Robolectric before/after captures documented in completion review | Actual phone screenshots **NOT RUN** |
+| R01–R38 | Source corrections are implemented for imported-original restoration, late confirmed Off, quiet re-time admission/expiry, hand-over Resume, ordinary service admission/promotion and target-only Off; the final required gate passed on the frozen source | Samsung/BedJet 3 acceptance **NOT RUN** |
+| R39–R40, V04 | Signing/shrinking support and release checks are tracked in [release-candidate-report.md](release-candidate-report.md); owner configuration in [release-production-settings.md](release-production-settings.md). Historical completion builds are identified below | Do not transfer an old APK/hash or standalone shrinker proof to this changed candidate; physical installation and upgrade **NOT RUN** |
+| U01–U10, F01–F16 | Current source includes `viewModelScope` observations, coordinator command/queue display, deduplicated outcomes, draft saving, shared preview, recovery/loss-acceptance controls, switch/curve semantics and haptics | Sliders retain default semantics; separate Stop tracking/Update tonight dialogs capture on confirmation; selected dimensions remain fixed. The new confirmed-manual-end capability still needs presentation integration (Tonight uses trackingManual alone; the widget already guards non-CONFIRMED state). TalkBack, physical layout, Bluetooth, optional providers and hand-over **NOT RUN** |
+| U11/F14 | Queue, recovery, setup, platform, pin and check-in copy uses UK English resources | Older and reconstructed UI/event literals remain; Part B migration is separate |
+| V01–V02 | **PASS, final Part A gate:** core **156/156** passed; app **433/439** passed with **six existing opt-in screenshot skips**; **0 failures/errors**. Debug assembly passed; lint **0 Error, 0 Fatal, 23 Warning, 1 Hint**. Full fresh-XML evidence and RED → GREEN table: [completion review](nocturne-completion.md) | Automated/fake-device evidence only; physical results remain NOT RUN |
+| V03 | Historical fixed-clock Robolectric before/after captures are documented in completion review | Fresh follow-up candidate captures and actual phone screenshots **NOT RUN** |
 | V05–V06 | Physical checklist prepared; independent review and scoped fix waves incorporated into completion review | Every physical result **NOT RUN** |
 
-**Explicit exceptions:** IR-24 was rejected as a *proven crash*, while framework/Samsung timing is pending. IR-29 is best-effort directory durability, pending power-loss/device evidence. IR-31 remains conditionally unresolved for legacy v1 `[]` slot provenance and requires supervised original-slot inventory. Do not promote any of these to hardware-verified.
+**Explicit qualifications:** the earlier rejection of IR-24 is withdrawn. Ordinary service admission now precedes synchronous foreground promotion of valid work; thrown/null admission fails ownership, and background admission may be refused earlier. The pinned Android 14 AOSP explanation and source details are in the completion review; Samsung acceptance remains separate. IR-29 remains best-effort directory durability pending power-loss/device evidence. IR-31 remains unresolved for legacy v1 `[]` slot provenance and requires supervised original-slot inventory. None is hardware-verified.
 
-**Test candidate identity:** `outputs/nocturne-0.2.0-hardening-test.1.apk`; APK SHA-256 `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d`; throwaway test certificate SHA-256 `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67` (RSA 3072, APK Signature Scheme v2 verified). No production release or phone install is implied.
+**Historical completion build identity (23 October):** unsigned shrunk APK 4,217,595 bytes; test-signed `outputs/nocturne-0.2.0-hardening-test.1.apk`, version `0.2.0-hardening-test.1` / code `2`, 4,229,883 bytes; APK SHA-256 `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d`; throwaway certificate SHA-256 `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67` (RSA 3072, v2 signature verified). These identify an earlier artefact, not the current follow-up build. No production release or phone installation is implied.
 
-Branch `claude/nocturne-hardening`, based on `claude/lucid-mayer-i1h2gy` @ `22766fd`.
+## Historical hardening workstream register
 
-**About the IDs.** The attached `2026-10-22-nocturne-review-action-plan.md`, with its B01–B20 / U01–U09 / Q01–Q03 IDs, was not available in this session: it wasn't in the message, on disk, or in the repo. This register was rebuilt from the implementation brief, `docs/review/claude-second-review.md` (cited as "2R #n" / "2R m#n") and source inspection. The IDs here (R, U, F, V) are this register's own, and do not correspond to the review's B/U/Q numbers. Add the action plan to the repo to have them cross-referenced.
+Historical branch `claude/nocturne-hardening`, based on `claude/lucid-mayer-i1h2gy` @ `22766fd`.
+
+**About the historical IDs.** The attached `2026-10-22-nocturne-review-action-plan.md`, with its B01–B20 / U01–U09 / Q01–Q03 IDs, was unavailable in the original hardening session. This register was rebuilt from the implementation brief, `docs/review/claude-second-review.md` (cited as "2R #n" / "2R m#n") and source inspection. Its R/U/F/V IDs do not correspond to that review's B/U/Q numbers.
 
 **Status values:**
+
 - `open`
 - `in progress`
 - `implemented`
@@ -32,7 +35,7 @@ Branch `claude/nocturne-hardening`, based on `claude/lucid-mayer-i1h2gy` @ `2276
 
 Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/accessibility, W5 Features/platform, W6 Independent review, L Lead.
 
-## Reliability and correctness (R)
+## Historical reliability and correctness (R)
 
 | ID | Item | Source | Owner | Status | Commit | Tests | Hardware check |
 |---|---|---|---|---|---|---|---|
@@ -77,7 +80,7 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 | R39 | Stable release signing; never publish a debug-signed release | brief | L | open | | | upgrade install |
 | R40 | Shrinking and resource optimisation, with serialization, widgets and restore verified | brief | L | open | | | minified install |
 
-## UI and usability (U), in the existing design
+## Historical UI and usability (U), in the existing design
 
 | ID | Item | Source | Owner | Status | Commit | Tests |
 |---|---|---|---|---|---|---|
@@ -93,11 +96,11 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 | U10 | Show next-night edits, and pending versus confirmed wake changes | brief | W4 | open | | |
 | U11 | Strings moved to resources (UK English), plurals, units, a11y text | brief / F14 | W4 | open | | |
 
-## Quality-of-life features (F)
+## Historical quality-of-life features (F)
 
 | ID | Feature | Owner | Status | Commit | Tests | Hardware check |
 |---|---|---|---|---|---|---|
-| F01 | Tonight-only wake override (phone alarm untouched; precedence override > alarm > default; reset; survives restart; expires) | W3 + W4 | runtime auto-verified; Tonight labels the override as "Tonight-only wake time" in Midnight Ink, Daylight and both Simple looks (auto-verified) | `feat(runtime): own durable night commands and recovery`; `fix(ui): label tonight-only wake times in every look`; `fix(night): report BedJet changes, Off and checks only as the unit confirms them (P3b)` | RuntimeOwnershipTest.reapplyHonoursNewTonightOverrideAndFinishClearsIt; RuntimeDeliveryTest.clearingEqualTimeOverrideFollowsSubsequentAlarmChange; UiFinalisationTest.tonightOverrideIsLabelledAsAnOverrideInEveryLook; TruthfulStateTest.aWakeOverrideWhoseRewriteFailsIsNotSaved, aWakeOverrideTheBedJetRunsIsSavedWithItsExpiry (saved only after a confirmed rewrite; TonightOverride.expiresAt for the UI note) | |
+| F01 | Tonight-only wake override (phone alarm untouched; precedence override > alarm > default; reset; survives restart; expires) | W3 + W4 | runtime auto-verified; Tonight labels the override as "Tonight-only wake time" in Midnight Ink, Daylight and both Simple looks (auto-verified) | `feat(runtime): own durable night commands and recovery`; `fix(ui): label tonight-only wake times in every look`; `fix(night): report BedJet changes, Off and checks only as the unit confirms them (P3b)` | RuntimeOwnershipTest.reapplyHonoursNewTonightOverrideAndFinishClearsIt; RuntimeDeliveryTest.clearingEqualTimeOverrideFollowsSubsequentAlarmChange; UiFinalisationTest.tonightOverrideIsLabelledAsAnOverrideInEveryLook; TruthfulStateTest.aWakeOverrideWhoseRewriteFailsIsNotSaved, aWakeOverrideTheBedJetRunsIsSavedWithItsExpiry (saved only after a confirmed rewrite; `TonightOverride.expiresAt` aliases `wakeAt`; expiry resolves at that instant and no separate expiry note is displayed) | |
 | F02 | Resume the rest of the night after stop/replace (short-lived; no Turbo replay; never overrides a newer action) | W3 + W4 | in progress: runtime auto-verified; Task 5/6 presentation pending | `feat(runtime): own durable night commands and recovery`; `fix(night): report BedJet changes, Off and checks only as the unit confirms them (P3b)` | RuntimeOwnershipTest.stopTrackingIsLocalAndResumeRestoresRemainingNight; newerCommandInvalidatesResumeOfferAcrossReload; interruptedLocalFinishKeepsDurableResumeOfferAndReconcilesWithoutHardware; RuntimeDeliveryTest.programmeReplacementPostsResumeActionLeadingToRealConfirmation; TruthfulStateTest.theProgrammeCanBeResumedAfterARemoteAdjust, theProgrammeCanBeResumedAfterASnoozeKeptAndALaterAdjust, aReplacedNightCanBeResumedWhileItsOfferLasts; AppSmokeTest.aReplacedNightCanBeResumedFromTonightWhileItsOfferLasts | |
 | F03 | Bedtime reminders (opt-in, no duplicates, permission handling, opens the start preview) | W5 | auto-verified; Task 5 placement and device acceptance pending | `feat(platform): add guarded bedtime and phone integrations` | PlatformPolicyTest; PlatformDeliveryTest; PlatformManifestTest | |
 | F04 | Charger auto-start (opt-in, off by default, bedtime window, chosen BedJet, minimum night, once per night, suppressed when unsafe, easy to cancel) | W5 | auto-verified; Task 5 placement and supervised acceptance pending | `feat(platform): add guarded bedtime and phone integrations`; `fix(platform): cancel stopped jobs and encode inert CSV text`; `fix(platform): read only the chosen BedJet's own status (IR-02)`; `fix(night): read the BedJet before every programme rewrite, keep failed nights truthful and scope slot writes (IR-01, IR-05, IR-06, IR-23)`; `fix(night): scope a pinned slot's uncertainty to what it affects and refuse a rewrite its final check rules out (IR-06, IR-05)`; `fix(platform): log what each charger auto-start attempt did (F04)` | ChargerJobServiceTest (distinct stop parameters, delayed cleanup); ChargerRunTest; PlatformPolicyTest; PlatformRestoreTest; PlatformAdapterTest; ChargerRunTest.aRunningReportFromAnotherBedJetIsNotTheTargetsManualRun, aRunningReportFromTheTargetStillBlocksTheStart; ChargerRunTest.anOldFailedSlotWriteDoesNotBlockTheStart, anUnresolvedSlotWriteOnTheTargetStillBlocksTheStart, anUnresolvedSlotWriteOnAnotherBedJetDoesNotBlockTheStart, anUnresolvedWriteOfAnotherSlotDoesNotBlockTheStart; ChargerRunTest.aStartedAutoStartIsLogged, anAutoStartRefusedAtItsFinalCheckIsLogged | supervised |
@@ -114,21 +117,21 @@ Owner is the workstream: W1 BLE, W2 Persistence, W3 Runtime/alarms, W4 UI/access
 | F15 | Second-slot profile pinning (explicit slot, preview, backup, readback/restore, active-programme protection) | W3 + W4 | in progress: runtime auto-verified; Task 5/6 presentation pending | `feat(runtime): own durable night commands and recovery` | RuntimeOwnershipTest.pinRefusesWorkingSlotAndRecordsOriginalBeforeWritingOtherSlot; pinAndBoostAbortWhenOriginalBackupFails; restoreRefusesTrackedNightEvenWhenFreshDeviceHasStopped | readback |
 | F16 | Recovery and observability (confidence indicators, Stop tracking, diagnostics export without secrets, optional quiet night-status notification) | W3 + W4 | in progress: runtime auto-verified; Settings quiet-status toggle and diagnostics export placed (P5) | `feat(runtime): own durable night commands and recovery`; `feat(ui): add the quiet status toggle and diagnostics export to Settings (P5)` | RuntimeOwnershipTest.diagnosticsExcludeTokenButIncludeBoundedEventsAndLink; stopTrackingIsLocalAndResumeRestoresRemainingNight; runtime status/quiet notification APIs; RuntimeDeliveryTest.quietNotificationIsCancelledOnTakeoverAndManualTracking; quietNotificationIsCancelledOnRemoteFailureAndSettingChange; quietNotificationRefreshSurvivesSameSettingsRoundTripWithStableNight; SettingsControlsTest.theQuietStatusNotificationCanBeSwitchedOnAndOffFromSettings, diagnosticsCanBeExportedFromSettings | |
 
-## Verification and release (V)
+## Verification and release (V): current gate and historical checkpoints
 
 | ID | Item | Owner | Status |
 |---|---|---|---|
-| V01 | Injected clocks, controlled schedulers, transport/fault fakes across the regression scenarios in the brief | all | open; test graphs over the application storage now run one at a time and finish before teardown (`GraphLifecycle`, `test(app): run one graph at a time over the app storage`; GraphLifecycleTest) |
-| V02 | Migration and backup round trips | W2 | auto-verified (MigrationsTest, BackupTest.roundTrip, SnapshotStoreTest.aVersion1SnapshotLoads, RepositoryTest.aVersion1BackupImports) |
+| V01 | Injected clocks, controlled schedulers, transport/fault fakes across the regression scenarios in the brief | all | **PASS — final Part A gate:** core 20 suites, **156 discovered/156 passed**; app 51 suites, **439 discovered/433 passed/six existing opt-in screenshot skips**; 0 failures/errors. Debug assembly passed; lint **0 Error, 0 Fatal, 23 Warning and 1 Hint**. **6 min 57 s**, 59 tasks (16 executed/43 up-to-date); all 173 tested input hashes unchanged. `GraphLifecycle`/`GraphLifecycleTest` provide the graph-lifetime fixture. Source: the lead's retained `required-gate-xml/`, `required-tests-counts.json` and `required-gate.log`, detailed in completion review. |
+| V02 | Migration and backup round trips | W2 | **PASS within the same final gate:** `MigrationsTest` **6/6**, `BackupTest` **8/8**, `SnapshotStoreTest` **6/6**, `RepositoryTest` **65/65** and `ImportedOriginalRestoreTest` **10/10** passed, with no skips/failures/errors in those suites. Coverage includes version 1 migration, backup round trips, snapshots, repository import and saved-original provenance/range controls. These suites are already included in V01; do not add them again. |
 | V03 | Before/after real-app renders: Dark, Light, Simple, narrow, large text | L / W4 | baseline captured |
 | V04 | Minified release build with a test signing key (not production) | L | open |
 | V05 | Samsung + BedJet 3 acceptance checklist | L | implemented: docs/review/samsung-bedjet-acceptance.md; all physical checks NOT RUN |
 | V06 | Independent review (W6) and fix pass | W6 / L | open |
 
-## Task 3 integration checkpoint
+## Historical Task 3 integration checkpoint
 
 Task 3 implementation plus one fix round passed independent scoped re-review and the full merged gate: **140 core passes; 85 app passes, four screenshot skips; debug assembly; zero lint errors, two warnings**. The new temporal regressions in `NightTemporalEligibilityTest` cover resume at/after wake, slow upload/readback and the final start-command guard after clock synchronisation. Whole-app durability/ownership and UI items marked pending above remain Task 4–6 work. No hardware verification.
 
-## Task 4 integration checkpoint
+## Historical Task 4 integration checkpoint
 
 Task 4 implementation `dd0c365` plus fix `5cdb4a0` passed independent scoped re-review (five Important findings addressed, zero open). Merge `46c8e54` is verified at documentation head `c685f06` in a fresh checkout: **138 core passes; 145 app passes, four screenshot skips; debug assembly; zero lint errors, two baseline warnings**. The full gate took 3 min 29 s. Evidence and host-output limitations: `docs/review/task-4-integration.md`. UI/platform presentation remains Tasks 5–6. No hardware verification.
