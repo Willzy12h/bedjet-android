@@ -42,6 +42,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.R
+import androidx.compose.ui.res.stringResource
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
 import io.github.willzy12h.nocturne.core.store.SlotBackup
@@ -70,6 +72,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
     var snapshotLabel by remember { mutableStateOf("") }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
+    val diagnostics = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::exportDiagnostics) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -135,6 +138,9 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                     )
                 }
             }
+            SwitchRow(stringResource(R.string.settings_quiet_title), stringResource(R.string.settings_quiet_help), settings.quietNightNotification) { on ->
+                model.updateSettings { it.copy(quietNightNotification = on) }
+            }
             PresetEditor("Snooze warm", settings.snoozeWarm, f) { p -> model.updateSettings { it.copy(snoozeWarm = p) } }
             PresetEditor("Snooze cool", settings.snoozeCool, f) { p -> model.updateSettings { it.copy(snoozeCool = p) } }
             PresetEditor("Extend warm (also the Warm button)", settings.extendWarm, f) { p -> model.updateSettings { it.copy(extendWarm = p) } }
@@ -186,6 +192,13 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                     TextButton(onClick = { restoring = snap }) { Text("Restore") }
                     if (snap.manual) TextButton(onClick = { model.deleteSnapshot(snap.id) }) { Text("Delete") }
                 }
+            }
+        }
+
+        Group(stringResource(R.string.settings_diagnostics_title)) {
+            Text(stringResource(R.string.settings_diagnostics_help), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { diagnostics.launch("nocturne-diagnostics-${model.now().toLocalDate()}.json") }) {
+                Text(stringResource(R.string.settings_diagnostics_export))
             }
         }
 

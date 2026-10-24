@@ -297,6 +297,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Writes the diagnostics file the person chose (NightActions.diagnostics: no update token). */
+    fun exportDiagnostics(uri: android.net.Uri) {
+        val app = getApplication<Application>()
+        graph.scope.launch {
+            runCatching { graph.actions.exportDiagnostics(uri) }
+                .onSuccess { _messages.tryEmit(app.getString(R.string.settings_diagnostics_saved)) }
+                .onFailure { if (it is CancellationException) throw it
+                    _messages.tryEmit(app.getString(R.string.settings_diagnostics_failed, it.message.orEmpty())) }
+        }
+    }
+
     fun import(uri: android.net.Uri) {
         graph.scope.launch {
             runCatching { repo.restore(repo.importFrom(uri)) }
