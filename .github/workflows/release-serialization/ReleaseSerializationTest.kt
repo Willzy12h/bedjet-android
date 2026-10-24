@@ -26,9 +26,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Release-variant JVM behaviour evidence, NOT execution of the APK's minified DEX.
- * The Python gate inventories every compiled production @Serializable class and
- * matches these records to the real APK's mapping and defined DEX classes.
+ * Runs the same fixtures before R8 (JUnit) and after separate R8 classfile shrinking
+ * (main). Neither invocation executes the APK's DEX. The latter receives class names
+ * from its own R8 mapping; the Python gate checks every loaded classfile hash.
  *
  * Reflection is confined to this test so private persistence wrappers are covered
  * without exposing production APIs or changing R8's production roots/keep rules.
@@ -41,6 +41,9 @@ class ReleaseSerializationTest {
     private val fixture = BackupCodec.json.parseToJsonElement(fixtureBytes.decodeToString()).jsonObject
     private val values = fixture.getValue("values").jsonObject
     private val models = fixture.getValue("models").jsonObject
+    private val classNames = System.getProperty("nocturne.serializationClassNames")?.let {
+        BackupCodec.json.parseToJsonElement(File(it).readText()).jsonObject
+    }
 
     private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
         .joinToString("") { "%02x".format(it.toInt() and 0xff) }
@@ -58,13 +61,13 @@ class ReleaseSerializationTest {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun serializer(model: Class<*>): KSerializer<Any> {
+    private fun serializer(model: Class<*>): Pair<KSerializer<Any>, String> {
         val instanceField = model.declaredFields.singleOrNull { it.name == "Companion" }
             ?: model.declaredFields.singleOrNull { it.name == "INSTANCE" }
             ?: error("No generated serializer entry point for ${model.name}; add explicit test support")
         val companion = instanceField.apply { isAccessible = true }.get(null)
         val method = companion.javaClass.getDeclaredMethod("serializer").apply { isAccessible = true }
-        return method.invoke(companion) as KSerializer<Any>
+        return (method.invoke(companion) as KSerializer<Any>) to companion.javaClass.name
     }
 
     /** A decoded default must not hide a missing or changed non-default fixture value. */
@@ -91,8 +94,8 @@ class ReleaseSerializationTest {
         check(fixture.getValue("format").jsonPrimitive.content == "1")
         check(models.isNotEmpty())
         models.toSortedMap().forEach { (name, rawCases) ->
-            val model = Class.forName(name)
-            val serializer = serializer(model)
+            val model = Class.forName(classNames?.getValue(name)?.jsonPrimitive?.content ?: name)
+            val (serializer, factoryClass) = serializer(model)
             val descriptor = serializer.descriptor
             val cases = rawCases.jsonArray.map { expand(it) }
             check(cases.isNotEmpty()) { "No cases for $name" }
@@ -119,14 +122,16 @@ class ReleaseSerializationTest {
                 assertEquals("Encoding is unstable for $name case $index", encoded,
                     BackupCodec.json.encodeToString(serializer, second))
             }
-            val classBytes = checkNotNull(model.getResourceAsStream("/${name.replace('.', '/')}.class")) {
+            val classBytes = checkNotNull(model.getResourceAsStream("/${model.name.replace('.', '/')}.class")) {
                 "Cannot hash executed class $name"
             }.use { it.readBytes() }
             println("NOCTURNE_SERIALIZATION " + buildJsonObject {
                 put("model", name)
+                put("executedClass", model.name)
                 put("classSha256", sha256(classBytes))
                 put("fixtureSha256", sha256(fixtureBytes))
                 put("serializer", serializer.javaClass.name)
+                put("factoryClass", factoryClass)
                 put("kind", descriptor.kind.toString())
                 put("cases", cases.size)
             })
@@ -149,6 +154,18 @@ class ReleaseSerializationTest {
             assertPreserved(input, disk.getValue("bundle"), "SnapshotFile.bundle")
         } finally {
             directory.toFile().deleteRecursively()
+        }
+    }
+
+    companion object {
+        /** Only this entry point is kept by the standalone JVM shrinker. */
+        @JvmStatic
+        fun main(args: Array<String>) {
+            ReleaseSerializationTest().apply {
+                allStoredModelsRoundTrip()
+                snapshotStorePersistsItsPrivateWrapper()
+            }
+            println("NOCTURNE_SERIALIZATION_COMPLETE both fixture methods passed")
         }
     }
 }

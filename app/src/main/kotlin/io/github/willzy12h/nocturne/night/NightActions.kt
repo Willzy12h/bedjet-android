@@ -774,8 +774,11 @@ class NightActions(private val graph: Graph) {
         repo.originalsFor(target)
         val original = repo.originalSlot(target, slot) ?: return@owned refused(R.string.runtime_no_original)
         // The validator lets a saved original hold any temperature the codec carries, as a BedJet recorded it. One
-        // from a backup file or snapshot may have been edited, so it goes back only within each step's mode range.
-        if (original.imported && original.program?.steps.orEmpty().any { it.temperature !in it.mode.temperatureRange })
+        // from a backup file or snapshot may have been edited, so heating/cooling steps must stay in range,
+        // including Turbo's fixed temperature. Standby and Wait ignore their placeholder temperature byte.
+        if (original.imported && original.program?.steps.orEmpty().any {
+                it.mode != Mode.STANDBY && it.mode != Mode.WAIT && it.temperature !in it.mode.temperatureRange
+            })
             return@owned refused(R.string.runtime_restore_imported_out_of_range)
         connected {
             if (freshStatus().extra?.programStep != 0) return@connected refused(R.string.runtime_slot_running)

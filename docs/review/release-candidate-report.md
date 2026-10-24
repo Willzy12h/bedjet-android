@@ -1,6 +1,180 @@
-# Nocturne release candidate report — 23 October 2026
+# Nocturne release candidate report
 
-## Result and source identity
+## Follow-up — 24 October 2026
+
+This follow-up is on `gpt/nocturne-docs-guard`, branched from the latest fetched
+`origin/claude/nocturne-final-candidate`, commit
+`2d9ebf4f625f0eaccd6bbead1daa17a42b56a3d6`. Claude retains merge ownership.
+The earlier release package and its artefact identities are preserved in the
+historical report below; they must not be relabelled as builds of this follow-up.
+
+### Current required gate
+
+The requested `:core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`
+gate passed in **7 minutes 28 seconds**, using `--no-daemon --max-workers=2` and
+`-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8`. Counts were read from the raw
+JUnit XML and preserved before any later test invocation.
+
+| Suite | Suites | Discovered | Passed | Failed | Errors | Skipped |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Core | 20 | 156 | 156 | 0 | 0 | 0 |
+| App debug | 44 | 375 | 369 | 0 | 0 | 6 |
+| **Total** | **64** | **531** | **525** | **0** | **0** | **6** |
+
+Debug assembly passed. Lint passed with **zero errors/fatal issues, 23 warnings
+and one hint**. The six skipped methods are the opt-in Robolectric screenshot
+captures; no new render result is claimed by this follow-up.
+
+The imported-original regression suite is included in the app total. Before the
+guard change it ran **10 tests with two expected failures**, for imported backup
+and snapshot originals containing odd Standby/Wait bytes. After the change all
+**10 passed**, including refusal with no send for Turbo 255, Heat 200 and invalid
+Extended Heat/Cool/Dry temperatures; valid Turbo and device-recorded originals
+retain their previous behaviour. Only Standby/Wait are exempt; the predicate does
+not use `Mode.usesTemperature`.
+
+### Executable serialisation proof after R8
+
+The existing release fixture harness now runs twice: first through
+`:app:testReleaseUnitTest`, then from a separately R8-processed JVM jar. The
+second run uses the R8 compiler resolved by the application's Android Gradle
+plugin, release app/core compiler output, the same 104 JSON fixtures and the
+same snapshot persistence assertions. It runs with JVM bytecode verification
+and without the original app/core jars on the runtime classpath.
+
+| Post-R8 JVM check | Observed result |
+| --- | --- |
+| R8 compiler | `8.10.24`, from the resolved AGP artefact |
+| Production serialisable models | **48 / 48 passed** |
+| JSON fixture cases | **104 / 104 passed** |
+| Shared fixture methods | Both completed, including private snapshot-wrapper persistence |
+| Models renamed by R8 | **48 / 48** |
+| Executed model classfile hashes changed | **48 / 48**, matched to the shrunk jar |
+| Production classes removed | **836** |
+| Input / output jar size | **2,355,233 / 201,089 bytes** |
+| Output jar SHA-256 | `724637c5cda316eab9f5bc4ca847f1d815766c9ba51f073974eccb560a064804` |
+| Negative control | Removing `ChangeKind.MANUAL` from a temporary fixture copy made the same shrunk jar exit with the expected enum-coverage assertion failure |
+
+The test-only shrink roots the harness entry point and discovered companion
+`serializer()` factories. Model fields, methods and generated serializers remain
+eligible for optimisation; no blanket production keep rule was added. Existing
+application rules and resolved kotlinx.serialization consumer rules are applied.
+The 202 external runtime dependency jars remain unshrunk. The input export is
+an isolated Gradle init script and does not change the production R8 task.
+
+The final gate requires this execution report. It verifies model/fixture/input,
+output, compiler, rules, library and log hashes; mapped loaded class names and
+bytes; both fixture-method completion; actual model renaming and class removal;
+and an R8 version matching the APK's mapping. Original model classes on a runtime
+dependency classpath, stale output, missing completion and unchanged pre-R8
+model bytes fail the gate.
+
+The permissive moved-member fallback has been **removed**. A mapped class must
+actually be defined in the APK's DEX, or its original name must be defined there.
+A moved constructor, descriptor, single encode/decode method, or even both moved
+directions cannot stand in for a defined serializer class. Future optimisation
+that removes a required class therefore fails closed for investigation.
+
+**Proof boundary:** the new runtime result executes separate R8 classfile output,
+with test entry points and unshrunk libraries. The actual APK still has
+**structural proof only**: its DEX is inspected but not executed. The JVM shrink
+does not reproduce APK reachability, whole-program dependency shrinking or
+DEX-specific optimisation. `shrunkJvmRuntimeExecuted: true` and
+`apkRuntimeExecuted: false` are deliberate. No Android runtime restoration,
+widget behaviour or BedJet 3 hardware result is inferred.
+
+The fresh `:app:assembleRelease` validation build passed in **1 minute 16 seconds**
+with R8 and resource shrinking. The combined runtime/structural gate passed for
+all **48 models and 104 cases**. Its actual APK has one DEX with **4,436 defined
+classes**, R8 `8.10.24` and mapping ID `c9b07db`; all model and serializer checks
+use direct `mapped-class` evidence. The merged-manifest gate also passed for
+**39 components**.
+
+This local validation APK is **unsigned**: no signing key was configured, the
+signature-structure check found none, and `apksigner` rejected it for the missing
+signature manifest. Its default version is `0.1.0` / code `1`, size
+**4,242,531 bytes**, and SHA-256 is
+`55a3d7f7599c18be9c3e7d3f359b26fe571213a7f8ca4ccb67fbb2466c1921da`.
+It was built from the follow-up working source before the documentation commit;
+its identity is recorded as a local validation artefact. The earlier test-signed
+APK below retains its own original source and certificate identity. No new
+test-signed or production-signed distribution package is claimed here.
+
+Reproduce the additional runtime gate after the required build checks:
+
+```bash
+./gradlew --no-daemon --max-workers=2 \
+  '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+  -I .github/workflows/release-serialization.init.gradle \
+  :app:testReleaseUnitTest \
+  --tests io.github.willzy12h.nocturne.releasegate.ReleaseSerializationTest \
+  :app:exportReleaseSerializationInputs
+python3 -B .github/workflows/release_serialization_shrunk.py \
+  --output /tmp/nocturne-release-evidence/serialization-shrunk
+```
+
+Pass that directory's `shrunk-runtime.json` to the APK gate using
+`--shrunk-report`, alongside the exact APK, its R8 mapping/usage and release
+JUnit XML. Regenerate the runtime report if its JUnit or input export changes;
+both are hash-bound. CI uploads the runtime jar, mapping, rules, logs and report
+with the rest of its gate evidence.
+
+### Production signing and workflow changes
+
+The production signing job now declares `environment: production`. The expected
+certificate variable is read by its consuming steps after the environment is
+available. The four keystore secrets and `NOCTURNE_RELEASE_CERT_SHA256` must be
+scoped exclusively to that environment. The explicit increasing
+`NOCTURNE_RELEASE_VERSION_CODE` stays a repository variable because the preceding
+build job needs it.
+
+[Production release settings — owner action](release-production-settings.md)
+lists the exact repository settings: an independent required reviewer, prevention
+of self-review, no administrator bypass, a **Tag `v*` only** deployment rule, and
+two active tag rulesets separating restricted creation from immutable updates
+and deletion. It also specifies removal of repository/organisation fallbacks for
+the environment credentials and fingerprint.
+
+**Those settings are NOT APPLIED by this work and their existing state is
+UNVERIFIED.** The workflow declaration does not configure reviewers, secret
+scopes or tag protection. The owner must complete and verify that document's
+settings before allowing production signing. No GitHub settings, secrets,
+production tag or release were changed here.
+
+All **18 action invocations** are pinned to **8 immutable upstream commit SHAs**,
+including `softprops/action-gh-release` and `android-actions/setup-android`.
+Pillow is locked to `12.3.0` with official wheel hashes; installation uses
+`--require-hashes --only-binary=:all:`. The hashes were checked against PyPI and
+validated by an installation on Python 3.12 and a wheel download for Python 3.11.
+The temporary `gpt/nocturne-release` push trigger is removed. Current triggers are
+pushes to `main`, `v*` tag pushes and pull requests.
+
+The local helper suites pass **21 signing/artefact tests, 8 screenshot-helper
+tests and 34 serialisation-gate tests**. Actionlint `1.7.12` accepts the current
+workflow. Release JUnit passes **2 tests, zero failures, errors or skips**; these
+are the pre-R8 invocation and are not counted again as post-R8 JUnit tests.
+
+This branch push does not itself trigger Build. No new Actions run or production
+execution is claimed for this follow-up. A pull request or the eventual main/tag
+integration runs the strengthened workflow and uploads its own exact-source
+evidence and test-only APK. The old release branch's green run cannot establish
+CI success for the new branch.
+
+The small saved-original safety correction, full current gate counts and
+source-reconciled UI/documentation limits are recorded in
+[Nocturne completion](nocturne-completion.md) and the
+[review register](register.md). All newly added physical acceptance cases in the
+[Samsung / BedJet 3 checklist](samsung-bedjet-acceptance.md) remain **NOT RUN**.
+
+## Historical release package — 23 October 2026
+
+The following report describes the earlier `gpt/nocturne-release` implementation
+and its local test-signed APK. Its source, counts, screenshot results, signing
+probes and CI handover instructions are historical. The 24 October section above
+supersedes its workflow triggers, production configuration and serialisation
+proof description; it does not claim that the older artefact ran the new gate.
+
+### Result and source identity
 
 The local implementation build passed the required core/app/debug/lint gate and
 completed both unsigned and explicitly test-signed release builds. All 19 invalid
@@ -34,7 +208,7 @@ and SHA-256, signer SHA-256 and `signing_identity`. The final handover must chec
 those values against the exact pushed branch head; an earlier green run is not
 sufficient.
 
-## Authorised scope
+### Authorised scope
 
 The implementation changes are confined to `.github/workflows/**`,
 `app/build.gradle.kts`, the test-only `ScreenshotCapture.kt` fixture and
@@ -48,7 +222,7 @@ production release or version tag has been created by this work. No APK has been
 installed on a physical device, and no Samsung, Health Connect provider or BedJet 3
 hardware acceptance result is claimed.
 
-## Required local gate
+### Required local gate
 
 The required tasks completed successfully against the implementation source tree
 subsequently committed as `b0e4e1b093c738ae5dde9d7106250c0c39ef8bc7`.
@@ -87,7 +261,7 @@ Gradle 8.14.3, AGP 8.10.1, Android SDK 36 and build-tools 35.0.0.
 The initial environment lacked a Java compiler; installing the complete JDK
 resolved that setup failure before the successful required gate.
 
-## Release signing and candidate metadata
+### Release signing and candidate metadata
 
 `release_signing.py` completed with `status: passed`. It built an unsigned release
 with all signing values absent, then generated a temporary PKCS12 outside Git and
@@ -110,7 +284,7 @@ The negative probes require both a nonzero Gradle result and the
 a signing rejection test. Stale signed/unsigned output files are removed before
 the corresponding build checks.
 
-### Verified local implementation artefact
+#### Verified local implementation artefact
 
 | Field | Value |
 | --- | --- |
@@ -137,7 +311,7 @@ This throwaway identity is never a production identity. Another CI run uses a ne
 key. The APK cannot update an installation signed with a different certificate;
 any installation or data migration remains a separate user-supervised decision.
 
-## Serialisation and actual minified APK boundary
+### Serialisation and actual minified APK boundary
 
 The compiled production serialisation inventory contains **48 models**, with
 **104 JSON fixture cases**. The test-only release harness covers private/nested
@@ -173,7 +347,7 @@ The structural gate supplements the JVM behaviour tests. Its
 serialisation round trip, restored widget execution or physical-device behaviour
 is inferred from these host checks.
 
-## Release manifest audit
+### Release manifest audit
 
 The [complete merged-manifest audit](release-manifest-audit.md) passed with
 **39 components: 17 application and 22 dependency components**, including
@@ -195,7 +369,7 @@ This is static manifest evidence. Widget-host delivery, system job/tile binding,
 Health Connect provider interoperability and changed-receiver behaviour still
 need Android/device acceptance.
 
-## Screenshot comparison
+### Screenshot comparison
 
 The [separate screenshot report](release-screenshots.md) defines the actual
 capture and visual-review evidence. `SCREENSHOT_TAG=after` pins `Graph.clock`
@@ -241,7 +415,7 @@ application changes. Difference images are review evidence, not an automatic
 regression pass. The captures use Robolectric and the demo BedJet; they are not
 physical Samsung screenshots or evidence of BedJet 3 communication.
 
-## CI and production tag path
+### CI and production tag path
 
 | Job | Trigger and responsibility | Evidence / output |
 | --- | --- | --- |
@@ -284,7 +458,7 @@ verify its `head_sha` against the delivered branch SHA, and use that run’s
 to be skipped on this branch; the `build` job must succeed. The delivery message
 provides the observed run URL, conclusion and final source SHA.
 
-## Acceptance limits and handover
+### Acceptance limits and handover
 
 The local evidence establishes the recorded host build/test/signing outcomes,
 release JVM behaviour, actual APK structural checks and static manifest result

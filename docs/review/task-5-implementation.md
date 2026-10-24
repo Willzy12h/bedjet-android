@@ -1,10 +1,39 @@
-# Task 5 implementation checkpoint — GPT-6 Astra
+# Task 5 source reconciliation and historical Astra checkpoint
 
-## Status and integration boundary
+## Current candidate — source audit, 24 October 2026
+
+This audit describes the source on `gpt/nocturne-docs-guard`, based on final candidate `2d9ebf4f625f0eaccd6bbead1daa17a42b56a3d6`. The report preserved below described Astra's **unpublished `astra/nocturne-task5` branch**, including its later metadata alignment. Its commits, test totals, logs and screenshots are historical claims about that branch; they do not establish the implementation or verification of this candidate. The completion work reconstructed UI changes separately. Current gate evidence belongs in [nocturne-completion.md](nocturne-completion.md) and the V01–V02 rows of [register.md](register.md).
+
+The following comparison comes from reading the candidate's source. Paths beginning `ui/`, `data/`, `night/` or `widget/` below are relative to `app/src/main/kotlin/io/github/willzy12h/nocturne/`; core paths are given in full. No Samsung phone or BedJet 3 was used for this audit.
+
+| Earlier Astra claim | Current candidate implementation and limit |
+|---|---|
+| All large-text corrections use minimum heights and a scaled Simple timeline time column. | `ui/TonightScreen.kt` wraps Quick buttons in a two-column `FlowRow` with a 72 dp minimum height, but `BigButton` retains a fixed 56 dp height. `ui/NightCurve.kt:TimelineRow` retains a fixed 52 dp time column. `ui/MainActivity.kt` uses named, icon-only navigation when font scale is at least 1.5 and width is below 400 dp. The broader layout claim belongs to the unpublished branch. |
+| Short snackbar duration and measured bottom padding. | Both behaviours are present. `ui/MainActivity.kt` measures snackbar height and adds bottom padding. Its `snackbar.showSnackbar(it)` call supplies no action label or duration, so it selects `SnackbarDuration.Short` through the resolved Material3 1.3.1 default. The version follows Compose BOM 2024.12.01 in `gradle/libs.versions.toml`; the cached `SnackbarHostState.showSnackbar$default` bytecode confirms that a null action label selects Short. The candidate retains Short duration without passing it explicitly. |
+| View-model observations use `viewModelScope`; the coordinator supplies a running label and queued count. | `ui/AppViewModel.kt` shares link/status observations eagerly in `graph.scope`. Command execution, discovery and check-in callbacks use `viewModelScope`; other work still uses `graph.scope`. `ui/TonightScreen.kt` shows a local busy progress indicator. It does not render the coordinator's running-command label or queued count. |
+| One coordinator outcome collector presents all in-app messages, including commands started elsewhere. | `ui/MainActivity.kt` collects coordinator outcomes for haptics. Snackbar text comes from `AppViewModel.messages`; `ui/AppViewModel.kt:act` emits the result of its own action. There is no general coordinator-to-snackbar collector in this candidate. |
+| `SavedStateHandle` and a parcelled handle round trip preserve tabs and drafts. | `ui/MainActivity.kt` uses Compose `rememberSaveable` for the selected tab, editor ID, serialised draft, parked-draft flag and starting copy of a new profile. `consumeTonightRequest` removes `openTonight` on initial/new intents; the UI parks and can resume the draft. `UiFinalisationTest.newProfileDraftSurvivesRecreationAndOnlySaveAddsIt` covers new-profile recreation. The candidate has no `SavedStateHandle`, `SavedDraftTest` or parcelled-handle test from the archived report. |
+| Confirmation identities are captured for replacement, save-and-reapply and Stop tracking dialogs. | `ui/NightGuard.kt` captures the running night and rechecks its identity through `AppViewModel.withConfirmedNight`. The separate Stop tracking dialog in `ui/NightRecoveryControls.kt` and Update tonight dialog in `ui/ProfileEditor.kt` store Boolean visibility flags; their actions capture the current request when the confirmation is pressed. The stronger claim about retaining the identity from when those two dialogs opened is not supported by this source. |
+| The shared Tonight preview, temporary reset and running wake controls are present. | Present in `ui/TonightScreen.kt`: the headline and curve consume one `startPreview`, the exact “Tonight only · Follow schedule” control clears the temporary choice, and wake controls sit outside the idle/running branch. A 30-second clock refresh updates the displayed choice/preview. `ui/AppViewModel.kt:startPreview` delegates to `NightPreview.forStartNow`; pending/manual/unknown displays use persisted night state and coordinator status. |
+| Task 6 API and feature placements still require integration. | Already placed in this candidate: `ui/AppViewModel.kt:act` uses `BedJetService.runOwned(..., notifyFailures = false)` and catches operation timeout before rethrowing other cancellation; `ui/SettingsScreen.kt` calls `PlatformSettingsSection`; `ui/HistoryScreen.kt` calls `HistoryExportButton` and `HealthSleepOverlay`; `ui/NightRecoveryControls.kt` calls `PhoneHandoverMenuItems` from an overflow available while idle or active. The old “required adoption” list is historical, not a current integration instruction. |
+| Slot originals are shown for the selected target plus legacy unknown targets. | `ui/SettingsScreen.kt` lists only records whose `deviceId` equals the selected target and skips empty-slot markers. Its preview shows programme steps before calling `ui/AppViewModel.kt:restoreSlot`, which rechecks the target and saved record. Unknown imported originals are not offered there. `SlotBackup.uncertain` is not displayed, and the existing `originalsBlocked`/`acceptLostOriginals` view-model API has no confirmation control in Settings. These UI limits remain. |
+| Setup records durable completion, reopens from Settings and returns to selection after Forget. | `ui/SetupFlow.kt` is an inline selection/fan-check card, shown in Settings and on Tonight when there is no target; `ui/SetupChecks.kt` handles permission/system-screen rechecks and Samsung guidance. `ui/AppViewModel.kt` performs bounded discovery and explicitly calls `selectTarget(..., useRealDevice = true)`. `night/NightActions.kt:selectTarget` persists target and demo-mode changes together and clears a mismatched `setupFanCheckedDevice`; Forget clears the target and reports the existing exact outcome. There is no separate setup-completed flag or wizard navigation in the candidate. |
+| Morning check-in proposes a Middle fan/temperature adjustment. | `data/Repository.kt:proposedMiddle` proposes a 1 °C increase or decrease to both Middle temperatures; it does not alter fan settings. `ui/HistoryScreen.kt` separates feedback from acceptance. `acceptMorningSuggestion` preserves unrelated edits, rejects changed Middle/limits, deleted profiles and duplicate acceptance, and refuses while an active night uses the same reusable profile. Profile/history changes use the repository journal. |
+| Main and widget configuration activities share `rememberThemeTime`. | `ui/MainActivity.kt` and `widget/SingleActionConfigActivity.kt` each have their own one-second composition timer using the injected clock. Both pass full Settings and current time to the theme. `core/src/main/kotlin/io/github/willzy12h/nocturne/core/store/Settings.kt:isDarkTheme` compares local minutes, handles overnight/daytime ranges and defines equal times as always dark. The shared helper described in the archived follow-up does not exist here. |
+| All sliders expose labels, units and state; all UI/event copy and plurals have moved to resources. | `ui/ProfileEditor.kt:SwitchRow` has one row-level Switch role and a 48 dp minimum; `ui/NightCurve.kt` supplies a chronological text alternative. Slider calls in ProfileEditor, Remote and Settings still rely on default slider semantics, with visible labels separate from the control. Setup, feature, pin and check-in resources exist, but many UI/event strings remain literal and only selected counts use quantity resources. Complete accessibility/resource migration and the unpublished branch's contrast/slider test claims must not be inferred. |
+| Accepted and confirmed actions use platform haptics; imported UI timestamps/theme minutes are checked. | Present: `ui/MainActivity.kt` calls `View.performHapticFeedback` with `CLOCK_TICK` and `CONFIRM` for those outcome kinds, without an override flag. `core/src/main/kotlin/io/github/willzy12h/nocturne/core/store/BackupValidator.kt` checks temporary-choice expiry, wake/set timestamps and scheduled-theme minute ranges. Physical vibration and TalkBack behaviour remain untested. |
+
+Current relevant regression sources include `app/src/test/kotlin/io/github/willzy12h/nocturne/AppSmokeTest.kt`, `ui/UiFinalisationTest.kt`, `data/RepositoryTest.kt` under that test package, and `core/src/test/kotlin/io/github/willzy12h/nocturne/core/store/ScheduledThemeTest.kt`. Their presence establishes the available regression coverage; their current result and totals must come from the fresh candidate gate, not the archived runs below. In particular, the archived `UiHardeningTest`, `SavedDraftTest`, `CheckInTest`, `ContrastTest`, `LargeLayoutTest`, `NavigationAccessibilityTest`, `OutcomeTest`, `ConfigThemeTest` and `SetupSelectionTest` are not present in this candidate's test tree.
+
+## Archived unpublished-branch report
+
+**Everything below this heading is historical evidence reported for Astra's unpublished branch.** Its present-tense implementation claims, “PASS” results, pending Task 6 instructions, paths and commit identities are retained for provenance only. The source reconciliation above supersedes them for the current candidate. No historical count is a current gate total, and no historical render is physical acceptance.
+
+### Historical status and integration boundary
 
 Initial Task5 implementation is verified and committed as the integration checkpoint. The explicitly scheduled Task6 integration continuation remains required before independent Task5 review. No hardware has been tested. No push was attempted. Worktree `/workspace/scratch/ad4eb857ceea/nocturne-wt-task5`, branch `astra/nocturne-task5`, original base `9bc63a2c324996e3236245be0aa6ff13a25f8dbe`. Parent will align committed history to the published equivalent base and reviewed Task6; do not reset unfinished source.
 
-## Implementation
+### Historical implementation
 
 - Preserved Midnight Ink, Daylight, typography, cards, curve, five tabs and Simple view. Local large-text corrections: wrapping two-column Quick buttons, minimum heights rather than fixed heights, scaled Simple timeline time column, named icon-only navigation at large font sizes. Normal navigation labels remain.
 - Snackbar uses Short duration and measured bottom padding so lower actions remain above it. View-model observations use viewModelScope; running command label and queued count come from the coordinator. One outcome collector presents coordinator outcomes, including externally initiated commands while the UI is open; normal actions no longer emit a second copy.
@@ -18,7 +47,7 @@ Initial Task5 implementation is verified and committed as the integration checkp
 - Accepted action and confirmed outcome invoke platform CLOCK_TICK and CONFIRM feedback through View.performHapticFeedback, without overriding system haptic settings. Physical vibration/TalkBack remain untested.
 - Backup validator now rejects malformed consumed temporary-choice/wake timestamps and out-of-range scheduled-theme minutes before import.
 
-## RED/GREEN evidence
+### Historical RED/GREEN evidence
 
 All logs are retained in `/workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/`. All Gradle calls used the bounded shared-lock wrapper from the worktree, approved elevation for sockets and cached `--offline` execution. No caches were cleared. Focused runs used `:app:testDebugUnitTest --tests '<class or method>'` and/or `:core:test --tests '<class>'`.
 
@@ -47,7 +76,7 @@ bash /workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/run-gradle.sh :core:te
 
 `task5-ui-and-renders.log`: actual app Dark, Light, Simple Dark and combined captures plus UI regressions passed. `task5-green-large-navigation.log`: final large-text navigation and regenerated combined images passed (37 s). `task5-final-focused-fixed.log`: two coordinator-outcome tests, two contrast tests and held-open theme boundary passed (25 s). Contrast verifies normal/secondary text >=4.5:1, essential outlines >=3:1 on used surfaces, after-wake bars >=3:1 in both palettes. This verifies tokens/semantics, not physical accessibility.
 
-### Fixture and host failures (not misreported as product RED)
+#### Historical fixture and host failures (not misreported as product RED)
 
 - Initial theme run hit a Kotlin internal source-class error. Later stable-source compile reported duplicate/conflicting declarations despite exactly one source declaration per symbol (`task5-green-layout.log`). Parent authorised one frozen-source `-Pkotlin.incremental=false` diagnostic; it passed (`task5-green-layout-nonincremental.log`). Subsequent ordinary incremental focused runs and render run passed. No production workaround or cache deletion. Host cause remains unproven.
 - The first navigation fixture sent an empty implicit Intent into onNewIntent, replacing the ActivityScenario launch identity; teardown hung. Preserved stack `task5-navigation-stack.log`; stopped only those exact test worker processes with approved TERM. Correct fixture clones the existing explicit Activity intent before adding the extra. The genuine missing-draft RED was then obtained and passed after implementation.
@@ -55,7 +84,7 @@ bash /workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/run-gradle.sh :core:te
 - Corrected test-only errors: protected onNewIntent invocation; captured Activity-derived graph before entering a repository worker; static ShadowAlarmManager setter; actual Settings property `themeMode`; async settings test waits for its UI node; noon simulation advances Compose mainClock; permission text exists twice (underlying settings and setup dialog), asserted both before/after rather than assuming one. Relevant original logs retained.
 - Not every pure presentation/resource migration has a separately failing test. Haptic calls are implemented but not separately instrumented; physical behaviour remains pending.
 
-## Actual app render evidence
+### Historical app render evidence
 
 PNG directory: `/workspace/scratch/ad4eb857ceea/nocturne-wt-task5/app/build/screenshots/task5-review/`.
 
@@ -72,7 +101,7 @@ Native Robolectric rendering at API34, clock pinned BEFORE Activity composition 
 
 Visual inspection found the large-text nav label wrapping; that was fixed and rerendered before reporting. Start and Quick actions remain fully reachable/readable. Large-font mode intentionally retains tab icons with accessible names rather than broken multi-line labels; normal-font design unchanged.
 
-## Required Task6 adoption after parent alignment (not stubbed)
+### Historical Task6 adoption instructions after parent alignment
 
 The parent explicitly ordered Task6 integration first, then a Task5 continuation for these real APIs before Task5 independent review:
 
@@ -87,7 +116,7 @@ The parent explicitly ordered Task6 integration first, then a Task5 continuation
 
 Task6 signature contract is exact as above; feature implementations own launchers/state/resources. `MainActivity` navigation extra is exact boolean `openTonight`; both creation and onNewIntent honour it over restored tab and preserve dirty drafts. No duplicate tile-only screen/control.
 
-## Self-review and concerns
+### Historical self-review and concerns
 
 - Reviewed captured identities for resume/replacement/save-and-reapply/Stop tracking and target filtering for slot originals. No new UI command bypasses NightActions or service ownership.
 - Reviewed profile consistency: accepting an old proposal must not overwrite unrelated profile edits or resurrect a deleted profile. Added a separate fresh-record stale-Middle refusal assertion as well as acceptance and deletion checks.
@@ -97,27 +126,27 @@ Task6 signature contract is exact as above; feature implementations own launcher
 - Initial explicit Demo-to-real selection gap is resolved in the independent follow-up checkpoint below, preserving default coordinator caller semantics.
 - Physical device access, Samsung permissions/battery policy, actual TalkBack navigation, haptics, slot readback and BedJet programme confirmation remain pending; no hardware claims.
 
-## Full-gate fixture diagnosis
+### Historical full-gate fixture diagnosis
 
 The first complete gate (`task5-full-gate.log`) failed: 175 app tests, 10 failures. Five were screenshot opt-out: TestWatcher.starting catches its assumption and still evaluates its wrapped statement, so the second @Before assumption produced TestCouldNotBeSkippedException. Replaced it with an outer TestRule that checks the opt-in before evaluating/launching the Activity. Three AppSmoke and one Appearance timeout used the existing after-composition evening clock; moved fixture clock initialisation before Activity creation without changing any behavioural assertions. Focused smoke/appearance/accessibility/screenshot-opt-out run passed in 40 s (`task5-gate-fixtures-fixed.log`), with screenshots correctly skipped.
 
 The tenth failure was inherited by AccessibilityTest: a RuntimeServiceTest background autoSnapshot tried to move a file after its Robolectric test directory had been deleted. Exact XML preserved as `task5-full-gate-inherited-exception.xml`. Lead authorised narrow RuntimeServiceTest fixture correction: cancel, pump main looper until complete, and join the initial replaced App Graph scope, and the owned replacement scope in @After. No production persistence change, no swallowed exceptions. Focused evidence: `task5-fixture-lifetime.log`.
 
-## Second full-gate diagnosis
+### Historical second full-gate diagnosis
 
 `task5-full-gate-fixed.log`: 175 app tests, 169 passed / 1 failed / 5 screenshots skipped, 2 min 13 s. All Task5 UI and fixture corrections passed. Existing GattLinkTest.status133RetriesTheSameAddressThenFailsWithoutTryingAnotherBedJet failed the immediate `fake.ports.all { it.closed }` assertion at line66, after expected NotConnected and exact same-address retries had passed. Exact XML is `task5-full-gate-gatt-failure.xml`. Inspection found Session.shut completes its services Deferred on the FakeRadio binder thread before closePort; the resumed connect caller can observe the Deferred failure before that binder callback finishes closure, while repeated shut sees the already-set closed flag. This is a callback completion race, not evidence of wrong-device retries. Lead approved the existing FakeRadio.drain() callback-completion barrier after the expected exception and exact retries, before closure/final-state assertions. Added scans.isEmpty; preserved asynchronous callbacks and all existing assertions. No sleep/retry loop, inline callback substitution or BLE production change. Focused evidence `task5-gatt-barrier.log`.
 
-## Resource lint correction
+### Historical resource lint correction
 
 `task5-full-gate-final.log` completed all unit tests (142 core passes; 170 app passes / 5 optional screenshot skips) and debug assembly, then failed lint with 46 StringFormatMatches errors: extraction had used `%s` where call sites supplied integers. Exact report retained in `task5-lint-red.txt`. Corrected 37 distinct numbered resource placeholders to `%d`, retaining string placeholders for formatted temperature/time/text. Removed three unused extraction leftovers and made sliderDescription a Modifier extension (same semantics). No lint suppression. Focused lint plus formatting/accessibility/layout evidence: `task5-lint-focused.log` passed in 1 min 7 s, 0 errors / 4 warnings. The two new warnings were true plural candidates for saved step counts and boost minutes; converted both to quantity resources before the final gate. The other two are baseline OldTargetApi/ObsoleteSdkInt. Candidate report preserved in `task5-lint-plural-candidates.txt`.
 
-## Full-gate result
+### Historical full-gate result
 
 PASS — `task5-full-gate-green.log`, **BUILD SUCCESSFUL in 3 min 8 s; 59 actionable tasks (24 executed, 35 up-to-date)**. Exact command was the four-task offline wrapper command shown above. Final XML totals: **142 core tests, zero failures/errors/skips; 175 app tests, zero failures/errors, 5 optional screenshot skips (170 passes)**. Debug APK assembled. Lint: **0 errors, 2 baseline warnings** (OldTargetApi and ObsoleteSdkInt); one informational Compose autoboxing suggestion. Compiler also reports the existing deprecated ViewList icon/Gradle deprecation notices; output is not claimed pristine. `git diff --check` passed.
 
 Focused fixture lifetime (39 s), GATT barrier (21 s), and resource-format/semantics lint run (1 min 7 s) all passed before this complete gate. No production changes were made to accommodate host compiler/cache failures or test callback races.
 
-## Changed files and commit
+### Historical changed files and commit
 
 `b79085e` — `feat(ui): harden existing screens and night controls` (42 files, 1701 insertions, 373 deletions). Worktree clean immediately after commit. Trailer: `Implemented-By: GPT-6 Astra`.
 
@@ -168,7 +197,7 @@ Parent authorised completing the three independent follow-ups (Demo-to-real atom
 
 Approved out-of-primary-scope files: minimal core Settings/History/BackupValidator and tests, Repository check-in consistency, SingleActionConfigActivity theme adapter, NightActions + strings_runtime.xml exact Forget success copy, RuntimeServiceTest graph-lifetime fixture cleanup, and GattLinkTest callback-completion barrier authorised after exact full-gate failure diagnosis.
 
-# Independent follow-up checkpoint (before Task6 alignment)
+### Historical independent follow-up checkpoint (before Task6 alignment)
 
 Parent authorised these existing scope items after checkpoint `b79085e`, without waiting for Task6 review:
 
@@ -176,7 +205,7 @@ Parent authorised these existing scope items after checkpoint `b79085e`, without
 - MainActivity handles and consumes `openTonight` through one helper on both initial and new intents. The restored-tab regression now covers History → recreate → tile → Tonight → user History → recreate. Dirty-draft recovery remains covered independently.
 - MainActivity and SingleActionConfigActivity share the injected-clock `rememberThemeTime` composition timer. The config activity now switches its actual rendered Surface at the scheduled boundary while held open. This is only its authorised theme adapter; no widget action behaviour changed.
 
-## Follow-up RED/GREEN
+#### Historical follow-up RED/GREEN
 
 Commands use the same bounded offline wrapper. `task5-followup-red.log`: actual config render remained Daylight after moving the clock across 22:00; the first setup fixture accidentally returned Job from @Before (fixed to Unit), and normal-font navigation lookup used a contentDescription that was merged with its visible label (changed to the visible label).
 
@@ -192,7 +221,7 @@ bash /workspace/scratch/ad4eb857ceea/nocturne-sdd-scratch/run-gradle.sh :app:tes
 
 Focused PASS: `task5-followup-green.log`, BUILD SUCCESSFUL in 1 min 1 s; lint 0 errors / 2 baseline warnings. Full four-task gate is `task5-followup-full-gate.log`; final result and commit appended below when complete.
 
-## Follow-up full gate and commit
+#### Historical follow-up full gate and commit
 
 PASS — `task5-followup-full-gate.log`: BUILD SUCCESSFUL in 2 min 27 s; 59 actionable tasks (5 executed, 54 up-to-date). **142 core passes; 177 app passes, 5 optional screenshot skips; debug assembly; lint 0 errors / 2 baseline warnings.** `git diff --check` passed.
 
@@ -212,6 +241,6 @@ Changed files:
 
 Ready for parent metadata alignment and reviewed Task6 merge. Remaining dependent implementation is limited to the four real feature composable placements (idle-accessible hand-over overflow) and AppViewModel notifyFailures=false plus visible operation-timeout feedback. No further optional broad gate will run while waiting. No hardware testing.
 
-## Lead metadata alignment
+### Historical lead metadata alignment
 
 Both clean task commits were preserved on `backup/task5-pre-published-alignment` and mechanically rebased from local base `9bc63a2c324996e3236245be0aa6ff13a25f8dbe` onto its published identical-tree equivalent `d7368a9b915f3fea1d46a293d7b2ee6351f5a57a`. The task commits are now `7117c85` and `0691f86f0603c8e34eecb9a2c38f861112615742`; old HEAD was `6abebe67773becf01e9f62eaa10f4d243c9b836a`. Before/after task tree is exactly `52b16be7b39c39299a791398e2ee8937209fd727`, and the worktree is clean. No source changed; the recorded gate remains applicable. Reviewed/published Task6 still must be merged before final API/UI wiring and Task5's independent review.

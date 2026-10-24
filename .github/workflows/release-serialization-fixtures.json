@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "description": "Release JVM fixtures. $ref expands values below. Every compiled production @Serializable class must have cases; every serialized field and enum value is checked. This is separate from APK DEX structural evidence.",
+  "description": "Shared pre-R8 and separately R8-shrunk JVM fixtures. $ref expands values below. Every compiled production @Serializable class must have cases; every serialized field and enum value is checked. Neither JVM execution runs the APK DEX.",
   "values": {
     "phase": {
       "mode": "HEAT",

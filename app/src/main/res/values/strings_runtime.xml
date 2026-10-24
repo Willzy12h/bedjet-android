@@ -44,7 +44,7 @@
     <string name="runtime_pinned">Saved in slot %1$d. Readback verified. This duration-based programme does not follow an alarm.</string>
     <string name="runtime_restore_label">Restore original slot</string>
     <string name="runtime_no_original">No original was saved for this slot.</string>
-    <string name="runtime_restore_imported_out_of_range">This original came from a backup and has a temperature its mode doesn\'t allow, so it wasn\'t sent to the BedJet. Check the backup file.</string>
+    <string name="runtime_restore_imported_out_of_range">A step in this saved original has a temperature its mode doesn\'t allow, so it wasn\'t sent to the BedJet.</string>
     <string name="runtime_restored">Original restored to slot %1$d. Readback verified.</string>
     <string name="runtime_target_label">Select BedJet</string>
     <string name="runtime_active_target">Stop tracking the current night before changing the BedJet or demo mode.</string>
