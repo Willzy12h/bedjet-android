@@ -1,6 +1,8 @@
 package io.github.willzy12h.nocturne
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -193,6 +195,29 @@ class AppSmokeTest {
         }
         assertTrue(compose.onAllNodes(hasText("Waking you at")).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithText("Resume programme").performScrollTo().assertIsDisplayed()
+        // P5 (P3b review): the plan card claims no wake either: no wake label, marker text or spoken "wake".
+        fun noWakeClaims(look: String) {
+            listOf("Wake ", "Your alarm", "Wake time", "Profile's wake time", "From your alarm", "Tonight-only wake time").forEach { text ->
+                assertTrue("$look shows '$text'", compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isEmpty())
+            }
+            val spoken = compose.onAllNodes(SemanticsMatcher("speaks of a wake") { node ->
+                node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)
+                    ?.any { it.contains("wake", ignoreCase = true) } == true
+            }).fetchSemanticsNodes()
+            assertTrue("$look speaks of a wake", spoken.isEmpty())
+        }
+        noWakeClaims("curve")
+        runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } }
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+            compose.onAllNodes(hasText("Manual run until")).fetchSemanticsNodes().isNotEmpty()
+        }
+        noWakeClaims("simple view")
+        // The snooze's wake-up notification now says the same.
+        val posted = shadowOf(compose.activity.getSystemService(android.app.NotificationManager::class.java)).allNotifications
+            .map { it.extras.getCharSequence(android.app.Notification.EXTRA_TITLE).toString() }
+        assertTrue(posted.toString(), posted.none { it.startsWith("Waking you at") })
+        assertTrue(posted.toString(), posted.any { it.startsWith("Manual run until") })
     }
 
     @Test

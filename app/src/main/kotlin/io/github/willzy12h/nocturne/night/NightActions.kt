@@ -652,6 +652,9 @@ class NightActions(private val graph: Graph) {
         repo.addEvent(night.recordId, event(EventKind.RECOVERED, text(R.string.runtime_manual_tracking)))
         offerProgrammeResume(night)
         NightAlarms.schedule(context, updated)
+        // A snooze's wake-up notification still on screen now names this run's own end, not the old wake (P5).
+        if (repo.runtime.value.let { it.manualWakeShown && it.wakeShown == updated.identity })
+            Notifications.showWakeUp(context, updated, repo.settings.value, logNotice = false)
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_manual_tracking))
     }
     private suspend fun freshStatus(requireProgress: Boolean = true): DeviceStatus {
@@ -741,7 +744,7 @@ class NightActions(private val graph: Graph) {
         }
         drainLocalDeliveries()
         expire()
-        repo.activeNight.value?.let { NightAlarms.schedule(context, it); Notifications.showQuiet(context, it, repo.settings.value) }
+        repo.activeNight.value?.let { NightAlarms.schedule(context, it); Notifications.showQuiet(context, it, repo.settings.value, wakeChangePending()) }
         repo.runtime.value.retime?.let { NightAlarms.scheduleRetry(context, it, graph.now()) }
         if (repo.runtime.value.alarmInbox != null) NightAlarms.scheduleObservation(context, graph.now())
     }
@@ -1061,10 +1064,12 @@ class NightActions(private val graph: Graph) {
             manualChange(label, endsNight, affectsProgramme, confirms) { work(graph.controller()) }
         }
     }
-    suspend fun exportDiagnostics(uri: android.net.Uri) {
+    /** [open] is how the file is opened; tests make it fail. A file that can't be opened throws, so nothing claims it saved. */
+    suspend fun exportDiagnostics(uri: android.net.Uri,
+        open: (android.net.Uri) -> java.io.OutputStream? = { context.contentResolver.openOutputStream(it, "wt") }) {
         val snapshot = diagnostics()
         withContext(Dispatchers.IO) {
-            context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(snapshot.toByteArray()) }
+            open(uri)?.use { it.write(snapshot.toByteArray()) }
                 ?: throw java.io.IOException(text(R.string.runtime_export_failed))
         }
     }
@@ -1089,8 +1094,10 @@ class NightActions(private val graph: Graph) {
     internal fun refreshQuietNotification() {
         val night = repo.activeNight.value
         if (night == null) Notifications.cancelQuiet(context)
-        else Notifications.showQuiet(context, night, repo.settings.value)
+        else Notifications.showQuiet(context, night, repo.settings.value, wakeChangePending())
     }
+    /** A wake-up change is waiting for the BedJet, as [status] reports PENDING for it. */
+    private fun wakeChangePending(): Boolean = repo.runtime.value.let { it.retime != null || it.alarmInbox != null }
     private fun event(kind: EventKind, detail: String) = HistoryEvent(graph.now().toString(), kind, detail)
     private suspend fun recordError(detail: String) { repo.activeNight.value?.let { repo.addEvent(it.recordId, event(EventKind.ERROR, detail)) } }
     private fun limits(): ProfileLimits = (repo.activeNight.value?.let { it.profile ?: repo.profile(it.profileId) } ?: repo.tonightsProfile())?.limits ?: ProfileLimits()

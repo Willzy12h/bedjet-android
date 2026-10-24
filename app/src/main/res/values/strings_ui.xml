@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- P5 UI copy (UK English). Older literals move here in the later strings task. -->
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Unreadable data and unfinished restore -->
     <string name="unreadable_banner">Some saved data couldn\'t be read — restore from a snapshot or dismiss.</string>
     <string name="unreadable_details">Set aside: %1$s. Nocturne kept the unreadable copies and is using defaults in their place. Dismissing this notice doesn\'t make an unknown slot safe to overwrite.</string>
@@ -32,4 +32,69 @@
     <string name="busy_running">Working on: %1$s</string>
     <string name="busy_waiting">Waiting for the BedJet…</string>
     <plurals name="busy_queued"><item quantity="one">%d more waiting</item><item quantity="other">%d more waiting</item></plurals>
+    <!-- Next-night edits, pending wake changes and the tonight-only wake (U10, F01) -->
+    <string name="next_night_saved">Saved for next night. Tonight\'s night keeps the settings it started with.</string>
+    <string name="tonight_edits_next_night">Your saved edits to %1$s start with the next night. Tonight keeps the settings it started with.</string>
+    <string name="wake_requested">Requested wake %1$s — waiting for your BedJet to confirm.</string>
+    <string name="wake_requested_unknown">A new wake time is waiting for your BedJet to confirm.</string>
+    <string name="override_expiry">Tonight only: it lapses at %1$s on %2$s. After that your profile and alarm decide the wake time again.</string>
+    <string name="quiet_pending">Wake-up change pending (planned %1$s)</string>
+    <!-- Kept manual run (P3b review) -->
+    <string name="planned_end">Planned end</string>
+    <!-- BedJet mode names (used by widgets; Format.modeName moves here in the strings task) -->
+    <string name="mode_off">Off</string>
+    <string name="mode_heat">Heat</string>
+    <string name="mode_turbo">Turbo</string>
+    <string name="mode_gentle_heat">Gentle heat</string>
+    <string name="mode_cool">Cool</string>
+    <string name="mode_dry">Dry</string>
+    <string name="mode_pause">Pause</string>
+    <!-- Setup (F08) -->
+    <string name="setup_use_demo">Use demo instead</string>
+    <string name="setup_use_demo_help">Try Nocturne with a simulated BedJet. It never sends anything to a real one, and you can choose a real BedJet later.</string>
+    <string name="setup_samsung_title">Samsung battery tips</string>
+    <string name="setup_samsung_help">Some Samsung phones put apps to sleep to save battery, even with unrestricted battery use. If overnight changes don\'t reach your BedJet, open Settings › Battery › Background usage limits and check that Nocturne isn\'t listed under Sleeping apps or Deep sleeping apps; you can add it to Never sleeping apps. Menu names vary between One UI versions, and Nocturne can\'t check these settings for you.</string>
+    <!-- Slider names and spoken values (U05) -->
+    <string name="slider_fan">Fan</string>
+    <string name="slider_fan_start">Fan at the start</string>
+    <string name="slider_fan_end">Fan at the end</string>
+    <string name="slider_temp">Temperature</string>
+    <string name="slider_temp_start">Temperature at the start</string>
+    <string name="slider_temp_end">Temperature at the end</string>
+    <string name="slider_steps">Steps</string>
+    <string name="slider_length">Length</string>
+    <string name="slider_minutes">Minutes</string>
+    <string name="slider_fan_limits">Fan limits</string>
+    <string name="slider_temp_limits">Temperature limits</string>
+    <string name="slider_boost">Boost length</string>
+    <!-- "per cent" does not change with the number in English. -->
+    <string name="a11y_percent" tools:ignore="PluralsCandidate">%1$d per cent</string>
+    <string name="a11y_celsius">%1$s degrees Celsius</string>
+    <string name="a11y_fahrenheit">%1$s degrees Fahrenheit</string>
+    <string name="a11y_range">%1$s to %2$s</string>
+    <plurals name="a11y_minutes"><item quantity="one">%d minute</item><item quantity="other">%d minutes</item></plurals>
+    <plurals name="a11y_steps"><item quantity="one">%d step</item><item quantity="other">%d steps</item></plurals>
+    <!-- History (U09) -->
+    <string name="history_revision">Revision %1$d · wake %2$s · %3$s</string>
+    <plurals name="history_steps"><item quantity="one">%d step</item><item quantity="other">%d steps</item></plurals>
+    <string name="history_curve_applied">The curve shows the last programme the BedJet confirmed.</string>
+    <string name="history_event">%1$s  %2$s: %3$s</string>
+    <string name="event_started">Started</string>
+    <string name="event_retimed">Wake time changed</string>
+    <string name="event_snoozed">Snoozed</string>
+    <string name="event_extended">Extended</string>
+    <string name="event_stopped">Stopped</string>
+    <string name="event_ended">Ended</string>
+    <string name="event_unit_notice">BedJet notice</string>
+    <string name="event_error">Problem</string>
+    <string name="event_remote_change">Changed outside Nocturne</string>
+    <string name="event_recovered">Recovered</string>
+    <string name="event_feedback">Morning check-in</string>
+    <string name="event_suggestion">Profile change accepted</string>
+    <!-- Morning check-in fan suggestion (F09) -->
+    <string name="checkin_change_intro_fan">%1$s: %2$s the Middle fan by 10 per cent. Cooling is felt as fan speed.</string>
+    <string name="checkin_fan_start_change">Fan at the start: %1$d%% → %2$d%%</string>
+    <string name="checkin_fan_end_change">Fan at the end: %1$d%% → %2$d%%</string>
+    <!-- Stop tracking (F16) -->
+    <string name="stop_tracking_text">This doesn\'t turn the BedJet off. Nocturne stops following this night and keeps it in History. Check the BedJet before starting another programme.</string>
 </resources>

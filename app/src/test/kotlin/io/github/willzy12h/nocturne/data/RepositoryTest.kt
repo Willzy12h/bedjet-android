@@ -14,6 +14,8 @@ import io.github.willzy12h.nocturne.night.PendingEnd
 import io.github.willzy12h.nocturne.core.night.NightRunner
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Presets
+import io.github.willzy12h.nocturne.core.plan.ProfileLimits
+import io.github.willzy12h.nocturne.core.plan.Middle
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.Season
 import io.github.willzy12h.nocturne.core.plan.TonightOverride
@@ -594,6 +596,41 @@ class RepositoryTest {
         assertEquals(suggestion.proposedMiddle, restarted.profile("preset-winter")!!.middle)
         assertEquals(EventKind.MORNING_SUGGESTION_APPLIED, restarted.history.value.first { it.id == "completed" }.events.last().kind)
         assertEquals(otherActive, restarted.activeNight.value)
+    }
+
+    /** P5: a Cool or Dry Middle has no temperature, so the suggestion moves its fan by 10 per cent, within the limits. */
+    @Test
+    fun aCoolMiddleIsSuggestedAFanChangeTheUserMustAccept() = runBlocking {
+        val repo = repository()
+        val cool = Presets.winterWarm.copy(middle = Middle(Mode.COOL, fanStart = 50, fanEnd = 25, tempStart = 44, tempEnd = 44, rampSteps = 3))
+        repo.saveProfile(cool)
+        repo.addRecord(completedNight("hot"))
+        val hot = repo.recordMorningCheckIn("hot", MorningComfort.TOO_HOT)!!.suggestion!!
+        assertEquals(60, hot.proposedMiddle.fanStart)
+        assertEquals(35, hot.proposedMiddle.fanEnd)
+        assertEquals(cool.middle, repo.profile("preset-winter")!!.middle)
+        assertTrue(repo.acceptMorningSuggestion(hot))
+        assertEquals(hot.proposedMiddle, repo.profile("preset-winter")!!.middle)
+        assertEquals("Accepted 10% more fan in Middle", repo.history.value.first { it.id == "hot" }.events.last().detail)
+
+        repo.saveProfile(cool.copy(middle = cool.middle.copy(mode = Mode.DRY)))
+        repo.addRecord(completedNight("cold"))
+        val cold = repo.recordMorningCheckIn("cold", MorningComfort.TOO_COLD)!!.suggestion!!
+        assertEquals(40, cold.proposedMiddle.fanStart)
+        assertEquals(15, cold.proposedMiddle.fanEnd)
+        assertEquals(Mode.DRY, cold.proposedMiddle.mode)
+    }
+
+    @Test
+    fun aFanSuggestionOutsideTheLimitsIsNotOffered() = runBlocking {
+        val repo = repository()
+        repo.saveProfile(Presets.winterWarm.copy(middle = Middle(Mode.COOL, fanStart = 50, fanEnd = 20, tempStart = 44, tempEnd = 44, rampSteps = 3),
+            limits = ProfileLimits(minFan = 15)))
+        repo.addRecord(completedNight("cold"))
+        assertNull(repo.recordMorningCheckIn("cold", MorningComfort.TOO_COLD)!!.suggestion)
+        repo.saveProfile(Presets.winterWarm.copy(middle = Middle(Mode.COOL, fanStart = 95, fanEnd = 60, tempStart = 44, tempEnd = 44, rampSteps = 3)))
+        repo.addRecord(completedNight("hot"))
+        assertNull(repo.recordMorningCheckIn("hot", MorningComfort.TOO_HOT)!!.suggestion)
     }
 
     @Test

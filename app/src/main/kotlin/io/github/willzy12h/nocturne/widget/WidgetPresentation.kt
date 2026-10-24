@@ -29,5 +29,9 @@ fun widgetWake(context: Context, night: io.github.willzy12h.nocturne.core.night.
 fun widgetMode(context: Context, observation: io.github.willzy12h.nocturne.platform.DeviceObservation?): String {
     if (observation == null || observation.device != context.graph.repository.settings.value.deviceId()) return context.getString(io.github.willzy12h.nocturne.R.string.feature_unknown)
     val age=java.time.Duration.between(java.time.ZonedDateTime.parse(observation.at),context.graph.now()).toMinutes().coerceAtLeast(0)
-    return context.getString(io.github.willzy12h.nocturne.R.string.feature_mode_age,observation.mode,age,java.time.ZonedDateTime.parse(observation.at).format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm XXX")))
+    // The observation keeps the enum's name; the caption shows the mode in words, or Unknown for a name this version lacks.
+    val mode=runCatching { io.github.willzy12h.nocturne.core.protocol.Mode.valueOf(observation.mode) }.getOrNull()
+        ?: return context.getString(io.github.willzy12h.nocturne.R.string.feature_unknown)
+    return context.getString(io.github.willzy12h.nocturne.R.string.feature_mode_age,
+        context.getString(io.github.willzy12h.nocturne.ui.Format.modeNameRes(mode)),age,java.time.ZonedDateTime.parse(observation.at).format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm XXX")))
 }

@@ -56,6 +56,13 @@ class RecoveryNoticesTest {
         compose.onNodeWithText(s(R.string.restore_unfinished_details)).assertExists()
     }
 
+    @Test fun aStuckRestoreAloneOffersNoRestore() {
+        val state = UnreadableBannerState(listOf("restore-pending.json"), restoreUnfinished = true, originalsBlocked = false)
+        assertFalse(state.offersRestore)
+        banner(state, mutableListOf())
+        compose.onAllNodesWithText(s(R.string.unreadable_restore)).assertCountEquals(0)
+    }
+
     @Test fun aStuckRestoreBesideOtherFilesKeepsBothMessages() {
         val state = UnreadableBannerState(listOf("restore-pending.json", "history.json"), restoreUnfinished = true, originalsBlocked = false)
         assertEquals(listOf("history.json"), state.setAside)
@@ -63,6 +70,7 @@ class RecoveryNoticesTest {
         banner(state, mutableListOf())
         compose.onNodeWithText(s(R.string.restore_unfinished_title)).assertExists()
         compose.onNodeWithText(s(R.string.unreadable_banner)).assertExists()
+        compose.onNodeWithText(s(R.string.unreadable_restore)).assertExists()
     }
 
     @Test fun aDamagedJournalSetAsideIsAnOrdinaryUnreadableFile() {

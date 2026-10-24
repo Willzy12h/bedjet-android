@@ -28,6 +28,17 @@ object Format {
         return if (fahrenheit) "${(celsius * 9 / 5 + 32).roundToInt()}°F" else "${if (halfCelsius % 2 == 0) celsius.roundToInt().toString() else celsius.toString()}°C"
     }
 
+    /** The mode's name as a resource, for surfaces outside Compose such as widgets. */
+    fun modeNameRes(mode: Mode): Int = when (mode) {
+        Mode.STANDBY -> io.github.willzy12h.nocturne.R.string.mode_off
+        Mode.HEAT -> io.github.willzy12h.nocturne.R.string.mode_heat
+        Mode.TURBO -> io.github.willzy12h.nocturne.R.string.mode_turbo
+        Mode.EXTENDED_HEAT -> io.github.willzy12h.nocturne.R.string.mode_gentle_heat
+        Mode.COOL -> io.github.willzy12h.nocturne.R.string.mode_cool
+        Mode.DRY -> io.github.willzy12h.nocturne.R.string.mode_dry
+        Mode.WAIT -> io.github.willzy12h.nocturne.R.string.mode_pause
+    }
+
     fun modeName(mode: Mode): String = when (mode) {
         Mode.STANDBY -> "Off"
         Mode.HEAT -> "Heat"

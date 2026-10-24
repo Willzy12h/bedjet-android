@@ -19,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.night.NightActions.Command
@@ -70,7 +72,7 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
     if (stopTracking) AlertDialog(
         onDismissRequest = { stopTracking = false },
         title = { Text("Stop tracking this night?") },
-        text = { Text("This removes Nocturne's local night record. It does not send an Off command to the BedJet. Check the BedJet before starting another programme.") },
+        text = { Text(stringResource(R.string.stop_tracking_text)) },
         confirmButton = { TextButton(onClick = { stopTracking = false; model.run(Command.STOP_TRACKING) }) { Text("Stop tracking") } },
         dismissButton = { TextButton(onClick = { stopTracking = false }) { Text("Keep tracking") } },
     )

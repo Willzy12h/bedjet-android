@@ -66,7 +66,9 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
         WidgetUpdater.start(context)
         scope.launch { actions.initialise() }
         scope.launch {
-            combine(repository.settingsPublication, repository.activeNight) { _, _ -> Unit }.collect {
+            // A pending wake-up change re-posts the quiet status too, so it never says "Waking at" while Tonight says pending.
+            combine(repository.settingsPublication, repository.activeNight,
+                repository.runtime.map { it.retime != null || it.alarmInbox != null }.distinctUntilChanged()) { _, _, _ -> Unit }.collect {
                 actions.refreshQuietNotification()
             }
         }

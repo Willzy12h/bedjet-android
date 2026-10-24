@@ -1,8 +1,140 @@
 # Nocturne release candidate report
 
+## Candidate integration — 24 October 2026
+
+The checked working source combines the published Part A head
+`0761e37085f3ae429f5d9a83d42b2541e7a14891` with candidate
+`0c91d25935a3d4b093abc2095c8a3637e2d8ca99`, which includes the P5 changes and the
+earlier `1612bdb` release follow-up. Conflict resolution retains the stricter
+rejection of every required class listed as removed in R8 `usage.txt`, the
+separate post-R8 JVM fixture execution and the removal of the moved-member
+fallback. The other release workflow, harness, fixture, helper and requirements
+files are unchanged from the published Part A head; action pins, the `production`
+environment declaration and signing/hash requirements are preserved.
+
+### Merged-source required gate
+
+The fresh `:core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`
+gate passed in **7 minutes 21 seconds**, with **60 tasks: 56 executed and four
+up-to-date**. All **197 frozen input file hashes** remained unchanged through
+the gate. Counts come from the preserved merged-source JUnit XML.
+
+| Suite | Suites | Discovered | Passed | Failed | Errors | Skipped |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Core | 20 | 156 | 156 | 0 | 0 | 0 |
+| App debug | 59 | 472 | 466 | 0 | 0 | 6 |
+| **Total** | **79** | **628** | **622** | **0** | **0** | **6** |
+
+Debug assembly passed. Lint recorded **zero errors, zero fatal issues, 23 warnings
+and one hint**. The six skips remain the existing opt-in `ScreenshotCapture`
+methods; this gate does not claim fresh screenshots.
+
+The four `ManualWakeTitleTest` methods are included in the app total and all
+passed. Before the notification-title correction, the same four-test regression
+suite produced two expected assertion failures, for an unknown manual end and a
+Remote adjustment reusing the previous manual end; its two controls passed.
+The helper rerun passed **21 signing/artefact, eight screenshot-helper and 35
+serialisation tests**. Actionlint `1.7.12` passed.
+
+Preserved merged-source evidence is under `followups-evidence/integration/`:
+`required-tests-counts.json`, `required-suites.json`, `required-gate-xml/`,
+`lint-results-debug.xml`, `required-gate.log` and the
+`manual-wake-title-red.*` records.
+
+### Merged-source release evidence
+
+The combined release harness/export/build passed in **2 minutes 2 seconds**, with
+**61 tasks: 56 executed and five up-to-date**. Release JUnit records **two methods
+passed, zero failures, errors or skips**: the complete model fixture round trips
+and private snapshot-wrapper persistence. Those are the pre-R8 JUnit methods;
+the subsequent execution of the same harness on separate R8 classfiles is
+reported below.
+
+| Post-R8 JVM check | Integrated-source observed result |
+| --- | --- |
+| R8 compiler | `8.10.24`, from the resolved AGP artefact |
+| Input release/harness classfiles | **1,025** |
+| Production serialisable models / JSON cases | **48 / 105**, all passed |
+| Shared fixture methods | Both completed, including private snapshot-wrapper persistence |
+| Models renamed / executed model hashes changed | **48 / 48** for each check |
+| Production classes removed | **881** |
+| Input / output jar size | **2,465,835 / 201,146 bytes** |
+| Output jar SHA-256 | `17bd98a0af3e80a06b84a7e4a5ef9de17faf949bc224305ba00cb9d1c7c082bd` |
+| Fixture SHA-256 | `d5602f0961190359ad2864e22c32d681d0643565d66100ef0c12cc45443aa8f6` |
+
+The runtime run used companion serializer-factory test roots and **202 unshrunk
+dependency jars**, with JVM bytecode verification and no original app/core jars
+on its runtime classpath. Existing application and serialization consumer rules
+remain in effect; no blanket model/serializer keep rule or optimisation-disabling
+switch was added. The gate checks the compiled model, fixture, compiler, rules,
+input/output, dependency and execution-log hashes, matches loaded model names and
+bytes to the shrunk jar, and requires actual model renaming and class removal.
+
+The combined gate passed for all **48 models and 105 cases**. Its actual APK
+structural result is **one DEX, 4,470 defined classes, R8 `8.10.24` full mode and
+mapping ID `bc4fc8d`**. Every model and serializer check uses direct
+`mapped-class` evidence, and none is listed as removed in the APK's R8 usage
+report. The separately executed R8 version matches the APK mapping. The fresh
+merged-manifest gate passed for **39 components**, with the component inventory
+equal to the pre-integration inventory. All **197 frozen input file hashes**
+remained unchanged after the release checks as well.
+
+**Proof boundary:** the shared fixtures executed on separate R8 classfile output
+with test entry points and unshrunk dependency jars. The actual APK DEX was
+inspected structurally and was **not executed**. The JVM run does not reproduce
+Android entry-point reachability, whole-program dependency shrinking or
+DEX-specific optimisation, and establishes no Android restoration, widget,
+arbitrary historical schema or physical acceptance result. The combined report
+records `shrunkJvmRuntimeExecuted: true` and `apkRuntimeExecuted: false`.
+
+### Integrated-source local unsigned validation APK
+
+| Local validation APK | Exact value |
+| --- | --- |
+| Preserved APK | `followups-evidence/integration/integration-unsigned.apk` |
+| Version name / code | `0.1.0` / `1` |
+| APK size | **4,327,639 bytes** |
+| APK SHA-256 | `c22f916ccb2dc1de15e6a4b2645761a582ed11c45395f0c00f4c6a02ac015de4` |
+| Signing identity / signer certificate | **Unsigned / none** |
+| Recorded source commit | `null` — uncommitted candidate-integration working tree |
+
+The APK size and digest were recomputed from the preserved file. Its version was
+checked with Android build tools. The unsigned-structure check passed and
+`apksigner` returned the expected exit code `1`, with no certificate. Its embedded
+VCS metadata records `generate_error_reason: NO_VALID_GIT_FOUND`.
+
+This APK was built from the checked, uncommitted integration source before the
+merge/handover commit. `unsigned-apk-metadata.json` records both integration
+parents, the working-tree source kind and a null source commit. The frozen source
+hashes and release artefact hashes bind the local checks to their tested bytes;
+they do not assign the APK to a future Git head. This is a local validation
+artefact, with no commit-pinned candidate provenance claim.
+
+The integration evidence directory preserves `release-build.log`,
+`release-serialization-junit.xml`, `serialization-shrunk/shrunk-runtime.json`,
+`serialization-shrunk-driver.log`, `release-serialization.json`,
+`release-serialization-gate.log`, `release-manifest/report.json` and
+`unsigned-apk-metadata.json`. The saved JUnit XML matches the JUnit hash bound by
+the fresh runtime report. The older Part A results below remain pre-integration
+evidence with their original artefact identities.
+
+**CI for the final merged branch head remains pending at this report's
+pre-publication freeze.** Use [PR #2](https://github.com/Willzy12h/bedjet-android/pull/2) and the
+Build run whose `head_sha` matches the containing commit to establish CI success,
+its exact source commit/tree and its own package identity.
+Historical run `40035597694` remains tied to `2d9ebf4`; neither it nor the
+pre-integration Part A APK is a build of this integration. No production tag, signing
+run or owner-setting change is part of the integration.
+
 ## Part A — 24 October 2026
 
-The current follow-up starts from candidate
+**Pre-integration record:** this section preserves the local working-source
+checks recorded before candidate `0c91d259` was integrated, subsequently
+published through `0761e37`. Its local APK was built before the handover commits;
+the source-provenance limitation recorded below remains in force. Use the
+candidate-integration section above for the current validation state.
+
+The pre-integration Part A work started from candidate
 `3c3a64e91a20524f0ed6b39f84123067c38cbe3c`. The reviewed release implementation from
 `1612bdb74f4c6584e0e7c017895454071fecfc12` has been carried forward after confirming
 that the candidate made no intervening changes to these release files. Its action
@@ -10,7 +142,7 @@ pins, `production` environment declaration, signing/hash checks and hashed Pillo
 requirements are retained. No GitHub environment, reviewer, ruleset, variable,
 secret or other owner setting has been changed.
 
-### Current verification state
+### Verification before candidate integration
 
 The serialisation structural gate now rejects a required model or its executed
 serializer when its original class name is listed as removed in R8 `usage.txt`,
@@ -23,7 +155,7 @@ The final helper rerun also passed **21 signing/artefact tests** and **8
 screenshot-helper tests**. Actionlint `1.7.12` accepted the workflow. These helper
 results are separate from the application build and release execution.
 
-### Current required gate
+### Required gate before candidate integration
 
 The final `:core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`
 gate passed in **6 minutes 57 seconds**, with **59 tasks: 16 executed and 43
@@ -39,13 +171,13 @@ the release invocation.
 Debug assembly passed. Lint recorded **zero errors, zero fatal issues, 23 warnings
 and one hint**. The six skipped tests are the existing opt-in screenshot captures;
 this gate does not claim a fresh render result. All **173 tested input file
-hashes** matched the current working source.
+hashes** matched the pre-integration working source.
 
 The preserved evidence is `required-tests-counts.json`, `required-suites.json`,
 `required-gate-xml/`, `lint-results-debug.xml` and `required-gate.log` in the
-current follow-up evidence directory.
+pre-integration follow-up evidence directory.
 
-### Current release evidence
+### Release evidence before candidate integration
 
 The combined release invocation passed in **1 minute 53 seconds**, with **61
 tasks: 58 executed and 3 up-to-date**. It ran the shared
@@ -61,7 +193,7 @@ control, and an explicit `null` case is included. All **48 models and 105 fixtur
 cases** pass before and after separate R8 JVM shrinking. The computed
 `ActiveNight.hasPlannedManualEnd` property adds no persisted field.
 
-| Post-R8 JVM check | Current observed result |
+| Post-R8 JVM check | Pre-integration observed result |
 | --- | --- |
 | R8 compiler | `8.10.24`, from the resolved AGP `8.10.1` artefact |
 | Input release/harness classfiles | **1,011** |
@@ -100,11 +232,11 @@ compatibility or physical BedJet acceptance. The report deliberately records
 The preserved release evidence is `release-build.log`,
 `release-serialization-junit.xml`, `serialization-shrunk/shrunk-runtime.json`,
 `serialization-shrunk-driver.log`, `release-serialization.json`,
-`release-serialization-gate.log` and `release-manifest/report.json` in the current
-follow-up evidence directory. The saved JUnit XML matches the JUnit hash bound by
+`release-serialization-gate.log` and `release-manifest/report.json` in the
+pre-integration evidence directory. The saved JUnit XML matches the JUnit hash bound by
 the runtime report.
 
-### Current local unsigned validation APK
+### Local unsigned validation APK before candidate integration
 
 | Local validation APK | Exact value |
 | --- | --- |
@@ -187,8 +319,8 @@ production identity, and no APK installation or physical acceptance is claimed.
 
 **Historical record:** this section records the working-source verification
 subsequently committed as `1612bdb74f4c6584e0e7c017895454071fecfc12`. Its counts,
-hashes and local APK refer to that earlier work. Use the Part A section above
-for the current follow-up's status.
+hashes and local APK refer to that earlier work. Use the candidate-integration
+section above for the current follow-up's status.
 
 That follow-up was on `gpt/nocturne-docs-guard`, branched from the then-latest fetched
 `origin/claude/nocturne-final-candidate`, commit

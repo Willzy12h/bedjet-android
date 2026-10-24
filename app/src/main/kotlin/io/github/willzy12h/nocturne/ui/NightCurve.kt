@@ -46,14 +46,16 @@ import java.time.ZonedDateTime
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = null, legend: Boolean = false) {
+fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = null, legend: Boolean = false, end: PlanEnd? = null) {
     val total = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1).toFloat()
     val outline = MaterialTheme.colorScheme.outlineVariant
     val nowColor = MaterialTheme.colorScheme.onSurfaceVariant
     val wakeColor = nocturneColors.accent
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
-    val description = "Night plan from ${Format.clock(plan.start)} to ${Format.clock(plan.end)}; wake ${Format.clock(plan.wake)}. " +
+    // A kept manual run has no wake programme: it is described, labelled and drawn by its own end instead.
+    val description = "Night plan from ${Format.clock(plan.start)} to ${Format.clock(plan.end)}; " +
+        (end?.let { "${it.label} ${Format.clock(it.at)}. " } ?: "wake ${Format.clock(plan.wake)}. ") +
         plan.steps.joinToString("; ") { step ->
             "${Format.clock(step.startsAt)} ${blockName(step.block)} ${Format.modeName(step.step.mode)}, fan ${(step.step.fanStep + 1) * 5}%, ${step.minutes} minutes"
         }
@@ -71,7 +73,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 drawRoundRect(color, Offset(x + 1, top), Size(w - 2, h), CornerRadius(4.dp.toPx()))
             }
             val wakeX = Duration.between(plan.start, plan.wake).toMinutes() / total * size.width
-            drawLine(wakeColor, Offset(wakeX, 0f), Offset(wakeX, size.height), 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
+            if (end == null) drawLine(wakeColor, Offset(wakeX, 0f), Offset(wakeX, size.height), 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
             if (now != null && now.isAfter(plan.start) && now.isBefore(plan.end)) {
                 val nowX = Duration.between(plan.start, now).toMinutes() / total * size.width
                 drawLine(nowColor, Offset(nowX, 0f), Offset(nowX, size.height), 2.dp.toPx())
@@ -80,7 +82,8 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
         Row(Modifier.fillMaxWidth()) {
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Text(Format.clock(plan.start), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f))
-            Text("Wake ${Format.clock(plan.wake)}", style = MaterialTheme.typography.labelSmall, color = wakeColor, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            Text(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: "Wake ${Format.clock(plan.wake)}", style = MaterialTheme.typography.labelSmall,
+                color = if (end == null) wakeColor else muted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text(Format.clock(plan.end), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
         if (legend) {
@@ -95,6 +98,9 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
         }
     }
 }
+
+/** How a plan with no wake programme (a kept manual run) ends: "Manual run until", or "Planned end" while unconfirmed. */
+data class PlanEnd(val label: String, val at: ZonedDateTime)
 
 /** -1 is the strongest cooling, +1 the strongest heat. */
 private fun level(mode: Mode, temperature: Int, fanPercent: Int): Float = when (mode) {
@@ -169,7 +175,7 @@ fun timelineEntries(plan: Plan): List<TimelineEntry> {
  * the wake time; anything that runs after waking is summarised on that last line.
  */
 @Composable
-fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier: Modifier = Modifier, now: ZonedDateTime? = null) {
+fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier: Modifier = Modifier, now: ZonedDateTime? = null, end: PlanEnd? = null) {
     val entries = timelineEntries(plan)
     val (before, after) = entries.partition { it.block != Block.AFTER_WAKE }
     val colors = nocturneColors
@@ -186,14 +192,15 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
                 last = false,
             )
         }
+        if (end != null) {
+            TimelineRow(time = Format.clock(end.at), dot = colors.idle, title = end.label, detail = null,
+                titleColor = MaterialTheme.colorScheme.onSurface, bold = true, last = true)
+            return@Column
+        }
         TimelineRow(
             time = Format.clock(plan.wake),
             dot = colors.accent,
-            title = when (origin) {
-                WakeOrigin.ALARM -> stringResource(R.string.wake_origin_alarm)
-                WakeOrigin.OVERRIDE -> stringResource(R.string.wake_origin_override)
-                WakeOrigin.PROFILE_DEFAULT -> stringResource(R.string.wake_time)
-            },
+            title = wakeOriginLabel(origin, WakeLabelStyle.TIMELINE),
             detail = after.takeIf { it.isNotEmpty() }?.joinToString(", ", prefix = "Then ") { "${Format.modeName(it.mode).lowercase()} for ${Format.duration(it.minutes)}" },
             titleColor = colors.accent,
             bold = true,

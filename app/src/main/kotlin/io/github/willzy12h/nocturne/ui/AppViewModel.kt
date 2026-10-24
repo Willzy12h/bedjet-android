@@ -294,6 +294,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Saving happens off the main thread; the screens update once it is on disk.
 
     fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
+    /** "Next night": saved for later nights only; the running night keeps its snapshot, and the person is told so (U10). */
+    fun saveProfileForNextNight(profile: Profile) = save {
+        repo.saveProfile(profile)
+        _messages.tryEmit(getApplication<Application>().getString(R.string.next_night_saved))
+    }
     fun deleteProfile(id: String) = save { repo.deleteProfile(id) }
     fun updateSettings(change: (Settings) -> Settings) = save {
         // Shown once with the owner's feed; a plain save is not announced.
@@ -337,10 +342,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Writes the diagnostics file the person chose (NightActions.diagnostics: no update token). */
-    fun exportDiagnostics(uri: android.net.Uri) {
+    fun exportDiagnostics(uri: android.net.Uri,
+        open: ((android.net.Uri) -> java.io.OutputStream?)? = null) {
         val app = getApplication<Application>()
         graph.scope.launch {
-            runCatching { graph.actions.exportDiagnostics(uri) }
+            runCatching { if (open == null) graph.actions.exportDiagnostics(uri) else graph.actions.exportDiagnostics(uri, open) }
                 .onSuccess { _messages.tryEmit(app.getString(R.string.settings_diagnostics_saved)) }
                 .onFailure { if (it is CancellationException) throw it
                     _messages.tryEmit(app.getString(R.string.settings_diagnostics_failed, it.message.orEmpty())) }
@@ -388,6 +394,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun selectBedJet(address: String) = act(hardware = false) {
         graph.actions.selectTarget("ble:$address", useRealDevice = true)
     }
+
+    /** Setup's separate "Use demo instead": Demo on, the real target left as it is (null stays null). */
+    fun useDemo() = act(hardware = false) { graph.actions.setDemoMode(true) }
 
     fun runSetupFanCheck() = act { graph.actions.setupFanCheck() }
 

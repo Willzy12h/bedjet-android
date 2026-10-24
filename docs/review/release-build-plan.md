@@ -2,7 +2,7 @@
 
 **Historical plan:** this records the 23 October release implementation and its
 original branch scope. Current follow-up status and separately identified CI
-artefacts are recorded in the [Part A release report](release-candidate-report.md#part-a--24-october-2026).
+artefacts are recorded in the [candidate-integration report](release-candidate-report.md#candidate-integration--24-october-2026).
 
 **Goal:** deliver a verified, test-signed, shrunk BedJet 3 APK and a scoped branch for Claude to merge.
 

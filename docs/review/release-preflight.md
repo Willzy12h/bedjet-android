@@ -1,6 +1,6 @@
 # Task 7 release preflight — 22 October 2026
 
-**Historical preflight:** this records the 22 October checkout and tool availability. The [Part A release follow-up](release-candidate-report.md#part-a--24-october-2026) carries forward the separate R8 classfile runtime check and rejects required classes listed as removed by R8. The APK DEX check remains structural proof only; the old signing/workflow observations below are not a description of the current branch.
+**Historical preflight:** this records the 22 October checkout and tool availability. The [candidate-integration report](release-candidate-report.md#candidate-integration--24-october-2026) records the current validation state. The retained gate executes shared fixtures on separate R8 classfile output, rejects required classes listed as removed by R8 and has no moved-member fallback. The APK DEX check remains structural proof only; the old signing/workflow observations below are not a description of the current branch.
 
 Read-only preparation, not implementation or task review. No builds, installations, keys, emulator/device sessions or repository edits performed. Inspected repository `/workspace/scratch/ad4eb857ceea/nocturne-hardening`; requested code base a5d01c1, observed HEAD 46be6becf2e704f54047cc65463f6bf1575aa1e9 (documentation-only continuation commit). Task 4–6 changes must be incorporated before release verification. All paths below are absolute or relative to that repository as stated.
 

@@ -12,6 +12,7 @@
     <string name="runtime_profile_deleted">That profile was deleted.</string>
     <string name="runtime_no_night">No night running.</string>
     <string name="runtime_manual_tracking">Tracking a manual run. Alarm changes will not restart the night.</string>
+    <string name="runtime_manual_unconfirmed">Manual run not confirmed</string>
     <string name="runtime_started">%1$s started. Waking you at %2$s.</string>
     <string name="runtime_reapplied">Changes applied to %1$s. Waking you at %2$s.</string>
     <string name="runtime_retimed">%1$s wake-up moved to %2$s.</string>

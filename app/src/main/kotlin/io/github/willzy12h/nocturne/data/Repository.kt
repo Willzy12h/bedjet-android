@@ -73,7 +73,13 @@ data class MiddleSuggestion(
     val expectedMiddle: Middle,
     val expectedLimits: ProfileLimits,
     val proposedMiddle: Middle,
-)
+) {
+    /** A fan change (Cool or Dry Middle) rather than a temperature change. */
+    val changesFan: Boolean get() = proposedMiddle.fanStart != expectedMiddle.fanStart || proposedMiddle.fanEnd != expectedMiddle.fanEnd
+}
+
+/** Middles whose comfort is adjusted by fan speed, not temperature (P5). */
+private val FAN_COMFORT_MODES = setOf(io.github.willzy12h.nocturne.core.protocol.Mode.COOL, io.github.willzy12h.nocturne.core.protocol.Mode.DRY)
 
 data class MorningCheckIn(
     val night: NightRecord,
@@ -298,7 +304,8 @@ class Repository(
         if (profile.middle != suggestion.expectedMiddle || profile.limits != suggestion.expectedLimits ||
             proposedMiddle(profile, suggestion.comfort) != suggestion.proposedMiddle) return@serially false
         val profiles = _profiles.value.map { if (it.id == profile.id) it.copy(middle = suggestion.proposedMiddle) else it }
-        val detail = "Accepted a 1 °C ${if (suggestion.comfort == MorningComfort.TOO_HOT) "lower" else "higher"} Middle temperature"
+        val detail = if (suggestion.changesFan) "Accepted 10% ${if (suggestion.comfort == MorningComfort.TOO_HOT) "more" else "less"} fan in Middle"
+            else "Accepted a 1 °C ${if (suggestion.comfort == MorningComfort.TOO_HOT) "lower" else "higher"} Middle temperature"
         val history = History.addEvent(_history.value, night.id,
             HistoryEvent(now().toString(), EventKind.MORNING_SUGGESTION_APPLIED, detail))
         writeAllOrNone(listOf(
@@ -313,7 +320,10 @@ class Repository(
     }
 
     private fun proposedMiddle(profile: Profile, comfort: MorningComfort): Middle? {
-        if (comfort == MorningComfort.JUST_RIGHT || !profile.middle.mode.usesTemperature) return null
+        if (comfort == MorningComfort.JUST_RIGHT) return null
+        // Cooling is felt as fan speed: a Cool or Dry Middle moves its fan by 10 per cent (more when too hot).
+        if (profile.middle.mode in FAN_COMFORT_MODES) return proposedFan(profile, comfort)
+        if (!profile.middle.mode.usesTemperature) return null
         val delta = if (comfort == MorningComfort.TOO_HOT) -2 else 2
         val middle = profile.middle.copy(tempStart = profile.middle.tempStart + delta, tempEnd = profile.middle.tempEnd + delta)
         val limits = profile.limits
@@ -325,6 +335,16 @@ class Repository(
             limits.minTemp > limits.maxTemp || !validTemperature(profile.middle.tempStart) ||
             !validTemperature(profile.middle.tempEnd) || !validTemperature(middle.tempStart) ||
             !validTemperature(middle.tempEnd)) return null
+        return middle
+    }
+
+    private fun proposedFan(profile: Profile, comfort: MorningComfort): Middle? {
+        val delta = if (comfort == MorningComfort.TOO_HOT) 10 else -10
+        val middle = profile.middle.copy(fanStart = profile.middle.fanStart + delta, fanEnd = profile.middle.fanEnd + delta)
+        val limits = profile.limits
+        fun valid(fan: Int) = fan in 5..100 && fan % 5 == 0 && fan in limits.minFan..limits.maxFan
+        if (limits.minFan > limits.maxFan || middle.rampSteps !in 1..8 || !valid(profile.middle.fanStart) || !valid(profile.middle.fanEnd) ||
+            !valid(middle.fanStart) || !valid(middle.fanEnd)) return null
         return middle
     }
 

@@ -128,4 +128,12 @@ class TonightCompletenessTest {
         idle(1_000)
         assertEquals(emptyList<String>(), seen.toList())
     }
+
+    @Test fun stopTrackingSaysItDoesNotTurnTheBedJetOff() {
+        compose.onNodeWithText("Start night now").performScrollTo().performClick()
+        waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED && graph.actions.busy.value.runningLabel == null }
+        compose.onNodeWithText("Stop tracking").performScrollTo().performClick()
+        compose.onNodeWithText(s(R.string.stop_tracking_text)).assertIsDisplayed()
+        assertTrue(compose.onAllNodes(hasText("removes", substring = true)).fetchSemanticsNodes().isEmpty())
+    }
 }
