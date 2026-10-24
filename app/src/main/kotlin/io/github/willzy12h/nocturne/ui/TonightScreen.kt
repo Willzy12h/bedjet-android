@@ -143,7 +143,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             val live = profiles.firstOrNull { it.id == running.profileId }
             if (running.profile != null && live != null && live != running.profile) Note(stringResource(R.string.tonight_edits_next_night, live.name))
             // A kept manual run has no wake programme: it runs until its own end, so that is what is shown.
-            val manualUntil = if (running.trackingManual) stringResource(R.string.tonight_manual_until) else null
+            val manualUntil = if (!running.trackingManual) null
+                else stringResource(if (confirmed) R.string.tonight_manual_until else R.string.planned_end)
             when {
                 simple -> Unit // The timeline below ends with the wake time.
                 manualUntil != null && dark -> WakeHeadline(manualUntil, Format.clock(running.endsAt), null)
@@ -161,7 +162,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             // Mid-night the controls come before the plan: they're what you reach for, and up here the
             // "night started" snackbar at the bottom of the screen doesn't cover them.
             if (confirmed) BigButton("End night", onClick = { guard.confirm("turn the BedJet off") { model.run(Command.END_NIGHT) } })
-            plan?.let { PlanCard(it, settings, running.wakeOrigin, now = now) }
+            val end = manualUntil?.let { label -> runCatching { PlanEnd(label, ZonedDateTime.parse(running.endsAt)) }.getOrNull() }
+            plan?.let { PlanCard(it, settings, running.wakeOrigin, now = now, end = end) }
         } else {
             val choiceId = settings.resolveTonightChoice(now)?.profileId
             val scheduleWindow = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
@@ -281,14 +283,14 @@ private fun StatTile(label: String, value: String, note: String?, modifier: Modi
 
 /** The night itself: the bar curve, or in simple view the step list. */
 @Composable
-private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: ZonedDateTime?) {
+private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: ZonedDateTime?, end: PlanEnd? = null) {
     Card(Modifier.fillMaxWidth(), colors = surfaceCard(), border = cardBorder()) {
         Column(Modifier.padding(16.dp)) {
             if (settings.simpleView) {
-                NightTimeline(plan, origin, settings.fahrenheit, now = now)
+                NightTimeline(plan, origin, settings.fahrenheit, now = now, end = end)
             } else {
                 Text("The night", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                NightCurve(plan, now = now, legend = !nocturneColors.dark)
+                NightCurve(plan, now = now, legend = !nocturneColors.dark, end = end)
             }
         }
     }

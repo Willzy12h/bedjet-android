@@ -67,11 +67,14 @@ object Notifications {
     /** The wake-up notification. It stays until the night ends or Off is pressed. */
     fun showWakeUp(context: Context, night: ActiveNight, settings: Settings, status: String? = null, logNotice: Boolean = true) {
         val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
-        if (logNotice) log(context, NoticeKind.WAKE_UP, "Waking you at $wake", status ?: "Your BedJet is getting you ready to wake up.")
+        // A manual run (snooze, extend, kept run) has no wake programme: it runs until its own end (P3b review).
+        val title = if (night.trackingManual) context.getString(R.string.feature_manual_until,
+            ZonedDateTime.parse(night.endsAt).format(DateTimeFormatter.ofPattern("HH:mm"))) else "Waking you at $wake"
+        if (logNotice) log(context, NoticeKind.WAKE_UP, title, status ?: "Your BedJet is getting you ready to wake up.")
         if (!canPost(context)) return
         val builder = Notification.Builder(context, CHANNEL_WAKE)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Waking you at $wake")
+            .setContentTitle(title)
             .setContentText(status ?: "Your BedJet is getting you ready to wake up.")
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_STATUS)
@@ -83,12 +86,13 @@ object Notifications {
         context.getSystemService(NotificationManager::class.java).notify(WAKE_ID, builder.build())
     }
 
-    fun showQuiet(context: Context, night: ActiveNight, settings: Settings) {
+    fun showQuiet(context: Context, night: ActiveNight, settings: Settings, wakePending: Boolean = false) {
         if (!settings.quietNightNotification || night.trackingManual || night.confidence != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED) { cancelQuiet(context); return }
         if (!canPost(context)) return
         val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
+        // While a wake-up change is pending, say so, as Tonight does, instead of a plain "Waking at".
         val notification = Notification.Builder(context, CHANNEL_WORKING).setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.runtime_quiet, wake)).setContentIntent(openApp(context)).setOngoing(true).setOnlyAlertOnce(true)
+            .setContentTitle(context.getString(if (wakePending) R.string.quiet_pending else R.string.runtime_quiet, wake)).setContentIntent(openApp(context)).setOngoing(true).setOnlyAlertOnce(true)
             .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_end), BedJetService.pendingIntent(context, NightActions.Command.END_NIGHT)).build())
             .build()
         context.getSystemService(NotificationManager::class.java).notify(6, notification)

@@ -39,4 +39,6 @@
     <string name="wake_requested_unknown">A new wake time is waiting for your BedJet to confirm.</string>
     <string name="override_expiry">Tonight only: it lapses at %1$s on %2$s. After that your profile and alarm decide the wake time again.</string>
     <string name="quiet_pending">Wake-up change pending (planned %1$s)</string>
+    <!-- Kept manual run (P3b review) -->
+    <string name="planned_end">Planned end</string>
 </resources>
