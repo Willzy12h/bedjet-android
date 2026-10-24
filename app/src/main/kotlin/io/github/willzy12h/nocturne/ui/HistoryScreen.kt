@@ -133,12 +133,21 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                     title = { Text(stringResource(R.string.checkin_change_title)) },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(stringResource(R.string.checkin_change_intro, profile?.name ?: stringResource(R.string.checkin_this_profile),
-                                stringResource(if (proposal.comfort == MorningComfort.TOO_HOT) R.string.checkin_lower else R.string.checkin_raise)))
-                            Text(stringResource(R.string.checkin_start_change, Format.temp(proposal.expectedMiddle.tempStart, settings.fahrenheit),
-                                Format.temp(proposal.proposedMiddle.tempStart, settings.fahrenheit)))
-                            Text(stringResource(R.string.checkin_end_change, Format.temp(proposal.expectedMiddle.tempEnd, settings.fahrenheit),
-                                Format.temp(proposal.proposedMiddle.tempEnd, settings.fahrenheit)))
+                            val name = profile?.name ?: stringResource(R.string.checkin_this_profile)
+                            if (proposal.changesFan) {
+                                // Cool or Dry: more fan when too hot, less when too cold.
+                                Text(stringResource(R.string.checkin_change_intro_fan, name,
+                                    stringResource(if (proposal.comfort == MorningComfort.TOO_HOT) R.string.checkin_raise else R.string.checkin_lower)))
+                                Text(stringResource(R.string.checkin_fan_start_change, proposal.expectedMiddle.fanStart, proposal.proposedMiddle.fanStart))
+                                Text(stringResource(R.string.checkin_fan_end_change, proposal.expectedMiddle.fanEnd, proposal.proposedMiddle.fanEnd))
+                            } else {
+                                Text(stringResource(R.string.checkin_change_intro, name,
+                                    stringResource(if (proposal.comfort == MorningComfort.TOO_HOT) R.string.checkin_lower else R.string.checkin_raise)))
+                                Text(stringResource(R.string.checkin_start_change, Format.temp(proposal.expectedMiddle.tempStart, settings.fahrenheit),
+                                    Format.temp(proposal.proposedMiddle.tempStart, settings.fahrenheit)))
+                                Text(stringResource(R.string.checkin_end_change, Format.temp(proposal.expectedMiddle.tempEnd, settings.fahrenheit),
+                                    Format.temp(proposal.proposedMiddle.tempEnd, settings.fahrenheit)))
+                            }
                             Text(stringResource(R.string.checkin_future_only))
                         }
                     },

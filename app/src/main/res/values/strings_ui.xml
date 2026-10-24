@@ -90,4 +90,8 @@
     <string name="event_recovered">Recovered</string>
     <string name="event_feedback">Morning check-in</string>
     <string name="event_suggestion">Profile change accepted</string>
+    <!-- Morning check-in fan suggestion (F09) -->
+    <string name="checkin_change_intro_fan">%1$s: %2$s the Middle fan by 10 per cent. Cooling is felt as fan speed.</string>
+    <string name="checkin_fan_start_change">Fan at the start: %1$d%% → %2$d%%</string>
+    <string name="checkin_fan_end_change">Fan at the end: %1$d%% → %2$d%%</string>
 </resources>
