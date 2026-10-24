@@ -28,4 +28,8 @@
     <string name="settings_diagnostics_export">Export diagnostics</string>
     <string name="settings_diagnostics_saved">Diagnostics saved.</string>
     <string name="settings_diagnostics_failed">Couldn\'t save diagnostics: %1$s</string>
+    <!-- Busy state (U07) -->
+    <string name="busy_running">Working on: %1$s</string>
+    <string name="busy_waiting">Waiting for the BedJet…</string>
+    <plurals name="busy_queued"><item quantity="one">%d more waiting</item><item quantity="other">%d more waiting</item></plurals>
 </resources>

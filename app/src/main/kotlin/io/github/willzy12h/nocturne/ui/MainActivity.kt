@@ -114,8 +114,8 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     val compactNavigation = configuration.fontScale >= 1.5f && configuration.screenWidthDp < 400
     val view = LocalView.current
     LaunchedEffect(model, view) {
-        model.graph.actions.outcomes.collect { outcome ->
-            when (outcome.kind) {
+        model.haptics.collect { kind ->
+            when (kind) {
                 OutcomeKind.ACCEPTED -> view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 OutcomeKind.CONFIRMED -> view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                 else -> Unit

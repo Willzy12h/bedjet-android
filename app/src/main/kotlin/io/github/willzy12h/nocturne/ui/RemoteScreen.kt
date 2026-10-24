@@ -42,6 +42,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Remote", style = MaterialTheme.typography.headlineMedium)
         ConnectionLine(model)
+        BusyIndicator(model)
         val s = status
         if (state != LinkState.READY || s == null) {
             Text("Connect to your BedJet to use the remote.", style = MaterialTheme.typography.bodyLarge)

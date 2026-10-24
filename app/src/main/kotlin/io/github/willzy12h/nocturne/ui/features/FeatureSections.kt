@@ -92,11 +92,15 @@ import kotlinx.coroutines.launch
     }
 }
 
-@Composable fun PhoneHandoverMenuItems(graph:Graph,onDismiss:()->Unit) {
+/** [onOutcome] shows the result in the app's own feedback (once, with the owner's feed); without it, a Toast. */
+@Composable fun PhoneHandoverMenuItems(graph:Graph,onOutcome:((io.github.willzy12h.nocturne.night.CommandOutcome)->Unit)?=null,onDismiss:()->Unit) {
     val released by graph.sessions.released.collectAsState()
     val settings by graph.repository.settings.collectAsState()
     val scope=rememberCoroutineScope()
     var busy by remember {mutableStateOf(false)}
+    fun show(outcome:io.github.willzy12h.nocturne.night.CommandOutcome) {
+        onOutcome?.invoke(outcome) ?: android.widget.Toast.makeText(graph.context,outcome.message,android.widget.Toast.LENGTH_LONG).show()
+    }
     fun work(action:suspend ()->io.github.willzy12h.nocturne.night.CommandOutcome) {
         if(busy)return
         busy=true
@@ -104,12 +108,12 @@ import kotlinx.coroutines.launch
         scope.launch {
             try {
                 val outcome=withContext(SubmissionTarget(target)) {action()}
-                android.widget.Toast.makeText(graph.context,outcome.message,android.widget.Toast.LENGTH_LONG).show()
+                show(outcome)
             } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
-                android.widget.Toast.makeText(graph.context,R.string.feature_operation_timeout,android.widget.Toast.LENGTH_LONG).show()
+                show(io.github.willzy12h.nocturne.night.CommandOutcome(io.github.willzy12h.nocturne.night.OutcomeKind.UNKNOWN,graph.context.getString(R.string.feature_operation_timeout)))
             } catch (e: kotlinx.coroutines.CancellationException) { throw e
             } catch (e: Exception) {
-                android.widget.Toast.makeText(graph.context,e.message ?: graph.context.getString(R.string.runtime_failed),android.widget.Toast.LENGTH_LONG).show()
+                show(io.github.willzy12h.nocturne.night.CommandOutcome(io.github.willzy12h.nocturne.night.OutcomeKind.FAILED,e.message ?: graph.context.getString(R.string.runtime_failed)))
             } finally {busy=false;onDismiss()}
         }
     }

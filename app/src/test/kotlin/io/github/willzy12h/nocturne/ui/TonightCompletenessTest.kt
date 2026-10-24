@@ -11,6 +11,8 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.RuntimeState
 import io.github.willzy12h.nocturne.night.SlotWrite
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -66,5 +68,64 @@ class TonightCompletenessTest {
         waitUntil { graph.repository.runtime.value.slotWrite == null }
         waitFor(s(R.string.runtime_slot_write_acknowledged))
         assertTrue(compose.onAllNodes(hasText(s(R.string.slot_write_checked))).fetchSemanticsNodes().isEmpty())
+    }
+
+    private val model get() = androidx.lifecycle.ViewModelProvider(compose.activity)[AppViewModel::class.java]
+
+    /** Everything the snackbar is asked to show, in order. */
+    private fun recordMessages(): MutableList<String> {
+        val seen = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val model = model
+        compose.runOnUiThread { graph.scope.launch { model.messages.collect { seen += it } } }
+        return seen
+    }
+    private fun idle(ms: Long) { repeat((ms / 50).toInt()) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50)) }; compose.waitForIdle() }
+
+    @Test fun theRunningCommandAndQueuedCountAreShownWhileTheyWait() {
+        val graph = graph
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        compose.runOnUiThread {
+            graph.scope.launch { graph.actions.remote("Lights test") { gate.await() } }
+            graph.scope.launch { graph.actions.remote("Second") { } }
+            graph.scope.launch { graph.actions.remote("Third") { } }
+        }
+        waitUntil { graph.actions.busy.value.runningLabel == "Lights test" && graph.actions.busy.value.queuedCount == 2 }
+        waitFor(s(R.string.busy_running, "Lights test"), substring = true)
+        waitFor(compose.activity.resources.getQuantityString(R.plurals.busy_queued, 2, 2), substring = true)
+        compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertExists()
+        gate.complete(Unit)
+        waitUntil { graph.actions.busy.value == io.github.willzy12h.nocturne.night.BusyState() }
+        waitUntil { compose.onAllNodes(hasText(s(R.string.busy_running, "Lights test"), substring = true)).fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test fun aTapOnTonightIsReportedExactlyOnce() {
+        val seen = recordMessages()
+        compose.onNodeWithText("Off").performScrollTo().performClick()
+        waitUntil { seen.isNotEmpty() }
+        idle(2_000)
+        assertEquals(seen.toString(), 1, seen.size)
+    }
+
+    @Test fun anOutcomeFromOutsideTheAppIsShownOnceWhileItIsOpen() {
+        val graph = graph
+        val seen = recordMessages()
+        var outcome: io.github.willzy12h.nocturne.night.CommandOutcome? = null
+        // As a widget, shortcut or alarm runs it: straight through the command owner, not the screen.
+        compose.runOnUiThread { graph.scope.launch {
+            outcome = graph.actions.execute(graph.actions.capture(io.github.willzy12h.nocturne.night.NightActions.Command.OFF))
+        } }
+        waitUntil { outcome != null && seen.isNotEmpty() }
+        idle(2_000)
+        assertEquals(listOf(outcome!!.message), seen.toList())
+        waitFor(outcome!!.message)
+    }
+
+    @Test fun aSavedSettingIsNotAnnounced() {
+        val seen = recordMessages()
+        val model = model
+        compose.runOnUiThread { model.updateSettings { it.copy(fahrenheit = true) } }
+        waitUntil { graph.repository.settings.value.fahrenheit }
+        idle(1_000)
+        assertEquals(emptyList<String>(), seen.toList())
     }
 }

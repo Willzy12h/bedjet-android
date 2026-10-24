@@ -64,7 +64,7 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
                 more = false
                 model.run(Command.RETIME)
             })
-            PhoneHandoverMenuItems(model.graph) { more = false }
+            PhoneHandoverMenuItems(model.graph, onOutcome = model::report) { more = false }
         }
     }
     if (stopTracking) AlertDialog(

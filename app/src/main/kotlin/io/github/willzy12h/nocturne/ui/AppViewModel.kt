@@ -28,6 +28,8 @@ import io.github.willzy12h.nocturne.core.store.UpdateChecker
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions
+import io.github.willzy12h.nocturne.night.CommandOutcome
+import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -94,16 +96,46 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _discovering = MutableStateFlow(false)
     val discovering: StateFlow<Boolean> = _discovering.asStateFlow()
 
-    /** Follows the live link, which changes when demo mode is switched. */
+    /** Follows the live link, which changes when demo mode is switched. Collected only while this model lives (U07). */
     val linkState: StateFlow<LinkState> = repo.settings.map { graph.link }.flatMapLatest { it.state }
-        .stateIn(graph.scope, SharingStarted.Eagerly, LinkState.SEARCHING)
-    val status: StateFlow<DeviceStatus?> = repo.settings.map { graph.link }.flatMapLatest { it.status }
-        .stateIn(graph.scope, SharingStarted.Eagerly, null)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, LinkState.SEARCHING)
+    /** The chosen BedJet's own status: a report from a session still on another unit is not shown. */
+    val status: StateFlow<DeviceStatus?> = repo.settings.flatMapLatest { s -> graph.link.sourcedStatus.map { displayedStatus(it, s.deviceId()) } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _busy = MutableStateFlow(false)
+    /** True while a request from this screen waits for a save or for the command owner. */
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
-    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    /** What the command owner is running now and how many requests wait behind it, from any origin (U07). */
+    val commandBusy: StateFlow<io.github.willzy12h.nocturne.night.BusyState> = graph.actions.busy
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages
+    private val _haptics = MutableSharedFlow<OutcomeKind>(extraBufferCapacity = 8)
+    /** Every command outcome's kind, for the accepted tick and the confirmed pattern. */
+    val haptics: SharedFlow<OutcomeKind> = _haptics
+    /** Outcomes already shown, by identity: the screen's own request and the owner's feed report the same object. */
+    private val shownOutcomes = ArrayDeque<CommandOutcome>()
+    private var screenVisible = false
+
+    init {
+        // The one in-app outcome collector (U08): widget, shortcut, alarm and charger outcomes are shown while the
+        // app is open, and an outcome this screen asked for is shown once, whichever side sees it first.
+        viewModelScope.launch {
+            graph.actions.outcomes.collect { outcome ->
+                _haptics.tryEmit(outcome.kind)
+                if (screenVisible) report(outcome)
+            }
+        }
+    }
+
+    /** Shows [outcome] once. A plain "Settings saved." is not announced: the screen already shows the change. */
+    fun report(outcome: CommandOutcome) {
+        if (shownOutcomes.any { it === outcome }) return
+        shownOutcomes.addLast(outcome)
+        while (shownOutcomes.size > 32) shownOutcomes.removeFirst()
+        if (outcome.kind == OutcomeKind.LOCAL && outcome.message == getApplication<Application>().getString(R.string.runtime_settings_saved)) return
+        _messages.tryEmit(outcome.message)
+    }
     private val _nextAlarm = MutableStateFlow<AlarmSource.NextAlarm?>(null)
     val nextAlarm: StateFlow<AlarmSource.NextAlarm?> = _nextAlarm.asStateFlow()
     private val _release = MutableStateFlow<Release?>(null)
@@ -120,6 +152,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Screen lifecycle: hold the BedJet while the app is on screen so the controls are live.
 
     fun onScreenVisible() {
+        screenVisible = true
         refreshAlarm()
         graph.sessions.holdForScreen(true)
         // An alarm change that couldn't reach the BedJet earlier.
@@ -130,7 +163,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         maybeAutoCheckUpdates()
     }
 
-    fun onScreenHidden() = graph.sessions.holdForScreen(false)
+    fun onScreenHidden() {
+        screenVisible = false
+        graph.sessions.holdForScreen(false)
+    }
 
     /** The connection chip: try the BedJet again. */
     fun reconnect() {
@@ -193,7 +229,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun run(command: NightActions.Command, profileId: String? = null, replacementConfirmed: Boolean = false) {
         val request = graph.actions.capture(command, profileId, requireIdentity = replacementConfirmed || confirmedNight != null)
             .let { it.copy(expected = confirmedNight ?: it.expected, replacementConfirmed = replacementConfirmed || confirmedNight != null) }
-        act(hardware = command != NightActions.Command.STOP_TRACKING) { graph.actions.execute(request).message }
+        act(hardware = command != NightActions.Command.STOP_TRACKING) { graph.actions.execute(request) }
     }
 
     /** A Remote control: sent straight to the BedJet. */
@@ -203,25 +239,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val captured = graph.actions.capture(NightActions.Command.OFF)
         val expected = confirmedNight ?: captured.expected
         act { graph.actions.remote(label, endsNight = endsNight, affectsProgramme = affectsProgramme,
-            target = captured.deviceId, expected = expected, confirms = confirms, work = work).message }
+            target = captured.deviceId, expected = expected, confirms = confirms, work = work) }
     }
 
     fun restoreSlot(backup: SlotBackup) = act {
-        if (backup.deviceId != repo.settings.value.deviceId()) "The selected BedJet changed. Check the saved slot before restoring."
+        if (backup.deviceId != repo.settings.value.deviceId()) refusal("The selected BedJet changed. Check the saved slot before restoring.")
         else if (repo.slotBackups.value.firstOrNull { it.deviceId == backup.deviceId && it.slot == backup.slot } != backup)
-            "The saved original changed. Check the slot before restoring."
-        else graph.actions.restoreOriginal(backup.slot).message
+            refusal("The saved original changed. Check the slot before restoring.")
+        else graph.actions.restoreOriginal(backup.slot)
     }
 
     fun pinProfile(profile: Profile, slot: Int, expectedTarget: String, expectedWorkingSlot: Int,
         previewedAt: ZonedDateTime, expectedProgram: StoredProgram) = act {
-        graph.actions.pin(profile.id, slot, expectedTarget, profile, expectedWorkingSlot, previewedAt, expectedProgram).message
+        graph.actions.pin(profile.id, slot, expectedTarget, profile, expectedWorkingSlot, previewedAt, expectedProgram)
     }
 
     fun dismissUnreadable() = save { repo.dismissUnreadable() }
 
     /** "Mark as checked" on an unconfirmed slot write: local only, through the command owner (IR-06). */
-    fun acknowledgeSlotWrite() = act(hardware = false) { graph.actions.acknowledgeSlotWrite().message }
+    fun acknowledgeSlotWrite() = act(hardware = false) { graph.actions.acknowledgeSlotWrite() }
 
     /** IR-03: true while slots with no saved original are refused because the saved originals were unreadable. */
     val originalsBlocked = repo.originalsBlocked
@@ -233,21 +269,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun acceptLostOriginals() = save { repo.dismissUnreadable(acceptLostOriginals = true) }
 
     /** Commands wait for saves asked for before them, so they act on what the person just saved. */
-    private fun act(hardware: Boolean = true, work: suspend () -> String) {
+    private fun refusal(message: String) = CommandOutcome(OutcomeKind.REFUSED, message)
+
+    private fun act(hardware: Boolean = true, work: suspend () -> CommandOutcome) {
         val pending = lastSave
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
         viewModelScope.launch {
             pending?.join()
             _busy.value = true
-            val message = try {
+            val outcome = try {
                 if (hardware) kotlinx.coroutines.withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target)) {
                     io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false) { work() }
                 } else work()
-            } catch (e: TimeoutCancellationException) { e.message ?: "The BedJet did not answer in time. Check its state before trying again."
+            } catch (e: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, e.message ?: "The BedJet did not answer in time. Check its state before trying again.")
             } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { e.message ?: "Something went wrong." }
+            } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: "Something went wrong.") }
             finally { _busy.value = false }
-            _messages.tryEmit(message)
+            report(outcome)
         }
     }
 
@@ -258,15 +296,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
     fun deleteProfile(id: String) = save { repo.deleteProfile(id) }
     fun updateSettings(change: (Settings) -> Settings) = save {
+        // Shown once with the owner's feed; a plain save is not announced.
         val outcome = graph.actions.updateSettings(change)
-        if (!outcome.succeeded) _messages.tryEmit(outcome.message)
+        withContext(Dispatchers.Main) { report(outcome) }
     }
 
     fun setTonightWake(wake: ZonedDateTime?) {
         val expected = activeNight.value?.identity
         act(hardware = expected != null) {
-            if (activeNight.value?.identity != expected) "Tonight's night changed. Check it before setting a wake time."
-            else graph.actions.setWakeOverride(wake, expected).message
+            if (activeNight.value?.identity != expected) refusal("Tonight's night changed. Check it before setting a wake time.")
+            else graph.actions.setWakeOverride(wake, expected)
         }
     }
 
@@ -275,7 +314,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val request = graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)
         act {
             repo.saveProfile(profile)
-            graph.actions.execute(request).message
+            graph.actions.execute(request)
         }
     }
 
@@ -333,7 +372,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun forgetBedJet() = act(hardware = false) { graph.actions.forgetTarget().message }
+    fun forgetBedJet() = act(hardware = false) { graph.actions.forgetTarget() }
 
     fun discoverBedJets() {
         viewModelScope.launch {
@@ -347,10 +386,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectBedJet(address: String) = act(hardware = false) {
-        graph.actions.selectTarget("ble:$address", useRealDevice = true).message
+        graph.actions.selectTarget("ble:$address", useRealDevice = true)
     }
 
-    fun runSetupFanCheck() = act { graph.actions.setupFanCheck().message }
+    fun runSetupFanCheck() = act { graph.actions.setupFanCheck() }
 
     fun bedJetName(): String? = if (settings.value.demoMode) "BEDJET-DEMO" else graph.bleLink.deviceName
 
@@ -400,3 +439,7 @@ internal suspend fun snapshotRestoreMessage(restore: suspend () -> Boolean): Str
 } catch (e: io.github.willzy12h.nocturne.data.RestoreUnfinished) {
     e.message.orEmpty()
 }
+
+/** What the screens show as the BedJet's status: only a report from [target] itself (or an unattributed one). */
+internal fun displayedStatus(report: io.github.willzy12h.nocturne.core.link.SourcedStatus?, target: String?): DeviceStatus? =
+    report?.takeIf { it.isFrom(target) }?.status

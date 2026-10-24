@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.WakeOrigin
 import androidx.compose.ui.semantics.heading
@@ -89,7 +90,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     ) {
         Text("Tonight", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
         ConnectionLine(model)
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        BusyIndicator(model)
         val unreadable by model.unreadable.collectAsState()
         val restoreUnfinished by model.restoreUnfinished.collectAsState()
         val originalsBlocked by model.originalsBlocked.collectAsState()
@@ -195,6 +196,21 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         NightRecoveryControls(model, night, guard, now)
         QuickButtons(model, settings, guard)
+    }
+}
+
+/** What the command owner is doing: the running command and how many wait behind it, from any origin (U07). */
+@Composable
+fun BusyIndicator(model: AppViewModel) {
+    val local by model.busy.collectAsState()
+    val owner by model.commandBusy.collectAsState()
+    if (!local && owner.runningLabel == null && owner.queuedCount == 0) return
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LinearProgressIndicator(Modifier.fillMaxWidth())
+        val running = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
+        val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
+        Text(listOfNotNull(running, queued).joinToString(" · "), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
