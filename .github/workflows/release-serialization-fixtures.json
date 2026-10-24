@@ -378,6 +378,8 @@
       "endRequested": {
         "$ref": "identity"
       },
+      "endRequestedLabel": "Turbo for 10 minutes.",
+      "endRequestedAt": "2026-10-23T22:30Z",
       "wakeSourceChange": {
         "$ref": "wakeChange"
       },
@@ -718,6 +720,11 @@
       {},
       {
         "endRequested": null
+      },
+      {
+        "endRequested": {
+          "$ref": "identity"
+        }
       }
     ],
     "io.github.willzy12h.nocturne.night.SlotWrite": [

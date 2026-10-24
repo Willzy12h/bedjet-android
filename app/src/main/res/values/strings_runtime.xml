@@ -37,6 +37,7 @@
     <string name="runtime_boost">Boost: Turbo, then Heat, for %1$d min.</string>
     <string name="runtime_stop_tracking">Stopped tracking. This does not turn the BedJet off.</string>
     <string name="runtime_ended">Night ended.</string>
+    <string name="runtime_stopped">Night stopped.</string>
     <string name="runtime_resumed">Resumed the rest of %1$s. Waking you at %2$s.</string>
     <string name="runtime_resume_expired">The resume offer has expired or a newer command replaced it.</string>
     <string name="runtime_reconcile_needed">Check the BedJet programme, or stop tracking. No programme was restarted.</string>

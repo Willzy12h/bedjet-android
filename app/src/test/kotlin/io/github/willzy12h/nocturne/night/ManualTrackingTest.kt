@@ -59,13 +59,6 @@ class ManualTrackingTest {
     private suspend fun observe() = graph.actions.observeStatus(demo.status.value!!, "demo")
     private fun events(n: ActiveNight) = graph.repository.history.value.first { it.id == n.recordId }.events
 
-    /** Public capability for the parallel UI work; no display may infer an end from trackingManual alone. */
-    private fun hasPlannedManualEnd(night: ActiveNight): Boolean {
-        val getter = ActiveNight::class.java.methods.singleOrNull { it.name == "getHasPlannedManualEnd" && it.parameterCount == 0 }
-        assertNotNull("Expose the planned manual-end capability to the UI", getter)
-        return getter!!.invoke(night) as Boolean
-    }
-
     @Test fun anUnknownManualRunDoesNotOfferAPlannedEnd() = runBlocking {
         start()
         graph.actions.confirmMs = 20
@@ -73,14 +66,14 @@ class ManualTrackingTest {
         val unknown = graph.repository.activeNight.value!!
         assertTrue(unknown.trackingManual)
         assertEquals(Confidence.UNKNOWN, unknown.confidence)
-        assertFalse(hasPlannedManualEnd(unknown))
+        assertFalse(unknown.hasPlannedManualEnd)
     }
 
     @Test fun aKeptFreshManualRunOffersItsCapturedEnd() = runBlocking {
         val kept = keptSnooze()
-        assertTrue(hasPlannedManualEnd(kept))
-        assertFalse(hasPlannedManualEnd(kept.copy(trackingManual = false)))
-        assertFalse(hasPlannedManualEnd(kept.copy(confidence = Confidence.UNKNOWN)))
+        assertTrue(kept.hasPlannedManualEnd)
+        assertFalse(kept.copy(trackingManual = false).hasPlannedManualEnd)
+        assertFalse(kept.copy(confidence = Confidence.UNKNOWN).hasPlannedManualEnd)
     }
 
     @Test fun aRemoteAdjustDoesNotPresentTheUnchangedOldEndAsItsPlan() = runBlocking {
@@ -92,7 +85,7 @@ class ManualTrackingTest {
         val adjusted = graph.repository.activeNight.value!!
         assertEquals(kept.endsAt, adjusted.endsAt)
         assertTrue(adjusted.trackingManual)
-        assertFalse(hasPlannedManualEnd(adjusted))
+        assertFalse(adjusted.hasPlannedManualEnd)
     }
 
     // IR-08

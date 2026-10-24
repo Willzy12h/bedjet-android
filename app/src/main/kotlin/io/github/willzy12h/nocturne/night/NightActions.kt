@@ -342,13 +342,15 @@ class NightActions(private val graph: Graph) {
         confirms: ((DeviceStatus) -> Boolean)?, unconfirmed: String = text(R.string.runtime_sent_unconfirmed, message),
         work: suspend () -> Unit): CommandOutcome {
         val night = repo.activeNight.value
+        val requestedAt = graph.now()
         val pending = night?.copy(confidence = Confidence.PENDING, pending = PendingChange(UUID.randomUUID().toString(),
-            ChangeKind.MANUAL, null, graph.now().toString(), graph.now().plusMinutes(1).toString(), night.identity))
+            ChangeKind.MANUAL, null, requestedAt.toString(), requestedAt.plusMinutes(1).toString(), night.identity))
         pending?.let { publishNight(it) }
         if (endsNight && night != null) {
             // Persist before the write: a lost acknowledgement or process death cannot erase the ending intention.
             // This records intent, not successful delivery; only the target's stopped state completes it.
-            repo.updateRuntime { it.copy(endRequested = night.identity, retime = null, alarmInbox = null) }
+            repo.updateRuntime { it.copy(endRequested = night.identity, endRequestedLabel = message,
+                endRequestedAt = requestedAt.toString(), retime = null, alarmInbox = null) }
             NightAlarms.cancelRetry(context)
         }
         val confirmed = sentAndConfirmed(confirms) {
@@ -419,7 +421,8 @@ class NightActions(private val graph: Graph) {
     private suspend fun finishLocked(night: ActiveNight, kind: EventKind, detail: String) {
         val transition = io.github.willzy12h.nocturne.core.night.stopTracking(night, detail, graph.now(), repo.runtime.value.generation)
         // IR-06: a slot write made in this night, or one that displaced it, ends with it.
-        repo.updateRuntime { it.copy(ending = PendingEnd(night.identity, event(kind, detail)), endRequested = null, retime = null,
+        repo.updateRuntime { it.copy(ending = PendingEnd(night.identity, event(kind, detail)),
+            endRequested = null, endRequestedLabel = null, endRequestedAt = null, retime = null,
             resumeOffer = if (kind == EventKind.ENDED) null else transition.resumeOffer, reason = null,
             wakeShown = null, manualWakeShown = false, slotWrite = it.slotWrite?.takeUnless { w -> w.belongsTo(night.recordId) }) }
         completeLocalEnd()
@@ -748,7 +751,8 @@ class NightActions(private val graph: Graph) {
                 repo.updateRuntime { it.copy(slotWrite = slot.copy(confidence = Confidence.UNKNOWN), reason = text(R.string.runtime_interrupted)) }
             }
             repo.runtime.value.endRequested?.let { expected ->
-                if (repo.activeNight.value?.identity != expected) repo.updateRuntime { it.copy(endRequested = null) }
+                if (repo.activeNight.value?.identity != expected) repo.updateRuntime {
+                    it.copy(endRequested = null, endRequestedLabel = null, endRequestedAt = null) }
                 else try {
                     // Standby is in the head; no programme-progress tail is needed to confirm an ending command.
                     connected { finishRequestedEnd(freshStatus(requireProgress = false)) }
@@ -781,7 +785,7 @@ class NightActions(private val graph: Graph) {
             if (target != repo.settings.value.deviceId() || !DeviceId.same(source, target) ||
                 graph.link.state.value != LinkState.READY) return@withLock
             val n = repo.activeNight.value ?: return@withLock
-            if (finishRequestedEnd(status)) return@withLock
+            if (finishRequestedEnd(status, receivedAt)) return@withLock
             val extra = status.extra ?: return@withLock
             if (extra.notification != 0 && lastNotice != (n.recordId to extra.notification)) {
                 lastNotice = n.recordId to extra.notification
@@ -795,10 +799,12 @@ class NightActions(private val graph: Graph) {
         }
     }
     /** Called only with a report attributed to the selected target, under command ownership. */
-    private suspend fun finishRequestedEnd(status: DeviceStatus): Boolean {
+    private suspend fun finishRequestedEnd(status: DeviceStatus, receivedAt: ZonedDateTime = graph.now()): Boolean {
         val night = repo.activeNight.value ?: return false
-        if (repo.runtime.value.endRequested != night.identity || status.isRunning) return false
-        finishLocked(night, EventKind.STOPPED, text(R.string.runtime_off))
+        val request = repo.runtime.value
+        if (request.endRequested != night.identity || status.isRunning ||
+            request.endRequestedAt?.let { receivedAt.isBefore(ZonedDateTime.parse(it)) } == true) return false
+        finishLocked(night, EventKind.STOPPED, request.endRequestedLabel ?: text(R.string.runtime_stopped))
         return true
     }
     /** An automatic or programme-preserving rewrite never silently undoes a physical-remote change (IR-01).
@@ -1105,7 +1111,8 @@ class NightActions(private val graph: Graph) {
         // A refused/pre-write-failed replacement keeps the same night and its ending intention. A different
         // published identity supersedes it; a leftover marker after a crash is also checked by reconcile.
         if (repo.runtime.value.endRequested?.let { it != night?.identity } == true)
-            repo.updateRuntime { it.copy(endRequested = it.endRequested?.takeIf { expected -> expected == night?.identity }) }
+            repo.updateRuntime { if (it.endRequested == night?.identity) it
+                else it.copy(endRequested = null, endRequestedLabel = null, endRequestedAt = null) }
         refreshQuietNotification()
     }
     internal fun refreshQuietNotification() {

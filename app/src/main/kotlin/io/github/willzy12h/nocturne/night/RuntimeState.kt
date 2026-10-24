@@ -12,6 +12,9 @@ import kotlinx.serialization.Serializable
     val ending: PendingEnd? = null,
     /** An explicit ending command was attempted; a later target Standby can finish this exact night as STOPPED. */
     val endRequested: NightIdentity? = null,
+    /** The command label and request time stay with the identity; older journals contain only the identity. */
+    val endRequestedLabel: String? = null,
+    val endRequestedAt: String? = null,
     val wakeSourceChange: WakeSourceChange? = null,
     val resumeOffer: ResumeOffer? = null,
     val retime: PendingRetime? = null,
