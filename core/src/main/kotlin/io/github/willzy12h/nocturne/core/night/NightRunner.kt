@@ -60,11 +60,11 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         alarmOrigin: String? = null): Preparation {
         if (night.identity != expected) return Preparation.Stale(expected, night.identity)
         val profile = night.profile ?: liveProfile ?: return Preparation.Refused("The saved profile is unavailable.")
-        if (night.wakeOrigin == WakeOrigin.OVERRIDE) return Preparation.Refused("Tonight's wake override is unchanged.")
+        if (night.wakeOrigin == WakeOrigin.OVERRIDE) return Preparation.Refused("Tonight's wake override is unchanged.", unchanged = true)
         val start = ZonedDateTime.parse(night.startedAt)
         val accepted = profile.wakeSource.useAlarm && AlarmPolicy(settings).accept(alarm, alarmOrigin, start)
         val wake = if (accepted) alarm!! else WakeResolver.nextOccurrence(profile.wakeSource.defaultWakeMinute, start.plus(WakeResolver.MIN_NIGHT))
-        if (wake.isEqual(ZonedDateTime.parse(night.wakeAt))) return Preparation.Refused("Wake-up unchanged.")
+        if (wake.isEqual(ZonedDateTime.parse(night.wakeAt))) return Preparation.Refused("Wake-up unchanged.", unchanged = true)
         return prepareRewrite(night, expected, profile, wake, if (accepted) WakeOrigin.ALARM else WakeOrigin.PROFILE_DEFAULT, ChangeKind.RETIME, deadline)
     }
 

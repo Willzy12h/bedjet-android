@@ -171,7 +171,7 @@ class RuntimeOwnershipTest {
         assertTrue(File(context.filesDir, "active-night.json").readText().contains("UNKNOWN"))
         beforeSend = {}; graph.actions.retryPendingRetime(); assertNull(demo.slots[2])
     }
-    @Test fun oldNotificationOffIsRejectedButFreshOffQueuedBehindStartRuns() = runBlocking {
+    @Test fun oldNotificationOffAndFreshOffBothResolveTheSelectedTarget() = runBlocking {
         val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
         beforeConnect = { entered.complete(Unit); release.await() }
         val start = async { graph.actions.perform(NightActions.Command.START_NIGHT) }
@@ -182,9 +182,37 @@ class RuntimeOwnershipTest {
         release.complete(Unit); start.await(); off.await()
         assertNull(graph.repository.activeNight.value); assertEquals(Mode.STANDBY, demo.status.value!!.mode)
         start()
-        assertEquals(OutcomeKind.STALE, graph.actions.execute(staleOff).kind)
-        assertNotNull(graph.repository.activeNight.value)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(staleOff).kind)
+        assertNull(graph.repository.activeNight.value)
+        assertEquals(Mode.STANDBY, demo.status.value!!.mode)
     }
+    @Test fun aPersistedWidgetOffAfterProcessDeathUsesTargetNotOldNightIdentity() = runBlocking {
+        val initial = start()
+        val rendered = io.github.willzy12h.nocturne.platform.PlatformActionActivity.intent(context,
+            graph.actions.capture(NightActions.Command.OFF, requireIdentity = true))
+        graph.repository.setActiveNight(initial.copy(revision = initial.revision + 1))
+        val savedClock = graph.clock
+        val savedLink = graph.link
+        graph = graphs.fresh { Graph(context, savedLink) }
+        graph.clock = savedClock
+        graph.actions.confirmMs = 20
+        val stale = io.github.willzy12h.nocturne.platform.PlatformActionActivity.readRequest(rendered)
+        assertNotEquals(stale.expected, graph.repository.activeNight.value?.identity)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(stale).kind)
+        assertNull(graph.repository.activeNight.value)
+        assertEquals(Mode.STANDBY, demo.status.value!!.mode)
+        assertTrue(graph.repository.history.value.first { it.id == initial.recordId }.events.any { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun anOldOffForAnotherTargetStillSendsNothing() = runBlocking {
+        val n = start()
+        val request = graph.actions.capture(NightActions.Command.OFF, requireIdentity = true).copy(deviceId = "ble:AA:BB:CC:DD:EE:FF")
+        val before = sent.size
+        assertEquals(OutcomeKind.STALE, graph.actions.execute(request).kind)
+        assertEquals(before, sent.size)
+        assertEquals(n, graph.repository.activeNight.value)
+    }
+
     @Test fun targetAndDemoChangesAreRefusedDuringNight() = runBlocking {
         start()
         assertEquals(OutcomeKind.REFUSED, graph.actions.setDemoMode(false).kind)
@@ -439,7 +467,7 @@ class RuntimeOwnershipTest {
         assertTrue(waited); assertTrue(notReleasedEarly); assertEquals(OutcomeKind.LOCAL, handover.await().kind)
         assertTrue(graph.sessions.released.value)
     }
-    @Test fun handoverPreservesRecoveryReasonAndResumeOffer() = runBlocking {
+    @Test fun handoverPreservesRecoveryReasonAndRebindsAUsableResumeOffer() = runBlocking {
         start()
         graph.actions.perform(NightActions.Command.OFF)
         val offer = graph.repository.runtime.value.resumeOffer
@@ -450,7 +478,15 @@ class RuntimeOwnershipTest {
         assertEquals(OutcomeKind.LOCAL, graph.actions.releaseForOtherPhone().kind)
         assertEquals(generation + 1, graph.repository.runtime.value.generation)
         assertEquals("Hardware state is uncertain.", graph.repository.runtime.value.reason)
-        assertEquals(offer, graph.repository.runtime.value.resumeOffer)
+        val rebound = graph.repository.runtime.value.resumeOffer!!
+        assertEquals(offer!!.copy(commandVersion = generation + 1), rebound)
+        assertEquals(graph.repository.runtime.value.generation, rebound.commandVersion)
+        assertEquals(graph.repository.settings.value.deviceId(), rebound.night.deviceId)
+        assertTrue(graph.now().isBefore(ZonedDateTime.parse(rebound.expiresAt)))
+        assertEquals(OutcomeKind.LOCAL, graph.actions.takeBack().kind)
+        val resumed = graph.actions.execute(graph.actions.capture(NightActions.Command.RESUME))
+        assertEquals(resumed.message, OutcomeKind.CONFIRMED, resumed.kind)
+        assertEquals(offer.night.recordId, graph.repository.activeNight.value?.recordId)
     }
     @Test fun jobEligibilityIsCheckedAfterConnectionBeforeMutation() = runBlocking {
         var eligible = true

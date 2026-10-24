@@ -10,6 +10,8 @@ import kotlinx.serialization.Serializable
     val localDeliveries: List<LocalDelivery> = emptyList(),
     val alarmInbox: AlarmObservation? = null,
     val ending: PendingEnd? = null,
+    /** An explicit ending command was attempted; a later target Standby can finish this exact night as STOPPED. */
+    val endRequested: NightIdentity? = null,
     val wakeSourceChange: WakeSourceChange? = null,
     val resumeOffer: ResumeOffer? = null,
     val retime: PendingRetime? = null,

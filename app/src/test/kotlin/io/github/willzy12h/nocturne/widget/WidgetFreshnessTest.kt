@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 import java.time.*
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[34])
 class WidgetFreshnessTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixture() {
-    @Test fun backgroundNightRevisionRefreshesWidgetActionWithoutMakingOldOffValid() = runBlocking {
+    @Test fun backgroundNightRevisionRefreshesWidgetWhileOldOffStillResolvesTheTarget() = runBlocking {
         val context: Context = RuntimeEnvironment.getApplication()
         val graph = context.graph
         graph.clock = Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"), ZoneOffset.UTC)
@@ -47,7 +47,9 @@ class WidgetFreshnessTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
             val fresh = withTimeout(5_000) { rendered.receive() }
             assertEquals(revised.identity, fresh.expected)
             assertNotEquals(PlatformActionActivity.intent(context, old).data, PlatformActionActivity.intent(context, fresh).data)
-            assertEquals(OutcomeKind.STALE, graph.actions.execute(old).kind)
+            assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(old).kind)
+            assertNull(graph.repository.activeNight.value)
+            assertEquals(io.github.willzy12h.nocturne.core.protocol.Mode.STANDBY, graph.link.status.value?.mode)
         } finally {
             observer.cancelAndJoin()
         }

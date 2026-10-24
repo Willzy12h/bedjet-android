@@ -28,6 +28,7 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
         graph.clock=Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"),ZoneOffset.UTC)
         graph.repository.updateSettings { it.copy(targetDevice="ble:AA:BB:CC:DD:EE:FF",demoMode=false,
             platform=it.platform.copy(chargerAutoStart=true,chargerDevice="ble:AA:BB:CC:DD:EE:FF")) }
+        graph.actions.confirmMs = 1
         return graph
     }
     @Test fun eligibleJobShowsGraceStartsOnceAndPersistsAttempt() = runBlocking {
@@ -127,6 +128,26 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
         val notice=graph.repository.notices.value.single { it.title == "Charger auto-start attempt" }
         assertEquals(io.github.willzy12h.nocturne.core.store.NoticeKind.PROBLEM,notice.kind)
         assertEquals("This action is no longer eligible.",notice.text)
+    }
+
+    @Test fun anAutoStartTimeoutAfterTheStartWriteLogsThatTheBedJetStateIsUnknown() = runBlocking {
+        val graph = graph { demo -> object : BedJetLink by demo {
+            override suspend fun send(command: ByteArray) {
+                demo.send(command)
+                if (command[0] == 0x01.toByte() && command[1].toInt() and 0xff in 0x80..0x85)
+                    withTimeout(1) { awaitCancellation() }
+            }
+            override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) { beforeWrite(); send(command) }
+        } }
+        try {
+            ChargerRun(graph, { true }, { _, _ -> true }, {}, { true }).execute()
+            fail("The accepted start write must time out")
+        } catch (_: TimeoutCancellationException) { }
+        assertEquals(io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+        val notice = graph.repository.notices.value.single { it.title == "Charger auto-start attempt" }
+        assertEquals(io.github.willzy12h.nocturne.core.store.NoticeKind.PROBLEM, notice.kind)
+        assertTrue("The log must describe uncertain hardware, not simply a failed request: ${notice.text}",
+            notice.text.contains("state is unknown", ignoreCase = true))
     }
 
     /** A demo unit whose last report is a manual run, attributed to [source]. */

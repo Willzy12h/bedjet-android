@@ -28,11 +28,13 @@ import java.time.*
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RuntimeDeliveryTest {
+    @get:org.junit.Rule val graphs = io.github.willzy12h.nocturne.GraphLifecycle()
     private val context: Context = RuntimeEnvironment.getApplication()
     private val graph get() = context.graph
     @Before fun setup() = runBlocking {
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
         graph.repository.updateSettings { it.copy(demoMode = true) }
+        graph.actions.confirmMs = 1
     }
     private fun alarm(hours: Long) {
         context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + hours * 3600000, null),
@@ -276,11 +278,17 @@ class RuntimeDeliveryTest {
         shadowOf(android.os.Looper.getMainLooper()).idle()
         assertTrue(activity.isFinishing)
     }
-    @Test fun missingConnectPermissionDoesNotEnterConnectedDeviceForeground() = runBlocking {
+    @Test fun connectPermissionRevokedAfterOrdinaryDeliveryStopsWithoutAnFgsObligation() = runBlocking {
         graph.repository.updateSettings { it.copy(demoMode = false) }
+        val delivery = io.github.willzy12h.nocturne.service.ServiceStartContext(context)
+        shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
+        assertTrue(BedJetService.start(delivery, NightActions.Command.OFF))
+        shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
         val service = Robolectric.buildService(BedJetService::class.java).create().get()
-        service.onStartCommand(BedJetService.intent(context, NightActions.Command.OFF), 0, 1)
-        assertFalse(shadowOf(service).isForegroundStopped == false && shadowOf(service).lastForegroundNotification != null)
+        service.onStartCommand(delivery.delivered, 0, 1)
+        assertNull(shadowOf(service).lastForegroundNotification)
+        assertTrue(shadowOf(service).isStoppedBySelf)
+        assertFalse("Stopping without promotion is safe only on ordinary service delivery", delivery.requests.single().first)
         service.onDestroy()
     }
     @Test fun expectedBackgroundRetryDenialKeepsItsResultWithoutAnErrorNotice() = runBlocking {

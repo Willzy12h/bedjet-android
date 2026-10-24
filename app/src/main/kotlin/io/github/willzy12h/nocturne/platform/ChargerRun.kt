@@ -71,7 +71,7 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
                 }
             }
         } catch (e: TimeoutCancellationException) {
-            withContext(NonCancellable) { record(CommandOutcome(OutcomeKind.FAILED,graph.context.getString(R.string.runtime_failed))) }
+            withContext(NonCancellable) { record(CommandOutcome(OutcomeKind.FAILED,graph.context.getString(R.string.runtime_interrupted))) }
             throw e
         }
         // An attempt stays claimed even if transport fails: an accepted partial write cannot be replayed.

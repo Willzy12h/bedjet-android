@@ -25,7 +25,8 @@ class NightAlarmReceiver : BroadcastReceiver() {
             NightAlarms.ACTION_RETRY -> {
                 if (!graph.actions.retimePending) return
                 NightAlarms.scheduleObservation(context, graph.now())
-                if (!BedJetService.start(context, NightActions.Command.RETRY_RETIME)) local(context) { graph.actions.submitAlarmChange() }
+                if (!BedJetService.start(context, NightActions.Command.RETRY_RETIME, notifyFailures = false))
+                    local(context, notifyFailures = false) { graph.actions.submitAlarmChange() }
             }
         }
     }
@@ -44,22 +45,22 @@ class AlarmChangedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED || context.graph.repository.activeNight.value == null) return
         NightAlarms.scheduleObservation(context, context.graph.now())
-        local(context) {
+        local(context, notifyFailures = false) {
             context.graph.actions.submitAlarmChange()
             if (context.graph.actions.retimePending) BedJetService.start(context, NightActions.Command.RETRY_RETIME, notifyFailures = false)
         }
     }
 }
-private fun BroadcastReceiver.local(context: Context, onTimeout: (() -> Unit)? = null, work: suspend () -> Unit) {
+private fun BroadcastReceiver.local(context: Context, onTimeout: (() -> Unit)? = null, notifyFailures: Boolean = true, work: suspend () -> Unit) {
     val pending = goAsync()
     context.graph.scope.launch {
         try { kotlinx.coroutines.withTimeout(8_500) { work() } }
         catch (e: TimeoutCancellationException) {
-            if (onTimeout != null) onTimeout() else io.github.willzy12h.nocturne.notify.Notifications.showError(context,
+            if (onTimeout != null) onTimeout() else if (notifyFailures) io.github.willzy12h.nocturne.notify.Notifications.showError(context,
                 context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
                 e.message ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))
         } catch (e: Exception) {
-            io.github.willzy12h.nocturne.notify.Notifications.showError(context, context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
+            if (notifyFailures) io.github.willzy12h.nocturne.notify.Notifications.showError(context, context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
                 e.message ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))
         } finally { pending.finish() }
     }

@@ -10,6 +10,7 @@ import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.map
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -34,11 +35,17 @@ class SendConfirmationTest {
     private val sent = mutableListOf<ByteArray>()
     /** A write this matches is accepted by the link and never reaches the unit. */
     private var swallow: (ByteArray) -> Boolean = { false }
+    private var foreign: SourcedStatus? = null
+    private var headsOnly = false
     private val link: BedJetLink by lazy {
         demo = DemoBedJet(now = { graph.now() })
         object : BedJetLink by demo {
             override suspend fun send(command: ByteArray) { sent += command; if (!swallow(command)) demo.send(command) }
             override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) { beforeWrite(); send(command) }
+            override val sourcedStatus: kotlinx.coroutines.flow.Flow<SourcedStatus?>
+                get() = foreign?.let { kotlinx.coroutines.flow.MutableStateFlow<SourcedStatus?>(it) }
+                    ?: demo.sourcedStatus.map { report -> if (headsOnly) report?.copy(status = report.status.copy(extra = null)) else report }
+            override fun latestSourcedStatus(): SourcedStatus? = foreign ?: demo.latestSourcedStatus()
         }
     }
 
@@ -47,6 +54,8 @@ class SendConfirmationTest {
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
         context.graph.clock = graph.clock
         graph.repository.updateSettings { it.copy(demoMode = true) }
+        graph.actions.confirmMs = 20
+        graph.actions.freshStatusMs = 40
     }
     private suspend fun start(): ActiveNight {
         assertTrue(graph.actions.perform(NightActions.Command.START_NIGHT).contains("started"))
@@ -108,6 +117,160 @@ class SendConfirmationTest {
         assertEquals(text(R.string.runtime_off_unconfirmed), unconfirmed.message)
         swallow = { false }
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
+    }
+
+    @Test fun aLateStandbyReportClosesAnUnconfirmedOffAsStoppedWithoutAnotherWrite() = runBlocking {
+        val n = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        val writes = sent.size
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.actions.observeStatus(demo.status.value!!, "demo")
+        assertNull("a later target Standby confirms the pending Off", graph.repository.activeNight.value)
+        assertEquals(writes, sent.size)
+        assertEquals(1, events(n).count { it.kind == EventKind.STOPPED })
+        assertTrue(events(n).none { it.kind == EventKind.ENDED })
+        graph.actions.observeStatus(demo.status.value!!, "demo")
+        assertEquals("repeated reports cannot duplicate the end", 1, events(n).count { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun lateOffConfirmationNeedsTheTargetButNotProgrammeProgress() = runBlocking {
+        val n = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        graph.actions.observeStatus(demo.status.value!!, "demo")
+        assertNotNull("running is not an Off confirmation", graph.repository.activeNight.value)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        val head = demo.status.value!!.copy(extra = null)
+        graph.actions.observeStatus(head, "demo", source = "ble:AA:BB:CC:DD:EE:FF")
+        assertNotNull("another BedJet cannot confirm Off", graph.repository.activeNight.value)
+        assertTrue(events(n).none { it.kind == EventKind.STOPPED })
+        graph.actions.observeStatus(head, "demo")
+        assertNull("Standby is in the status head", graph.repository.activeNight.value)
+        assertEquals(1, events(n).count { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun aPendingEndSurvivesRestartAndFreshStandbyWinsBeforeScheduledExpiry() = runBlocking {
+        val n = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.END_NIGHT).kind)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        val savedClock = Clock.fixed(ZonedDateTime.parse(n.endsAt).plusSeconds(1).toInstant(), ZoneOffset.UTC)
+        graph = graphs.fresh { Graph(context, link) { scope, now -> Repository(context, scope, now = now) } }
+        graph.clock = savedClock
+        graph.actions.freshStatusMs = 40
+        val writes = sent.size
+        graph.actions.reconcile()
+        assertNull(graph.repository.activeNight.value)
+        assertEquals(writes, sent.size)
+        assertEquals("Off is stopped even when its old end time has passed", 1, events(n).count { it.kind == EventKind.STOPPED })
+        assertTrue(events(n).none { it.kind == EventKind.ENDED })
+    }
+
+    @Test fun reconcileCannotUseAnotherUnitsStandbyToConfirmOff() = runBlocking {
+        val n = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        val running = demo.status.value!!
+        foreign = SourcedStatus("ble:AA:BB:CC:DD:EE:FF", running.copy(mode = Mode.STANDBY))
+        graph.actions.reconcile()
+        assertEquals(n.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+        assertTrue(events(n).none { it.kind == EventKind.STOPPED })
+        foreign = null
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.actions.reconcile()
+        assertNull(graph.repository.activeNight.value)
+        assertEquals(1, events(n).count { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun reconcileAcceptsFreshTargetStandbyWithoutWaitingForAProgressTail() = runBlocking {
+        val n = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        headsOnly = true
+        graph.actions.reconcile()
+        assertNull("a fresh Standby head is enough to confirm the pending end", graph.repository.activeNight.value)
+        assertEquals(1, events(n).count { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun takeBackSettlesAPendingOffFromItsFreshStandbyRead() = runBlocking {
+        val n = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        // The unit stops without an observer delivery. Take back must use its own fresh report.
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.actions.releaseForOtherPhone()
+        headsOnly = true
+        val writes = sent.size
+        val result = graph.actions.takeBack()
+        assertEquals(result.message, OutcomeKind.LOCAL, result.kind)
+        assertNull(graph.repository.activeNight.value)
+        assertEquals(writes, sent.size)
+        assertEquals(1, events(n).count { it.kind == EventKind.STOPPED })
+        assertTrue(events(n).none { it.kind == EventKind.REMOTE_CHANGE || it.kind == EventKind.ENDED })
+    }
+
+    @Test fun refusedStartAndReapplyCannotEraseThePendingOff() = runBlocking {
+        val n = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        val writes = sent.size
+        assertEquals(OutcomeKind.REFUSED, run(NightActions.Command.REAPPLY).kind)
+        graph.repository.updateSettings { it.setWakeOverride(graph.now().plusMinutes(1), graph.now()) }
+        assertEquals(OutcomeKind.REFUSED, run(NightActions.Command.START_NIGHT).kind)
+        assertEquals(writes, sent.size)
+        assertEquals(n.identity, graph.repository.activeNight.value?.identity)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.actions.observeStatus(demo.status.value!!, "demo")
+        assertNull("nothing superseded the ending intention", graph.repository.activeNight.value)
+        assertEquals(1, events(n).count { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun anUnconfirmedOffDoesNotExpireAsAnEndedProgramme() = runBlocking {
+        val n = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        graph.clock = Clock.fixed(ZonedDateTime.parse(n.endsAt).plusSeconds(1).toInstant(), ZoneOffset.UTC)
+        assertFalse("an unresolved Off must not be relabelled as natural completion", graph.actions.expire(n.identity))
+        assertEquals(n.identity, graph.repository.activeNight.value?.identity)
+        assertTrue(events(n).none { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun aReplacementCannotInheritThePreviousNightsUnconfirmedOff() = runBlocking {
+        val old = start(); advance(30)
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        swallow = { false }
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.START_NIGHT).kind)
+        val replacement = graph.repository.activeNight.value!!
+        assertNotEquals(old.identity, replacement.identity)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.actions.observeStatus(demo.status.value!!, "demo")
+        assertEquals(replacement.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+        assertTrue(events(replacement).none { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun anUnknownNightWithoutAnEndingCommandIsNotClosedByStandby() = runBlocking {
+        val n = start(); advance(30)
+        graph.repository.setActiveNight(n.copy(confidence = Confidence.UNKNOWN))
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.actions.observeStatus(demo.status.value!!, "demo")
+        graph.actions.reconcile()
+        assertEquals(n.identity, graph.repository.activeNight.value?.identity)
+        assertTrue(events(n).none { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun aRemoteEndingCommandWithoutConfirmationIsRefusedBeforeSending() = runBlocking {
+        val n = start(); advance(30)
+        val writes = sent.size
+        val outcome = graph.actions.remote("Off", endsNight = true, expected = n.identity) { it.stop() }
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
+        assertEquals(writes, sent.size)
+        assertEquals(n, graph.repository.activeNight.value)
+        assertTrue(events(n).none { it.kind == EventKind.STOPPED })
     }
 
     // Quick actions

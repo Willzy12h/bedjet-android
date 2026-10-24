@@ -41,6 +41,7 @@ class RuntimeServiceTest {
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
         App::class.java.getDeclaredField("graph").apply { isAccessible = true }.set(app, graph)
         graph.repository.updateSettings { it.copy(demoMode = true) }
+        graph.actions.confirmMs = 1
     }
     /** Drive the main looper, not real-time sleeps or clock changes, while IO persistence completes. */
     private fun until(check: () -> Boolean) {
@@ -138,14 +139,16 @@ class RuntimeServiceTest {
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
         var invoked = false
-        var delivered: Intent? = null
-        val caller = graph.scope.launch { BedJetService.runOwned(app) { invoked = true } }
-        until { delivered = delivered ?: shadowOf(app).nextStartedService; delivered != null }
+        val callerContext = ServiceStartContext(app)
+        val caller = graph.scope.launch { BedJetService.runOwned(callerContext) { invoked = true } }
+        until { callerContext.delivered != null }
         caller.cancel(); until { caller.isCompleted }
         val service = Robolectric.buildService(BedJetService::class.java).create().get()
-        service.onStartCommand(delivered, 0, 1)
+        service.onStartCommand(callerContext.delivered, 0, 1)
         shadowOf(Looper.getMainLooper()).idle()
         assertFalse(invoked); assertEquals(0, writes)
+        assertTrue(shadowOf(service).isStoppedBySelf)
+        assertFalse("A missing handoff must not leave an FGS-start obligation", callerContext.requests.single().first)
         service.onDestroy()
     }
     @Test fun deferredUiPinRejectsTargetChangedBeforeDeliveryInsideCoordinator() {

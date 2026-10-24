@@ -59,6 +59,42 @@ class ManualTrackingTest {
     private suspend fun observe() = graph.actions.observeStatus(demo.status.value!!, "demo")
     private fun events(n: ActiveNight) = graph.repository.history.value.first { it.id == n.recordId }.events
 
+    /** Public capability for the parallel UI work; no display may infer an end from trackingManual alone. */
+    private fun hasPlannedManualEnd(night: ActiveNight): Boolean {
+        val getter = ActiveNight::class.java.methods.singleOrNull { it.name == "getHasPlannedManualEnd" && it.parameterCount == 0 }
+        assertNotNull("Expose the planned manual-end capability to the UI", getter)
+        return getter!!.invoke(night) as Boolean
+    }
+
+    @Test fun anUnknownManualRunDoesNotOfferAPlannedEnd() = runBlocking {
+        start()
+        graph.actions.confirmMs = 20
+        graph.actions.execute(graph.actions.capture(NightActions.Command.SNOOZE_WARM))
+        val unknown = graph.repository.activeNight.value!!
+        assertTrue(unknown.trackingManual)
+        assertEquals(Confidence.UNKNOWN, unknown.confidence)
+        assertFalse(hasPlannedManualEnd(unknown))
+    }
+
+    @Test fun aKeptFreshManualRunOffersItsCapturedEnd() = runBlocking {
+        val kept = keptSnooze()
+        assertTrue(hasPlannedManualEnd(kept))
+        assertFalse(hasPlannedManualEnd(kept.copy(trackingManual = false)))
+        assertFalse(hasPlannedManualEnd(kept.copy(confidence = Confidence.UNKNOWN)))
+    }
+
+    @Test fun aRemoteAdjustDoesNotPresentTheUnchangedOldEndAsItsPlan() = runBlocking {
+        val kept = keptSnooze()
+        graph.actions.confirmMs = 20
+        val result = graph.actions.remote("Temperature set", affectsProgramme = true, expected = kept.identity,
+            confirms = { it.targetTemperature == 50 }) { it.setTemperature(50) }
+        assertEquals(OutcomeKind.CONFIRMED, result.kind)
+        val adjusted = graph.repository.activeNight.value!!
+        assertEquals(kept.endsAt, adjusted.endsAt)
+        assertTrue(adjusted.trackingManual)
+        assertFalse(hasPlannedManualEnd(adjusted))
+    }
+
     // IR-08
 
     @Test fun aManualRunChangedByTheRemoteIsATakeover() = runBlocking {

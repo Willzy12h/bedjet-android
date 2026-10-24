@@ -10,7 +10,8 @@ import java.time.ZonedDateTime
 sealed interface Preparation {
     data class Ready(val change: PreparedChange): Preparation
     data class Stale(val expected: NightIdentity?, val actual: NightIdentity?): Preparation
-    data class Refused(val reason: String): Preparation
+    /** [unchanged] identifies a harmless re-time no-op without comparing user-facing reason text. */
+    data class Refused(val reason: String, val unchanged: Boolean = false): Preparation
 }
 /** No hardware work has happened. Persist [pendingNight] before executing this change. */
 data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previous: ActiveNight?, val request: PendingChange,

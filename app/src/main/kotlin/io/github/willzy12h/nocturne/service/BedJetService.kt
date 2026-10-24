@@ -24,6 +24,7 @@ class BedJetService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val handoff = intent?.getStringExtra(EXTRA_HANDOFF)?.let { handoffs.remove(it) }
         val request = intent?.let(::request)
+        val notifyFailures = handoff?.notifyFailures ?: intent?.getBooleanExtra(EXTRA_NOTIFY_FAILURES, true) ?: true
         if (request == null && handoff == null) { if (pending == 0) stopSelf(startId); return START_NOT_STICKY }
         try {
             if (!permitted(this, request?.command ?: NightActions.Command.START_NIGHT)) throw SecurityException(getString(R.string.runtime_connect_permission))
@@ -33,7 +34,7 @@ class BedJetService : Service() {
             startForeground(Notifications.WORKING_ID, Notifications.working(this), type)
         } catch (e: RuntimeException) {
             handoff?.result?.completeExceptionally(e)
-            failure(this, e, handoff?.notifyFailures ?: true); if (pending == 0) stopSelf(startId); return START_NOT_STICKY
+            failure(this, e, notifyFailures); if (pending == 0) stopSelf(startId); return START_NOT_STICKY
         }
         pending++
         val operation = scope.launch {
@@ -48,12 +49,12 @@ class BedJetService : Service() {
                 }
                 val result = withTimeout(SERVICE_MS) { graph.actions.execute(request!!) }
                 lastResult = result.message
-                if (!result.succeeded) Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
+                if (!result.succeeded && notifyFailures) Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
             } catch (e: CancellationException) {
                 handoff?.result?.cancel(e)
-                if (e is TimeoutCancellationException) failure(this@BedJetService, e, handoff?.notifyFailures ?: true)
+                if (e is TimeoutCancellationException) failure(this@BedJetService, e, notifyFailures)
                 throw e
-            } catch (e: Exception) { handoff?.result?.completeExceptionally(e); failure(this@BedJetService, e, handoff?.notifyFailures ?: true)
+            } catch (e: Exception) { handoff?.result?.completeExceptionally(e); failure(this@BedJetService, e, notifyFailures)
             } finally { pending--; if (pending == 0) stopSelf() }
         }
         handoff?.operation = operation
@@ -66,6 +67,7 @@ class BedJetService : Service() {
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
     companion object {
         private const val EXTRA_HANDOFF = "ownedUiOperation"
+        private const val EXTRA_NOTIFY_FAILURES = "notifyFailures"
         /** The service's bound outlasts the owner's own budget, so the owner's cleanup and outcome always finish (IR-11). */
         const val SERVICE_MS = NightActions.OPERATION_MS + 10_000L
         /** The UI waits longer still: foreground promotion, the service bound and a margin. */
@@ -91,7 +93,7 @@ class BedJetService : Service() {
             handoffs[id] = handoff
             try {
                 if (!permitted(context, NightActions.Command.START_NIGHT)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
-                context.startForegroundService(Intent(context, BedJetService::class.java).putExtra(EXTRA_HANDOFF, id))
+                deliver(context, Intent(context, BedJetService::class.java).putExtra(EXTRA_HANDOFF, id))
                 return withTimeout(RUN_OWNED_MS) { handoff.result.await() } as T
             } catch (e: CancellationException) {
                 if (e is TimeoutCancellationException) failure(context, e, notifyFailures)
@@ -132,8 +134,13 @@ class BedJetService : Service() {
                 .copy(replacementConfirmed = replacementConfirmed), notifyFailures)
         fun start(context: Context, captured: CommandRequest, notifyFailures: Boolean = true): Boolean = try {
             if (!permitted(context, captured.command)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
-            context.startForegroundService(intent(context, captured)); true
+            deliver(context, intent(context, captured).putExtra(EXTRA_NOTIFY_FAILURES, notifyFailures)); true
         } catch (e: RuntimeException) { failure(context, e, notifyFailures); false }
+        /** Ordinary delivery creates no foreground-start obligation if the handoff is missing or promotion is denied.
+         * Valid work is promoted synchronously in onStartCommand. Android may refuse this background start earlier. */
+        private fun deliver(context: Context, intent: Intent) {
+            checkNotNull(context.startService(intent)) { context.getString(R.string.runtime_failed) }
+        }
         private fun permitted(context: Context, command: NightActions.Command) =
             context.graph.repository.settings.value.demoMode || command == NightActions.Command.STOP_TRACKING ||
                 context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
@@ -144,7 +151,7 @@ class BedJetService : Service() {
         fun pendingIntent(context: Context, command: NightActions.Command, profileId: String? = null): PendingIntent {
             val captured = intent(context, command, profileId, requireIdentity = true)
             val key = "${command.name}:$profileId:${captured.getStringExtra(NightAlarms.EXTRA_NIGHT)}:${captured.getIntExtra(NightAlarms.EXTRA_REVISION, -1)}"
-            return PendingIntent.getForegroundService(context, key.hashCode(), captured,
+            return PendingIntent.getService(context, key.hashCode(), captured,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
     }

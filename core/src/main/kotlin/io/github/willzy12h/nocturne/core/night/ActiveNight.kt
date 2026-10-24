@@ -54,6 +54,8 @@ import java.time.ZonedDateTime
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)
     val usesLiveProfileFallback: Boolean get() = profile == null
+    /** A kept, freshly checked manual run has a captured end. UNKNOWN adjustments retain only an old timestamp. */
+    val hasPlannedManualEnd: Boolean get() = trackingManual && confidence == Confidence.CONFIRMED
     fun activePlan(liveProfile: Profile? = null): Plan? = applied.plan() ?: (profile ?: liveProfile)?.let {
         PlanCompiler.compile(it, ZonedDateTime.parse(startedAt), ZonedDateTime.parse(wakeAt))
     }

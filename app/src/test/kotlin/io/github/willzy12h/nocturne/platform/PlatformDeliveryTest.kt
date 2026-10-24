@@ -25,7 +25,7 @@ class PlatformDeliveryTest : io.github.willzy12h.nocturne.platform.PlatformGraph
         assertTrue(restarted.claimAutomation("charger:2026-10-22"))
         assertFalse(restarted.claimAutomation("charger:2026-10-22"))
     }
-    @Test fun existingNightWidgetCapturesStrictIdentityAtRendering() = runBlocking {
+    @Test fun existingNightWidgetCapturesIdentityButOffResolvesByTarget() = runBlocking {
         val graph=context.graph
         graph.clock=java.time.Clock.fixed(java.time.Instant.parse("2026-10-22T22:30:00Z"),java.time.ZoneOffset.UTC)
         graph.repository.updateSettings { it.copy(demoMode=true) }
@@ -35,7 +35,9 @@ class PlatformDeliveryTest : io.github.willzy12h.nocturne.platform.PlatformGraph
         assertTrue(request.requireIdentity)
         assertEquals(shown,request.expected)
         graph.actions.perform(Command.EXTEND_WARM)
-        assertEquals(io.github.willzy12h.nocturne.night.OutcomeKind.STALE,graph.actions.execute(request).kind)
+        assertEquals(io.github.willzy12h.nocturne.night.OutcomeKind.CONFIRMED,graph.actions.execute(request).kind)
+        assertNull(graph.repository.activeNight.value)
+        assertEquals(io.github.willzy12h.nocturne.core.protocol.Mode.STANDBY,graph.link.status.value?.mode)
     }
     @Test fun deletedFixedProfileNeverBecomesDynamicStart() = runBlocking {
         val repo=context.graph.repository
