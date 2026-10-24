@@ -142,6 +142,8 @@ class SendConfirmationTest {
         assertNotNull("running is not an Off confirmation", graph.repository.activeNight.value)
         demo.send(Codec.setMode(Mode.STANDBY)!!)
         val head = demo.status.value!!.copy(extra = null)
+        // Publish this exact head as the link's current receipt, as the transport does before Graph observes it.
+        foreign = SourcedStatus("demo", head)
         graph.actions.observeStatus(head, "demo", source = "ble:AA:BB:CC:DD:EE:FF")
         assertNotNull("another BedJet cannot confirm Off", graph.repository.activeNight.value)
         assertTrue(events(n).none { it.kind == EventKind.STOPPED })

@@ -14,6 +14,8 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.*
 import io.github.willzy12h.nocturne.notify.Notifications
+import io.github.willzy12h.nocturne.platform.PlatformActionActivity
+import io.github.willzy12h.nocturne.ui.ShortcutActivity
 import kotlinx.coroutines.*
 
 /** Owns the entire bounded operation, including waiting for the coordinator and connecting. */
@@ -37,27 +39,39 @@ class BedJetService : Service() {
             failure(this, e, notifyFailures); if (pending == 0) stopSelf(startId); return START_NOT_STICKY
         }
         pending++
+        val retimeExecution = RetimeExecution()
         val operation = scope.launch {
             try {
                 if (handoff != null) {
                     if (!handoff.result.isActive) return@launch
                     val value = withTimeout(SERVICE_MS) {
-                        withContext(SubmissionTarget(handoff.target)) { handoff.work() }
+                        withContext(SubmissionTarget(handoff.target) + SubmissionOrigin(handoff.origin)) { handoff.work() }
                     }
                     handoff.result.complete(value)
                     return@launch
                 }
-                val result = withTimeout(SERVICE_MS) { graph.actions.execute(request!!) }
+                val result = withTimeout(SERVICE_MS) { withContext(retimeExecution) { graph.actions.execute(request!!) } }
                 lastResult = result.message
-                if (!result.succeeded && notifyFailures && !result.notificationHandled)
+                if (!result.succeeded && notifyFailures && !result.notificationHandled && retimeExecution.reportedNotice == null)
                     Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
             } catch (e: CancellationException) {
                 handoff?.result?.cancel(e)
                 if (e is TimeoutCancellationException) {
-                    if (handoff == null && request?.command == NightActions.Command.RETRY_RETIME) {
-                        // Background retries have no screen, even when routine failure notices are disabled.
-                        lastResult = getString(R.string.runtime_retime_timeout_detail)
-                        Notifications.showError(this@BedJetService, getString(R.string.runtime_retime_timeout), lastResult.orEmpty())
+                    if (retimeExecution.reportedNotice != null) lastResult = retimeExecution.reportedNotice
+                    else if (handoff == null && request?.command == NightActions.Command.RETRY_RETIME) {
+                        val expected = retimeExecution.identity ?: request.expected
+                        // A queue-only timeout cannot describe a replacement's work. An admitted retry may
+                        // instead own that newer work, so prefer the identity recorded by the coordinator.
+                        if (expected != graph.repository.activeNight.value?.identity ||
+                            request.deviceId != graph.repository.settings.value.deviceId()) lastResult = getString(R.string.runtime_stale)
+                        else {
+                            val quiet = graph.actions.quietRetimeTimeout(expected, request.deviceId, admitted = retimeExecution.identity != null)
+                            if (quiet != null) lastResult = quiet
+                            else {
+                                lastResult = getString(R.string.runtime_retime_timeout_detail)
+                                Notifications.showError(this@BedJetService, getString(R.string.runtime_retime_timeout), lastResult.orEmpty())
+                            }
+                        }
                     } else failure(this@BedJetService, e, notifyFailures)
                 }
                 throw e
@@ -79,7 +93,7 @@ class BedJetService : Service() {
         const val SERVICE_MS = NightActions.OPERATION_MS + 10_000L
         /** The UI waits longer still: foreground promotion, the service bound and a margin. */
         const val RUN_OWNED_MS = SERVICE_MS + 15_000L
-        private class Handoff(val target: String?, val notifyFailures: Boolean, val work: suspend () -> Any?) {
+        private class Handoff(val target: String?, val origin: CommandOrigin, val notifyFailures: Boolean, val work: suspend () -> Any?) {
             val result = CompletableDeferred<Any?>()
             @Volatile var operation: Job? = null
         }
@@ -93,10 +107,11 @@ class BedJetService : Service() {
         suspend fun <T> runOwned(context: Context, notifyFailures: Boolean = true, work: suspend () -> T): T {
             val submitted = currentCoroutineContext()[SubmissionTarget]
             val target = if (submitted != null) submitted.deviceId else context.graph.repository.settings.value.deviceId()
+            val origin = surfaceOrigin(context) ?: currentCoroutineContext()[SubmissionOrigin]?.origin ?: CommandOrigin.APP
             if (context.graph.repository.settings.value.demoMode)
-                return withContext(SubmissionTarget(target)) { withTimeout(SERVICE_MS) { work() } }
+                return withContext(SubmissionTarget(target) + SubmissionOrigin(origin)) { withTimeout(SERVICE_MS) { work() } }
             val id = java.util.UUID.randomUUID().toString()
-            val handoff = Handoff(target, notifyFailures, work)
+            val handoff = Handoff(target, origin, notifyFailures, work)
             handoffs[id] = handoff
             try {
                 if (!permitted(context, NightActions.Command.START_NIGHT)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
@@ -118,21 +133,33 @@ class BedJetService : Service() {
         private const val EXTRA_TARGET = "target"
         private const val EXTRA_CONFIRMED = "replacementConfirmed"
         private const val EXTRA_STRICT = "strictIdentity"
+        private const val EXTRA_ORIGIN = "commandOrigin"
         @Volatile var lastResult: String? = null
         fun intent(context: Context, command: NightActions.Command, profileId: String? = null, requireIdentity: Boolean = false, replacementConfirmed: Boolean = false): Intent {
             val captured = context.graph.actions.capture(command, profileId, requireIdentity)
-            return intent(context, captured.copy(replacementConfirmed = replacementConfirmed))
+            return intent(context, captured.copy(replacementConfirmed = replacementConfirmed, origin = surfaceOrigin(context) ?: captured.origin))
         }
         private fun intent(context: Context, captured: CommandRequest) =
             Intent(context, BedJetService::class.java).putExtra(EXTRA_COMMAND, captured.command.name)
                 .putExtra(EXTRA_PROFILE, captured.profileId).putExtra(EXTRA_TARGET, captured.deviceId)
                 .putExtra(EXTRA_CONFIRMED, captured.replacementConfirmed).putExtra(EXTRA_STRICT, captured.requireIdentity)
+                .putExtra(EXTRA_ORIGIN, captured.origin.name)
                 .putExtra(NightAlarms.EXTRA_NIGHT, captured.expected?.nightId)
                 .putExtra(NightAlarms.EXTRA_REVISION, captured.expected?.revision ?: -1)
         private fun request(intent: Intent): CommandRequest? {
             val command = intent.getStringExtra(EXTRA_COMMAND)?.let { runCatching { NightActions.Command.valueOf(it) }.getOrNull() } ?: return null
+            val origin = intent.getStringExtra(EXTRA_ORIGIN)?.let { runCatching { CommandOrigin.valueOf(it) }.getOrNull() }
+                ?: CommandOrigin.UNSPECIFIED
             return CommandRequest(command, intent.getStringExtra(EXTRA_PROFILE), intent.getStringExtra(EXTRA_TARGET),
-                NightAlarms.identity(intent), intent.getBooleanExtra(EXTRA_STRICT, false), intent.getBooleanExtra(EXTRA_CONFIRMED, false))
+                NightAlarms.identity(intent), intent.getBooleanExtra(EXTRA_STRICT, false), intent.getBooleanExtra(EXTRA_CONFIRMED, false), origin)
+        }
+        /** Existing explicit delivery markers survive the widget/notification confirmation activities. An
+         * unmarked platform preview (including reminders) cannot truthfully be attributed to a widget. */
+        private fun surfaceOrigin(context: Context): CommandOrigin? = when (context) {
+            is ShortcutActivity -> if (context.intent.getBooleanExtra("capturedConfirmation", false)) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT
+            is PlatformActionActivity -> if (context.intent.getBooleanExtra("rendered", false) &&
+                context.intent.data?.scheme == "nocturne" && context.intent.data?.host == "widget") CommandOrigin.WIDGET else CommandOrigin.BACKGROUND
+            else -> null
         }
         /** False means no service owns the work. Receivers may only record/schedule a pending retry. */
         fun start(context: Context, command: NightActions.Command, profileId: String? = null,
@@ -141,7 +168,8 @@ class BedJetService : Service() {
                 .copy(replacementConfirmed = replacementConfirmed), notifyFailures)
         fun start(context: Context, captured: CommandRequest, notifyFailures: Boolean = true): Boolean = try {
             if (!permitted(context, captured.command)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
-            deliver(context, intent(context, captured).putExtra(EXTRA_NOTIFY_FAILURES, notifyFailures)); true
+            deliver(context, intent(context, captured.copy(origin = surfaceOrigin(context) ?: captured.origin))
+                .putExtra(EXTRA_NOTIFY_FAILURES, notifyFailures)); true
         } catch (e: RuntimeException) { failure(context, e, notifyFailures); false }
         /** Ordinary delivery creates no foreground-start obligation if the handoff is missing or promotion is denied.
          * Valid work is promoted synchronously in onStartCommand. Android may refuse this background start earlier. */
@@ -156,7 +184,7 @@ class BedJetService : Service() {
             if (notifyFailures) Notifications.showError(context, context.getString(R.string.runtime_failed), lastResult.orEmpty())
         }
         fun pendingIntent(context: Context, command: NightActions.Command, profileId: String? = null): PendingIntent {
-            val captured = intent(context, command, profileId, requireIdentity = true)
+            val captured = intent(context, context.graph.actions.capture(command, profileId, requireIdentity = true, origin = CommandOrigin.NOTIFICATION))
             val key = "${command.name}:$profileId:${captured.getStringExtra(NightAlarms.EXTRA_NIGHT)}:${captured.getIntExtra(NightAlarms.EXTRA_REVISION, -1)}"
             return PendingIntent.getService(context, key.hashCode(), captured,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

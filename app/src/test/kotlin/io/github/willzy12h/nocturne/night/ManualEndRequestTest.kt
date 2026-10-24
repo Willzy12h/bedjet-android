@@ -75,10 +75,13 @@ class ManualEndRequestTest {
         assertNull(runtime.endRequested)
         assertEquals("the cleared request leaves no command label or request time", null to null,
             runtime.endRequestedLabel to runtime.endRequestedAt)
+        assertEquals("the cleared request leaves no receipt boundary", null to null,
+            runtime.endRequestedOrder to runtime.endRequestedProcess)
     }
 
-    private suspend fun standby(receivedAt: ZonedDateTime = graph.now()) {
-        graph.actions.observeStatus(demo.status.value!!.copy(mode = Mode.STANDBY, extra = null), "demo", receivedAt)
+    private suspend fun standby(receivedAt: ZonedDateTime = graph.now(), receivedOrder: Long = graph.actions.captureStatusOrder()) {
+        graph.actions.observeStatus(demo.status.value!!.copy(mode = Mode.STANDBY, extra = null), "demo", receivedAt,
+            receivedOrder = receivedOrder)
     }
 
     private suspend fun assertLateLabel(command: NightActions.Command, label: String) {
@@ -130,15 +133,16 @@ class ManualEndRequestTest {
     }
 
     @Test fun aStandbyReceivedBeforeTheRequestCannotFinishItButAnEqualTimeCan() = runBlocking {
+        val oldReceipt = graph.actions.captureStatusOrder()
         val night = unresolved(NightActions.Command.OFF)
         val requestedAt = graph.now()
-        standby(requestedAt.minusNanos(1))
+        standby(requestedAt.minusNanos(1), oldReceipt)
         assertEquals("an old report cannot confirm this command", night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
         assertTrue(stopped(night).isEmpty())
 
         standby(requestedAt.withZoneSameInstant(ZoneOffset.ofHours(1)))
-        assertNull("the request instant is inclusive, regardless of the report's zone", graph.repository.activeNight.value)
+        assertNull("a later receipt can share the request's wall instant, regardless of its zone", graph.repository.activeNight.value)
         assertNoEndRequest()
         assertEquals("BedJet off.", stopped(night).single().detail)
         standby(requestedAt.plusSeconds(1))
@@ -146,10 +150,16 @@ class ManualEndRequestTest {
     }
 
     @Test fun restartingRetainsTheRequestTimeAndLabel() = runBlocking {
+        val oldReceipt = graph.actions.captureStatusOrder()
         val night = unresolved(NightActions.Command.TURBO)
         val requestedAt = graph.now()
+        val requestOrder = graph.repository.runtime.value.endRequestedOrder
+        val requestProcess = graph.repository.runtime.value.endRequestedProcess
         buildGraph(Clock.fixed(requestedAt.plusMinutes(1).toInstant(), ZoneOffset.UTC))
-        standby(requestedAt.minusSeconds(1))
+        assertEquals(requestedAt.toString(), graph.repository.runtime.value.endRequestedAt)
+        assertEquals(requestOrder, graph.repository.runtime.value.endRequestedOrder)
+        assertEquals(requestProcess, graph.repository.runtime.value.endRequestedProcess)
+        standby(requestedAt.minusSeconds(1), oldReceipt)
         assertEquals("a restart must not make an old report fresh", night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
         assertTrue(stopped(night).isEmpty())
@@ -181,10 +191,11 @@ class ManualEndRequestTest {
     @Test fun aNewManualEndReplacesBothTheOldLabelAndRequestTime() = runBlocking {
         val night = unresolved(NightActions.Command.OFF)
         val oldRequestAt = graph.now()
+        val oldReceipt = graph.actions.captureStatusOrder()
         graph.clock = Clock.fixed(oldRequestAt.plusSeconds(1).toInstant(), ZoneOffset.UTC)
         context.graph.clock = graph.clock
         assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.TURBO).kind)
-        standby(oldRequestAt)
+        standby(oldRequestAt, oldReceipt)
         assertEquals("the old command's report cannot confirm the newer command", night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
         standby(graph.now())

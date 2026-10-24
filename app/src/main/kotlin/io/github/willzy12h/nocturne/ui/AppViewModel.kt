@@ -29,6 +29,7 @@ import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.night.CommandOutcome
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.CancellationException
@@ -128,12 +129,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Shows [outcome] once. A plain "Settings saved." is not announced: the screen already shows the change. */
+    /** Shows [outcome] once. Routine local settings saves are already visible in the screen's controls. */
     fun report(outcome: CommandOutcome) {
         if (shownOutcomes.any { it === outcome }) return
         shownOutcomes.addLast(outcome)
         while (shownOutcomes.size > 32) shownOutcomes.removeFirst()
-        if (outcome.kind == OutcomeKind.LOCAL && outcome.message == getApplication<Application>().getString(R.string.runtime_settings_saved)) return
+        if (outcome.kind == OutcomeKind.LOCAL && outcome.origin == CommandOrigin.SETTINGS) return
         _messages.tryEmit(outcome.message)
     }
     private val _nextAlarm = MutableStateFlow<AlarmSource.NextAlarm?>(null)
@@ -269,7 +270,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun acceptLostOriginals() = save { repo.dismissUnreadable(acceptLostOriginals = true) }
 
     /** Commands wait for saves asked for before them, so they act on what the person just saved. */
-    private fun refusal(message: String) = CommandOutcome(OutcomeKind.REFUSED, message)
+    private fun refusal(message: String) = CommandOutcome(OutcomeKind.REFUSED, message, origin = CommandOrigin.APP)
 
     /** A message from resources, for outcomes and snackbars. */
     private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
@@ -284,9 +285,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (hardware) kotlinx.coroutines.withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target)) {
                     io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false) { work() }
                 } else work()
-            } catch (e: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, e.message ?: text(R.string.runtime_no_answer))
+            } catch (e: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, e.message ?: text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
             } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: text(R.string.runtime_something_wrong)) }
+            } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
             finally { _busy.value = false }
             report(outcome)
         }

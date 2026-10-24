@@ -4,6 +4,9 @@ import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import java.util.UUID
+import java.util.WeakHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 enum class LinkState { BLUETOOTH_OFF, UNAUTHORIZED, SEARCHING, CONNECTING, READY }
 
@@ -11,9 +14,30 @@ enum class LinkState { BLUETOOTH_OFF, UNAUTHORIZED, SEARCHING, CONNECTING, READY
  * A status and the [DeviceId] of the unit that reported it. A null [source] comes from a link that only ever talks
  * to one unit, such as [DemoBedJet].
  */
-data class SourcedStatus(val source: String?, val status: DeviceStatus) {
+data class SourcedStatus(val source: String?, val status: DeviceStatus,
+    /** Stamped before a report can be buffered; copies retain the original receipt. */
+    val receiptOrder: Long = StatusReceiptOrder.next()) {
     /** Whether this report may stand for [target]'s state: a report from another BedJet never does. */
     fun isFrom(target: String?): Boolean = source == null || DeviceId.same(source, target)
+}
+
+/** One process-scoped order for report receipts and the requests they may confirm. */
+object StatusReceiptOrder {
+    val processId: String = UUID.randomUUID().toString()
+    private val order = AtomicLong()
+    fun next(): Long = order.incrementAndGet()
+}
+
+/** One current snapshot per live default link; reading or recollecting cached state cannot renew its receipt. */
+private object DefaultStatusReports {
+    private val reports = WeakHashMap<BedJetLink, SourcedStatus>()
+
+    @Synchronized fun report(link: BedJetLink, status: DeviceStatus?): SourcedStatus? {
+        // An older collector must not replace the current cached receipt after another collector advanced it.
+        if (status == null || link.status.value !== status) return null
+        return reports[link]?.takeIf { it.status === status }
+            ?: SourcedStatus(null, status).also { reports[link] = it }
+    }
 }
 
 /** A connection to one BedJet 3. The Android transport talks to hardware; [DemoBedJet] simulates a unit. */
@@ -22,9 +46,9 @@ interface BedJetLink {
     /** The most recent status the unit reported. */
     val status: StateFlow<DeviceStatus?>
     /** [status] with the unit that reported it. A link that can reach more than one BedJet must override this. */
-    val sourcedStatus: Flow<SourcedStatus?> get() = status.map { it?.let { s -> SourcedStatus(null, s) } }
-    /** The latest [sourcedStatus], at once. Overridden together with [sourcedStatus]. */
-    fun latestSourcedStatus(): SourcedStatus? = status.value?.let { SourcedStatus(null, it) }
+    val sourcedStatus: Flow<SourcedStatus?> get() = status.map { DefaultStatusReports.report(this, it) }
+    /** The latest [sourcedStatus], with its original receipt. Overridden together with [sourcedStatus]. */
+    fun latestSourcedStatus(): SourcedStatus? = DefaultStatusReports.report(this, status.value)
 
     /** Suspends until the unit is ready for commands, or throws [BedJetError.NotConnected]. */
     suspend fun connect()

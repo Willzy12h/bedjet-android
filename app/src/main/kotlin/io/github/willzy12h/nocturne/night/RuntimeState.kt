@@ -15,6 +15,9 @@ import kotlinx.serialization.Serializable
     /** The command label and request time stay with the identity; older journals contain only the identity. */
     val endRequestedLabel: String? = null,
     val endRequestedAt: String? = null,
+    /** Strict receipt ordering within one process; older journals have neither value. */
+    val endRequestedOrder: Long? = null,
+    val endRequestedProcess: String? = null,
     val wakeSourceChange: WakeSourceChange? = null,
     val resumeOffer: ResumeOffer? = null,
     val retime: PendingRetime? = null,
@@ -45,11 +48,15 @@ import kotlinx.serialization.Serializable
 }
 
 data class CommandRequest(val command: NightActions.Command, val profileId: String?, val deviceId: String?,
-    val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false)
+    val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false,
+    val origin: CommandOrigin = CommandOrigin.APP)
+/** The entry route, independent of translated feedback. Unattributed legacy outcomes remain explicit. */
+enum class CommandOrigin { APP, WIDGET, SHORTCUT, ALARM, CHARGER, SETTINGS, NOTIFICATION, BACKGROUND, UNSPECIFIED }
 enum class OutcomeKind { CONFIRMED, ACCEPTED, LOCAL, REFUSED, STALE, FAILED, UNKNOWN, CONFIRMATION_REQUIRED }
 data class CommandOutcome(val kind: OutcomeKind, val message: String,
     /** The outcome already has its own notice; service delivery must not post another one. */
-    val notificationHandled: Boolean = false) {
+    val notificationHandled: Boolean = false,
+    val origin: CommandOrigin = CommandOrigin.UNSPECIFIED) {
     val succeeded: Boolean get() = kind in setOf(OutcomeKind.CONFIRMED, OutcomeKind.ACCEPTED, OutcomeKind.LOCAL)
 }
 data class BusyState(val runningLabel: String? = null, val queuedCount: Int = 0)
@@ -75,6 +82,19 @@ object ReplacementPolicy {
 /** Submission target carried across the service handoff and checked under command ownership. */
 internal class SubmissionTarget(val deviceId: String?) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     companion object Key : kotlin.coroutines.CoroutineContext.Key<SubmissionTarget>
+}
+
+/** Delivery source carried across a service handoff; each queued coroutine keeps its own source. */
+internal class SubmissionOrigin(val origin: CommandOrigin) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+    companion object Key : kotlin.coroutines.CoroutineContext.Key<SubmissionOrigin>
+}
+
+/** A retry can consume newer work after waiting for ownership. Its timeout belongs to the identity it actually ran. */
+internal class RetimeExecution : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+    var identity: NightIdentity? = null
+    /** A terminal notice already posted, even if later local persistence fails. */
+    var reportedNotice: String? = null
+    companion object Key : kotlin.coroutines.CoroutineContext.Key<RetimeExecution>
 }
 
 @Serializable data class LocalDelivery(val id: String, val action: String, val expected: NightIdentity, val receivedAt: String)

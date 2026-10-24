@@ -21,6 +21,7 @@ import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.AlarmChangedReceiver
+import io.github.willzy12h.nocturne.night.AlarmObservation
 import io.github.willzy12h.nocturne.night.CommandOutcome
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.night.NightAlarmReceiver
@@ -28,9 +29,13 @@ import io.github.willzy12h.nocturne.night.NightAlarms
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Before
@@ -120,12 +125,13 @@ class RetimeNotificationTest {
         assertNotNull("A pending receiver retry must be handed to the service", it.delivered)
     }
     private suspend fun retryReceiver(): CommandOutcome = deliveredResult(receiverDelivery())
-    private suspend fun deliveredResult(context: ServiceStartContext): CommandOutcome {
+    private suspend fun deliveredResult(context: ServiceStartContext, afterDelivery: () -> Unit = {}): CommandOutcome {
         val outcome = graph.scope.async(start = CoroutineStart.UNDISPATCHED) { graph.actions.outcomes.first() }
         val controller = Robolectric.buildService(BedJetService::class.java).create()
         try {
             val service = controller.get()
             service.onStartCommand(context.delivered, 0, 1)
+            afterDelivery()
             until { outcome.isCompleted && shadowOf(service).isStoppedBySelf }
             return outcome.await()
         } finally { controller.destroy(); outcome.cancel() }
@@ -178,7 +184,8 @@ class RetimeNotificationTest {
         beforeFileWrite = { file, bytes ->
             if (!delayed && file.name == "active-night.json" && bytes.toString(Charsets.UTF_8).contains("PENDING")) {
                 delayed = true
-                // Persistence crosses the new plan's wake boundary, but not the old retry deadline.
+                // Exercise NightRunner's final pre-write wake-boundary guard after pending persistence;
+                // the new plan expires here, while the old retry deadline remains in the future.
                 graph.clock = Clock.fixed(ZonedDateTime.parse(night.wakeUpStart).minusHours(1).toInstant(), ZoneOffset.UTC)
                 demo.tick()
             }
@@ -335,6 +342,8 @@ class RetimeNotificationTest {
         afterSend = {
             if (it[0] == 0x40.toByte()) {
                 wrote = true
+                // Inject a real TimeoutCancellationException after upload to reach the service timeout
+                // catch and core NonCancellable UNKNOWN publication without waiting for its outer budget.
                 runBlocking { withTimeout(1) { awaitCancellation() } }
             }
         }
@@ -352,7 +361,421 @@ class RetimeNotificationTest {
             until { graph.repository.notices.value.any { it.kind == NoticeKind.PROBLEM } }
             graph.repository.updateRuntime { it }
             assertEquals(1, graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM })
+            assertFalse("A possibly accepted write must disable its automatic retry", graph.actions.retimePending)
+            assertFalse(retryScheduled())
+            val count = writes
+            val repeated = ServiceStartContext(app)
+            NightAlarmReceiver().onReceive(repeated, Intent(NightAlarms.ACTION_RETRY))
+            assertTrue(repeated.requests.isEmpty())
+            assertEquals(count, writes)
         } finally { controller.destroy() }
+    }
+
+    @Test fun receiverTimeoutBeforeConnectKeepsSafeRetryQuiet() = runBlocking {
+        val night = pendingForReceiver()
+        val pending = graph.repository.runtime.value.retime
+        val count = writes
+        var entered = false
+        beforeConnect = { entered = true; awaitCancellation() }
+        val delivery = receiverDelivery()
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { entered }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(NightActions.OPERATION_MS + 1))
+            until { shadowOf(service).isStoppedBySelf }
+            assertEquals(night, graph.repository.activeNight.value)
+            assertEquals(pending, graph.repository.runtime.value.retime)
+            assertEquals(count, writes)
+            assertTrue(retryScheduled())
+            graph.repository.updateRuntime { it }
+            assertQuiet()
+        } finally { controller.destroy() }
+    }
+
+    @Test fun receiverPreWriteTimeoutAtDeadlineLeavesOneExpiryNotice() = runBlocking {
+        preWriteTimeoutAtDeadline(expireBeforeTimeout = false)
+    }
+
+    @Test fun receiverPreWriteTimeoutAfterExpiryDoesNotPostAgain() = runBlocking {
+        preWriteTimeoutAtDeadline(expireBeforeTimeout = true)
+    }
+
+    private suspend fun preWriteTimeoutAtDeadline(expireBeforeTimeout: Boolean) {
+        val night = pendingForReceiver()
+        val pending = graph.repository.runtime.value.retime!!
+        val count = writes
+        var entered = false
+        beforeConnect = { entered = true; awaitCancellation() }
+        val delivery = receiverDelivery()
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { entered }
+            // The connection is already stalled; move wall time exactly to expiry before its owner timer fires.
+            graph.clock = Clock.fixed(ZonedDateTime.parse(pending.deadline).toInstant(), ZoneOffset.UTC)
+            if (expireBeforeTimeout) {
+                graph.actions.submitAlarmChange()
+                assertOneExpiryNotice()
+            }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(NightActions.OPERATION_MS + 1))
+            until { shadowOf(service).isStoppedBySelf }
+            assertEquals(night, graph.repository.activeNight.value)
+            assertEquals(count, writes)
+            graph.repository.updateRuntime { it }
+            if (expireBeforeTimeout) {
+                assertEquals("A consumed expiry must remain the only terminal notice", 1,
+                    graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM })
+                assertOneExpiryNotice()
+                assertEquals("The wake-up change expired.", BedJetService.lastResult)
+                assertFalse(retryScheduled())
+            } else {
+                assertQuiet()
+                assertEquals(pending, graph.repository.runtime.value.retime)
+                assertTrue("A due deadline still needs a future delivery to its sole expiry owner",
+                    shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.any {
+                        shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY &&
+                            it.triggerAtTime > graph.clock.millis()
+                    })
+            }
+        } finally { controller.destroy(); beforeConnect = {} }
+        if (!expireBeforeTimeout) {
+            val connectsBeforeExpiry = connects
+            assertEquals(OutcomeKind.LOCAL, retryReceiver().kind)
+            assertOneExpiryNotice()
+            assertOneTerminalNotice(unknown = false)
+            assertEquals(count, writes)
+            assertEquals(connectsBeforeExpiry, connects)
+        }
+    }
+
+    @Test fun neverAdmittedManualRetryTimeoutLeavesItsObservationForOneRefusal() = runBlocking {
+        neverAdmittedIneligibleRetryTimeout(manual = true)
+    }
+
+    @Test fun neverAdmittedUnknownRetryTimeoutLeavesItsObservationForOneRefusal() = runBlocking {
+        neverAdmittedIneligibleRetryTimeout(manual = false)
+    }
+
+    private suspend fun neverAdmittedIneligibleRetryTimeout(manual: Boolean) {
+        val night = start()
+        alarm(5)
+        graph.actions.submitAlarmChange()
+        val observed = graph.repository.runtime.value.alarmInbox
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.actions.exclusive {
+            entered.complete(Unit)
+            withContext(NonCancellable) { release.await() }
+        } }
+        until { entered.isCompleted }
+        val delivery = receiverDelivery()
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        val current = night.copy(trackingManual = manual,
+            confidence = if (manual) Confidence.CONFIRMED else Confidence.UNKNOWN)
+        val count = writes
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { graph.actions.busy.value.queuedCount == 1 }
+            graph.repository.setActiveNight(current)
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(NightActions.OPERATION_MS + 1))
+            until { shadowOf(service).isStoppedBySelf }
+            assertEquals(current, graph.repository.activeNight.value)
+            assertEquals(observed, graph.repository.runtime.value.alarmInbox)
+            assertEquals(count, writes)
+            assertTrue(retryScheduled())
+            graph.repository.updateRuntime { it }
+            assertQuiet()
+        } finally {
+            release.complete(Unit)
+            until { held.isCompleted }
+            controller.destroy()
+        }
+        val connectsBeforeRefusal = connects
+        assertEquals(OutcomeKind.REFUSED, retryReceiver().kind)
+        assertOneTerminalNotice(unknown = !manual)
+        assertEquals(current, graph.repository.activeNight.value)
+        assertEquals(count, writes)
+        assertEquals(connectsBeforeRefusal, connects)
+    }
+
+    @Test fun receiverTimeoutInOwnerQueueKeepsSafeRetryQuiet() = runBlocking {
+        val night = pendingForReceiver()
+        val pending = graph.repository.runtime.value.retime
+        val count = writes
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.actions.exclusive {
+            entered.complete(Unit)
+            // Keep the owner in its finalisation until the queued request's own deadline has fired.
+            withContext(NonCancellable) { release.await() }
+        } }
+        until { entered.isCompleted }
+        val connectsBefore = connects
+        val delivery = receiverDelivery()
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { graph.actions.busy.value.queuedCount == 1 }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(NightActions.OPERATION_MS + 1))
+            until { shadowOf(service).isStoppedBySelf }
+            assertEquals(night, graph.repository.activeNight.value)
+            assertEquals(pending, graph.repository.runtime.value.retime)
+            assertEquals(count, writes)
+            assertEquals(connectsBefore, connects)
+            assertTrue(retryScheduled())
+            graph.repository.updateRuntime { it }
+            assertQuiet()
+        } finally {
+            release.complete(Unit)
+            until { held.isCompleted }
+            controller.destroy()
+        }
+    }
+
+    @Test fun receiverSaveFailureAfterConfirmedRetimeReportsTheConfirmedWake() = runBlocking {
+        val night = pendingForReceiver()
+        var failed = false
+        var started = false
+        afterSend = { if (it.contentEquals(Codec.startProgram(night.slot))) started = true }
+        beforeFileWrite = { file, _ ->
+            val current = graph.repository.activeNight.value
+            if (!failed && file.name == "history.json" && current?.confidence == Confidence.CONFIRMED &&
+                current.revision == night.revision + 1) {
+                failed = true
+                throw java.io.IOException("Could not save the changed history")
+            }
+        }
+        val delivery = ServiceStartContext(app)
+        assertTrue(BedJetService.start(delivery, NightActions.Command.RETRY_RETIME, notifyFailures = true))
+        val result = deliveredResult(delivery) {
+            until { started }
+            // A confirmed start waits through the controller's refusal-grace timer on the service's looper.
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+        }
+        assertTrue("The injected storage failure must happen after confirmed publication", failed)
+        val current = graph.repository.activeNight.value!!
+        assertEquals(night.revision + 1, current.revision)
+        assertEquals(Confidence.CONFIRMED, current.confidence)
+        assertNotEquals(night.wakeAt, current.wakeAt)
+        assertEquals("Confirmed device state must survive a later local save failure", OutcomeKind.CONFIRMED, result.kind)
+        assertNotNull(error())
+        assertTrue(error()!!.extras.getString("android.text")!!.contains("confirmed"))
+        assertFalse(error()!!.extras.getString("android.title")!!.contains("did not finish"))
+        assertFalse(error()!!.extras.getString("android.text")!!.contains("unknown"))
+        assertOneTerminalNotice(unknown = false)
+        val scheduled = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms
+        assertTrue("Local recovery must schedule the newly confirmed wake", scheduled.any {
+            shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_WAKE_UP &&
+                it.triggerAtTime == ZonedDateTime.parse(current.wakeUpStart).toInstant().toEpochMilli()
+        })
+    }
+
+    @Test fun receiverSaveTimeoutAfterConfirmedRetimePreservesConfirmationAndPropagatesCancellation() = runBlocking {
+        val night = pendingForReceiver()
+        var timedOut = false
+        var started = false
+        afterSend = { if (it.contentEquals(Codec.startProgram(night.slot))) started = true }
+        beforeFileWrite = { file, _ ->
+            val current = graph.repository.activeNight.value
+            if (!timedOut && file.name == "history.json" && current?.confidence == Confidence.CONFIRMED &&
+                current.revision == night.revision + 1) {
+                timedOut = true
+                // Reach cancellation after durable CONFIRMED publication, distinct from the upload timeout
+                // guard: local finalisation must still run while cancellation propagates to the service.
+                runBlocking { withTimeout(1) { awaitCancellation() } }
+            }
+        }
+        val outcome = graph.scope.async(start = CoroutineStart.UNDISPATCHED) { graph.actions.outcomes.first() }
+        val delivery = ServiceStartContext(app)
+        assertTrue(BedJetService.start(delivery, NightActions.Command.RETRY_RETIME, notifyFailures = true))
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { started }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
+            until { shadowOf(service).isStoppedBySelf }
+            assertTrue(timedOut)
+            assertFalse("Cancellation must propagate without emitting a completed command outcome", outcome.isCompleted)
+            val current = graph.repository.activeNight.value!!
+            assertEquals(night.revision + 1, current.revision)
+            assertEquals(Confidence.CONFIRMED, current.confidence)
+            assertNotNull(error())
+            assertTrue("A confirmed wake must not be described as an unconfirmed timeout",
+                error()!!.extras.getString("android.text")!!.contains("confirmed"))
+            assertFalse(error()!!.extras.getString("android.title")!!.contains("timed out"))
+            assertFalse(error()!!.extras.getString("android.text")!!.contains("unknown"))
+            assertOneTerminalNotice(unknown = false)
+            assertTrue(shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.any {
+                shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_WAKE_UP &&
+                    it.triggerAtTime == ZonedDateTime.parse(current.wakeUpStart).toInstant().toEpochMilli()
+            })
+        } finally { controller.destroy(); outcome.cancel() }
+    }
+
+    @Test fun receiverQueuedTimeoutPreservesAReplacementObservationWithoutANotice() = runBlocking {
+        val night = pendingForReceiver()
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.actions.exclusive {
+            entered.complete(Unit)
+            withContext(NonCancellable) { release.await() }
+        } }
+        until { entered.isCompleted }
+        val delivery = receiverDelivery()
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { graph.actions.busy.value.queuedCount == 1 }
+            val replacement = night.copy(recordId = "replacement-night", revision = 1)
+            val observed = AlarmObservation("replacement-observation", replacement.recordId, replacement.deviceId, graph.now().toString())
+            graph.repository.setActiveNight(replacement)
+            graph.repository.updateRuntime { it.copy(retime = null, alarmInbox = observed) }
+            NightAlarms.scheduleObservation(app, graph.now())
+            val count = writes
+            val connectsBefore = connects
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(NightActions.OPERATION_MS + 1))
+            until { shadowOf(service).isStoppedBySelf }
+            assertEquals(replacement, graph.repository.activeNight.value)
+            assertEquals(observed, graph.repository.runtime.value.alarmInbox)
+            assertNull(graph.repository.runtime.value.retime)
+            assertEquals(count, writes)
+            assertEquals(connectsBefore, connects)
+            assertTrue(retryScheduled())
+            graph.repository.updateRuntime { it }
+            assertQuiet()
+        } finally {
+            release.complete(Unit)
+            until { held.isCompleted }
+            controller.destroy()
+        }
+    }
+
+    @Test fun receiverTimeoutAfterCoalescingAReplacementPostsOneNotice() = runBlocking {
+        val night = pendingForReceiver()
+        val pending = graph.repository.runtime.value.retime!!
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.actions.exclusive { entered.complete(Unit); release.await() } }
+        until { entered.isCompleted }
+        val delivery = receiverDelivery()
+        var wrote = false
+        afterSend = {
+            if (it[0] == 0x40.toByte()) {
+                wrote = true
+                // The real timeout follows the coalesced replacement's upload, so the service must use
+                // the identity actually owned by this retry, rather than its earlier captured identity.
+                runBlocking { withTimeout(1) { awaitCancellation() } }
+            }
+        }
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { graph.actions.busy.value.queuedCount == 1 }
+            val replacement = night.copy(recordId = "coalesced-night", revision = 1)
+            graph.repository.setActiveNight(replacement)
+            graph.repository.updateRuntime { it.copy(retime = pending.copy(id = "coalesced-retry", expected = replacement.identity)) }
+            release.complete(Unit)
+            until { held.isCompleted && shadowOf(service).isStoppedBySelf }
+            assertTrue("The old delivery must retain its coalesced-latest-work behavior", wrote)
+            assertEquals(replacement.recordId, graph.repository.activeNight.value?.recordId)
+            assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+            assertNotNull("A timeout after writing the replacement must not be silenced as stale", error())
+            assertTrue(error()!!.extras.getString("android.title")!!.contains("timed out"))
+            assertFalse(error()!!.extras.getString("android.text")!!.contains("not restarted"))
+            assertOneTerminalNotice(unknown = false)
+        } finally {
+            release.complete(Unit)
+            until { held.isCompleted }
+            controller.destroy()
+        }
+    }
+
+    @Test fun receiverManualObservationRefusalPostsOneTerminalNotice() = runBlocking {
+        val night = start()
+        alarm(5)
+        graph.actions.submitAlarmChange()
+        val manual = night.copy(trackingManual = true)
+        graph.repository.setActiveNight(manual)
+        val count = writes
+        assertEquals(OutcomeKind.REFUSED, retryService(notifyFailures = true).kind)
+        assertEquals(manual, graph.repository.activeNight.value)
+        assertEquals(count, writes)
+        assertOneTerminalNotice(unknown = false)
+        assertEquals(error()!!.extras.getString("android.text"), graph.repository.runtime.value.reason)
+    }
+
+    @Test fun receiverUncertainObservationRefusalPostsOneTerminalNotice() = runBlocking {
+        val night = start()
+        alarm(5)
+        graph.actions.submitAlarmChange()
+        val uncertain = night.copy(confidence = Confidence.UNKNOWN)
+        graph.repository.setActiveNight(uncertain)
+        val count = writes
+        assertEquals(OutcomeKind.REFUSED, retryReceiver().kind)
+        assertEquals(uncertain, graph.repository.activeNight.value)
+        assertEquals(count, writes)
+        assertOneTerminalNotice(unknown = true)
+    }
+
+    @Test fun terminalManualRefusalIsNotRepeatedWhenInboxClearTimesOut() = runBlocking {
+        manualRefusalWithFailedInboxClear(timeout = true)
+    }
+
+    @Test fun terminalManualRefusalIsNotRepeatedWhenInboxClearFails() = runBlocking {
+        manualRefusalWithFailedInboxClear(timeout = false)
+    }
+
+    private suspend fun manualRefusalWithFailedInboxClear(timeout: Boolean) {
+        val night = start()
+        alarm(5)
+        graph.actions.submitAlarmChange()
+        val observed = graph.repository.runtime.value.alarmInbox!!
+        val manual = night.copy(trackingManual = true)
+        graph.repository.setActiveNight(manual)
+        var failed = false
+        beforeFileWrite = { file, bytes ->
+            if (!failed && file.name == "runtime.json" &&
+                graph.repository.runtime.value.alarmInbox?.id == observed.id &&
+                !bytes.toString(Charsets.UTF_8).contains(observed.id)) {
+                failed = true
+                // The terminal refusal has already posted. Fail its later inbox-clear write to exercise
+                // service deduplication for both a propagated timeout and a returned FAILED outcome.
+                if (timeout) runBlocking { withTimeout(1) { awaitCancellation() } }
+                throw java.io.IOException("Could not clear the refused observation")
+            }
+        }
+        val writesBefore = writes
+        val outcome = graph.scope.async(start = CoroutineStart.UNDISPATCHED) { graph.actions.outcomes.first() }
+        val delivery = ServiceStartContext(app)
+        assertTrue(BedJetService.start(delivery, NightActions.Command.RETRY_RETIME, notifyFailures = true))
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { shadowOf(service).isStoppedBySelf }
+            assertTrue("The failure must occur only while clearing the already-refused observation", failed)
+            if (timeout) assertFalse("The local clear timeout must still propagate cancellation", outcome.isCompleted)
+            else {
+                assertTrue(outcome.isCompleted)
+                assertEquals(OutcomeKind.FAILED, outcome.await().kind)
+            }
+            until { graph.repository.notices.value.any { it.kind == NoticeKind.PROBLEM } }
+            graph.repository.updateRuntime { it }
+            val problems = graph.repository.notices.value.filter { it.kind == NoticeKind.PROBLEM }
+            assertEquals("The later local save failure must not repeat the terminal notice: ${problems.map { it.title to it.text }}", 1,
+                problems.size)
+            assertTrue(error()!!.extras.getString("android.text")!!.contains("manual run"))
+            assertEquals(manual, graph.repository.activeNight.value)
+            assertEquals(writesBefore, writes)
+        } finally { controller.destroy(); outcome.cancel() }
     }
 
     @Test fun terminalRetimeNoticeIsNotRepeatedByAnExplicitServiceRequest() = runBlocking {
@@ -486,6 +909,8 @@ class RetimeNotificationTest {
         var failedWrites = 0
         runtimeWriteFailure = {
             failedWrites++
+            // Exercise the receiver fallback's TimeoutCancellationException branch before any durable
+            // replacement; its existing pending request and quiet retry must survive this local timeout.
             if (timeout) runBlocking { withTimeout(1) { awaitCancellation() } }
             throw java.io.IOException("Runtime storage unavailable")
         }

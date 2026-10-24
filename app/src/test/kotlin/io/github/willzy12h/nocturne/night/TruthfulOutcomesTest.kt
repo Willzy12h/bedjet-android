@@ -179,7 +179,9 @@ class TruthfulOutcomesTest {
             graph.clock = Clock.fixed(graph.now().plusHours(2).toInstant(), ZoneOffset.UTC); context.graph.clock = graph.clock } }
         val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT))
         beforeQuery = {}
-        assertEquals(outcome.message, OutcomeKind.REFUSED, outcome.kind)
+        // The first start has already published FAILED; its outcome must agree with that request (D8).
+        assertEquals(Confidence.FAILED, graph.repository.activeNight.value!!.confidence)
+        assertEquals(outcome.message, OutcomeKind.FAILED, outcome.kind)
         val record = graph.repository.history.value.single()
         assertTrue("the start's record keeps why it didn't run", record.events.any { it.kind == EventKind.ERROR && it.detail == outcome.message })
         assertEquals(outcome.message, graph.repository.runtime.value.reason)
