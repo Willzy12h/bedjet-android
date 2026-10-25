@@ -42,6 +42,7 @@ class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, 
     override val status: StateFlow<DeviceStatus?> get() = engine.status
     override val sourcedStatus: StateFlow<SourcedStatus?> get() = engine.sourcedStatus
     override fun latestSourcedStatus(): SourcedStatus? = engine.latestSourcedStatus()
+    override fun setStatusDemand(enabled: Boolean) = engine.setStatusDemand(enabled)
 
     /** The unit's name, once read; shown in settings. */
     val deviceName: String? get() = names.displayName()

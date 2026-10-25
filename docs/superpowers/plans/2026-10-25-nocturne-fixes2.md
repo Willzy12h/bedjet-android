@@ -38,7 +38,7 @@
 
 ## Implementation decisions
 
-- Preserve the conservative unknown-alarm-source setting; explain rejection instead of silently trusting a null creator.
+- Preserve the existing alarm-source policy and persisted/default setting. Expose the unknown-source choice and explain rejection; do not silently change it for a null creator.
 - Keep the existing theme/navigation and add only the requested small source explanation and targeted navigation.
 - Background commands may obtain the full status they need; idle background grace must not perform continuous status-enrichment reads.
 - Reuse the existing connection-holder mechanism; do not introduce a second hardware command owner or a polling service.

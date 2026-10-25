@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Shares the one BedJet connection between the screen and background work. The BedJet takes one phone at a time,
- * so the connection is let go a few seconds after nobody needs it, and a connect still under way when the last
+ * so the connection is let go 30 seconds after nobody needs it, and a connect still under way when the last
  * holder lets go is called off. Every hold is undone exactly once, so one holder letting go can't drop a
  * connection another is still writing over.
  */
@@ -35,7 +35,9 @@ class LinkSessions(
     constructor(graph: Graph) : this(graph.scope, { graph.link }, { graph.clock.millis() })
 
     private val lock = Mutex()
-    private var holders = 0
+    @Volatile private var holders = 0
+    /** Only a visible screen or active connection owner needs routine full-status observations. */
+    val hasStatusDemand: Boolean get() = holders > 0
     private var release: Job? = null
     private var held: BedJetLink? = null
     /** Connects under way, so the last release can call them off. */
@@ -78,6 +80,8 @@ class LinkSessions(
             lock.withLock {
                 holders = maxOf(0, holders - 1)
                 if (holders > 0) return@withLock
+                // Retain the connection briefly, without idle reads of split-status programme/LED/beep details.
+                held?.setStatusDemand(false)
                 // Nobody needs the connection any more, so a connect still under way is called off.
                 connects.forEach { it.cancel() }
                 release?.cancel()
@@ -161,6 +165,8 @@ class LinkSessions(
         // Demo mode was switched; let go of the other link.
         if (held != null && held !== current) held?.disconnect()
         held = current
+        // A background command needs the same full status and original receipts as a visible screen.
+        current.setStatusDemand(true)
         current
     }
 
@@ -193,7 +199,7 @@ class LinkSessions(
 
     private companion object {
         const val RELEASE_POLL_MS = 60_000L
-        const val GRACE_MS = 5_000L
+        const val GRACE_MS = 30_000L
         const val RELEASED = "Released for another phone"
     }
 }

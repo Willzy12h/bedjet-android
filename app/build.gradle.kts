@@ -144,6 +144,7 @@ dependencies {
     implementation(libs.glance.material3)
 
     testImplementation(libs.junit4)
+    testImplementation(libs.coroutines.test)
     testImplementation(libs.robolectric)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)

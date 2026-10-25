@@ -67,6 +67,13 @@ class GattLink(
     override val sourcedStatus: StateFlow<SourcedStatus?> = _sourcedStatus.asStateFlow()
     override fun latestSourcedStatus(): SourcedStatus? = _sourcedStatus.value
 
+    /** LinkSessions disables idle enrichment during its background disconnect grace. */
+    @Volatile private var statusDemand = true
+    override fun setStatusDemand(enabled: Boolean) {
+        if (enabled && !statusDemand) current?.lastRemainderRead = null
+        statusDemand = enabled
+    }
+
     private val operations = Mutex()
     private val connecting = Mutex()
     @Volatile private var current: Session? = null
@@ -403,7 +410,7 @@ class GattLink(
             publish(session, parsed.copy(extra = if (startPending) null else session.lastExtra))
         }
         // While a start is pending a remainder read would only be dropped, and would hold up the start.
-        if (startPending) return
+        if (startPending || !statusDemand) return
         val now = clock()
         val last = session.lastRemainderRead
         // Only while no operation holds the queue, not merely between its steps: the unit and the GATT stack each
@@ -412,7 +419,7 @@ class GattLink(
             session.lastRemainderRead = now
             session.scope.launch {
                 try {
-                    receiveStatus(session, exchange(session, Kind.READ, Attr.STATUS) { it.read(Attr.STATUS) })
+                    if (statusDemand) receiveStatus(session, exchange(session, Kind.READ, Attr.STATUS) { it.read(Attr.STATUS) })
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {

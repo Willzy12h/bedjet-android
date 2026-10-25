@@ -50,6 +50,9 @@ interface BedJetLink {
     /** The latest [sourcedStatus], with its original receipt. Overridden together with [sourcedStatus]. */
     fun latestSourcedStatus(): SourcedStatus? = DefaultStatusReports.report(this, status.value)
 
+    /** Whether a visible screen or an active command needs full status enrichment; raw receipts are never throttled. */
+    fun setStatusDemand(enabled: Boolean) {}
+
     /** Suspends until the unit is ready for commands, or throws [BedJetError.NotConnected]. */
     suspend fun connect()
     suspend fun disconnect()

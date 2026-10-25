@@ -37,6 +37,11 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -46,6 +51,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -100,8 +106,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Follows the live link, which changes when demo mode is switched. Collected only while this model lives (U07). */
     val linkState: StateFlow<LinkState> = repo.settings.map { graph.link }.flatMapLatest { it.state }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LinkState.SEARCHING)
-    /** The chosen BedJet's own status: a report from a session still on another unit is not shown. */
-    val status: StateFlow<DeviceStatus?> = repo.settings.flatMapLatest { s -> graph.link.sourcedStatus.map { displayedStatus(it, s.deviceId()) } }
+    private val visible = MutableStateFlow(false)
+    /** Foreground presentation only, at most once a second. Commands still consume unmodified raw sourced receipts. */
+    val status: StateFlow<DeviceStatus?> = combine(repo.settings.map { it.deviceId() }.distinctUntilChanged(), visible) { target, shown ->
+        target to shown
+    }.flatMapLatest { (target, shown) ->
+        if (!shown) flowOf<DeviceStatus?>(null)
+        else graph.link.sourcedStatus.map { displayedStatus(it, target) }.conflate().transform<DeviceStatus?, DeviceStatus?> {
+            emit(it)
+            delay(1_000)
+        }
+    }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _busy = MutableStateFlow(false)
@@ -153,6 +168,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onScreenVisible() {
         screenVisible = true
+        visible.value = true
         tapHaptics.setVisible(true)
         refreshAlarm()
         graph.sessions.holdForScreen(true)
@@ -166,6 +182,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onScreenHidden() {
         screenVisible = false
+        visible.value = false
         tapHaptics.setVisible(false)
         graph.sessions.holdForScreen(false)
     }
