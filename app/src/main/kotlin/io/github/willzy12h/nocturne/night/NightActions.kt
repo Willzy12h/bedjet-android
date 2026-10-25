@@ -19,7 +19,6 @@ import java.time.ZonedDateTime
 import java.time.Duration
 import java.time.format.DateTimeFormatter
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicLong
 
 /** The only owner of complete BedJet transactions, target changes and local night transitions.
  * Callers own the coroutine lifecycle: foreground UI, bounded service, or cancellable JobService. */
@@ -28,12 +27,15 @@ class NightActions(private val graph: Graph) {
     internal val repo get() = graph.repository
     private val context get() = graph.context
     private val lock = Mutex()
-    /** Receipt order is local to this runtime; an earlier runtime's queued report is never a fresh observation. */
-    data class StatusReceipt internal constructor(val epoch: String, val sequence: Long)
-    private val statusEpoch = UUID.randomUUID().toString()
-    private val statusSequence = AtomicLong()
-    internal fun statusReceipt() = StatusReceipt(statusEpoch, statusSequence.incrementAndGet())
-    /** Monotonic milliseconds for the admission check; tests move it by hand. */
+    /** Link reports and request boundaries share one process order; queued reports keep their original receipt. */
+    class StatusReceipt internal constructor(val epoch: String, val sequence: Long)
+    private val statusEpoch = StatusReceiptOrder.processId
+    private val observationStartedSequence = StatusReceiptOrder.next()
+    internal fun statusReceipt() = StatusReceipt(statusEpoch, StatusReceiptOrder.next())
+    private fun receiptOf(report: SourcedStatus) = StatusReceipt(statusEpoch, report.receiptOrder)
+    private fun receiptOf(status: DeviceStatus, target: String?): StatusReceipt? =
+        graph.link.latestSourcedStatus()?.takeIf { it.status === status && it.isFrom(target) }?.let(::receiptOf)
+    /** Monotonic milliseconds for admission and manual-run elapsed time; tests move it by hand. */
     internal var elapsedMs: () -> Long = { System.nanoTime() / 1_000_000 }
     private val _busy = MutableStateFlow(BusyState())
     val busy: StateFlow<BusyState> = _busy.asStateFlow()
@@ -205,7 +207,7 @@ class NightActions(private val graph: Graph) {
         advanceGeneration(preserveOffer = command in TIMED_MANUAL || repo.activeNight.value?.trackingManual != false)
         return when (command) {
             Command.OFF, Command.END_NIGHT -> manualChange(text(R.string.runtime_off), endsNight = true, confirms = { it.mode == Mode.STANDBY },
-                unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
+                allowCurrentStatus = true, unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
             Command.TURBO -> quick(ActionPreset(Mode.TURBO, 86, 100, 10), text(R.string.runtime_turbo))
             Command.COOL -> quick(repo.settings.value.extendCool, text(R.string.runtime_cooling))
             Command.WARM -> quick(repo.settings.value.extendWarm, text(R.string.runtime_warming))
@@ -332,37 +334,52 @@ class NightActions(private val graph: Graph) {
         val original = existing?.program ?: if (existing == null) graph.controller().storedPrograms()[slot] else null
         repo.recordOriginalSlot(device, slot, original)
     }
-    private suspend fun quick(preset: ActionPreset, message: String) = manualChange(message, true, confirms = runs(preset)) { runPreset(preset) }
+    private suspend fun quick(preset: ActionPreset, message: String): CommandOutcome {
+        var sentAt = elapsedMs()
+        return manualChange(message, true, confirms = runs(preset) { sentAt }) {
+            sentAt = elapsedMs()
+            runPreset(preset)
+        }
+    }
     private suspend fun runPreset(preset: ActionPreset) {
         val limits = limits()
         graph.controller().runManual(preset.mode, PlanCompiler.temperatureFor(preset.mode, preset.temperature, limits),
             PlanCompiler.fanStepFor(preset.fanPercent, limits), preset.minutes)
     }
-    /** Whether a status shows [preset] running, as [runPreset] sends it: its mode, and the temperature and fan it uses. */
-    private fun runs(preset: ActionPreset): (DeviceStatus) -> Boolean {
+    /** A complete manual run: controls, no programme step, and a timer consistent with monotonic time since sending. */
+    private fun runs(preset: ActionPreset, sentAt: () -> Long): (DeviceStatus) -> Boolean {
         val limits = limits()
         val temperature = PlanCompiler.temperatureFor(preset.mode, preset.temperature, limits).coerceIn(preset.mode.temperatureRange)
         val fan = PlanCompiler.fanStepFor(preset.fanPercent, limits)
-        return { s -> s.mode == preset.mode && (!preset.mode.usesTemperature || s.targetTemperature == temperature) &&
-            (!preset.mode.usesFan || s.fanStep == fan) }
+        return { s ->
+            val elapsedSeconds = (elapsedMs() - sentAt()).coerceAtLeast(0) / 1_000
+            val remaining = (preset.minutes * 60L - elapsedSeconds).coerceAtLeast(0)
+            s.extra?.programStep == 0 && s.mode == preset.mode &&
+                (!preset.mode.usesTemperature || s.targetTemperature == temperature) &&
+                (!preset.mode.usesFan || s.fanStep == fan) && kotlin.math.abs(s.remainingSeconds - remaining) <= 120
+        }
     }
     /**
-     * Always runs [send]. A value the target already reports as [matches] needs no second, possibly conflated report.
-     * A changed value needs a matching report after [send] began or, after [confirmMs], one fresh read. An accepted
-     * write alone does not prove a change took effect. Null [matches] confirms nothing.
+     * Always runs [send]. Only complete-state commands may use an already matching snapshot. Other commands need
+     * a matching receipt after [send] began or, after [confirmMs], one fresh read. An accepted write alone does not
+     * prove a change took effect. Null [matches] confirms nothing.
      */
-    private suspend fun sentAndConfirmed(matches: ((DeviceStatus) -> Boolean)?, send: suspend () -> Unit): Boolean = coroutineScope {
+    private suspend fun sentAndConfirmed(matches: ((DeviceStatus) -> Boolean)?, allowCurrentStatus: Boolean = false,
+        send: suspend () -> Unit): Boolean = coroutineScope {
         val target = repo.settings.value.deviceId()
-        val alreadyMatches = matches != null && graph.link.latestStatusFrom(target)?.let(matches) == true
-        val reports = Channel<DeviceStatus>(64, BufferOverflow.DROP_OLDEST)
-        // Subscribed before anything is sent; the report already current is dropped.
+        val alreadyMatches = allowCurrentStatus && matches != null && graph.link.latestStatusFrom(target)?.let(matches) == true
+        val reports = Channel<SourcedStatus>(64, BufferOverflow.DROP_OLDEST)
+        // Subscribe first, then capture the send boundary; delayed older reports retain their earlier receipt.
         val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
-            graph.link.sourcedStatus.drop(1).filterNotNull().collect { if (it.isFrom(target)) reports.trySend(it.status) }
+            graph.link.sourcedStatus.filterNotNull().collect { if (it.isFrom(target)) reports.trySend(it) }
         }
         try {
+            val sentAfter = StatusReceiptOrder.next()
             send()
             if (matches == null) false
-            else alreadyMatches || withTimeoutOrNull(confirmMs) { reports.receiveAsFlow().first { matches(it) } } != null || freshlyShows(matches)
+            else alreadyMatches || withTimeoutOrNull(confirmMs) {
+                reports.receiveAsFlow().first { it.receiptOrder > sentAfter && matches(it.status) }
+            } != null || freshlyShows(matches)
         } finally { watcher.cancel() }
     }
     /** One fresh read of the target; a read that fails confirms nothing. */
@@ -380,7 +397,8 @@ class NightActions(private val graph: Graph) {
      * the same night as STOPPED. Off stays available to send again, and Stop tracking ends it locally.
      */
     private suspend fun manualChange(message: String, endsNight: Boolean, affectsProgramme: Boolean = false,
-        confirms: ((DeviceStatus) -> Boolean)?, unconfirmed: String = text(R.string.runtime_sent_unconfirmed, message),
+        confirms: ((DeviceStatus) -> Boolean)?, allowCurrentStatus: Boolean = false,
+        unconfirmed: String = text(R.string.runtime_sent_unconfirmed, message),
         work: suspend () -> Unit): CommandOutcome {
         val night = repo.activeNight.value
         val requestedAt = graph.now()
@@ -396,7 +414,7 @@ class NightActions(private val graph: Graph) {
                 endRequestedSequence = requestedReceipt.sequence, retime = null, alarmInbox = null) }
             NightAlarms.cancelRetry(context)
         }
-        val confirmed = sentAndConfirmed(confirms) {
+        val confirmed = sentAndConfirmed(confirms, allowCurrentStatus) {
             try { work() } catch (e: Exception) {
                 withContext(NonCancellable) {
                     pending?.let { publishNight(it.copy(confidence = Confidence.UNKNOWN)) }
@@ -431,7 +449,11 @@ class NightActions(private val graph: Graph) {
     private suspend fun timedManual(preset: ActionPreset, kind: EventKind, label: String): CommandOutcome {
         val old = repo.activeNight.value
         val message = text(R.string.runtime_timed, label, preset.minutes)
-        val result = manualChange(message, false, confirms = runs(preset)) { runPreset(preset) }
+        var sentAt = elapsedMs()
+        val result = manualChange(message, false, confirms = runs(preset) { sentAt }) {
+            sentAt = elapsedMs()
+            runPreset(preset)
+        }
         if (old != null) {
             val until = graph.now().plusMinutes(preset.minutes.toLong())
             val bounds = limits()
@@ -840,7 +862,8 @@ class NightActions(private val graph: Graph) {
             Notifications.showWakeUp(context, updated, repo.settings.value, logNotice = false)
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_manual_tracking))
     }
-    private suspend fun freshStatus(requireProgress: Boolean = true): DeviceStatus {
+    private suspend fun freshStatus(requireProgress: Boolean = true): DeviceStatus = freshReport(requireProgress).status
+    private suspend fun freshReport(requireProgress: Boolean = true): SourcedStatus {
         // Reconnect under whole-command ownership. Existing READY status may predate this operation.
         val target = repo.settings.value.deviceId()
         graph.link.disconnect()
@@ -849,7 +872,7 @@ class NightActions(private val graph: Graph) {
         // A status that never arrives is a failed attempt with nothing written. Only this wait's own timeout is turned
         // into that: a cancellation from outside, such as the owner's budget running out, still cancels.
         return withTimeoutOrNull(freshStatusMs) {
-            graph.link.sourcedStatus.filterNotNull().first { it.isFrom(target) && (!requireProgress || it.status.extra != null) }.status
+            graph.link.sourcedStatus.filterNotNull().first { it.isFrom(target) && (!requireProgress || it.status.extra != null) }
         } ?: throw BedJetError.Timeout()
     }
     /** How long [freshStatus] waits for the target's report with program progress; tests shorten it. */
@@ -919,7 +942,7 @@ class NightActions(private val graph: Graph) {
                         endRequestedEpoch = null, endRequestedSequence = null) }
                 else try {
                     // Standby is in the head; no programme-progress tail is needed to confirm an ending command.
-                    connected { finishRequestedEnd(freshStatus(requireProgress = false), statusReceipt()) }
+                    connected { freshReport(requireProgress = false).let { finishRequestedEnd(it.status, receiptOf(it)) } }
                 } catch (e: CancellationException) { throw e
                 } catch (_: Exception) { /* Keep the durable intention and UNKNOWN state until a target report arrives. */ }
             }
@@ -948,7 +971,7 @@ class NightActions(private val graph: Graph) {
         Notifications.showWakeUp(context, n, repo.settings.value)
     }
     suspend fun observeStatus(status: DeviceStatus, target: String?, receivedAt: ZonedDateTime = graph.now(), source: String? = target,
-        receipt: StatusReceipt = statusReceipt()) {
+        receipt: StatusReceipt? = receiptOf(status, target)) {
         // Intermediate reports during our own upload/manual packets must not become a takeover after queuing.
         if (lock.isLocked) return
         lock.withLock {
@@ -969,14 +992,13 @@ class NightActions(private val graph: Graph) {
             recordTakeover(n)
         }
     }
-    /** Called with an attributed target report under ownership; receipt order never depends on the wall clock.
-     * Restored and legacy markers accept this runtime's new reports, but never an earlier runtime's receipts. */
-    private suspend fun finishRequestedEnd(status: DeviceStatus, receipt: StatusReceipt): Boolean {
+    /** Receipt order never depends on wall time. Restored/legacy markers require a new report in this runtime. */
+    private suspend fun finishRequestedEnd(status: DeviceStatus, receipt: StatusReceipt?): Boolean {
         val night = repo.activeNight.value ?: return false
         val request = repo.runtime.value
-        if (request.endRequested != night.identity || status.isRunning || receipt.epoch != statusEpoch ||
-            (request.endRequestedEpoch == receipt.epoch &&
-                request.endRequestedSequence?.let { receipt.sequence <= it } == true)) return false
+        val requestedSequence = request.endRequestedSequence?.takeIf { request.endRequestedEpoch == statusEpoch }
+        if (request.endRequested != night.identity || status.isRunning || receipt == null || receipt.epoch != statusEpoch ||
+            receipt.sequence <= maxOf(observationStartedSequence, requestedSequence ?: observationStartedSequence)) return false
         finishLocked(night, EventKind.STOPPED, request.endRequestedLabel ?: text(R.string.runtime_stopped))
         return true
     }
@@ -1244,8 +1266,9 @@ class NightActions(private val graph: Graph) {
         graph.sessions.resumeAutoConnect()
         connected {
             val pendingEnd = repo.runtime.value.endRequested?.let { it == repo.activeNight.value?.identity } == true
-            val status = freshStatus(requireProgress = !pendingEnd)
-            if (finishRequestedEnd(status, statusReceipt())) return@connected CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_taken_back))
+            val report = freshReport(requireProgress = !pendingEnd)
+            val status = report.status
+            if (finishRequestedEnd(status, receiptOf(report))) return@connected CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_taken_back))
             // Uncertain hardware is never replayed. The user can keep a fresh manual run or stop tracking.
             repo.activeNight.value?.let { n ->
                 // The same comparison as takeover detection: a kept manual run against its own step (IR-08).
@@ -1269,7 +1292,10 @@ class NightActions(private val graph: Graph) {
         if ((endsNight || affectsProgramme) && expected != repo.activeNight.value?.identity) return@owned stale()
         connected {
             advanceGeneration(preserveOffer = !endsNight || repo.activeNight.value?.trackingManual != false)
-            manualChange(label, endsNight, affectsProgramme, confirms) { work(graph.controller()) }
+            // Only lights, beeps and notice acknowledgement leave both the programme and tracking untouched.
+            manualChange(label, endsNight, affectsProgramme, confirms, allowCurrentStatus = !endsNight && !affectsProgramme) {
+                work(graph.controller())
+            }
         }
     }
     /** [open] is how the file is opened; tests make it fail. A file that can't be opened throws, so nothing claims it saved. */

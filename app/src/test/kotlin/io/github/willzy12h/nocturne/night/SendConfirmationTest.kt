@@ -5,6 +5,7 @@ import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.*
 import io.github.willzy12h.nocturne.core.night.*
+import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.protocol.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
@@ -13,6 +14,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.map
 import org.junit.Assert.*
 import org.junit.Before
@@ -24,9 +26,8 @@ import org.robolectric.annotation.Config
 import java.time.*
 
 /**
- * A requested value already reported by the target is confirmed after sending, even when the identical report
- * is conflated. A changed value needs a later report or fresh read: here [swallow] lets a write through the link
- * without the unit acting on it.
+ * Complete auxiliary states can confirm an unchanged request. Modes and timed runs need a later report or a
+ * fresh read: here [swallow] lets a write through the link without the unit acting on it.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -40,6 +41,7 @@ class SendConfirmationTest {
     private var swallow: (ByteArray) -> Boolean = { false }
     private var foreign: SourcedStatus? = null
     private var headsOnly = false
+    private var reportStatus: (DeviceStatus) -> DeviceStatus = { it }
     private var disconnects = 0
     private var afterSend: (ByteArray) -> Unit = {}
     private val link: BedJetLink by lazy {
@@ -54,9 +56,13 @@ class SendConfirmationTest {
             override suspend fun disconnect() { disconnects++; demo.disconnect() }
             override val sourcedStatus: kotlinx.coroutines.flow.Flow<SourcedStatus?>
                 get() = foreign?.let { kotlinx.coroutines.flow.MutableStateFlow<SourcedStatus?>(it) }
-                    ?: demo.sourcedStatus.map { report -> if (headsOnly) report?.copy(status = report.status.copy(extra = null)) else report }
-            override fun latestSourcedStatus(): SourcedStatus? = foreign ?: demo.latestSourcedStatus()
+                    ?: demo.sourcedStatus.map(::reported)
+            override fun latestSourcedStatus(): SourcedStatus? = foreign ?: reported(demo.latestSourcedStatus())
         }
+    }
+    private fun reported(report: SourcedStatus?): SourcedStatus? = report?.let {
+        val shown = reportStatus(if (headsOnly) it.status.copy(extra = null) else it.status)
+        if (shown === it.status) it else it.copy(status = shown)
     }
 
     @Before fun setup() = runBlocking {
@@ -129,6 +135,16 @@ class SendConfirmationTest {
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
     }
 
+    @Test fun offAlreadyInStandbyIsStillSentAndConfirmedWithoutAFreshRead() = runBlocking {
+        demo.connect()
+        swallow = press(Mode.STANDBY)
+
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
+        assertEquals(1, sent.size)
+        assertTrue(sent.single().contentEquals(Codec.setMode(Mode.STANDBY)!!))
+        assertEquals(0, disconnects)
+    }
+
     @Test fun aLateStandbyReportClosesAnUnconfirmedOffAsStoppedWithoutAnotherWrite() = runBlocking {
         val n = start(); advance(30)
         swallow = press(Mode.STANDBY)
@@ -152,10 +168,11 @@ class SendConfirmationTest {
         assertNotNull("running is not an Off confirmation", graph.repository.activeNight.value)
         demo.send(Codec.setMode(Mode.STANDBY)!!)
         val head = demo.status.value!!.copy(extra = null)
-        graph.actions.observeStatus(head, "demo", source = "ble:AA:BB:CC:DD:EE:FF")
+        val receipt = graph.actions.statusReceipt()
+        graph.actions.observeStatus(head, "demo", source = "ble:AA:BB:CC:DD:EE:FF", receipt = receipt)
         assertNotNull("another BedJet cannot confirm Off", graph.repository.activeNight.value)
         assertTrue(events(n).none { it.kind == EventKind.STOPPED })
-        graph.actions.observeStatus(head, "demo")
+        graph.actions.observeStatus(head, "demo", receipt = receipt)
         assertNull("Standby is in the status head", graph.repository.activeNight.value)
         assertEquals(1, events(n).count { it.kind == EventKind.STOPPED })
     }
@@ -303,6 +320,92 @@ class SendConfirmationTest {
         assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value!!.confidence)
     }
 
+    @Test fun aMatchingProgrammeTurboBeforeTheWriteCannotConfirmQuickTurbo() = runBlocking {
+        val started = graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT, Presets.winterWarm.id))
+        assertEquals(OutcomeKind.CONFIRMED, started.kind)
+        val night = graph.repository.activeNight.value!!
+        assertEquals(Mode.TURBO, demo.status.value!!.mode)
+        assertTrue(demo.status.value!!.extra!!.programStep > 0)
+        swallow = { true }
+
+        val outcome = run(NightActions.Command.TURBO)
+
+        assertEquals("the existing programme is not a new manual Turbo", OutcomeKind.UNKNOWN, outcome.kind)
+        assertEquals(night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+        assertTrue(events(night).none { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun aPostSendProgrammeStepCannotConfirmAManualPreset() = runBlocking {
+        demo.connect()
+        reportStatus = { it.copy(extra = it.extra!!.copy(programStep = 2)) }
+
+        val outcome = run(NightActions.Command.TURBO)
+
+        assertEquals("matching mode and controls still describe a programme", OutcomeKind.ACCEPTED, outcome.kind)
+    }
+
+    @Test fun aPostSendHeadWithoutProgressCannotConfirmAManualPreset() = runBlocking {
+        demo.connect()
+        headsOnly = true
+
+        val outcome = run(NightActions.Command.TURBO)
+
+        assertEquals("manual mode cannot be established without the extension", OutcomeKind.ACCEPTED, outcome.kind)
+    }
+
+    @Test fun aManualPresetRejectsARuntimeOutsideItsTwoMinuteTolerance() = runBlocking {
+        demo.connect()
+        for (seconds in listOf(1679, 1921)) {
+            reportStatus = { it.copy(remainingSeconds = seconds) }
+            assertEquals("30-minute Warm must reject $seconds seconds", OutcomeKind.ACCEPTED, run(NightActions.Command.WARM).kind)
+        }
+    }
+
+    @Test fun aManualPresetAcceptsBothRuntimeToleranceBoundaries() = runBlocking {
+        demo.connect()
+        for (seconds in listOf(1680, 1800, 1920)) {
+            reportStatus = { it.copy(remainingSeconds = seconds) }
+            assertEquals("30-minute Warm accepts $seconds seconds", OutcomeKind.CONFIRMED, run(NightActions.Command.WARM).kind)
+        }
+    }
+
+    @Test fun aManualPresetAllowsElapsedSendTimeDespiteAWallClockCorrection() = runBlocking {
+        demo.connect()
+        var elapsed = 0L
+        graph.actions.elapsedMs = { elapsed }
+        afterSend = { command ->
+            if (command.first() == 0x02.toByte()) {
+                elapsed += 60_000
+                graph.clock = Clock.offset(graph.clock, Duration.ofHours(-1))
+                context.graph.clock = graph.clock
+            }
+        }
+
+        for (seconds in listOf(1620, 1860)) {
+            reportStatus = { it.copy(remainingSeconds = seconds) }
+            assertEquals("after one elapsed minute, $seconds seconds is a tolerance boundary", OutcomeKind.CONFIRMED,
+                run(NightActions.Command.WARM).kind)
+        }
+    }
+
+    @Test fun aManualPresetRejectsARuntimeBeyondTheElapsedUpperBoundary() = runBlocking {
+        demo.connect()
+        var elapsed = 0L
+        graph.actions.elapsedMs = { elapsed }
+        reportStatus = { it.copy(remainingSeconds = 1861) }
+        afterSend = { command ->
+            if (command.first() == 0x02.toByte()) {
+                elapsed += 60_000
+                graph.clock = Clock.offset(graph.clock, Duration.ofHours(-1))
+                context.graph.clock = graph.clock
+            }
+        }
+
+        assertEquals("after one elapsed minute, more than 31 minutes left is outside the tolerance", OutcomeKind.ACCEPTED,
+            run(NightActions.Command.WARM).kind)
+    }
+
     @Test fun aSnoozeIsConfirmedOnlyByTheBedJetsReport() = runBlocking {
         start(); advance(30)
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.SNOOZE_WARM).kind)
@@ -314,20 +417,73 @@ class SendConfirmationTest {
 
     // Remote
 
-    @Test fun anUnchangedRemoteValueIsSentAndConfirmedWithoutReconnecting() = runBlocking {
+    @Test fun anUnchangedTemperatureIsSentAndRequiresAFreshRead() = runBlocking {
         demo.connect()
         demo.send(Codec.setMode(Mode.HEAT)!!)
         demo.send(Codec.setTemperature(70))
         val before = sent.size
 
-        val outcome = graph.actions.remote("Temperature set", confirms = { it.targetTemperature == 70 }) {
+        val outcome = graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 70 }) {
             it.setTemperature(70)
         }
 
         assertEquals(OutcomeKind.CONFIRMED, outcome.kind)
         assertEquals("an unchanged request is still sent", before + 1, sent.size)
         assertTrue(sent.last().contentEquals(Codec.setTemperature(70)))
-        assertEquals("the target already reports the requested value", 0, disconnects)
+        assertEquals("the pre-send snapshot cannot confirm a programme-affecting control", 1, disconnects)
+    }
+
+    @Test fun anAlreadyMatchingModeWaitsForAPostSendReport() = runBlocking {
+        demo.connect()
+        demo.send(Codec.setMode(Mode.HEAT)!!)
+        val written = CompletableDeferred<Unit>()
+        swallow = press(Mode.HEAT)
+        afterSend = { if (it.contentEquals(Codec.setMode(Mode.HEAT)!!)) written.complete(Unit) }
+        graph.actions.confirmMs = 10_000
+        val outcome = async {
+            graph.actions.remote("Heat", endsNight = true, confirms = { it.mode == Mode.HEAT }) { it.setMode(Mode.HEAT) }
+        }
+        try {
+            withTimeout(5_000) { written.await() }
+            assertNull("the pre-send mode must not finish the command after write finalisation",
+                withTimeoutOrNull(1_000) { outcome.await() })
+            assertFalse("a running mode is not a complete-state pre-send confirmation", outcome.isCompleted)
+            demo.send(Codec.setTemperature(70))
+            assertEquals(OutcomeKind.CONFIRMED, withTimeout(5_000) { outcome.await() }.kind)
+            assertEquals(0, disconnects)
+        } finally { outcome.cancel() }
+    }
+
+    @Test fun anAlreadyMatchingTimerWaitsForAPostSendReport() = runBlocking {
+        demo.connect()
+        demo.send(Codec.setMode(Mode.HEAT)!!)
+        demo.send(Codec.setRuntime(30))
+        val written = CompletableDeferred<Unit>()
+        swallow = { it.contentEquals(Codec.setRuntime(30)) }
+        afterSend = { if (it.contentEquals(Codec.setRuntime(30))) written.complete(Unit) }
+        graph.actions.confirmMs = 10_000
+        val outcome = async {
+            graph.actions.remote("Timer set", affectsProgramme = true, confirms = { it.remainingSeconds == 1800 }) { it.setRuntime(30) }
+        }
+        try {
+            withTimeout(5_000) { written.await() }
+            assertNull("the pre-send timer must not finish the command after write finalisation",
+                withTimeoutOrNull(1_000) { outcome.await() })
+            assertFalse("a matching countdown can predate the requested timer reset", outcome.isCompleted)
+            demo.send(Codec.setTemperature(70))
+            assertEquals(OutcomeKind.CONFIRMED, withTimeout(5_000) { outcome.await() }.kind)
+            assertEquals(0, disconnects)
+        } finally { outcome.cancel() }
+    }
+
+    @Test fun unchangedLightsMuteAndNoticeAreStillSentAndConfirmedWithoutAFreshRead() = runBlocking {
+        demo.connect()
+        swallow = { true }
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.remote("Lights on", confirms = { it.extra?.ledEnabled == true }) { it.setLed(true) }.kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.remote("Beeps on", confirms = { it.extra?.beepsMuted == false }) { it.setMuted(false) }.kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.remote("Reminder cleared", confirms = { it.extra?.notification == 0 }) { it.acknowledge() }.kind)
+        assertEquals("every accepted auxiliary request is still sent", 3, sent.size)
+        assertEquals(0, disconnects)
     }
 
     @Test fun aChangedRemoteValueWaitsForItsLaterTargetReport() = runBlocking {
@@ -339,7 +495,7 @@ class SendConfirmationTest {
         afterSend = { if (it.contentEquals(Codec.setTemperature(72))) written.complete(Unit) }
         graph.actions.confirmMs = 10_000
         val outcome = async {
-            graph.actions.remote("Temperature set", confirms = { it.targetTemperature == 72 }) { it.setTemperature(72) }
+            graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 72 }) { it.setTemperature(72) }
         }
         try {
             withTimeout(5_000) { written.await() }
@@ -353,7 +509,7 @@ class SendConfirmationTest {
     @Test fun anotherUnitsAlreadyMatchingValueCannotConfirmTheWrite() = runBlocking {
         demo.connect()
         foreign = SourcedStatus("ble:AA:BB:CC:DD:EE:FF", demo.status.value!!.copy(targetTemperature = 70))
-        val outcome = graph.actions.remote("Temperature set", confirms = { it.targetTemperature == 70 }) {
+        val outcome = graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 70 }) {
             it.setTemperature(70)
         }
         assertEquals(OutcomeKind.ACCEPTED, outcome.kind)
@@ -382,11 +538,11 @@ class SendConfirmationTest {
     @Test fun aRemoteChangeIsConfirmedOnlyByAMatchingReport() = runBlocking {
         demo.connect()
         demo.send(Codec.setMode(Mode.HEAT)!!)
-        val set = graph.actions.remote("Temperature set", confirms = { it.targetTemperature == 70 }) { it.setTemperature(70) }
+        val set = graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 70 }) { it.setTemperature(70) }
         assertEquals(OutcomeKind.CONFIRMED, set.kind)
         assertEquals("Temperature set", set.message)
         swallow = { it[0] == 0x03.toByte() }
-        val unseen = graph.actions.remote("Temperature set", confirms = { it.targetTemperature == 72 }) { it.setTemperature(72) }
+        val unseen = graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 72 }) { it.setTemperature(72) }
         assertEquals(OutcomeKind.ACCEPTED, unseen.kind)
         assertEquals(text(R.string.runtime_sent_unconfirmed, "Temperature set"), unseen.message)
         val unchecked = graph.actions.remote("Reminder cleared") { it.acknowledge() }

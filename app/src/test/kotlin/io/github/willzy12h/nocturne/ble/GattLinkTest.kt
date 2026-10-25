@@ -7,12 +7,15 @@ import io.github.willzy12h.nocturne.core.link.latestStatusFrom
 import io.github.willzy12h.nocturne.core.protocol.Codec
 import io.github.willzy12h.nocturne.core.link.BedJetController
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.ZonedDateTime
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -303,6 +306,20 @@ class GattLinkTest {
     }
 
     // Split status (R06)
+
+    @Test
+    fun anEqualFullPacketIsStillDeliveredAsANewReport() = runBlocking {
+        link.connect()
+        val initial = link.latestSourcedStatus()!!
+        val next = async(start = CoroutineStart.UNDISPATCHED) {
+            withTimeoutOrNull(500) { link.sourcedStatus.drop(1).first() }
+        }
+        fake.ports.single().notify(Status.full(programStep = 0))
+
+        val received = next.await()
+        assertTrue("each actual packet must reach receipt-aware observers", received != null)
+        assertEquals(initial.status, received?.status)
+    }
 
     @Test
     fun anOldProgramStepDoesNotConfirmANewStartButAFreshOneDoes() = runBlocking {

@@ -9,6 +9,9 @@ import io.github.willzy12h.nocturne.core.protocol.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -29,11 +32,15 @@ class ManualEndRequestTest {
     private lateinit var graph: Graph
     private lateinit var demo: DemoBedJet
     private var swallow = false
+    private var bufferedReport: SourcedStatus? = null
     private val link: BedJetLink by lazy {
         demo = DemoBedJet(now = { graph.now() })
         object : BedJetLink by demo {
             override suspend fun send(command: ByteArray) { if (!swallow) demo.send(command) }
             override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) { beforeWrite(); send(command) }
+            override val sourcedStatus: Flow<SourcedStatus?>
+                get() = bufferedReport?.let { MutableStateFlow<SourcedStatus?>(it) } ?: demo.sourcedStatus
+            override fun latestSourcedStatus(): SourcedStatus? = bufferedReport ?: demo.latestSourcedStatus()
         }
     }
 
@@ -158,12 +165,68 @@ class ManualEndRequestTest {
         assertEquals("a repeated report cannot finish twice", 1, stopped(night).size)
     }
 
+    @Test fun aStandbyBufferedBeforeOffCannotFinishItWhenDeliveredLater() = runBlocking {
+        demo.connect()
+        val oldStandby = link.sourcedStatus.first()!!
+        val night = unresolved(NightActions.Command.OFF)
+
+        graph.actions.observeStatus(oldStandby.status, "demo")
+
+        assertEquals("delivery does not give an old packet a new receipt", night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(night.identity, graph.repository.runtime.value.endRequested)
+        assertTrue(stopped(night).isEmpty())
+    }
+
+    @Test fun readingOrRecollectingACachedStandbyCannotRenewItsReceipt() = runBlocking {
+        demo.connect()
+        val oldStandby = link.latestSourcedStatus()!!
+        val night = unresolved(NightActions.Command.OFF)
+        bufferedReport = oldStandby
+
+        repeat(2) {
+            graph.actions.observeStatus(link.latestSourcedStatus()!!.status, "demo")
+            assertEquals("a cached read cannot confirm Off", night.identity, graph.repository.activeNight.value?.identity)
+            graph.actions.observeStatus(link.sourcedStatus.first()!!.status, "demo")
+            assertEquals("a new collector cannot confirm Off from the same packet", night.identity, graph.repository.activeNight.value?.identity)
+        }
+        assertEquals(night.identity, graph.repository.runtime.value.endRequested)
+        assertTrue(stopped(night).isEmpty())
+    }
+
+    @Test fun reconcileCannotConfirmOffWithACachedPreRequestStandby() = runBlocking {
+        demo.connect()
+        val oldStandby = link.latestSourcedStatus()!!
+        val night = unresolved(NightActions.Command.OFF)
+        bufferedReport = oldStandby
+
+        graph.actions.reconcile()
+
+        assertEquals("reconnecting cannot restamp a cached packet", night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(night.identity, graph.repository.runtime.value.endRequested)
+        assertTrue(stopped(night).isEmpty())
+    }
+
+    @Test fun aRestartCannotPromoteAPreviousRuntimesCachedStandby() = runBlocking {
+        val night = unresolved(NightActions.Command.OFF)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        val oldStandby = link.latestSourcedStatus()!!
+        buildGraph(graph.clock)
+
+        graph.actions.observeStatus(oldStandby.status, "demo")
+
+        assertEquals("the new runtime requires a newly received report", night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(night.identity, graph.repository.runtime.value.endRequested)
+        assertTrue(stopped(night).isEmpty())
+        standby()
+        assertNull(graph.repository.activeNight.value)
+    }
+
     @Test fun aLaterStandbyConfirmsUnknownOffAfterTheWallClockMovesBackwards() = runBlocking {
         val night = unresolved(NightActions.Command.OFF)
         graph.clock = Clock.offset(graph.clock, Duration.ofHours(-1))
         context.graph.clock = graph.clock
 
-        graph.actions.observeStatus(demo.status.value!!.copy(mode = Mode.STANDBY, extra = null), "demo")
+        standby()
 
         assertNull("receipt order survives a backwards wall-clock correction", graph.repository.activeNight.value)
         assertNoEndRequest()

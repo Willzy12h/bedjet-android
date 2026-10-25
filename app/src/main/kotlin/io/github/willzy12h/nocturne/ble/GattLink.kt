@@ -5,6 +5,7 @@ import io.github.willzy12h.nocturne.core.link.BedJetLink
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.link.SourcedStatus
+import io.github.willzy12h.nocturne.core.link.StatusReceiptOrder
 import io.github.willzy12h.nocturne.core.protocol.Codec
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Limits
@@ -151,7 +152,7 @@ class GattLink(
                 startPending = true
                 preparedSession = current
                 current?.forgetExtra()
-                publish(current, _status.value?.copy(extra = null))
+                publish(current, _status.value?.copy(extra = null), _sourcedStatus.value?.receiptOrder ?: StatusReceiptOrder.next())
             }
         }
     }
@@ -279,9 +280,9 @@ class GattLink(
      * Every status goes out with the session that reported it; see [sourcedStatus]. Without a session there is no
      * status, so [status] is never left set while [sourcedStatus] is empty.
      */
-    private fun publish(session: Session?, value: DeviceStatus?) {
+    private fun publish(session: Session?, value: DeviceStatus?, receiptOrder: Long = StatusReceiptOrder.next()) {
         val shown = value?.takeIf { session != null }
-        _sourcedStatus.value = if (session == null || shown == null) null else SourcedStatus(DeviceId.ble(session.address), shown)
+        _sourcedStatus.value = if (session == null || shown == null) null else SourcedStatus(DeviceId.ble(session.address), shown, receiptOrder)
         _status.value = shown
     }
 
@@ -375,7 +376,9 @@ class GattLink(
                     if (current !== session || !selected(session.address)) return
                     if (startPending) return
                     session.lastExtra = extra
-                    publish(session, _status.value?.copy(extra = extra))
+                    // This enriches the published head, without a new observation of its mode or countdown.
+                    val receipt = _sourcedStatus.value?.receiptOrder ?: return
+                    publish(session, _status.value?.copy(extra = extra), receipt)
                 }
             }
             return

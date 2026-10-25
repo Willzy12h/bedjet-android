@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
     /** The command label and request time stay with the identity; older journals contain only the identity. */
     val endRequestedLabel: String? = null,
     val endRequestedAt: String? = null,
-    /** Receipt boundary within its runtime; wall time above is retained for older journals, not used for ordering. */
+    /** Receipt boundary within its process; wall time above is retained for older journals, not used for ordering. */
     val endRequestedEpoch: String? = null,
     val endRequestedSequence: Long? = null,
     val wakeSourceChange: WakeSourceChange? = null,
