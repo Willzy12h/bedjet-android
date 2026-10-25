@@ -117,6 +117,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
 
         val running = night
+        var plannedWake = running?.wakeAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
         if (running != null) {
             val plan = remember(running, profiles) { model.activePlan() }
             val profile = profiles.firstOrNull { it.id == running.profileId }
@@ -176,6 +177,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             val profile = chosen
             val preview = profile?.let { model.startPreview(it, now) }
             val wake = preview?.wake
+            plannedWake = wake?.time
             if (wake != null && !simple) {
                 if (dark) WakeHeadline(stringResource(R.string.tonight_wakes_at), Format.clock(wake.time), wake.origin)
                 else StatTiles(Format.clock(now), stringResource(R.string.tonight_starts), Format.clock(wake.time), wake.origin, waking = false)
@@ -206,10 +208,12 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (overridable) OutlinedButton(onClick = {
                 val current = model.now()
+                val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse)
+                    ?: plannedWake ?: current
                 TimePickerDialog(context, { _, hour, minute ->
                     val wake = WakeResolver.nextOccurrence(hour * 60 + minute, model.now())
                     model.setTonightWake(wake)
-                }, current.hour, current.minute, true).show()
+                }, initial.hour, initial.minute, true).show()
             }) { Text(if (wakeOverride == null) stringResource(R.string.tonight_set_wake) else stringResource(R.string.tonight_change_wake, Format.clock(wakeOverride.wakeAt))) }
             if (wakeOverride != null && overridable) TextButton(onClick = { model.setTonightWake(null) }) { Text(stringResource(R.string.tonight_clear_wake)) }
             if (settings.resolveTonightChoice(now) != null) TextButton(onClick = { model.updateSettings { it.followSchedule() } }) {
@@ -338,7 +342,7 @@ private fun QuickButton(label: String, detail: String?, dot: Color, modifier: Mo
         shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(4.dp),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface),
-        border = cardBorder(),
+        border = quickButtonBorder(MaterialTheme.colorScheme),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Dot(dot, 10)

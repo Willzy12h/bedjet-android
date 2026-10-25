@@ -2,8 +2,10 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.compositeOver
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.max
@@ -36,36 +38,44 @@ class ContrastTest {
         assertTrue("$label contrast $ratio must be at least $minimum:1", ratio >= minimum)
     }
 
-    @Test fun allTextRolesMeetFourPointFiveInBothSchemesAndSimpleView() {
+    @Test fun allTextRolesMeetFourPointFiveInBothSharedPalettes() {
         looks.forEach { (name, scheme, colors) ->
-            listOf(false, true).forEach { simple ->
-                val look = "$name simple=$simple"
-                surfaces(scheme).forEach { (surface, background) ->
-                    check("$look onSurface/$surface", scheme.onSurface, background, 4.5)
-                    check("$look onSurfaceVariant/$surface", scheme.onSurfaceVariant, background, 4.5)
-                    check("$look wake accent/$surface", colors.accent, background, 4.5)
-                    check("$look primary text/$surface", scheme.primary, background, 4.5)
-                    check("$look secondary text/$surface", scheme.secondary, background, 4.5)
-                    check("$look error text/$surface", scheme.error, background, 4.5)
-                }
-                listOf(
-                    Triple("primary", scheme.onPrimary, scheme.primary),
-                    Triple("primaryContainer", scheme.onPrimaryContainer, scheme.primaryContainer),
-                    Triple("secondary", scheme.onSecondary, scheme.secondary),
-                    Triple("secondaryContainer", scheme.onSecondaryContainer, scheme.secondaryContainer),
-                    Triple("tertiary", scheme.onTertiary, scheme.tertiary),
-                    Triple("tertiaryContainer", scheme.onTertiaryContainer, scheme.tertiaryContainer),
-                    Triple("error", scheme.onError, scheme.error),
-                    Triple("errorContainer", scheme.onErrorContainer, scheme.errorContainer),
-                    Triple("inverseSurface", scheme.inverseOnSurface, scheme.inverseSurface),
-                    Triple("inversePrimary", scheme.inversePrimary, scheme.inverseSurface),
-                    Triple("background", scheme.onBackground, scheme.background),
-                    Triple("primary text", scheme.primary, scheme.surfaceContainer),
-                    Triple("secondary text", scheme.secondary, scheme.surfaceContainer),
-                    Triple("error text", scheme.error, scheme.surfaceContainer),
-                ).forEach { (role, foreground, background) -> check("$look $role", foreground, background, 4.5) }
+            val look = name
+            surfaces(scheme).forEach { (surface, background) ->
+                check("$look onSurface/$surface", scheme.onSurface, background, 4.5)
+                check("$look onSurfaceVariant/$surface", scheme.onSurfaceVariant, background, 4.5)
+                check("$look wake accent/$surface", colors.accent, background, 4.5)
+                check("$look primary text/$surface", scheme.primary, background, 4.5)
+                check("$look secondary text/$surface", scheme.secondary, background, 4.5)
+                check("$look error text/$surface", scheme.error, background, 4.5)
             }
+            listOf(
+                Triple("primary", scheme.onPrimary, scheme.primary),
+                Triple("primaryContainer", scheme.onPrimaryContainer, scheme.primaryContainer),
+                Triple("secondary", scheme.onSecondary, scheme.secondary),
+                Triple("secondaryContainer", scheme.onSecondaryContainer, scheme.secondaryContainer),
+                Triple("tertiary", scheme.onTertiary, scheme.tertiary),
+                Triple("tertiaryContainer", scheme.onTertiaryContainer, scheme.tertiaryContainer),
+                Triple("error", scheme.onError, scheme.error),
+                Triple("errorContainer", scheme.onErrorContainer, scheme.errorContainer),
+                Triple("inverseSurface", scheme.inverseOnSurface, scheme.inverseSurface),
+                Triple("inversePrimary", scheme.inversePrimary, scheme.inverseSurface),
+                Triple("background", scheme.onBackground, scheme.background),
+                Triple("primary text", scheme.primary, scheme.surfaceContainer),
+                Triple("secondary text", scheme.secondary, scheme.surfaceContainer),
+                Triple("error text", scheme.error, scheme.surfaceContainer),
+            ).forEach { (role, foreground, background) -> check("$look $role", foreground, background, 4.5) }
         }
+    }
+
+    @Test fun midnightInkDecorativeOutlinesRetainTheOriginalPalette() {
+        assertEquals("Card borders, dividers, the curve midline and timeline connector keep Midnight Ink's decorative tint",
+            Color(0xFF343C5A), MidnightInkScheme.outlineVariant)
+    }
+
+    @Test fun daylightDecorativeOutlinesRetainTheOriginalPalette() {
+        assertEquals("Card borders, dividers, the curve midline and timeline connector keep Daylight's decorative tint",
+            Color(0xFFDCE1EA), DaylightScheme.outlineVariant)
     }
 
     @Test fun afterWakeBarsMeetThreeAgainstEveryCurveCardSurface() {
@@ -77,15 +87,16 @@ class ContrastTest {
         }
     }
 
-    @Test fun quickControlBoundaryOrFillMeetsThreeAgainstSurroundingsInAllFourLooks() {
+    @Test fun quickControlBoundaryOrFillMeetsThreeAgainstSurroundingsInBothSharedPalettes() {
         looks.forEach { (name, scheme, _) ->
-            listOf(false, true).forEach { simple ->
-                // Tonight QuickButton explicitly uses cardBorder(): outlineVariant over surfaceContainer.
-                val boundary = contrast(scheme.outlineVariant, scheme.background)
-                val fill = contrast(scheme.surfaceContainer, scheme.background)
-                assertTrue("$name simple=$simple Quick control boundary=$boundary fill=$fill must reach 3:1", max(boundary, fill) >= 3.0)
-                check("$name simple=$simple Quick boundary/fill", scheme.outlineVariant, scheme.surfaceContainer, 3.0)
-            }
+            // Read the same BorderStroke factory consumed by TonightScreen.QuickButton.
+            val stroke = quickButtonBorder(scheme)
+            assertTrue("$name Quick boundary must be drawn with positive width", stroke.width.value > 0f)
+            val border = (stroke.brush as SolidColor).value
+            val boundary = contrast(border, scheme.background)
+            val fill = contrast(scheme.surfaceContainer, scheme.background)
+            assertTrue("$name Quick control boundary=$boundary fill=$fill must reach 3:1", max(boundary, fill) >= 3.0)
+            check("$name Quick boundary/fill", border, scheme.surfaceContainer, 3.0)
         }
     }
 }

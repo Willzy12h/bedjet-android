@@ -341,10 +341,6 @@
     <!-- The night curve and simple view (P6) -->
     <string name="curve_description">Night plan from %1$s to %2$s; %3$s. %4$s</string>
     <string name="curve_wake_lower">wake %1$s</string>
-    <plurals name="curve_step">
-        <item quantity="one">%1$s %2$s %3$s, fan %4$d%%, %5$d minute</item>
-        <item quantity="other">%1$s %2$s %3$s, fan %4$d%%, %5$d minutes</item>
-    </plurals>
     <string name="curve_wake">Wake %1$s</string>
     <string name="timeline_now">%1$s · now</string>
     <string name="timeline_then">Then %1$s</string>

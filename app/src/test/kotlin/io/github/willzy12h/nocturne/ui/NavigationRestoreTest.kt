@@ -5,8 +5,10 @@ import android.os.Bundle
 import android.os.Looper
 import androidx.compose.runtime.snapshots.Snapshot
 import android.os.Parcel
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.text.AnnotatedString
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.core.store.ThemeMode
@@ -82,6 +84,11 @@ class NavigationRestoreTest {
             controller!!.pause().newIntent(Intent(app, MainActivity::class.java).putExtra("openTonight", true))
                 .resume().topActivityResumed(true)
         }
+        settleIntentNavigation()
+        compose.onNodeWithText("Start night now").assertExists()
+    }
+
+    private fun settleIntentNavigation() {
         // Native intent -> Compose replacement -> Android measurement are separate frame queues.
         // Drain both after the editor is replaced; a theme polling loop must not be needed to pump them.
         repeat(3) {
@@ -91,7 +98,6 @@ class NavigationRestoreTest {
         }
         Snapshot.sendApplyNotifications()
         compose.waitForIdle()
-        compose.onNodeWithText("Start night now").assertExists()
     }
 
     private fun newDraft() {
@@ -104,6 +110,26 @@ class NavigationRestoreTest {
     private fun renameDraft(name: String) {
         compose.onNode(hasSetTextAction() and hasText("Name", substring = true)).performTextReplacement(name)
         compose.waitForIdle()
+    }
+
+    private fun editFirstProfile() {
+        compose.onNodeWithText("Profiles").performClick()
+        compose.onAllNodesWithText("Edit")[0].performClick()
+        compose.onNodeWithText("Edit profile").assertExists()
+    }
+
+    private fun discardDraft() {
+        compose.onNodeWithContentDescription("Cancel").performClick()
+        compose.onNodeWithText("Discard changes?").assertExists()
+        compose.onNodeWithText("Discard").performClick()
+        compose.waitForIdle()
+    }
+
+    private fun waitForProfileCount(count: Int) {
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(25))
+            graph.repository.profiles.value.size == count
+        }
     }
 
     @Test fun consumedLaunchIntentDoesNotOverrideNavigationAfterSavedStateRestore() {
@@ -214,5 +240,158 @@ class NavigationRestoreTest {
             graph.repository.profiles.value.size == originalIds.size + 1
         }
         assertEquals("Parcel new draft", graph.repository.profiles.value.single { it.id !in originalIds }.name)
+    }
+
+    @Test fun parkedExistingDraftSurvivesSavingAnotherProfileUntilExplicitDiscard() {
+        launch()
+        val originals = graph.repository.profiles.value
+        editFirstProfile()
+        renameDraft("Parked existing edits")
+        openTonight()
+
+        newDraft()
+        renameDraft("Saved separate profile")
+        compose.onNodeWithText("Save").performClick()
+        waitForProfileCount(originals.size + 1)
+
+        compose.onNodeWithText("Resume editing draft").performClick()
+        compose.onNode(hasSetTextAction() and hasText("Parked existing edits")).assertExists()
+        assertEquals(originals.first(), graph.repository.profiles.value.first { it.id == originals.first().id })
+        discardDraft()
+        compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
+        assertEquals(originals.first(), graph.repository.profiles.value.first { it.id == originals.first().id })
+    }
+
+    @Test fun parkedNewDraftSurvivesDiscardingAnotherEditorAcrossSavedState() {
+        launch()
+        val originals = graph.repository.profiles.value
+        val originalIds = originals.map { it.id }.toSet()
+        newDraft()
+        renameDraft("Parked new profile")
+        openTonight()
+
+        editFirstProfile()
+        renameDraft("Discard separate edits")
+        restore()
+        compose.onNode(hasSetTextAction() and hasText("Discard separate edits")).assertExists()
+        discardDraft()
+
+        compose.onNodeWithText("Resume editing draft").performClick()
+        compose.onNode(hasSetTextAction() and hasText("Parked new profile")).assertExists()
+        assertEquals(originals, graph.repository.profiles.value)
+        compose.onNodeWithText("Save").performClick()
+        waitForProfileCount(originals.size + 1)
+        assertEquals("Parked new profile", graph.repository.profiles.value.single { it.id !in originalIds }.name)
+        compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
+    }
+
+    @Test fun parkedNewDraftKeepsItsIdentityWhenAnotherNewProfileIsSaved() {
+        launch()
+        val originalIds = graph.repository.profiles.value.map { it.id }.toSet()
+        newDraft()
+        renameDraft("First new profile")
+        openTonight()
+
+        newDraft()
+        renameDraft("Second new profile")
+        compose.onNodeWithText("Save").performClick()
+        waitForProfileCount(originalIds.size + 1)
+        val secondProfile = graph.repository.profiles.value.single { it.id !in originalIds }
+        assertEquals("Second new profile", secondProfile.name)
+
+        compose.onNodeWithText("Resume editing draft").performClick()
+        compose.onNode(hasSetTextAction() and hasText("First new profile")).assertExists()
+        compose.onNodeWithText("Save").performClick()
+        waitForProfileCount(originalIds.size + 2)
+        assertEquals(secondProfile, graph.repository.profiles.value.single { it.id == secondProfile.id })
+        assertEquals("First new profile", graph.repository.profiles.value.single {
+            it.id !in originalIds && it.id != secondProfile.id
+        }.name)
+        compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
+    }
+
+    @Test fun reopeningParkedProfileResumesItsUnsavedValuesAndSaveUpdatesOnlyThatProfile() {
+        launch()
+        val originals = graph.repository.profiles.value
+        editFirstProfile()
+        renameDraft("Resume this profile")
+        openTonight()
+
+        editFirstProfile()
+
+        compose.onNode(hasSetTextAction() and hasText("Resume this profile")).assertExists()
+        assertEquals(originals, graph.repository.profiles.value)
+        compose.onNodeWithText("Save").performClick()
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(25))
+            graph.repository.profiles.value.first { it.id == originals.first().id }.name == "Resume this profile"
+        }
+        assertEquals(originals.size, graph.repository.profiles.value.size)
+        assertEquals(originals.drop(1), graph.repository.profiles.value.drop(1))
+        compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
+    }
+
+    @Test fun twoInterruptedEditorsRemainResumableInOrderAfterParcelledSavedState() {
+        launch()
+        val originals = graph.repository.profiles.value
+        val originalIds = originals.map { it.id }.toSet()
+        editFirstProfile()
+        renameDraft("First interrupted editor")
+        openTonight()
+        newDraft()
+        renameDraft("Second interrupted editor")
+        openTonight()
+        openTonight()
+
+        restore()
+
+        compose.onNodeWithText("Resume editing draft").performClick()
+        compose.onNode(hasSetTextAction() and hasText("First interrupted editor")).assertExists()
+        discardDraft()
+        assertEquals(originals, graph.repository.profiles.value)
+        compose.onNodeWithText("Resume editing draft").performClick()
+        compose.onNode(hasSetTextAction() and hasText("Second interrupted editor")).assertExists()
+        compose.onNodeWithText("Save").performClick()
+        waitForProfileCount(originals.size + 1)
+        assertEquals("Second interrupted editor", graph.repository.profiles.value.single { it.id !in originalIds }.name)
+        compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
+    }
+
+    @Test fun parkedDraftSurvivesClosingAnUnchangedOtherEditor() {
+        launch()
+        val originals = graph.repository.profiles.value
+        newDraft()
+        renameDraft("Keep parked edits")
+        openTonight()
+
+        editFirstProfile()
+        compose.onNodeWithContentDescription("Cancel").performClick()
+
+        compose.onNodeWithText("Resume editing draft").performClick()
+        compose.onNode(hasSetTextAction() and hasText("Keep parked edits")).assertExists()
+        assertEquals(originals, graph.repository.profiles.value)
+    }
+
+    @Test fun editAndTonightIntentInSameUiTurnParksLatestValueWithoutReopeningEditor() {
+        launch()
+        val originals = graph.repository.profiles.value
+        editFirstProfile()
+        val setName = compose.onNode(hasSetTextAction() and hasText("Name", substring = true))
+            .fetchSemanticsNode().config[SemanticsActions.SetText].action!!
+
+        compose.runOnUiThread {
+            assertTrue(setName(AnnotatedString("Last edit before Tonight")))
+            controller!!.pause().newIntent(Intent(app, MainActivity::class.java).putExtra("openTonight", true))
+                .resume().topActivityResumed(true)
+        }
+        settleIntentNavigation()
+
+        compose.onNodeWithText("Start night now").assertExists()
+        compose.onNodeWithText("Edit profile").assertDoesNotExist()
+        compose.onNodeWithText("Resume editing draft").performClick()
+        compose.onNode(hasSetTextAction() and hasText("Last edit before Tonight")).assertExists()
+        discardDraft()
+        compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
+        assertEquals(originals, graph.repository.profiles.value)
     }
 }

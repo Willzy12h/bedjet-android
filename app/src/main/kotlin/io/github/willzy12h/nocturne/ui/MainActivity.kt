@@ -45,6 +45,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.night.OutcomeKind
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -106,6 +107,9 @@ private enum class Tab(@androidx.annotation.StringRes val label: Int, val icon: 
     SETTINGS(io.github.willzy12h.nocturne.R.string.tab_settings, Icons.Filled.Settings),
 }
 
+@Serializable
+private data class ProfileDraft(val original: Profile, val edited: Profile)
+
 @androidx.compose.runtime.Composable
 private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     val configuration = LocalConfiguration.current
@@ -121,18 +125,15 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     var tab by rememberSaveable { mutableStateOf(Tab.TONIGHT) }
-    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
-    var parkedDraft by rememberSaveable { mutableStateOf(false) }
-    // A new profile isn't in the repository until Save, so the editor keeps its starting point here (it survives recreation).
-    var newProfileJson by rememberSaveable { mutableStateOf<String?>(null) }
+    // Every interrupted editor keeps its own baseline and edits, including profiles not yet saved to the repository.
+    var parkedDrafts by rememberSaveable { mutableStateOf(emptyList<String>()) }
     // Tonight's "Restore" opens Settings at the snapshots.
     var backupsRequest by remember { mutableIntStateOf(0) }
-    val profiles by model.profiles.collectAsState()
     val edit: (Profile) -> Unit = { profile ->
-        newProfileJson = if (profiles.none { it.id == profile.id }) Json.encodeToString(profile) else null
-        editingId = profile.id
-        draftJson = null
+        val parked = parkedDrafts.firstOrNull { Json.decodeFromString<ProfileDraft>(it).original.id == profile.id }
+        draftJson = parked ?: Json.encodeToString(ProfileDraft(profile, profile))
+        if (parked != null) parkedDrafts = parkedDrafts - parked
     }
     val snackbar = remember { SnackbarHostState() }
     // The snackbar floats over the content, so while one shows the content ends above it and nothing (Off) sits underneath.
@@ -141,35 +142,39 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     LaunchedEffect(Unit) { model.messages.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(tonightRequest) {
         if (tonightRequest > 0) {
-            if (editingId != null) {
-                // A new profile still needs Save even before its first edit (or first draft callback).
-                draftJson = draftJson ?: newProfileJson
-                parkedDraft = draftJson != null
-                editingId = null
+            draftJson?.let {
+                parkedDrafts = parkedDrafts + it
+                draftJson = null
             }
             tab = Tab.TONIGHT
         }
     }
 
-    editingId?.let { id ->
-        val profile = profiles.firstOrNull { it.id == id }
-            ?: newProfileJson?.let { runCatching { Json.decodeFromString<Profile>(it) }.getOrNull() }?.takeIf { it.id == id }
-        if (profile != null) {
-            val draft = draftJson?.let { runCatching { Json.decodeFromString<Profile>(it) }.getOrNull() }
-            ProfileEditor(model, profile, onDone = { editingId = null; draftJson = null; parkedDraft = false; newProfileJson = null },
-                initialDraft = draft, onDraftChange = { draftJson = Json.encodeToString(it) })
-        } else editingId = null
+    draftJson?.let { json ->
+        val draft = Json.decodeFromString<ProfileDraft>(json)
+        ProfileEditor(model, draft.original, onDone = { draftJson = null },
+            initialDraft = draft.edited, onDraftChange = { edited ->
+                val updated = Json.encodeToString(draft.copy(edited = edited))
+                if (draftJson?.let { Json.decodeFromString<ProfileDraft>(it).original.id } == draft.original.id) {
+                    draftJson = updated
+                } else {
+                    // A final edit callback can arrive after Tonight has parked this editor in the same frame.
+                    parkedDrafts = parkedDrafts.map { parked ->
+                        if (Json.decodeFromString<ProfileDraft>(parked).original.id == draft.original.id) updated else parked
+                    }
+                }
+            })
         return
     }
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar, Modifier.onSizeChanged { snackbarHeight = it.height }) },
         bottomBar = {
             Column {
-                if (parkedDraft && draftJson != null) {
+                if (parkedDrafts.isNotEmpty()) {
                     androidx.compose.material3.TextButton(onClick = {
-                        val draft = runCatching { Json.decodeFromString<Profile>(draftJson!!) }.getOrNull()
-                        editingId = draft?.id
-                        parkedDraft = false
+                        // Resume the oldest parked editor first; later drafts remain available after Save or Discard.
+                        draftJson = parkedDrafts.first()
+                        parkedDrafts = parkedDrafts.drop(1)
                     }) { Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.main_resume_draft)) }
                 }
                 NavigationBar(modifier = Modifier.testTag("main-navigation")) {

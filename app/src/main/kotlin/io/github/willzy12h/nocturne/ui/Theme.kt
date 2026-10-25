@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -97,8 +99,7 @@ val DaylightColors = NocturneColors(
     dry = Color(0xFF1E7F72), idle = Color(0xFF6B7489), connected = Color(0xFF1E8A55), accent = DayViolet,
 )
 
-// Quick controls share outlineVariant with decorative card borders, so both outline roles need 3:1 against
-// the surrounding surface. Keep the existing palette hues and use the same accessible boundary shade.
+// Decorative card borders, dividers and curve/timeline guides keep their original quieter shades.
 val MidnightInkScheme: ColorScheme = darkColorScheme(
     primary = InkCool, onPrimary = InkGround,
     primaryContainer = Color(0xFF24365C), onPrimaryContainer = InkText,
@@ -113,7 +114,7 @@ val MidnightInkScheme: ColorScheme = darkColorScheme(
     surfaceVariant = InkRaised, onSurfaceVariant = InkMuted,
     surfaceTint = InkCool,
     inverseSurface = InkText, inverseOnSurface = InkGround, inversePrimary = DayCool,
-    outline = InkOutline, outlineVariant = InkOutline,
+    outline = InkOutline, outlineVariant = Color(0xFF343C5A),
     scrim = Color.Black,
     surfaceBright = InkRaised, surfaceDim = InkGround,
     surfaceContainerLowest = InkGround, surfaceContainerLow = Color(0xFF131829),
@@ -134,7 +135,7 @@ val DaylightScheme: ColorScheme = lightColorScheme(
     surfaceVariant = Color(0xFFE9EDF4), onSurfaceVariant = DayMuted,
     surfaceTint = DayText,
     inverseSurface = DayText, inverseOnSurface = DayGround, inversePrimary = InkCool,
-    outline = DayOutline, outlineVariant = DayOutline,
+    outline = DayOutline, outlineVariant = Color(0xFFDCE1EA),
     scrim = Color.Black,
     surfaceBright = DaySurface, surfaceDim = Color(0xFFE6EAF1),
     surfaceContainerLowest = DaySurface, surfaceContainerLow = DaySurface,
@@ -142,6 +143,9 @@ val DaylightScheme: ColorScheme = lightColorScheme(
 )
 
 val LocalNocturneColors = staticCompositionLocalOf { MidnightInkColors }
+
+/** The Quick controls' boundary, separate from decorative card borders. */
+internal fun quickButtonBorder(scheme: ColorScheme): BorderStroke = BorderStroke(1.dp, scheme.outline)
 
 /** Shared unit preference for curve descriptions; standalone previews default to Celsius. */
 internal val LocalTemperatureFahrenheit = staticCompositionLocalOf { false }
