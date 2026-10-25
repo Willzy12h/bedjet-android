@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -247,15 +248,20 @@ fun BusyIndicator(model: AppViewModel) {
 enum class WakeLabelStyle { HEADLINE, TILE, TIMELINE }
 
 /**
- * The one wording of where tonight's wake time comes from, shared by all four looks, so an override is never called
+ * Labels where tonight's wake time comes from in all four looks, so an override is never called
  * the profile's time or the alarm's.
  */
 @Composable
-fun wakeOriginLabel(origin: WakeOrigin, style: WakeLabelStyle): String = stringResource(when (origin) {
-    WakeOrigin.ALARM -> if (style == WakeLabelStyle.HEADLINE) R.string.wake_origin_alarm_headline else R.string.wake_origin_alarm
-    WakeOrigin.OVERRIDE -> R.string.wake_origin_override
-    WakeOrigin.PROFILE_DEFAULT -> if (style == WakeLabelStyle.TIMELINE) R.string.wake_time else R.string.wake_origin_profile
-})
+fun wakeOriginLabel(origin: WakeOrigin, style: WakeLabelStyle): String {
+    val configuration = LocalConfiguration.current
+    val compactTimeline = style == WakeLabelStyle.TIMELINE &&
+        configuration.screenWidthDp <= 320 && configuration.fontScale >= 2f
+    return stringResource(when (origin) {
+        WakeOrigin.ALARM -> if (style == WakeLabelStyle.HEADLINE) R.string.wake_origin_alarm_headline else R.string.wake_origin_alarm
+        WakeOrigin.OVERRIDE -> if (compactTimeline) R.string.wake_origin_override_compact else R.string.wake_origin_override
+        WakeOrigin.PROFILE_DEFAULT -> if (style == WakeLabelStyle.TIMELINE) R.string.wake_time else R.string.wake_origin_profile
+    })
+}
 
 /** Midnight Ink's lead: the wake time, large. */
 @Composable

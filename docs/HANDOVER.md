@@ -1,8 +1,10 @@
-# Nocturne — current documentation handover
+# Nocturne — current handover
 
-**Reference pin — 25 October 2026.** This update starts from `gpt/nocturne-docs2` at `ab6f1e1f83a587f24f258ebb2e753b6c86e15354`. It describes the four source references below, read independently. They have **not** been merged into the documentation branch, and this is not evidence for a combined candidate. The [re-pin record](review/docs2-repin.md) gives immutable code and test references. All physical results remain **NOT RUN**.
+**Final-fixes handover — 25 October 2026.** `gpt/nocturne-final-fixes` starts from integrated base `c9befe66f0b78fff4fe9da15d217895ca4b48eee`, which includes the earlier workstreams. The current changes close IR-31's individual uncertainty labels, replace core enum spellings in user-facing mode errors, and fix U-B4's narrow, large-text wake title. Use [final-fixes verification](review/final-fixes-verification.md) for the current gate and release results, and the [phone-test guide](review/phone-test-guide.md) for delivery and supervised checks. All physical results remain **NOT RUN**.
 
-## Source references and ownership
+## Earlier docs2 source references and ownership
+
+The earlier documentation-only re-pin started from `gpt/nocturne-docs2` at `ab6f1e1f83a587f24f258ebb2e753b6c86e15354` and inspected these references independently. They had not been merged into that documentation branch at that checkpoint. The [re-pin record](review/docs2-repin.md) retains those immutable citations; its source-review and historical test counts are not a current integration result.
 
 | Reference branch | Exact reviewed commit | Scope |
 |---|---|---|
@@ -11,11 +13,17 @@
 | `gpt/nocturne-gaps` | `11ee133354261a0ac4c9470d8de722c6b48e260c` | UI fixes, bounded IR-17 coverage, contrast, History presentation, backup-original visibility and remaining layout limits. |
 | `gpt/nocturne-u06` | `66825099193256ad64d08f087cb0b4d08250a4b3` | Owned U06 layout work. Contrast evidence is separately pinned to the gaps branch. |
 
-Claude retains review, integration and merge decisions. GPT-5 changes documentation only and publishes only to `gpt/nocturne-docs2`. **The register is unchanged by this re-pin:** U06, GAPS-*, HAPTICS-* and runtime2 rows remain with their owners. The candidate at `262c52f` and F1 approval at `c15c515` are historical checkpoints. The earlier U06 adjacent-row merge conflict remains in the [historical reconciliation](review/docs2-reconciliation.md#merge-compatibility-one-known-documentation-conflict); no new merge result is claimed here.
+During that earlier docs2 pass, GPT-5 changed documentation only, preserved the owned register rows and left integration decisions with Claude. That restriction describes the earlier pass, not the integrated final-fixes base. The candidate at `262c52f`, F1 approval at `c15c515` and U06 adjacent-row merge conflict remain historical checkpoints in the [earlier reconciliation](review/docs2-reconciliation.md#merge-compatibility-one-known-documentation-conflict).
 
 ## Current behaviour and evidence
 
-[nocturne-completion.md](review/nocturne-completion.md) is the authoritative IR-01–IR-32 record. IR-17 has bounded named-test coverage, rather than a blanket verification claim. IR-07 deliberately sends one terminal notice when a pending pre-wake re-time expires, not a series of expiry notices. IR-31 remains open: individual uncertain originals still lack a Settings label, and legacy v1 empty-slot provenance cannot be recovered. See [items 1–4](review/docs2-repin.md#1-authoritative-ir-record).
+[nocturne-completion.md](review/nocturne-completion.md) is the authoritative IR-01–IR-32 record. **IR-31 is fixed:** Settings displays `settings_original_uncertain` only for an uncertain record in the matching originals list, read-only **From backup** group and restore dialogue. [`UncertainOriginalsSettingsTest`](../app/src/test/kotlin/io/github/willzy12h/nocturne/ui/UncertainOriginalsSettingsTest.kt) passed **6/6**, covering uncertain and certain records on all three surfaces after three genuine missing-warning failures. The separate **KL-01** limitation remains: missing v1 empty-slot provenance cannot be recovered.
+
+**U-B4 is fixed:** [`TonightScreen.wakeOriginLabel`](../app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt) uses **“Wake tonight only”** for a timeline at width ≤320 dp and font scale ≥2. [`TonightWakeLabelLayoutTest`](../app/src/test/kotlin/io/github/willzy12h/nocturne/ui/TonightWakeLabelLayoutTest.kt) passed **8/8** after the two Simple 320 dp / 200% cases demonstrated within-word splits. The six ordinary-theme, normal-font and wider-layout controls pass. Native picker readability remains U-B5, **OPEN** for phone acceptance.
+
+**A2 core mode wording is fixed:** plan and backup errors now use readable mode names, including **Gentle heat**. The core suite passed **175/175**, with no failures, errors or skips; the six added cases are [`PlanErrorModeNameTest`](../core/src/test/kotlin/io/github/willzy12h/nocturne/core/plan/PlanErrorModeNameTest.kt) (**5**) and [`BackupModeNameTest`](../core/src/test/kotlin/io/github/willzy12h/nocturne/core/store/BackupModeNameTest.kt) (**1**). These results and their execution scope are recorded in [final-fixes verification](review/final-fixes-verification.md); they do not supply translated core messages.
+
+IR-17 retains bounded named-test coverage. IR-07 deliberately sends one terminal notice when a pending pre-wake re-time expires. See [items 1–4](review/docs2-repin.md#1-authoritative-ir-record) for the earlier source review and the IR-31 update.
 
 The requested runtime changes are implemented at `db78186`. The newest displaced programme receives the Resume offer; an already manual adjustment preserves a valid offer without extending its expiry, and an expired offer is never revived. Boost displaces a programme only when it interrupts a running programme. Quick Off retains confirmation during a tracked night because it ends that programme. Pending, failed, unknown and confirmed remain distinct. See [runtime policy](review/docs2-repin.md#5-runtime-policy) and [Quick Off](review/docs2-repin.md#12-quick-off-confirmation).
 
@@ -29,14 +37,13 @@ These are limitations or future work, not fixed defects. [Known limitations](rev
 
 | Item | Remaining limitation / decision |
 |---|---|
-| IR-31 | Individual uncertain originals lack a Settings label. Claude's labelling fix follows the freeze. Missing v1 empty-slot provenance cannot be reconstructed. |
+| KL-01 | Missing v1 empty-slot provenance cannot be reconstructed. The IR-31 warning fix does not recover omitted originals. |
 | KL-05 | Widget theme refresh can lag while the app process is absent. |
 | G9 | Unknown or other-device originals are visible read-only; restoring an explicitly chosen source still needs command-owner/repository work. |
 | U-B1 | History draws the last revision if it can be parsed, otherwise the originally recorded steps; there is no revision-by-revision curve view. |
 | U-B2 | Background outcomes are not queued for later in-app display. |
 | U-B3 | A ±1 °C Cool check-in option is not implemented; current Cool/Dry proposals change both fan endpoints by 10 percentage points. |
-| U-B4 | “Tonight-only wake time” can wrap within a word at 320 dp / 200% text. |
-| U-B5 | Native picker dial crowding remains a device acceptance check. |
+| U-B5 | **OPEN:** native picker dial readability remains a phone acceptance check. |
 | Smart wake | Wake timing driven by the room sensor is not built. |
 | D1 | Dialogue taps give haptic feedback through the activity's host view, rather than the dialogue's own view. |
 | Charger origin | The outer-timeout fallback sets CHARGER in code, but the saved notification log drops origin; that metadata is source-inspected only. This is an accepted limitation. |
@@ -46,16 +53,18 @@ Unmeasured BLE timing, background scheduling, Lull background advertising, Healt
 
 ## Documents to use
 
-- [Source re-pin and coverage](review/docs2-repin.md): all 13 requested items, immutable references and verification limits.
+- [Final-fixes verification](review/final-fixes-verification.md): current targeted evidence, full gate and release results.
+- [Phone-test guide](review/phone-test-guide.md): APK delivery and supervised phone checks.
+- [Source re-pin and coverage](review/docs2-repin.md): the earlier 13-item review, immutable references and current IR-31/U-B4 dispositions.
 - [Completion dispositions](review/nocturne-completion.md): authoritative IR-01–IR-32 record; historical gate results remain labelled.
 - [Known limitations](review/known-limitations.md) and [recovery procedures](review/recovery-procedures.md): pending work and practical recovery steps.
 - [Supervised acceptance](review/samsung-bedjet-acceptance.md): install and signer checks first, explicit BedJet selection, originals and restore, then runtime/platform/UI cases. Every physical result is **NOT RUN**.
 - [Release instructions](review/release-instructions.md) and [owner production settings](review/release-production-settings.md): TEST-ONLY versus production artefacts and version/hash/signer checks, at their stated release-source pins.
-- [Register](review/register.md): preserved owner rows and historical base dispositions. Read the reference branches' owned rows with this prose until integration.
+- [Register](review/register.md): owned rows and historical base dispositions; current final-fixes evidence is linked above.
 - [Earlier reconciliation and gate](review/docs2-reconciliation.md): the c15c515 documentation pass, not a new result for these references.
 
 ## Verification and remaining decisions
 
-This is a documentation-only update. **No Gradle run is needed or performed.** Checks cover allowed paths, unchanged register rows, source-link existence and line bounds at the named SHAs, and consistency across the IR record, recovery steps, limitations and acceptance expectations. Named tests describe inspected assertions; no test suite was executed for this re-pin.
+The earlier docs2 re-pin was documentation only: no Gradle run was performed for that pass, and its checks covered allowed paths, preserved register rows, source-link existence and line bounds, and cross-document consistency. Its named tests described inspected assertions. The final-fixes host results above are subsequent executed evidence; [final-fixes verification](review/final-fixes-verification.md) records the full gate and release outcome without carrying historical counts forward.
 
-There is no new hardware, Samsung, TalkBack, on-device, CI or minified verification. All supervised results remain **NOT RUN**. Claude must integrate the independent workstreams, retain their owned register rows, arrange the post-freeze IR-31 label fix and decide the remaining backlog. Source inspection does not establish combined-runtime or physical acceptance.
+All supervised Samsung, BedJet, TalkBack, physical haptic, installation and minified-APK runtime checks remain **NOT RUN**. The integrated base and host fixes do not establish those results. The remaining work is the recorded backlog and supervised acceptance, including KL-01's original-slot inventory/read-back and U-B5's native picker readability.

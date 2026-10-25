@@ -1,5 +1,7 @@
 # Recovery procedures
 
+**Current final-fixes context — 25 October 2026:** the earlier workstreams below are integrated in base `c9befe66f0b78fff4fe9da15d217895ca4b48eee`. Settings now labels uncertain originals in both lists and the restore dialogue (A1/IR-31); missing v1 empty-slot provenance remains KL-01 and unknown/other-device originals remain read-only. [Final-fixes verification](final-fixes-verification.md) records the subsequent host/build evidence. The mixed-reference and source-only statements below describe the earlier docs2 review, not the current integration status. No physical recovery procedure has been marked as run.
+
 **Source pin — 25 October 2026.** This is a mixed-reference re-pin: runtime `gpt/nocturne-runtime2-final` at `db781861c4ca7e19d21ce7045e65dfcf3bba0dc4`; the haptics branch and its runtime follow-ons at `4f14651f1c3389e73825a398e7a0fc25dfaa5404`; and gaps UI at `11ee133354261a0ac4c9470d8de722c6b48e260c`. Each code/test citation names its full immutable SHA. The previously checked backup/originals behaviour is retained where unchanged and is now cited at the runtime pin. U06 at `66825099193256ad64d08f087cb0b4d08250a4b3` is a separate release reference, not evidence that these recovery procedures were exercised together in a released build.
 
 ## Scope and verification status

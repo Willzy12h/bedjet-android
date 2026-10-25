@@ -120,7 +120,10 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 // An empty-slot marker has nothing to put back yet.
                 val program = backup.program ?: return@forEach
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(pluralStringResource(R.plurals.settings_saved_from, program.steps.size, backup.slot + 1, program.name, program.steps.size), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    Column(Modifier.weight(1f)) {
+                        Text(pluralStringResource(R.plurals.settings_saved_from, program.steps.size, backup.slot + 1, program.name, program.steps.size), style = MaterialTheme.typography.bodySmall)
+                        if (backup.uncertain) Text(stringResource(R.string.settings_original_uncertain), style = MaterialTheme.typography.bodySmall)
+                    }
                     TextButton(onClick = { restoringSlot = backup }) { Text(stringResource(R.string.settings_preview_put_back)) }
                 }
             }
@@ -148,6 +151,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                                 else DeviceId.address(backup.deviceId) ?: backup.deviceId),
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        if (backup.uncertain) Text(stringResource(R.string.settings_original_uncertain), style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -298,6 +302,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.settings_restore_slot_text, backup.slot + 1))
+                    if (backup.uncertain) Text(stringResource(R.string.settings_original_uncertain), style = MaterialTheme.typography.bodySmall)
                     if (program != null) {
                         Text(pluralStringResource(R.plurals.settings_saved_programme, program.steps.size, program.name, program.steps.size))
                         program.steps.forEachIndexed { index, step ->

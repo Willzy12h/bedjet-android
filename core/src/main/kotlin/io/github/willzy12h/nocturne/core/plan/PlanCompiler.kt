@@ -140,7 +140,7 @@ object PlanCompiler {
         if (mode == Mode.STANDBY || mode == Mode.WAIT) return range.first
         val low = maxOf(limits.minTemp, range.first)
         val high = minOf(limits.maxTemp, range.last)
-        if (low > high) throw PlanException("${mode.name.lowercase().replace('_', ' ')} cannot honour this profile's temperature limits")
+        if (low > high) throw PlanException("${mode.displayName} cannot honour this profile's temperature limits")
         return requested.coerceIn(low, high)
     }
 

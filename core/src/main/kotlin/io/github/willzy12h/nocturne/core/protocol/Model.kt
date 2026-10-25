@@ -13,6 +13,18 @@ enum class Mode(val code: Int) {
     DRY(5),
     WAIT(6);
 
+    /** English name used in messages shown to the person using the app. */
+    val displayName: String
+        get() = when (this) {
+            STANDBY -> "Off"
+            HEAT -> "Heat"
+            TURBO -> "Turbo"
+            EXTENDED_HEAT -> "Gentle heat"
+            COOL -> "Cool"
+            DRY -> "Dry"
+            WAIT -> "Pause"
+        }
+
     /** Button code that switches the unit into this mode right now. */
     val button: Int?
         get() = when (this) {

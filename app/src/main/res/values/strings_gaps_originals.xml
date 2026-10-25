@@ -5,4 +5,5 @@
     <string name="settings_backup_originals_empty">Saved from slot %1$d: empty slot</string>
     <string name="settings_backup_originals_unknown">Original BedJet not recorded</string>
     <string name="settings_backup_originals_source">Saved for %1$s</string>
+    <string name="settings_original_uncertain">May not be the true original: the slot may already have held one of Nocturne\'s programmes.</string>
 </resources>

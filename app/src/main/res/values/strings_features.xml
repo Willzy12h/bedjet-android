@@ -85,6 +85,7 @@
     <string name="wake_origin_alarm_headline">From your alarm</string>
     <string name="wake_origin_alarm">Your alarm</string>
     <string name="wake_origin_override">Tonight-only wake time</string>
+    <string name="wake_origin_override_compact">Wake tonight only</string>
     <string name="wake_origin_profile">Profile\'s wake time</string>
     <string name="wake_time">Wake time</string>
 </resources>

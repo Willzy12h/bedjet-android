@@ -155,7 +155,7 @@ object BackupValidator {
     private fun MutableList<String>.temperature(what: String, mode: Mode, value: Int) {
         val range = mode.temperatureRange
         if (mode.usesTemperature && value !in range) {
-            add("$what is ${celsius(value)}; ${modeName(mode)} allows ${celsius(range.first)} to ${celsius(range.last)}.")
+            add("$what is ${celsius(value)}; ${mode.displayName} allows ${celsius(range.first)} to ${celsius(range.last)}.")
         }
     }
 
@@ -164,6 +164,4 @@ object BackupValidator {
     }
 
     private fun celsius(halfDegrees: Int) = "${halfDegrees / 2}${if (halfDegrees % 2 != 0) ".5" else ""} °C"
-
-    private fun modeName(mode: Mode) = mode.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
 }

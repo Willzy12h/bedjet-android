@@ -1,0 +1,254 @@
+{
+  "note": "Captured from actual test-result XML after the stated runs. Full gate and release assembly are recorded in final-fixes-verification.md.",
+  "rounds": {
+    "a2-red-xml": {
+      "total": {
+        "tests": 6,
+        "failures": 6,
+        "errors": 0,
+        "skipped": 0
+      },
+      "new_regression_suites": [
+        {
+          "name": "io.github.willzy12h.nocturne.core.plan.PlanErrorModeNameTest",
+          "tests": "5",
+          "failures": "5",
+          "errors": "0",
+          "skipped": "0",
+          "failures_observed": [
+            {
+              "test": "heatRefusalUsesTheAppModeName()",
+              "assertion": "org.opentest4j.AssertionFailedError: expected: <Heat cannot honour this profile's temperature limits> but was: <heat cannot honour this profile's temperature limits>"
+            },
+            {
+              "test": "dryRefusalUsesTheAppModeName()",
+              "assertion": "org.opentest4j.AssertionFailedError: expected: <Dry cannot honour this profile's temperature limits> but was: <dry cannot honour this profile's temperature limits>"
+            },
+            {
+              "test": "gentleHeatRefusalUsesTheAppModeName()",
+              "assertion": "org.opentest4j.AssertionFailedError: expected: <Gentle heat cannot honour this profile's temperature limits> but was: <extended heat cannot honour this profile's temperature limits>"
+            },
+            {
+              "test": "turboRefusalUsesTheAppModeNameWhenDirectCoreInputHasOutOfRangeLimits()",
+              "assertion": "org.opentest4j.AssertionFailedError: expected: <Turbo cannot honour this profile's temperature limits> but was: <turbo cannot honour this profile's temperature limits>"
+            },
+            {
+              "test": "coolRefusalUsesTheAppModeName()",
+              "assertion": "org.opentest4j.AssertionFailedError: expected: <Cool cannot honour this profile's temperature limits> but was: <cool cannot honour this profile's temperature limits>"
+            }
+          ]
+        },
+        {
+          "name": "io.github.willzy12h.nocturne.core.store.BackupModeNameTest",
+          "tests": "1",
+          "failures": "1",
+          "errors": "0",
+          "skipped": "0",
+          "failures_observed": [
+            {
+              "test": "temperatureErrorUsesTheAppNameForGentleHeat()",
+              "assertion": "org.opentest4j.AssertionFailedError: expected: <[Test: step 1 of the start: the temperature is 35 °C; Gentle heat allows 19 °C to 33.5 °C.]> but was: <[Test: step 1 of the start: the temperature is 35 °C; Extended heat allows 19 °C to 33.5 °C.]>"
+            }
+          ]
+        }
+      ]
+    },
+    "a2-green-xml": {
+      "total": {
+        "tests": 175,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "new_regression_suites": [
+        {
+          "name": "io.github.willzy12h.nocturne.core.plan.PlanErrorModeNameTest",
+          "tests": "5",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "failures_observed": []
+        },
+        {
+          "name": "io.github.willzy12h.nocturne.core.store.BackupModeNameTest",
+          "tests": "1",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "failures_observed": []
+        }
+      ]
+    },
+    "app-red-xml": {
+      "total": {
+        "tests": 14,
+        "failures": 5,
+        "errors": 0,
+        "skipped": 0
+      },
+      "new_regression_suites": [
+        {
+          "name": "io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest",
+          "tests": "8",
+          "failures": "2",
+          "errors": "0",
+          "skipped": "0",
+          "failures_observed": [
+            {
+              "test": "overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[SIMPLE_MIDNIGHT-320dp-font2]",
+              "assertion": "java.lang.AssertionError: Simple wake title splits 'Tonight-only' within a word: [Tonight-onl, y wake, time] expected:<0> but was:<1>"
+            },
+            {
+              "test": "overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[SIMPLE_DAYLIGHT-320dp-font2]",
+              "assertion": "java.lang.AssertionError: Simple wake title splits 'Tonight-only' within a word: [Tonight-onl, y wake, time] expected:<0> but was:<1>"
+            }
+          ]
+        },
+        {
+          "name": "io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest",
+          "tests": "6",
+          "failures": "3",
+          "errors": "0",
+          "skipped": "0",
+          "failures_observed": [
+            {
+              "test": "uncertainOriginalRestoreDialogDisplaysItsWarning",
+              "assertion": "java.lang.AssertionError: Assert failed: The component is not displayed!"
+            },
+            {
+              "test": "fromBackupUncertainOriginalDisplaysItsWarning",
+              "assertion": "java.lang.AssertionError: Action performScrollTo() failed.\nReason: Expected exactly '1' node but could not find any node that satisfies: (Text + EditableText contains 'May not be the true original: the slot may already have held one of Nocturne's programmes.' (ignoreCase: false))\n"
+            },
+            {
+              "test": "matchingUncertainOriginalDisplaysItsWarning",
+              "assertion": "java.lang.AssertionError: Action performScrollTo() failed.\nReason: Expected exactly '1' node but could not find any node that satisfies: (Text + EditableText contains 'May not be the true original: the slot may already have held one of Nocturne's programmes.' (ignoreCase: false))\n"
+            }
+          ]
+        }
+      ]
+    },
+    "app-green-xml": {
+      "total": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "new_regression_suites": [
+        {
+          "name": "io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest",
+          "tests": "8",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "failures_observed": []
+        },
+        {
+          "name": "io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest",
+          "tests": "6",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "failures_observed": []
+        }
+      ]
+    }
+  },
+  "gate": {
+    "command": [
+      "./gradlew",
+      "--no-daemon",
+      "--offline",
+      "--max-workers=2",
+      "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8",
+      "-Pkotlin.compiler.execution.strategy=in-process",
+      ":core:test",
+      ":app:testDebugUnitTest",
+      ":app:assembleDebug",
+      ":app:lintDebug"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 51.18,
+    "gradle_summary": "BUILD SUCCESSFUL in 50s; 59 actionable tasks: 5 executed, 54 up-to-date",
+    "core": {
+      "tests": 175,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 175,
+      "suites": 24,
+      "skipped_suites": []
+    },
+    "app": {
+      "tests": 889,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 38,
+      "passed": 851,
+      "suites": 88,
+      "skipped_suites": [
+        {
+          "suite": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+          "skipped": 12
+        },
+        {
+          "suite": "io.github.willzy12h.nocturne.ScreenshotCapture",
+          "skipped": 14
+        },
+        {
+          "suite": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+          "skipped": 12
+        }
+      ]
+    },
+    "lint": {
+      "errors": 0,
+      "warnings": 14,
+      "hints": 1,
+      "findings": 15,
+      "ids": {
+        "OldTargetApi": 1,
+        "SpecifyJobSchedulerIdRange": 1,
+        "ObsoleteSdkInt": 1,
+        "AutoboxingStateCreation": 1,
+        "UseKtx": 11
+      },
+      "report_sha256": "7dccbda2dc2e748730ec15867569eced897843872f1a9d5b61fc75e81caec67c",
+      "all_reported_files_byte_identical_to_base": [
+        "app/build.gradle.kts",
+        "app/src/main/kotlin/io/github/willzy12h/nocturne/ble/AndroidBedJetLink.kt",
+        "app/src/main/kotlin/io/github/willzy12h/nocturne/data/Repository.kt",
+        "app/src/main/kotlin/io/github/willzy12h/nocturne/notify/Notifications.kt",
+        "app/src/main/kotlin/io/github/willzy12h/nocturne/platform/ChargerJobs.kt",
+        "app/src/main/kotlin/io/github/willzy12h/nocturne/platform/PlatformActionActivity.kt",
+        "app/src/main/kotlin/io/github/willzy12h/nocturne/ui/AppViewModel.kt",
+        "app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ProfilesScreen.kt",
+        "app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SetupChecks.kt",
+        "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
+      ],
+      "warm_metadata_result": {
+        "errors": 0,
+        "warnings": 23,
+        "hints": 1,
+        "additional_version_advisories": 9
+      },
+      "cache_note": "The successful warm-cache offline run retained nine tool/dependency-version advisories from online cache setup. The final exact offline gate regenerated all lint findings from fresh project-local lint metadata. No lint rules, suppressions, source files or dependency versions changed for this comparison; the nine warmed-metadata advisories were not fixed."
+    }
+  },
+  "minified_release": {
+    "command": [
+      "./gradlew",
+      "--no-daemon",
+      "--offline",
+      "--max-workers=2",
+      "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8",
+      "-Pkotlin.compiler.execution.strategy=in-process",
+      ":app:assembleRelease"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 28.95,
+    "initial_unsigned_apk_bytes": 4493291,
+    "r8_and_resource_shrinking_executed_successfully_in_cache_warmup": true,
+    "note": "A fresh unsigned package is required after the final commit to embed its exact VCS revision before test signing. Final delivery hashes and signer are in the chat handover."
+  }
+}
