@@ -448,47 +448,65 @@ class NightActions(private val graph: Graph) {
         val requestedReceipt = statusReceipt()
         val pending = night?.copy(confidence = Confidence.PENDING, pending = PendingChange(UUID.randomUUID().toString(),
             ChangeKind.MANUAL, null, requestedAt.toString(), requestedAt.plusMinutes(1).toString(), night.identity))
-        pending?.let { publishNight(it) }
-        if (endsNight && night != null) {
-            // Persist before the write: a lost acknowledgement or process death cannot erase the ending intention.
-            // This records intent, not successful delivery; only the target's stopped state completes it.
-            repo.updateRuntime { it.copy(endRequested = night.identity, endRequestedLabel = message,
-                endRequestedAt = requestedAt.toString(), endRequestedEpoch = requestedReceipt.epoch,
-                endRequestedSequence = requestedReceipt.sequence, retime = null, alarmInbox = null) }
-            NightAlarms.cancelRetry(context)
-        }
-        val confirmed = sentAndConfirmed(confirms, allowCurrentStatus) {
-            try { work() } catch (e: Exception) {
-                val reason = if (e is TimeoutCancellationException) text(R.string.runtime_operation_timeout) else e.message
-                withContext(NonCancellable) {
-                    pending?.let { publishNight(it.copy(confidence = Confidence.UNKNOWN)) }
-                    repo.updateRuntime { it.copy(reason = reason) }
-                }
-                throw e
+        var writeMayHaveHappened = false
+        try {
+            pending?.let { publishNight(it) }
+            if (endsNight && night != null) {
+                // Persist before the write: a lost acknowledgement or process death cannot erase the ending intention.
+                // This records intent, not successful delivery; only the target's stopped state completes it.
+                repo.updateRuntime { it.copy(endRequested = night.identity, endRequestedLabel = message,
+                    endRequestedAt = requestedAt.toString(), endRequestedEpoch = requestedReceipt.epoch,
+                    endRequestedSequence = requestedReceipt.sequence, retime = null, alarmInbox = null) }
+                NightAlarms.cancelRetry(context)
             }
-        }
-        if (endsNight && night != null) {
-            if (confirmed) finishLocked(night, EventKind.STOPPED, message)
-            else {
-                publishNight(night.copy(confidence = Confidence.UNKNOWN, pending = null))
-                repo.updateRuntime { it.copy(retime = null, reason = unconfirmed) }
-                repo.addEvent(night.recordId, event(EventKind.ERROR, unconfirmed))
+            val confirmed = sentAndConfirmed(confirms, allowCurrentStatus) {
+                writeMayHaveHappened = true
+                work()
+            }
+            if (endsNight && night != null) {
+                if (confirmed) finishLocked(night, EventKind.STOPPED, message)
+                else {
+                    publishNight(night.copy(confidence = Confidence.UNKNOWN, pending = null))
+                    repo.updateRuntime { it.copy(retime = null, reason = unconfirmed) }
+                    repo.addEvent(night.recordId, event(EventKind.ERROR, unconfirmed))
+                    NightAlarms.cancelRetry(context)
+                    Notifications.cancelQuiet(context)
+                    return CommandOutcome(OutcomeKind.UNKNOWN, unconfirmed)
+                }
+            }
+            else if (affectsProgramme && night != null) {
+                // The packet was accepted, but a temperature/fan/timer change is not proof
+                // that the saved programme still describes the unit's running state.
+                publishNight(night.copy(confidence = Confidence.UNKNOWN, pending = null, trackingManual = true))
+                repo.updateRuntime { it.copy(retime = null, reason = text(R.string.runtime_manual_tracking)) }
+                offerProgrammeResume(night)
                 NightAlarms.cancelRetry(context)
                 Notifications.cancelQuiet(context)
-                return CommandOutcome(OutcomeKind.UNKNOWN, unconfirmed)
             }
+            else if (night != null) publishNight(night)
+            return if (confirmed) CommandOutcome(OutcomeKind.CONFIRMED, message) else CommandOutcome(OutcomeKind.ACCEPTED, unconfirmed)
+        } catch (e: Exception) {
+            val reason = when (e) {
+                is TimeoutCancellationException -> text(R.string.runtime_operation_timeout)
+                is CancellationException -> text(R.string.runtime_interrupted)
+                else -> e.message ?: text(R.string.runtime_failed)
+            }
+            try {
+                // Confirmation and its fresh fallback belong to the transaction too. Repair only this still-pending
+                // request; a published confirmation, ending or newer request must never be put back to UNKNOWN.
+                withContext(NonCancellable) { withTimeout(8_000) {
+                    val current = repo.activeNight.value
+                    val ownsPending = pending != null && current?.identity == pending.identity &&
+                        current.confidence == Confidence.PENDING && current.pending?.requestId == pending.pending?.requestId
+                    if (ownsPending) {
+                        publishNight(if (writeMayHaveHappened) current!!.copy(confidence = Confidence.UNKNOWN, pending = null) else night)
+                        // Publishing the same night retains any valid Off intention and its receipt boundary.
+                        repo.updateRuntime { it.copy(reason = reason) }
+                    } else if (night == null && current == null) repo.updateRuntime { it.copy(reason = reason) }
+                } }
+            } catch (cleanup: Exception) { if (cleanup !== e) e.addSuppressed(cleanup) }
+            throw e
         }
-        else if (affectsProgramme && night != null) {
-            // The packet was accepted, but a temperature/fan/timer change is not proof
-            // that the saved programme still describes the unit's running state.
-            publishNight(night.copy(confidence = Confidence.UNKNOWN, pending = null, trackingManual = true))
-            repo.updateRuntime { it.copy(retime = null, reason = text(R.string.runtime_manual_tracking)) }
-            offerProgrammeResume(night)
-            NightAlarms.cancelRetry(context)
-            Notifications.cancelQuiet(context)
-        }
-        else if (night != null) publishNight(night)
-        return if (confirmed) CommandOutcome(OutcomeKind.CONFIRMED, message) else CommandOutcome(OutcomeKind.ACCEPTED, unconfirmed)
     }
     private suspend fun timedManual(preset: ActionPreset, kind: EventKind, label: String): CommandOutcome {
         val old = repo.activeNight.value
