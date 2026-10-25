@@ -41,11 +41,11 @@ class NightCurveAlternativeTest : ComposeActivityFixture() {
         compose.onNode(hasContentDescription("23:30 Wake-up Heat, 87°F", substring = true)).assertExists()
     }
 
-    @Test fun modesWithoutATemperatureOmitItFromTheCelsiusAlternative() {
+    @Test fun modesOnlyAnnounceTheirAvailableControlsInTheCelsiusAlternative() {
         assertNonTemperatureModes(fahrenheit = false)
     }
 
-    @Test fun modesWithoutATemperatureOmitItFromTheFahrenheitAlternative() {
+    @Test fun modesOnlyAnnounceTheirAvailableControlsInTheFahrenheitAlternative() {
         assertNonTemperatureModes(fahrenheit = true)
     }
 
@@ -65,9 +65,9 @@ class NightCurveAlternativeTest : ComposeActivityFixture() {
             .fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
         assertEquals(
             "Night plan from 22:30 to 22:43; wake 22:43. " +
-                "22:30 Start Off, fan 5%, 1 minute; " +
+                "22:30 Start Off, 1 minute; " +
                 "22:31 Middle Turbo, fan 100%, 10 minutes; " +
-                "22:41 Wake-up Pause, fan 5%, 2 minutes",
+                "22:41 Wake-up Pause, 2 minutes",
             description,
         )
     }

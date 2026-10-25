@@ -300,7 +300,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             onDismissRequest = { restoringSlot = null },
             title = { Text(stringResource(R.string.settings_restore_slot_title, backup.slot + 1)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.settings_restore_slot_text, backup.slot + 1))
                     if (backup.uncertain) Text(stringResource(R.string.settings_original_uncertain), style = MaterialTheme.typography.bodySmall)
                     if (program != null) {

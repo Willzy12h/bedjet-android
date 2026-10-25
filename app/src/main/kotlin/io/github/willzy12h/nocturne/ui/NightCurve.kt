@@ -60,10 +60,14 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     val description = stringResource(R.string.curve_description, Format.clock(plan.start), Format.clock(plan.end),
         end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake_lower, Format.clock(plan.wake)),
         plan.steps.map { step ->
-            if (step.step.mode.usesTemperature) pluralStringResource(R.plurals.curve_step_temperature, step.minutes, Format.clock(step.startsAt), blockName(step.block),
-                modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes, tempText(step.step.temperature, fahrenheit))
-            else pluralStringResource(R.plurals.curve_step_without_temperature, step.minutes, Format.clock(step.startsAt), blockName(step.block),
-                modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes)
+            when {
+                step.step.mode.usesTemperature -> pluralStringResource(R.plurals.curve_step_temperature, step.minutes, Format.clock(step.startsAt), blockName(step.block),
+                    modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes, tempText(step.step.temperature, fahrenheit))
+                step.step.mode.usesFan -> pluralStringResource(R.plurals.curve_step_without_temperature, step.minutes, Format.clock(step.startsAt), blockName(step.block),
+                    modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes)
+                else -> pluralStringResource(R.plurals.curve_step_without_fan, step.minutes, Format.clock(step.startsAt), blockName(step.block),
+                    modeName(step.step.mode), step.minutes)
+            }
         }.joinToString("; "))
     Column(modifier) {
         Canvas(Modifier.fillMaxWidth().height(110.dp).semantics { contentDescription = description }) {
