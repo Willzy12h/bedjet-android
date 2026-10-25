@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -79,7 +81,11 @@ fun UnreadableDataBanner(state: UnreadableBannerState, onDismiss: () -> Unit, on
 fun AcceptLostOriginalsDialog(onConfirm: () -> Unit, onCancel: () -> Unit) = AlertDialog(
     onDismissRequest = onCancel,
     title = { Text(stringResource(R.string.originals_accept_title)) },
-    text = { Text(stringResource(R.string.originals_accept_text)) },
+    text = {
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text(stringResource(R.string.originals_accept_text))
+        }
+    },
     confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.originals_accept_confirm)) } },
     dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.originals_accept_cancel)) } },
 )
