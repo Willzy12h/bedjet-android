@@ -1,5 +1,9 @@
 package io.github.willzy12h.nocturne.platform
 
+import android.app.Notification
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.core.link.latestStatusFrom
 import io.github.willzy12h.nocturne.core.plan.NightPreview
@@ -8,15 +12,13 @@ import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.R
-import io.github.willzy12h.nocturne.core.store.EventKind
-import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.LoggedNotice
-import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.night.CommandOutcome
 import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.notify.Notifications
+import io.github.willzy12h.nocturne.ui.MainActivity
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -40,7 +42,7 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
                 Candidate(p,settings.deviceId() ?: return@mapNotNull null,window) else null
         } }.firstOrNull()
     }
-    private fun eligible(c: Candidate, ownAttempt: Boolean = false): Boolean {
+    private fun eligible(c: Candidate, ownAttempt: Boolean = false, requireReadableData: Boolean = true): Boolean {
         val repo=graph.repository; val settings=repo.settings.value; val now=graph.now()
         val current=candidate() ?: return false
         if (current.key != c.key || current.profile != c.profile || settings.deviceId() != c.device) return false
@@ -56,7 +58,8 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
             manual=graph.link.latestStatusFrom(c.device)?.isRunning == true,
             // IR-06: only a write still in question on this BedJet holds the start back.
             uncertain=repo.runtime.value.unresolvedSlotWrite?.let { it.deviceId == c.device && it.affectsNights(settings.workingSlot) } == true,
-            takeover=graph.sessions.released.value, prerequisites=permitted() && repo.unreadable.value.isEmpty() && settings.platform.validationErrors().isEmpty(),
+            takeover=graph.sessions.released.value, prerequisites=permitted() &&
+                (!requireReadableData || repo.unreadable.value.isEmpty()) && settings.platform.validationErrors().isEmpty(),
             alreadyAttempted="cancel:${c.key}" in claims || (!ownAttempt && "charger:${c.key}" in claims)))
     }
     suspend fun execute() {
@@ -83,31 +86,28 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
         // An attempt stays claimed even if transport fails: an accepted partial write cannot be replayed.
         record(outcome)
     }
-    /** A skipped attempt is History evidence, with no claim that a programme started or was applied. */
+    /** Only an otherwise eligible start earns a notice; a skipped start never creates a History night. */
     private suspend fun reportUnreadable(candidate: Candidate?): Boolean {
         val repo = graph.repository
-        val unreadable = repo.unreadable.value
-        if (unreadable.isEmpty()) return false
+        if (repo.unreadable.value.isEmpty()) return false
+        if (candidate == null || !eligible(candidate, requireReadableData = false)) return true
+        if (!repo.claimAutomation("charger-unreadable:${candidate.key}")) return true
+        val title = graph.context.getString(R.string.feature_charger_outcome)
         val message = graph.context.getString(R.string.runtime_charger_saved_data_unreadable)
-        val metadataReadable = unreadable.none { it == "profiles.json" || it == "settings.json" }
-        if (candidate != null && metadataReadable) {
-            val id = "charger-skipped:${candidate.key}"
-            if (repo.history.value.any { it.id == id }) return true
-            val now = graph.now()
-            val settings = repo.settings.value
-            val alarm = AlarmSource.describe(graph.context, settings)
-            val preview = NightPreview.forStartNow(candidate.profile, now, alarm?.time,
-                settings.resolveWakeOverride(now), settings, alarm?.creator)
-            repo.addRecord(NightRecord(id, candidate.profile.id, candidate.profile.name, now.toString(),
-                preview.wake.time.toString(), preview.wake.fromAlarm,
-                events = listOf(HistoryEvent(now.toString(), EventKind.ERROR, message)), deviceId = candidate.device))
-        } else {
-            // No trustworthy bedtime window: dedupe the notice by date without claiming a charger attempt.
-            val key = "charger-unreadable-notice:${graph.now().toLocalDate()}:${unreadable.sorted().joinToString(",")}"
-            if (!repo.claimAutomation(key)) return true
+        repo.addNotice(LoggedNotice(graph.now().toString(), NoticeKind.PROBLEM, title, message))
+        if (Notifications.canPost(graph.context)) {
+            // showError also logs asynchronously; this job has already saved its single durable notice.
+            val notification = Notification.Builder(graph.context, "alerts")
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
+                .setContentText(message)
+                .setStyle(Notification.BigTextStyle().bigText(message))
+                .setContentIntent(PendingIntent.getActivity(graph.context, 0,
+                    Intent(graph.context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
+                .setAutoCancel(true)
+                .build()
+            graph.context.getSystemService(NotificationManager::class.java).notify(3, notification)
         }
-        // Damaged profiles/settings leave fallback data. Explain the skip without inventing History metadata.
-        Notifications.showError(graph.context, graph.context.getString(R.string.feature_charger_outcome), message)
         return true
     }
     /** The job has no screen, so what the attempt did is kept in the notification log, not dropped (F04). */

@@ -24,6 +24,11 @@ class DemoBedJet(
     override val state: StateFlow<LinkState> = _state.asStateFlow()
     private val _status = MutableStateFlow<DeviceStatus?>(null)
     override val status: StateFlow<DeviceStatus?> = _status.asStateFlow()
+    private val _sourcedStatus = MutableStateFlow<SourcedStatus?>(null)
+    override val sourcedStatus: StateFlow<SourcedStatus?> = _sourcedStatus.asStateFlow()
+    override fun latestSourcedStatus(): SourcedStatus? = _sourcedStatus.value
+    /** The full unit report survives local progress masking without receiving a new report. */
+    private var lastReceived: SourcedStatus? = null
 
     val slots: MutableList<StoredProgram?> = initialSlots.toMutableList()
     /** The unit's clock as last set, as hour to minute. */
@@ -43,8 +48,9 @@ class DemoBedJet(
     private var lastTick: ZonedDateTime? = null
 
     override suspend fun connect() {
+        val newConnection = _state.value != LinkState.READY
         _state.value = LinkState.READY
-        publish()
+        publish(newReceipt = newConnection)
     }
 
     override suspend fun disconnect() {
@@ -53,13 +59,16 @@ class DemoBedJet(
 
     /** StateFlow conflates equal values: forget progress so even an identical first step confirms freshly. */
     override suspend fun prepareForStart() {
-        _status.value = _status.value?.copy(extra = null)
+        val prepared = _sourcedStatus.value?.let { it.copy(status = it.status.copy(extra = null)) }
+        _sourcedStatus.value = prepared
+        _status.value = prepared?.status
     }
 
     override suspend fun send(command: ByteArray) {
         if (_state.value != LinkState.READY) throw BedJetError.NotConnected()
         val b = command.map { it.toInt() and 0xff }
         if (b.size < 2) throw BedJetError.BadResponse()
+        val previousRun = running
         when (b[0]) {
             0x01 -> press(b[1])
             0x02 -> if (b.size >= 3) {
@@ -72,7 +81,8 @@ class DemoBedJet(
             0x08 -> if (b.size >= 3) { clock = b[1] to b[2]; clockSetAt = now() }
             0x40 -> store(b)
         }
-        publish()
+        // A successful restart receives a report even when it reproduces the same first step.
+        publish(newReceipt = running != null && running !== previousRun)
     }
 
     override suspend fun query(request: Int): ByteArray {
@@ -217,8 +227,17 @@ class DemoBedJet(
         }
     }
 
-    private fun publish() {
-        _status.value = if (_state.value == LinkState.READY) current else null
+    private fun publish(newReceipt: Boolean = false) {
+        val shown = if (_state.value == LinkState.READY) current else null
+        val before = lastReceived
+        lastReceived = when {
+            shown == null -> null
+            before == null || shown != before.status -> SourcedStatus(null, shown)
+            newReceipt -> before.copy(receiptOrder = StatusReceiptOrder.next())
+            else -> before
+        }
+        _sourcedStatus.value = lastReceived
+        _status.value = lastReceived?.status
     }
 
 }

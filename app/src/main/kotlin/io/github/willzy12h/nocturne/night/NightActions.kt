@@ -1014,13 +1014,18 @@ class NightActions(private val graph: Graph) {
     private suspend fun freshReport(requireProgress: Boolean = true): SourcedStatus {
         // Reconnect under whole-command ownership. Existing READY status may predate this operation.
         val target = repo.settings.value.deviceId()
+        // Default links stamp their cached snapshot lazily; observe it before the read's receipt boundary.
+        graph.link.latestSourcedStatus()
+        val receivedAfter = StatusReceiptOrder.next()
         graph.link.disconnect()
         graph.link.connect()
         // Only the chosen BedJet's own report counts: one from a session still on another unit says nothing about it.
         // A status that never arrives is a failed attempt with nothing written. Only this wait's own timeout is turned
         // into that: a cancellation from outside, such as the owner's budget running out, still cancels.
         return withTimeoutOrNull(freshStatusMs) {
-            graph.link.sourcedStatus.filterNotNull().first { it.isFrom(target) && (!requireProgress || it.status.extra != null) }
+            graph.link.sourcedStatus.filterNotNull().first {
+                it.receiptOrder > receivedAfter && it.isFrom(target) && (!requireProgress || it.status.extra != null)
+            }
         } ?: throw BedJetError.Timeout()
     }
     /** How long [freshStatus] waits for the target's report with program progress; tests shorten it. */
