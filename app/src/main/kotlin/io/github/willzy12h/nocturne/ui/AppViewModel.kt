@@ -111,9 +111,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val commandBusy: StateFlow<io.github.willzy12h.nocturne.night.BusyState> = graph.actions.busy
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages
-    private val _haptics = MutableSharedFlow<OutcomeKind>(extraBufferCapacity = 8)
-    /** Every command outcome's kind, for the accepted tick and the confirmed pattern. */
-    val haptics: SharedFlow<OutcomeKind> = _haptics
+    private val tapHaptics = Haptics()
+    /** Only the collecting view's own admitted APP taps, followed by their matching confirmed outcomes. */
+    val haptics = tapHaptics.feedback
     /** Outcomes already shown, by identity: the screen's own request and the owner's feed report the same object. */
     private val shownOutcomes = ArrayDeque<CommandOutcome>()
     private var screenVisible = false
@@ -123,7 +123,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // app is open, and an outcome this screen asked for is shown once, whichever side sees it first.
         viewModelScope.launch {
             graph.actions.outcomes.collect { outcome ->
-                _haptics.tryEmit(outcome.kind)
                 if (screenVisible) report(outcome)
             }
         }
@@ -154,6 +153,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onScreenVisible() {
         screenVisible = true
+        tapHaptics.setVisible(true)
         refreshAlarm()
         graph.sessions.holdForScreen(true)
         // An alarm change that couldn't reach the BedJet earlier.
@@ -166,6 +166,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onScreenHidden() {
         screenVisible = false
+        tapHaptics.setVisible(false)
         graph.sessions.holdForScreen(false)
     }
 
@@ -279,18 +280,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun act(hardware: Boolean = true, work: suspend () -> CommandOutcome) {
         val pending = lastSave
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
+        val feedback = if (hardware) tapHaptics.capture() else null
         viewModelScope.launch {
-            pending?.join()
-            _busy.value = true
-            val outcome = try {
-                if (hardware) kotlinx.coroutines.withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target)) {
-                    io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false) { work() }
-                } else work()
-            } catch (_: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
-            } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
-            finally { _busy.value = false }
-            report(outcome)
+            try {
+                pending?.join()
+                _busy.value = true
+                val outcome = try {
+                    if (hardware) withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target) +
+                        (feedback?.context ?: kotlin.coroutines.EmptyCoroutineContext)) {
+                        io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false) { work() }
+                    } else work()
+                } catch (_: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
+                } catch (e: CancellationException) { throw e
+                } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
+                finally { _busy.value = false }
+                feedback?.complete(outcome)
+                report(outcome)
+            } finally { feedback?.close() }
         }
     }
 

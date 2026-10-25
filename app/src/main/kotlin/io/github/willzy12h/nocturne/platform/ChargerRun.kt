@@ -8,11 +8,15 @@ import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.core.store.EventKind
+import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.LoggedNotice
+import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.night.CommandOutcome
 import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.OutcomeKind
+import io.github.willzy12h.nocturne.notify.Notifications
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -56,12 +60,13 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
             alreadyAttempted="cancel:${c.key}" in claims || (!ownAttempt && "charger:${c.key}" in claims)))
     }
     suspend fun execute() {
-        val candidate=candidate() ?: return
-        if (!eligible(candidate)) return
+        val candidate=candidate()
+        if (reportUnreadable(candidate)) return
+        if (candidate == null || !eligible(candidate)) return
         if (!notify(candidate.profile.name,candidate.key)) return
         grace() // Cancellation never continues this countdown; a later run starts from the beginning.
         currentCoroutineContext().ensureActive()
-        if (!eligible(candidate)) return
+        if (reportUnreadable(candidate) || !eligible(candidate)) return
         if (!graph.repository.claimAutomation("charger:${candidate.key}")) return
         val request=graph.actions.capture(Command.START_NIGHT,candidate.profile.id,requireIdentity=true)
         val outcome=try {
@@ -77,6 +82,33 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
         }
         // An attempt stays claimed even if transport fails: an accepted partial write cannot be replayed.
         record(outcome)
+    }
+    /** A skipped attempt is History evidence, with no claim that a programme started or was applied. */
+    private suspend fun reportUnreadable(candidate: Candidate?): Boolean {
+        val repo = graph.repository
+        val unreadable = repo.unreadable.value
+        if (unreadable.isEmpty()) return false
+        val message = graph.context.getString(R.string.runtime_charger_saved_data_unreadable)
+        val metadataReadable = unreadable.none { it == "profiles.json" || it == "settings.json" }
+        if (candidate != null && metadataReadable) {
+            val id = "charger-skipped:${candidate.key}"
+            if (repo.history.value.any { it.id == id }) return true
+            val now = graph.now()
+            val settings = repo.settings.value
+            val alarm = AlarmSource.describe(graph.context, settings)
+            val preview = NightPreview.forStartNow(candidate.profile, now, alarm?.time,
+                settings.resolveWakeOverride(now), settings, alarm?.creator)
+            repo.addRecord(NightRecord(id, candidate.profile.id, candidate.profile.name, now.toString(),
+                preview.wake.time.toString(), preview.wake.fromAlarm,
+                events = listOf(HistoryEvent(now.toString(), EventKind.ERROR, message)), deviceId = candidate.device))
+        } else {
+            // No trustworthy bedtime window: dedupe the notice by date without claiming a charger attempt.
+            val key = "charger-unreadable-notice:${graph.now().toLocalDate()}:${unreadable.sorted().joinToString(",")}"
+            if (!repo.claimAutomation(key)) return true
+        }
+        // Damaged profiles/settings leave fallback data. Explain the skip without inventing History metadata.
+        Notifications.showError(graph.context, graph.context.getString(R.string.feature_charger_outcome), message)
+        return true
     }
     /** The job has no screen, so what the attempt did is kept in the notification log, not dropped (F04). */
     private suspend fun record(outcome: CommandOutcome) {

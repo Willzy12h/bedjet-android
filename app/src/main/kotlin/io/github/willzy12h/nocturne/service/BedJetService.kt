@@ -48,7 +48,8 @@ class BedJetService : Service() {
                 if (handoff != null) {
                     if (!handoff.result.isActive) return@launch
                     val value = withTimeout(SERVICE_MS) {
-                        withContext(SubmissionTarget(handoff.target) + CommandOriginContext(handoff.origin)) { handoff.work() }
+                        withContext(SubmissionTarget(handoff.target) + CommandOriginContext(handoff.origin) +
+                            (handoff.feedback ?: kotlin.coroutines.EmptyCoroutineContext)) { handoff.work() }
                     }
                     handoff.result.complete(value)
                     return@launch
@@ -106,7 +107,8 @@ class BedJetService : Service() {
         const val SERVICE_MS = NightActions.OPERATION_MS + 10_000L
         /** The UI waits longer still: foreground promotion, the service bound and a margin. */
         const val RUN_OWNED_MS = SERVICE_MS + 15_000L
-        private class Handoff(val target: String?, val notifyFailures: Boolean, val origin: CommandOrigin, val work: suspend () -> Any?) {
+        private class Handoff(val target: String?, val notifyFailures: Boolean, val origin: CommandOrigin,
+            val feedback: CommandFeedback?, val work: suspend () -> Any?) {
             val result = CompletableDeferred<Any?>()
             @Volatile var operation: Job? = null
         }
@@ -124,7 +126,7 @@ class BedJetService : Service() {
             if (context.graph.repository.settings.value.demoMode)
                 return withContext(SubmissionTarget(target) + CommandOriginContext(origin)) { withTimeout(SERVICE_MS) { work() } }
             val id = java.util.UUID.randomUUID().toString()
-            val handoff = Handoff(target, notifyFailures, origin, work)
+            val handoff = Handoff(target, notifyFailures, origin, currentCoroutineContext()[CommandFeedback], work)
             handoffs[id] = handoff
             try {
                 if (!permitted(context, NightActions.Command.START_NIGHT)) throw SecurityException(context.getString(R.string.runtime_connect_permission))

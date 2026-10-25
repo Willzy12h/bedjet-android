@@ -13,8 +13,11 @@ import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.widget.widgetWake
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.nullable
 import org.junit.Assert.*
 import org.junit.Before
@@ -238,6 +241,32 @@ class RuntimeFixRoundTest {
         assertTrue(graph.repository.activeNight.value!!.trackingManual)
     }
 
+    @Test fun boostOffersTheProgrammeItActuallyDisplacesWithANewExpiry() = runBlocking {
+        val first = start()
+        at("2026-10-21T23:00:00Z")
+        val replacement = start()
+        val olderOffer = graph.repository.runtime.value.resumeOffer!!
+        assertEquals(first.recordId, olderOffer.night.recordId)
+        assertEquals("2026-10-21T23:15Z", olderOffer.expiresAt)
+        at("2026-10-21T23:14:00Z")
+
+        assertEquals(OutcomeKind.CONFIRMED, execute(NightActions.Command.BOOST).kind)
+
+        assertNull(graph.repository.activeNight.value)
+        val offered = graph.repository.runtime.value.resumeOffer!!
+        assertEquals("Boost displaced the running programme, so it owns the new Resume choice", replacement, offered.night)
+        assertEquals("2026-10-21T23:29Z", offered.expiresAt)
+        assertEquals(graph.repository.runtime.value.generation, offered.commandVersion)
+        assertEquals(1, graph.repository.history.value.single { it.id == replacement.recordId }.events.count { it.kind == EventKind.STOPPED })
+        reload()
+        assertEquals("The displaced programme and its new deadline must survive restart", offered, graph.repository.runtime.value.resumeOffer)
+        at("2026-10-21T23:16:00Z")
+        assertEquals("The new choice stays usable after the earlier programme's deadline", OutcomeKind.CONFIRMED, execute(NightActions.Command.RESUME).kind)
+        assertEquals(replacement.recordId, graph.repository.activeNight.value?.recordId)
+        assertFalse(graph.repository.activeNight.value!!.trackingManual)
+        assertNull(graph.repository.runtime.value.resumeOffer)
+    }
+
     private suspend fun manualWithOffer(): ResumeOffer {
         start()
         at("2026-10-21T23:00:00Z")
@@ -271,10 +300,31 @@ class RuntimeFixRoundTest {
 
     @Test fun boostOfAnAlreadyManualNightKeepsTheOriginalOfferAndExpiry() = runBlocking {
         val offer = manualWithOffer()
+        assertTrue(graph.repository.activeNight.value!!.trackingManual)
+        assertEquals("2026-10-21T23:15Z", offer.expiresAt)
         at("2026-10-21T23:05:00Z")
         assertEquals(OutcomeKind.CONFIRMED, execute(NightActions.Command.BOOST).kind)
         assertNull(graph.repository.activeNight.value)
         assertSameRecoveryChoice(offer)
+        reload()
+        assertSameRecoveryChoice(offer)
+        at("2026-10-21T23:15:00Z")
+        assertEquals("Boost must not renew the offer by displacing only a manual run", OutcomeKind.REFUSED, execute(NightActions.Command.RESUME).kind)
+        assertNull(graph.repository.activeNight.value)
+    }
+
+    @Test fun theOfferRetainedByBoostOfAManualNightCanResumeBeforeItsOriginalExpiry() = runBlocking {
+        val offer = manualWithOffer()
+        at("2026-10-21T23:05:00Z")
+        assertEquals(OutcomeKind.CONFIRMED, execute(NightActions.Command.BOOST).kind)
+        reload()
+        at("2026-10-21T23:14:00Z")
+
+        assertEquals(OutcomeKind.CONFIRMED, execute(NightActions.Command.RESUME).kind)
+
+        assertEquals(offer.night.recordId, graph.repository.activeNight.value?.recordId)
+        assertFalse(graph.repository.activeNight.value!!.trackingManual)
+        assertNull(graph.repository.runtime.value.resumeOffer)
     }
 
     private suspend fun programmeDisplacedByQuick(): ResumeOffer {
@@ -295,6 +345,38 @@ class RuntimeFixRoundTest {
         assertSameRecoveryChoice(offer)
         at("2026-10-21T23:15:00Z")
         assertEquals("Untracked manual adjustments must not renew the expiry", OutcomeKind.REFUSED, execute(NightActions.Command.RESUME).kind)
+    }
+
+    @Test fun boostWithNoTrackedNightKeepsTheOriginalOfferAndExpiryAfterRestart() = runBlocking {
+        val offer = programmeDisplacedByQuick()
+        assertNull(graph.repository.activeNight.value)
+        assertEquals("2026-10-21T23:15Z", offer.expiresAt)
+        at("2026-10-21T23:05:00Z")
+
+        assertEquals(OutcomeKind.CONFIRMED, execute(NightActions.Command.BOOST).kind)
+
+        assertNull(graph.repository.activeNight.value)
+        assertSameRecoveryChoice(offer)
+        reload()
+        assertSameRecoveryChoice(offer)
+        at("2026-10-21T23:15:00Z")
+        assertEquals("Boost displaces no programme when no night is tracked, so the original deadline still applies",
+            OutcomeKind.REFUSED, execute(NightActions.Command.RESUME).kind)
+        assertNull(graph.repository.activeNight.value)
+    }
+
+    @Test fun theOfferRetainedByBoostWithNoTrackedNightCanResumeBeforeItsOriginalExpiry() = runBlocking {
+        val offer = programmeDisplacedByQuick()
+        at("2026-10-21T23:05:00Z")
+        assertEquals(OutcomeKind.CONFIRMED, execute(NightActions.Command.BOOST).kind)
+        reload()
+        at("2026-10-21T23:14:00Z")
+
+        assertEquals(OutcomeKind.CONFIRMED, execute(NightActions.Command.RESUME).kind)
+
+        assertEquals(offer.night.recordId, graph.repository.activeNight.value?.recordId)
+        assertFalse(graph.repository.activeNight.value!!.trackingManual)
+        assertNull(graph.repository.runtime.value.resumeOffer)
     }
 
     @Test fun aModeChipKeepsTheOfferWhenTheManualRunIsNoLongerTracked() = runBlocking {
@@ -332,8 +414,8 @@ class RuntimeFixRoundTest {
     @Test fun aPastWakeManualOfferIsNotRevived() = runBlocking { invalidManualOffer { it.copy(night = it.night.copy(wakeAt = "2026-10-21T23:04Z")) } }
 
     private suspend fun operationAfterConfirmedSaveFailure(command: NightActions.Command, fileName: String,
-        cancel: Boolean = false, pendingEnd: Boolean = false) {
-        if (command != NightActions.Command.START_NIGHT || pendingEnd) {
+        cancel: Boolean = false, pendingEnd: Boolean = false, spentCleanupGrace: Boolean = false) {
+        if (command != NightActions.Command.START_NIGHT || pendingEnd || spentCleanupGrace) {
             start()
             at("2026-10-21T23:00:00Z")
             if (command == NightActions.Command.RESUME) execute(NightActions.Command.SNOOZE_WARM)
@@ -344,12 +426,30 @@ class RuntimeFixRoundTest {
                 assertEquals(graph.repository.activeNight.value?.identity, graph.repository.runtime.value.endRequested)
             }
         }
+        if (cancel) {
+            val previous = graph.repository.activeNight.value
+            val pending = PendingRetime("superseded-before-confirmation", previous?.identity ?: NightIdentity("old-night", 1),
+                "demo", null, null, graph.now().plusHours(4).toString())
+            graph.repository.updateRuntime { it.copy(retime = pending,
+                slotWrite = SlotWrite("demo", graph.repository.settings.value.workingSlot, null,
+                    Confidence.UNKNOWN, "Earlier slot write", displaced = previous?.identity)) }
+            NightAlarms.scheduleRetry(app, pending, graph.now())
+        }
+        val deferredDelivery = if (spentCleanupGrace) LocalDelivery("delivery-awaiting-cleanup", NightAlarms.ACTION_WAKE_UP,
+            graph.repository.activeNight.value!!.identity, graph.now().toString()) else null
+        var elapsed = 0L
+        if (deferredDelivery != null) {
+            graph.repository.updateRuntime { it.copy(localDeliveries = it.localDeliveries + deferredDelivery) }
+            graph.actions.elapsedMs = { elapsed }
+        }
+        val initialGeneration = graph.repository.runtime.value.generation
         val initialStarts = starts()
         var published: ActiveNight? = null
         var failed = false
         var failedClearingOldEnd = false
         val diskFailure = IOException("test local record disk failure")
         val cancellation = CancellationException("test owner cancellation after confirmation")
+        val owner = Job(currentCoroutineContext()[Job])
         beforeFileWrite = { file, bytes ->
             if (file.name == "active-night.json") {
                 BackupCodec.json.decodeFromString(ActiveNight.serializer().nullable, bytes.toString(Charsets.UTF_8))
@@ -359,12 +459,18 @@ class RuntimeFixRoundTest {
             if (file.name == fileName && confirmed != null && graph.repository.activeNight.value == confirmed) {
                 failed = true
                 failedClearingOldEnd = graph.repository.runtime.value.endRequested?.let { it != confirmed.identity } == true
-                if (cancel) throw cancellation else throw diskFailure
+                if (cancel) {
+                    // Cancellation is one owner-lifecycle event, not a permanently broken storage device.
+                    beforeFileWrite = null
+                    if (spentCleanupGrace) elapsed = 98_000L
+                    owner.cancel(cancellation)
+                    throw cancellation
+                } else throw diskFailure
             }
         }
         var thrown: Throwable? = null
-        val outcome = try { execute(command) } catch (e: Throwable) { thrown = e; null }
-        finally { beforeFileWrite = null }
+        val outcome = try { withContext(owner) { execute(command) } } catch (e: Throwable) { thrown = e; null }
+        finally { beforeFileWrite = null; owner.complete() }
         assertTrue("The injected persistence failure must follow the exact CONFIRMED publication", failed)
         if (pendingEnd) assertTrue("The failure must occur while the confirmed publication clears the older Off marker", failedClearingOldEnd)
         assertEquals(published, graph.repository.activeNight.value)
@@ -373,6 +479,41 @@ class RuntimeFixRoundTest {
         if (cancel) {
             assertTrue("Owner cancellation still propagates after confirmation", thrown is CancellationException)
             assertNull(outcome)
+            if (deferredDelivery != null) {
+                assertEquals("Spent cleanup grace must leave local deliveries for their own retry", listOf(deferredDelivery),
+                    graph.repository.runtime.value.localDeliveries)
+                assertTrue("The deferred local delivery must retain its retry", shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.any {
+                    shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_LOCAL_RETRY
+                })
+            }
+            val confirmed = published!!
+            val alarms = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms
+            listOf(NightAlarms.ACTION_WAKE_UP to confirmed.wakeUpStart, NightAlarms.ACTION_NIGHT_END to confirmed.endsAt).forEach { (action, at) ->
+                val scheduled = alarms.singleOrNull { shadowOf(it.operation).savedIntent.action == action }
+                assertNotNull("The confirmed $command must schedule $action even after owner cancellation", scheduled)
+                assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(scheduled!!.operation).savedIntent))
+                assertEquals(ZonedDateTime.parse(at).toInstant().toEpochMilli(), scheduled.triggerAtTime)
+            }
+            assertNull("The superseded retime journal must be cleared", graph.repository.runtime.value.retime)
+            assertNull("The confirmed slot write settles the earlier uncertain write", graph.repository.runtime.value.slotWrite)
+            assertFalse("The old retime must not remain scheduled", retryScheduled())
+            assertEquals(initialGeneration + 1, graph.repository.runtime.value.generation)
+            if (pendingEnd) assertNull("The older Off marker must be settled", graph.repository.runtime.value.endRequested)
+            val record = graph.repository.history.value.single { it.id == confirmed.recordId }
+            assertEquals("History must retain the exact confirmed programme", confirmed.applied, record.revisions.lastOrNull())
+            assertEquals(confirmed.wakeAt, record.wakeAt)
+            assertEquals(if (command == NightActions.Command.START_NIGHT) EventKind.STARTED else EventKind.RETIMED, record.events.lastOrNull()?.kind)
+            if (command == NightActions.Command.RESUME) {
+                assertNull("A confirmed Resume consumes its offer despite cancellation", graph.repository.runtime.value.resumeOffer)
+                val beforeSecondTap = programmeWrites()
+                assertEquals(OutcomeKind.REFUSED, execute(NightActions.Command.RESUME).kind)
+                assertEquals("A second Resume tap must not upload or restart", beforeSecondTap, programmeWrites())
+            }
+            val settledRuntime = graph.repository.runtime.value
+            reload()
+            assertEquals("The completed journal must survive restart", settledRuntime, graph.repository.runtime.value)
+            assertEquals("The confirmed history revision must be durable", record,
+                graph.repository.history.value.single { it.id == confirmed.recordId })
         } else {
             assertEquals("$command confirmed on the BedJet before $fileName failed; report that confirmation", OutcomeKind.CONFIRMED, outcome?.kind)
             assertNull("A local record exception cannot replace the confirmed outcome", thrown)
@@ -397,4 +538,7 @@ class RuntimeFixRoundTest {
     @Test fun startStillPropagatesCancellationAfterConfirmation() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.START_NIGHT, "history.json", cancel = true) }
     @Test fun reapplyStillPropagatesCancellationAfterConfirmation() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.REAPPLY, "history.json", cancel = true) }
     @Test fun resumeStillPropagatesCancellationAfterConfirmation() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.RESUME, "history.json", cancel = true) }
+    @Test fun confirmedCancellationDefersLocalDeliveryWhenCleanupGraceIsSpent() = runBlocking {
+        operationAfterConfirmedSaveFailure(NightActions.Command.START_NIGHT, "history.json", cancel = true, spentCleanupGrace = true)
+    }
 }

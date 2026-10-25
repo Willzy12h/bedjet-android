@@ -58,7 +58,7 @@ private fun BroadcastReceiver.local(context: Context, onTimeout: (() -> Unit)? =
         catch (e: TimeoutCancellationException) {
             if (onTimeout != null) onTimeout() else if (notifyFailures) io.github.willzy12h.nocturne.notify.Notifications.showError(context,
                 context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
-                e.message ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))
+                context.getString(io.github.willzy12h.nocturne.R.string.runtime_operation_timeout))
         } catch (e: Exception) {
             if (notifyFailures) io.github.willzy12h.nocturne.notify.Notifications.showError(context, context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
                 e.message ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))

@@ -19,6 +19,8 @@ import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.protocol.Codec
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.EventKind
+import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.AlarmChangedReceiver
@@ -29,12 +31,17 @@ import io.github.willzy12h.nocturne.night.NightAlarmReceiver
 import io.github.willzy12h.nocturne.night.NightAlarms
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.night.PendingRetime
+import io.github.willzy12h.nocturne.night.RuntimeState
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Before
@@ -55,6 +62,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Routine alarm retries stay quiet; terminal failures and expiry each have one truthful notice. */
 @RunWith(RobolectricTestRunner::class)
@@ -71,6 +79,7 @@ class RetimeNotificationTest {
     private var beforeSend: suspend (ByteArray) -> Unit = {}
     private var afterSend: suspend (ByteArray) -> Unit = {}
     @Volatile private var beforeFileWrite: ((java.io.File, ByteArray) -> Unit)? = null
+    @Volatile private var afterFileWrite: ((java.io.File, ByteArray) -> Unit)? = null
     @Volatile private var runtimeWriteFailure: (() -> Unit)? = null
 
     @Before fun setup() = runBlocking {
@@ -90,6 +99,7 @@ class RetimeNotificationTest {
                 beforeFileWrite?.invoke(file, bytes)
                 if (file.name == "runtime.json") runtimeWriteFailure?.invoke()
                 Repository.writeDurably(file, bytes)
+                afterFileWrite?.invoke(file, bytes)
             }, now = now)
         } }
         ReflectionHelpers.setField(app, "graph", graph)
@@ -180,20 +190,52 @@ class RetimeNotificationTest {
         assertEquals(1, graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM })
     }
 
+    private fun errors(night: ActiveNight) = graph.repository.history.value.single { it.id == night.recordId }.events
+        .filter { it.kind == EventKind.ERROR }
+
+    private fun terminalErrors(night: ActiveNight) = errors(night).filter { failure ->
+        OutcomeKind.entries.any { failure.detail.contains(" [${it.name}]: ") }
+    }
+
+    private suspend fun assertDurableTerminalHistory(night: ActiveNight, kind: OutcomeKind, reason: String,
+        previousTerminalErrors: Int) {
+        val record = graph.repository.history.value.single { it.id == night.recordId }
+        val failures = terminalErrors(night)
+        assertEquals("Each terminal retime must add exactly one typed durable failure", previousTerminalErrors + 1, failures.size)
+        val failure = failures.last()
+        assertTrue("History must retain the terminal $kind outcome independently of the notice", failure.detail.contains(" [${kind.name}]: "))
+        assertTrue("History must retain the actual terminal reason", failure.detail.contains(reason))
+        app.getSystemService(NotificationManager::class.java).cancelAll()
+        graph.repository.clearNotices()
+        beforeFileWrite = null
+        runtimeWriteFailure = null
+        val clock = graph.clock
+        graph = graphs.fresh { Graph(app, demo) }
+        ReflectionHelpers.setField(app, "graph", graph)
+        graph.clock = clock
+        assertTrue("The notice has been dismissed independently", graph.repository.notices.value.isEmpty())
+        assertEquals("The typed terminal reason must survive dismissal and process restart", record,
+            graph.repository.history.value.single { it.id == night.recordId })
+    }
+
     private suspend fun pendingForReceiver(): ActiveNight = pendingAfterConnectionFailure().also { unreachable = false }
 
     @Test fun receiverPartialWriteLeavesUnknownAndPostsOneNotice() = runBlocking {
         val night = pendingForReceiver()
+        val previousTerminalErrors = terminalErrors(night).size
         val count = writes
         beforeSend = { if (it.contentEquals(Codec.startProgram(night.slot))) throw BedJetError.NotConnected() }
-        assertEquals(OutcomeKind.UNKNOWN, retryReceiver().kind)
+        val outcome = retryReceiver()
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
         assertTrue("The upload happened before its START failed", writes > count)
         assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
         assertOneTerminalNotice(unknown = true)
+        assertDurableTerminalHistory(night, outcome.kind, outcome.message, previousTerminalErrors)
     }
 
     @Test fun receiverPermanentPreWriteRefusalPostsOneNotice() = runBlocking {
         val night = pendingForReceiver()
+        val previousTerminalErrors = terminalErrors(night).size
         val count = writes
         var delayed = false
         beforeFileWrite = { file, bytes ->
@@ -205,11 +247,13 @@ class RetimeNotificationTest {
                 demo.tick()
             }
         }
-        assertEquals(OutcomeKind.REFUSED, retryReceiver().kind)
+        val outcome = retryReceiver()
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
         assertTrue("Exercise the final pre-write PlanException guard", delayed)
         assertEquals(count, writes)
         assertEquals(night, graph.repository.activeNight.value)
         assertOneTerminalNotice(unknown = false)
+        assertDurableTerminalHistory(night, outcome.kind, outcome.message, previousTerminalErrors)
     }
 
     @Test fun receiverCatchPathDroppingUnknownPostsOneNotice() = runBlocking {
@@ -230,15 +274,18 @@ class RetimeNotificationTest {
 
     @Test fun receiverCatchPathDroppingFailedPostsOneNotice() = runBlocking {
         val night = pendingForReceiver()
+        val previousTerminalErrors = terminalErrors(night).size
         val count = writes
         beforeConnect = {
             graph.repository.setActiveNight(night.copy(confidence = Confidence.FAILED))
             throw BedJetError.NotConnected()
         }
-        assertEquals(OutcomeKind.FAILED, retryReceiver().kind)
+        val outcome = retryReceiver()
+        assertEquals(OutcomeKind.FAILED, outcome.kind)
         assertEquals(Confidence.FAILED, graph.repository.activeNight.value?.confidence)
         assertEquals(count, writes)
         assertOneTerminalNotice(unknown = false)
+        assertDurableTerminalHistory(night, outcome.kind, outcome.message, previousTerminalErrors)
     }
 
     @Test fun receiverHistoryFailureAfterConfirmedRetimeKeepsTheConfirmedChange() = runBlocking {
@@ -599,6 +646,7 @@ class RetimeNotificationTest {
 
     @Test fun receiverRefusedAlarmObservationPostsOneNoticeBeforeARetimeWasPrepared() = runBlocking {
         val night = start()
+        val previousTerminalErrors = terminalErrors(night).size
         alarm(5)
         graph.clock = Clock.fixed(ZonedDateTime.parse(night.wakeUpStart).minusHours(1).plusMinutes(1).toInstant(), ZoneOffset.UTC)
         demo.tick()
@@ -606,11 +654,34 @@ class RetimeNotificationTest {
         assertNull(graph.repository.runtime.value.retime)
         assertNotNull(graph.repository.runtime.value.alarmInbox)
         val count = writes
-        retryReceiver()
+        val outcome = retryReceiver()
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
         assertEquals(count, writes)
         assertEquals(night, graph.repository.activeNight.value)
         assertOneTerminalNotice(unknown = false)
         assertEquals(error()!!.extras.getString("android.text"), graph.repository.runtime.value.reason)
+        assertDurableTerminalHistory(night, OutcomeKind.REFUSED, outcome.message, previousTerminalErrors)
+    }
+
+    @Test fun terminalPreparationRefusalKeepsHistoryWhenTheNoticeLogCannotBeSaved() = runBlocking {
+        val night = start()
+        val previousTerminalErrors = terminalErrors(night).size
+        alarm(5)
+        graph.clock = Clock.fixed(ZonedDateTime.parse(night.wakeUpStart).minusHours(1).plusMinutes(1).toInstant(), ZoneOffset.UTC)
+        demo.tick()
+        graph.actions.submitAlarmChange()
+        val noticeSaveFailed = AtomicBoolean()
+        beforeFileWrite = { file, _ -> if (file.name == "notices.json") {
+            noticeSaveFailed.set(true)
+            throw java.io.IOException("The notification log is unavailable")
+        } }
+        val outcome = retryReceiver()
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
+        assertEquals("The refused change leaves the old programme confirmed", night, graph.repository.activeNight.value)
+        until { noticeSaveFailed.get() }
+        assertTrue(graph.repository.notices.value.isEmpty())
+        beforeFileWrite = null
+        assertDurableTerminalHistory(night, outcome.kind, outcome.message, previousTerminalErrors)
     }
 
     @Test fun receiverReconciliationRefusalCannotSilentlyConsumeAnAlarmObservation() = runBlocking {
@@ -832,7 +903,8 @@ class RetimeNotificationTest {
     }
 
     @Test fun receiverTimeoutAfterWritePostsOneTruthfulNotice() = runBlocking {
-        pendingForReceiver()
+        val night = pendingForReceiver()
+        val previousTerminalErrors = terminalErrors(night).size
         var wrote = false
         afterSend = {
             if (it[0] == 0x40.toByte()) {
@@ -855,6 +927,7 @@ class RetimeNotificationTest {
             assertFalse(error()!!.extras.getString("android.text")!!.contains("not restarted"))
             assertOneTerminalNotice(unknown = true)
         } finally { controller.destroy() }
+        assertDurableTerminalHistory(night, OutcomeKind.UNKNOWN, app.getString(R.string.runtime_retime_timeout_detail), previousTerminalErrors)
     }
 
     @Test fun receiverTimeoutAfterWritePreservesANewerAlarmObservation() = runBlocking {
@@ -932,6 +1005,62 @@ class RetimeNotificationTest {
         beforeSend = { if (it.contentEquals(Codec.startProgram(night.slot))) throw BedJetError.NotConnected() }
         assertEquals(OutcomeKind.UNKNOWN, retryService(notifyFailures = true).kind)
         assertOneTerminalNotice(unknown = true)
+    }
+
+    @Test fun directTerminalRetryKeepsOneFailureWhenItsJournalCleanupThrows() = runBlocking {
+        val night = pendingForReceiver()
+        val previousTerminalErrors = terminalErrors(night).size
+        beforeSend = { if (it.contentEquals(Codec.startProgram(night.slot))) throw BedJetError.NotConnected() }
+        var cleanupFailed = false
+        beforeFileWrite = { file, bytes ->
+            if (!cleanupFailed && file.name == "runtime.json" && graph.repository.activeNight.value?.confidence == Confidence.UNKNOWN &&
+                BackupCodec.json.decodeFromString(RuntimeState.serializer(), bytes.toString(Charsets.UTF_8)).retime == null) {
+                cleanupFailed = true
+                throw java.io.IOException("The terminal retry journal could not be cleared")
+            }
+        }
+        // A direct coordinator caller supplies no service-owned RetimeExecution context.
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        assertTrue(cleanupFailed)
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
+        assertEquals("Cleanup belongs to the same failed hardware request", BedJetError.NotConnected().message, outcome.message)
+        assertNull(graph.repository.runtime.value.retime)
+        assertOneTerminalNotice(unknown = true)
+        assertDurableTerminalHistory(night, outcome.kind, outcome.message, previousTerminalErrors)
+    }
+
+    @Test fun aNewObservationKeepsItsOwnRefusalAfterAnOlderTerminalCleanupFailed() = runBlocking {
+        val night = pendingForReceiver()
+        val pending = graph.repository.runtime.value.retime!!
+        beforeSend = { if (it.contentEquals(Codec.startProgram(night.slot))) throw BedJetError.NotConnected() }
+        beforeFileWrite = { file, bytes ->
+            if (file.name == "runtime.json" && graph.repository.activeNight.value?.confidence == Confidence.UNKNOWN &&
+                BackupCodec.json.decodeFromString(RuntimeState.serializer(), bytes.toString(Charsets.UTF_8)).retime == null)
+                throw java.io.IOException("Keep the older terminal journal for recovery")
+        }
+        assertEquals(OutcomeKind.UNKNOWN, graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME)).kind)
+        assertEquals("The old terminal result still owns its uncleared journal", pending, graph.repository.runtime.value.retime)
+        until { graph.repository.notices.value.any { it.kind == NoticeKind.PROBLEM } }
+        beforeFileWrite = null
+        val previousTerminalErrors = terminalErrors(night).size
+        val previousNotices = graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM }
+        alarm(4)
+        graph.actions.submitAlarmChange()
+        val observation = graph.repository.runtime.value.alarmInbox!!
+        assertNotEquals(pending.id, observation.id)
+        val count = writes
+
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+
+        assertEquals("The fresh observation owns its reconciliation refusal", OutcomeKind.REFUSED, outcome.kind)
+        assertEquals(app.getString(R.string.runtime_reconcile_needed), outcome.message)
+        assertEquals("A reconciliation refusal sends no hardware command", count, writes)
+        assertNull(graph.repository.runtime.value.alarmInbox)
+        assertNull(graph.repository.runtime.value.retime)
+        until { graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM } > previousNotices }
+        assertEquals("The new observation must retain its own notice", previousNotices + 1,
+            graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM })
+        assertDurableTerminalHistory(night, outcome.kind, outcome.message, previousTerminalErrors)
     }
     private suspend fun unchangedAlarm(creator: String) {
         val night = start()
@@ -1011,6 +1140,7 @@ class RetimeNotificationTest {
 
     @Test fun finalRetimeExpiryPostsOneNoticeWithoutAServiceFailure() = runBlocking {
         val night = pendingAfterConnectionFailure(); val count = writes
+        val previousTerminalErrors = terminalErrors(night).size
         atBoundary(night)
         assertEquals(OutcomeKind.LOCAL, retryService(notifyFailures = true).kind)
         assertOneExpiryNotice()
@@ -1018,6 +1148,102 @@ class RetimeNotificationTest {
         assertOneExpiryNotice()
         assertEquals(night.applied, graph.repository.activeNight.value!!.applied)
         assertEquals(count, writes)
+        assertDurableTerminalHistory(night, OutcomeKind.LOCAL, app.getString(R.string.runtime_retime_expired_detail), previousTerminalErrors)
+    }
+
+    @Test fun expiredRetimeRemainsRecoverableWhenItsHistoryWriteFails() = runBlocking {
+        val night = pendingAfterConnectionFailure()
+        val pending = graph.repository.runtime.value.retime!!
+        atBoundary(night)
+        var historyFailed = false
+        beforeFileWrite = { file, bytes ->
+            if (!historyFailed && file.name == "history.json" && bytes.toString(Charsets.UTF_8).contains("[LOCAL]")) {
+                historyFailed = true
+                throw java.io.IOException("The expiry history could not be saved")
+            }
+        }
+        graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        assertTrue(historyFailed)
+        assertEquals("A failed history save must retain the exact expired request for local completion", pending,
+            graph.repository.runtime.value.retime)
+        assertTrue("The expired request still needs a local retry", retryScheduled())
+        val previousTerminalErrors = terminalErrors(night).size
+        val count = writes
+        beforeFileWrite = null
+        assertEquals(OutcomeKind.LOCAL, retryReceiver().kind)
+        assertEquals("Completing expired history must never replay hardware", count, writes)
+        assertOneExpiryNotice()
+        assertDurableTerminalHistory(night, OutcomeKind.LOCAL, app.getString(R.string.runtime_retime_expired_detail), previousTerminalErrors)
+    }
+
+    private suspend fun cancelledExpiryRetainsRecovery(cancelAfterClear: Boolean) {
+        val night = pendingAfterConnectionFailure()
+        graph.actions.submitAlarmChange()
+        val pending = graph.repository.runtime.value.retime!!
+        val observation = graph.repository.runtime.value.alarmInbox!!
+        val previousTerminalErrors = terminalErrors(night).size
+        val previousErrors = errors(night).size
+        val count = writes
+        atBoundary(night)
+        val cancellation = CancellationException("Cancel expiry before its history is saved")
+        val owner = Job(currentCoroutineContext()[Job])
+        var injected = false
+        if (cancelAfterClear) {
+            afterFileWrite = { file, bytes ->
+                if (file.name == "runtime.json" &&
+                    BackupCodec.json.decodeFromString(RuntimeState.serializer(), bytes.toString(Charsets.UTF_8)).retime == null) {
+                    injected = true
+                    afterFileWrite = null
+                    // The clear is on disk. Returning normally lets Repository publish it, then its
+                    // withContext return observes this real owner cancellation before History begins.
+                    owner.cancel(cancellation)
+                }
+            }
+        } else {
+            beforeFileWrite = { file, bytes ->
+                if (file.name == "history.json" && bytes.toString(Charsets.UTF_8).contains("[LOCAL]")) {
+                    injected = true
+                    beforeFileWrite = null
+                    owner.cancel(cancellation)
+                    throw cancellation
+                }
+            }
+        }
+        var thrown: Throwable? = null
+        val outcome = try {
+            withContext(owner) { graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME)) }
+        } catch (e: Throwable) { thrown = e; null }
+        finally { beforeFileWrite = null; afterFileWrite = null; owner.complete() }
+        assertTrue("Cancel at the intended expiry persistence boundary", injected)
+        assertTrue("Owner cancellation must propagate", thrown is CancellationException)
+        assertEquals(cancellation.message, thrown?.message)
+        // Coroutine stack-trace recovery can copy the exception while retaining the original as its cause.
+        assertTrue("The original cancellation must survive coroutine recovery",
+            generateSequence(thrown) { it.cause }.any { it === cancellation })
+        assertNull(outcome)
+        assertEquals(night, graph.repository.activeNight.value)
+        assertEquals("Cancellation must retain the exact expired request for local completion", pending,
+            graph.repository.runtime.value.retime)
+        assertEquals("The consumed observation must also remain recoverable", observation, graph.repository.runtime.value.alarmInbox)
+        val durable = BackupCodec.json.decodeFromString(RuntimeState.serializer(), java.io.File(app.filesDir, "runtime.json").readText())
+        assertEquals(pending, durable.retime)
+        assertEquals(observation, durable.alarmInbox)
+        assertTrue("The restored expiry needs a local retry", retryScheduled())
+        assertEquals("Expiry cancellation sends no hardware command", count, writes)
+        assertEquals(previousErrors, errors(night).size)
+
+        assertEquals(OutcomeKind.LOCAL, retryReceiver().kind)
+        assertEquals("Finishing the restored expiry must not replay hardware", count, writes)
+        assertOneExpiryNotice()
+        assertDurableTerminalHistory(night, OutcomeKind.LOCAL, app.getString(R.string.runtime_retime_expired_detail), previousTerminalErrors)
+    }
+
+    @Test fun cancelledExpiryHistoryWriteRetainsItsExactRecoveryEvidence() = runBlocking {
+        cancelledExpiryRetainsRecovery(cancelAfterClear = false)
+    }
+
+    @Test fun cancellationAfterExpiryClearPublicationRetainsItsExactRecoveryEvidence() = runBlocking {
+        cancelledExpiryRetainsRecovery(cancelAfterClear = true)
     }
 
     @Test fun aNewAlarmObservationCannotSwallowThePendingRetimeExpiryNotice() = runBlocking {

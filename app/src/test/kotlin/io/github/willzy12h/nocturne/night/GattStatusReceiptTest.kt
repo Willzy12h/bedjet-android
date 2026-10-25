@@ -1,6 +1,9 @@
 package io.github.willzy12h.nocturne.night
 
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Looper
+import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.ble.Attr
@@ -9,7 +12,13 @@ import io.github.willzy12h.nocturne.ble.GattLink
 import io.github.willzy12h.nocturne.ble.Status
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.night.ActiveNight
+import io.github.willzy12h.nocturne.core.night.AppliedProgram
 import io.github.willzy12h.nocturne.core.night.Confidence
+import io.github.willzy12h.nocturne.core.plan.Block
+import io.github.willzy12h.nocturne.core.plan.Plan
+import io.github.willzy12h.nocturne.core.plan.PlannedStep
+import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.data.Repository
@@ -25,8 +34,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -35,6 +47,64 @@ import java.time.ZoneOffset
 @Config(sdk = [34])
 class GattStatusReceiptTest {
     @get:Rule val graphs = GraphLifecycle()
+
+    @Test fun repeatedIdenticalGattPacketsWithAFrozenCountdownKeepAConfirmedNightQuiet() = runBlocking {
+        val app = RuntimeEnvironment.getApplication() as App
+        val target = DeviceId.ble("AA:BB:CC:DD:EE:FF")
+        // A full report for the first step, with 7 h 50 m remaining. Every later packet is byte-for-byte equal.
+        val frozenPacket = Status.full(programStep = 1).also {
+            it[4] = 7; it[5] = 50; it[8] = 50; it[9] = Mode.HEAT.code.toByte(); it[10] = 9
+        }
+        val radio = FakeRadio().also { it.behaviour = FakeRadio.Behaviour(firstStatus = frozenPacket) }
+        val link = GattLink(radio.radio, { target }, GattLink.Timings(operationMs = 5_000), clock = { 0 })
+        val graph = graphs.fresh { Graph(app, link) { scope, now -> Repository(app, scope, now = now) } }
+        ReflectionHelpers.setField(app, "graph", graph)
+        graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
+        try {
+            graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target) }
+            val profile = graph.repository.profiles.value.first()
+            val started = graph.now().minusMinutes(10)
+            val wake = started.plusHours(7)
+            val plan = Plan(started, wake, listOf(
+                PlannedStep(Block.MIDDLE, ProgramStep(Mode.HEAT, 9, 50, 8, 0), started, 480),
+            ))
+            val night = ActiveNight("frozen-countdown", profile.id, started.toString(), wake.toString(),
+                false, 2, wake.toString(), started.plusHours(8).toString(), deviceId = target,
+                profile = profile, applied = AppliedProgram.from(plan), confidence = Confidence.CONFIRMED)
+            graph.repository.addRecord(NightRecord(night.recordId, profile.id, profile.name, night.startedAt,
+                night.wakeAt, false, deviceId = target))
+            graph.repository.setActiveNight(night)
+            link.connect()
+            val port = radio.ports.single()
+            val first = withTimeout(2_000) { link.sourcedStatus.filterNotNull().first() }
+            graph.actions.observeStatus(first.status, target, graph.now(), first.source)
+            assertEquals(28_200, first.status.remainingSeconds)
+            assertEquals(1, first.status.extra?.programStep)
+            var receipt = first.receiptOrder
+
+            repeat(10) {
+                graph.clock = Clock.offset(graph.clock, Duration.ofMinutes(1))
+                port.notify(frozenPacket.copyOf())
+                val report = withTimeout(2_000) {
+                    link.sourcedStatus.filterNotNull().first { it.receiptOrder > receipt }
+                }
+                assertEquals("The report must retain its real GATT target provenance", target, report.source)
+                assertEquals("Only receipt order changes; the countdown and programme fields stay frozen", first.status, report.status)
+                graph.actions.observeStatus(report.status, target, graph.now(), report.source)
+                assertEquals("Repeated equal reports are not evidence of a physical takeover", night, graph.repository.activeNight.value)
+                receipt = report.receiptOrder
+            }
+
+            // Flush the main-thread notice launcher and its serial writer before asserting silence.
+            shadowOf(Looper.getMainLooper()).idle()
+            graph.repository.updateRuntime { it }
+            assertNull(graph.repository.runtime.value.reason)
+            assertTrue(graph.repository.history.value.single().events.none { it.kind == EventKind.REMOTE_CHANGE })
+            assertTrue("Frozen countdown reports must not produce logged notices", graph.repository.notices.value.isEmpty())
+            assertTrue("Frozen countdown reports must not post notifications",
+                shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications.isEmpty())
+        } finally { link.shutdown() }
+    }
 
     @Test fun aPostOffExtensionCannotRenewAPreOffStandbyHeadButANewEqualHeadCanConfirm() = runBlocking {
         val context: Context = RuntimeEnvironment.getApplication()

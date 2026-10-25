@@ -95,6 +95,13 @@ internal class CommandOriginContext(val origin: CommandOrigin) : kotlin.coroutin
     companion object Key : kotlin.coroutines.CoroutineContext.Key<CommandOriginContext>
 }
 
+/** A live tap's identity and non-blocking admission signal; never persisted or reconstructed from an outcome. */
+internal class CommandFeedback(val requestId: String, private val onAdmitted: (String, CommandOrigin) -> Unit) :
+    kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+    fun admitted(origin: CommandOrigin) = onAdmitted(requestId, origin)
+    companion object Key : kotlin.coroutines.CoroutineContext.Key<CommandFeedback>
+}
+
 /** A queued retry may admit newer work. Cancellation belongs to the identity and notice it actually handled. */
 internal class RetimeExecution : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     var identity: NightIdentity? = null
