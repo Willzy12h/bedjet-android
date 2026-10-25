@@ -2,7 +2,6 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -12,7 +11,6 @@ import io.github.willzy12h.nocturne.night.SlotWrite
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -22,11 +20,10 @@ import org.robolectric.annotation.Config
 /** The unreadable-data banner, the lost-originals confirmation and the slot-write acknowledgement (P5). */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-class RecoveryNoticesTest {
-    @get:Rule val compose = createComposeRule()
+class RecoveryNoticesTest : ComposeActivityFixture() {
     private fun s(id: Int, vararg args: Any) = RuntimeEnvironment.getApplication().getString(id, *args)
 
-    private fun banner(state: UnreadableBannerState, calls: MutableList<String>, restore: Boolean = true) = compose.setContent {
+    private fun banner(state: UnreadableBannerState, calls: MutableList<String>, restore: Boolean = true) = setContent {
         NocturneTheme(io.github.willzy12h.nocturne.core.store.ThemeMode.DARK) {
             UnreadableDataBanner(state, onDismiss = { calls += "dismiss" }, onRestore = if (restore) ({ calls += "restore" }) else null,
                 onAcceptLoss = { calls += "accept" })
@@ -101,7 +98,7 @@ class RecoveryNoticesTest {
 
     @Test fun anUnconfirmedSlotWriteCanBeMarkedAsChecked() {
         var checked = 0
-        compose.setContent {
+        setContent {
             NocturneTheme(io.github.willzy12h.nocturne.core.store.ThemeMode.DARK) {
                 SlotWriteNotice(SlotWrite("demo", 1, null, Confidence.UNKNOWN, "Keep on slot 2")) { checked++ }
             }

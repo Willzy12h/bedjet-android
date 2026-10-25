@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -54,11 +55,14 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     val wakeColor = nocturneColors.accent
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
+    val fahrenheit = LocalTemperatureFahrenheit.current
     // A kept manual run has no wake programme: it is described, labelled and drawn by its own end instead.
     val description = stringResource(R.string.curve_description, Format.clock(plan.start), Format.clock(plan.end),
         end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake_lower, Format.clock(plan.wake)),
         plan.steps.map { step ->
-            pluralStringResource(R.plurals.curve_step, step.minutes, Format.clock(step.startsAt), blockName(step.block),
+            if (step.step.mode.usesTemperature) pluralStringResource(R.plurals.curve_step_temperature, step.minutes, Format.clock(step.startsAt), blockName(step.block),
+                modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes, tempText(step.step.temperature, fahrenheit))
+            else pluralStringResource(R.plurals.curve_step_without_temperature, step.minutes, Format.clock(step.startsAt), blockName(step.block),
                 modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes)
         }.joinToString("; "))
     Column(modifier) {
@@ -71,7 +75,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 val level = level(step.step.mode, step.step.temperature, (step.step.fanStep + 1) * 5)
                 val h = (kotlin.math.abs(level) * (mid - 4)).coerceAtLeast(3f)
                 val top = if (level >= 0) mid - h else mid
-                val color = colors.mode(step.step.mode).copy(alpha = if (step.block == Block.AFTER_WAKE) 0.55f else 1f)
+                val color = colors.curveMode(step.step.mode, step.block == Block.AFTER_WAKE)
                 drawRoundRect(color, Offset(x + 1, top), Size(w - 2, h), CornerRadius(4.dp.toPx()))
             }
             val wakeX = Duration.between(plan.start, plan.wake).toMinutes() / total * size.width
@@ -226,7 +230,8 @@ private fun TimelineRow(time: String, dot: Color, title: String, detail: String?
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     // One node for TalkBack: "23:10, Cool, easing off, 7 h · fan 75% → 40%".
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).semantics(mergeDescendants = true) {}) {
-        Text(time, style = MaterialTheme.typography.labelLarge, color = muted, modifier = Modifier.width(52.dp).padding(top = 2.dp))
+        Text(time, style = MaterialTheme.typography.labelLarge, color = muted, softWrap = false, maxLines = 1,
+            modifier = Modifier.widthIn(min = 52.dp).width(IntrinsicSize.Max).padding(top = 2.dp))
         Column(Modifier.width(24.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
             Dot(dot, 12, Modifier.padding(top = 4.dp))
             if (!last) Box(Modifier.width(2.dp).weight(1f).background(MaterialTheme.colorScheme.outlineVariant))

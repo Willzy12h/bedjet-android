@@ -87,7 +87,11 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                             }
                             Text(stringResource(R.string.history_curve_applied), style = MaterialTheme.typography.labelSmall)
                         }
-                        night.steps.forEach { step ->
+                        // Use the same usable applied revision as the curve, including its legacy/error fallback.
+                        val appliedSteps = night.revisions.lastOrNull()?.takeIf {
+                            runCatching { it.plan() }.getOrNull() != null
+                        }?.steps ?: night.steps
+                        appliedSteps.forEach { step ->
                             Text(
                                 if (step.mode.usesTemperature) stringResource(R.string.history_step_temp, Format.clock(step.startsAt), blockName(step.block),
                                     modeName(step.mode), tempText(step.temperature, settings.fahrenheit), step.fanPercent, durationText(step.minutes))

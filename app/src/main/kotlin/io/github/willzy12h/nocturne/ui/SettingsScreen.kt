@@ -41,6 +41,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.store.Migrations
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.res.pluralStringResource
@@ -64,6 +66,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val settings by model.settings.collectAsState()
     val snapshots by model.snapshots.collectAsState()
     val slotBackups by model.slotBackups.collectAsState()
+    val fromBackup = slotBackups.filter { it.deviceId != settings.deviceId() }
     val unreadable by model.unreadable.collectAsState()
     val restoreUnfinished by model.restoreUnfinished.collectAsState()
     val originalsBlocked by model.originalsBlocked.collectAsState()
@@ -123,6 +126,31 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             }
             SwitchRow(stringResource(R.string.settings_show_f), null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
             OutlinedButton(onClick = model::forgetBedJet) { Text(stringResource(R.string.settings_forget)) }
+        }
+
+        if (fromBackup.isNotEmpty()) {
+            Group(stringResource(R.string.settings_backup_originals_title)) {
+                Text(stringResource(R.string.settings_backup_originals_help), style = MaterialTheme.typography.bodySmall)
+                // Imported unknown/legacy originals must never be silently assigned to the selected BedJet.
+                // Keep these records read-only; matching originals use the existing guarded confirmation above.
+                fromBackup.forEach { backup ->
+                    Column {
+                        val program = backup.program
+                        Text(
+                            if (program == null) stringResource(R.string.settings_backup_originals_empty, backup.slot + 1)
+                            else pluralStringResource(R.plurals.settings_saved_from, program.steps.size, backup.slot + 1, program.name, program.steps.size),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            if (backup.deviceId == Migrations.UNKNOWN_DEVICE) stringResource(R.string.settings_backup_originals_unknown)
+                            else stringResource(R.string.settings_backup_originals_source,
+                                if (DeviceId.isDemo(backup.deviceId)) stringResource(R.string.settings_demo)
+                                else DeviceId.address(backup.deviceId) ?: backup.deviceId),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
         }
 
         Group(stringResource(R.string.settings_wake_notification)) {
