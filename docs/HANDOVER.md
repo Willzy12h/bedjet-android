@@ -1,37 +1,61 @@
-# Nocturne handover
+# Nocturne — current documentation handover
 
-**Updated:** 23 October 2026. **Branch:** `claude/nocturne-completion`, based on independent-review commit `ae6e4d52a38dc2f295dd5c26f0f4614a24fed587`, which contains hardening commit `7fffabcb58741c48b765285d78c9284ce9967c27`. The remote had no newer fix branch at the completion fetch. Task 5 checkpoint commits named in the old handover could not be fetched or found in the clone; the remaining UI integration was reconstructed from the task report and current APIs.
+**Reference pin — 25 October 2026.** This update starts from `gpt/nocturne-docs2` at `ab6f1e1f83a587f24f258ebb2e753b6c86e15354`. It describes the four source references below, read independently. They have **not** been merged into the documentation branch, and this is not evidence for a combined candidate. The [re-pin record](review/docs2-repin.md) gives immutable code and test references. All physical results remain **NOT RUN**.
 
-## Quick read
+## Source references and ownership
 
-- [Completion review](review/nocturne-completion.md): individual IR-01–IR-32 dispositions, implementation scope and qualifications.
-- [Register](review/register.md): original workstream rows and the current completion summary at the top.
-- [SDD ledger](review/sdd-ledger.md): design rulings, previous task history and completion decisions.
-- [Physical acceptance](review/samsung-bedjet-acceptance.md): executable Samsung/BedJet 3 checklist. **Every physical result is NOT RUN.**
-- [Plan](superpowers/plans/2026-10-22-nocturne-hardening.md), [independent review](review/independent-review-tasks-1-4.md) and [final pass](review/final-pass.md): source requirements and independent findings. Preserve the final-pass qualification for IR-24.
+| Reference branch | Exact reviewed commit | Scope |
+|---|---|---|
+| `gpt/nocturne-runtime2-final` | `db781861c4ca7e19d21ce7045e65dfcf3bba0dc4` | D2 confirmation, M1/M5 notices, M2 Off ordering, D4 Take back and D5 Resume policy. |
+| `gpt/nocturne-haptics` | `4f14651f1c3389e73825a398e7a0fc25dfaa5404` | In-app haptics, charger refusals, diagnostics, terminal re-time History, START attribution and later receipt safeguards. |
+| `gpt/nocturne-gaps` | `11ee133354261a0ac4c9470d8de722c6b48e260c` | UI fixes, bounded IR-17 coverage, contrast, History presentation, backup-original visibility and remaining layout limits. |
+| `gpt/nocturne-u06` | `66825099193256ad64d08f087cb0b4d08250a4b3` | Owned U06 layout work. Contrast evidence is separately pinned to the gaps branch. |
 
-## Current implementation
+Claude retains review, integration and merge decisions. GPT-5 changes documentation only and publishes only to `gpt/nocturne-docs2`. **The register is unchanged by this re-pin:** U06, GAPS-*, HAPTICS-* and runtime2 rows remain with their owners. The candidate at `262c52f` and F1 approval at `c15c515` are historical checkpoints. The earlier U06 adjacent-row merge conflict remains in the [historical reconciliation](review/docs2-reconciliation.md#merge-compatibility-one-known-documentation-conflict); no new merge result is claimed here.
 
-Transport and runtime operations are target-bound, with guarded fresh-status automatic re-time and physical Off handling. Originals have a persistent integrity barrier; import/check-in have recovery journals; stale actions, widget Off identity and interrupted writes have regression coverage. An unknown imported original is not silently adopted for another BedJet. Legacy v1 `[]` slot provenance remains unknowable (IR-31), so upgraded real installations need a supervised inventory and restore check.
+## Current behaviour and evidence
 
-Task 5 integrates explicit BedJet 3 setup, preview and scheduled theme, History export, optional Health Connect overlay, hand-over controls, recovery/Resume, tonight-only wake override, morning check-in, and explicit spare-slot profile pinning. Midnight Ink, Daylight and Simple remain. New copy is in UK English resources; migration of every older literal UI string remains incomplete. Phone layout and TalkBack are not verified by Robolectric.
+[nocturne-completion.md](review/nocturne-completion.md) is the authoritative IR-01–IR-32 record. IR-17 has bounded named-test coverage, rather than a blanket verification claim. IR-07 deliberately sends one terminal notice when a pending pre-wake re-time expires, not a series of expiry notices. IR-31 remains open: individual uncertain originals still lack a Settings label, and legacy v1 empty-slot provenance cannot be recovered. See [items 1–4](review/docs2-repin.md#1-authoritative-ir-record).
 
-Task 7 configures fail-safe release signing and enables R8/resource shrinking. An incomplete signing configuration fails; with no key, release output is unsigned. There is no debug-key fallback or blanket keep rule. The tag workflow requires an explicit certificate fingerprint and increasing version code. This branch is a test candidate only: **do not merge, tag or publish a production release on the basis of automated results.**
+The requested runtime changes are implemented at `db78186`. The newest displaced programme receives the Resume offer; an already manual adjustment preserves a valid offer without extending its expiry, and an expired offer is never revived. Boost displaces a programme only when it interrupts a running programme. Quick Off retains confirmation during a tracked night because it ends that programme. Pending, failed, unknown and confirmed remain distinct. See [runtime policy](review/docs2-repin.md#5-runtime-policy) and [Quick Off](review/docs2-repin.md#12-quick-off-confirmation).
 
-## Verification recorded for this completion source
+At `4f14651`, a live in-app request gets a light tick at command-owner acceptance and a confirm haptic only when that same request returns a BedJet-confirmed outcome. Other origins are silent. An otherwise eligible charger start blocked by unreadable data starts nothing and records at most one PROBLEM notice/notification per bedtime window, without a History night, CSV row or morning feedback. Diagnostics include unreadable files, blocked originals, runtime reason and night confidence. Terminal re-time failure paths write History evidence. START captures and passes the alarm time and creating app to preparation; completed History does not retain that creating-app identity. See [items 6–10](review/docs2-repin.md#6-in-app-haptics).
 
-The full local Gradle gate passed **148 core tests and 238 of 244 app tests**, with **six app screenshot tests skipped** and **zero failures**. Debug assembly passed. Lint reported **zero errors, 22 warnings and one hint**. The unsigned shrunk release build passed and measured **4,217,595 bytes**. Fixed-clock Robolectric before/after captures are rendered-app evidence; they do not establish BedJet hardware or Samsung behaviour.
+For U06 contrast wording, after-wake bars meet the tested **3:1** threshold, Quick buttons are identifiable at **3:1** by border or fill, and decorative card borders are exempt from that control-boundary requirement. These are production-token checks in the gaps branch's named `ContrastTest` methods, not rendered-device or general accessibility verification. U06's own branch supplies its separate layout work and register row. See [contrast scope](review/docs2-repin.md#11-u06-contrast-wording).
 
-The shrunk test candidate is `outputs/nocturne-0.2.0-hardening-test.1.apk`: version name `0.2.0-hardening-test.1`, version code `2`, **4,229,883 bytes**. APK SHA-256: `1b7ac2f81971b4ef83cb5392bd207d1f0f4859f876de79dd4f7c185921d3110d`. Throwaway test signer certificate SHA-256: `8eba05db1a803aeb9b4b00ced5bae9bc56a1553d07c77d4216cafeddb452df67` (RSA 3072, APK Signature Scheme v2 verified with `apksigner`). Its key is outside Git. This is not a production signing identity; same-signer upgrade and installation on a phone are **NOT RUN**.
+## Known limitations and backlog
 
-The physical checklist is entirely **NOT RUN**. Start with hash/certificate and same-signer upgrade, then explicit BedJet selection, transport and physical Off, all three original-slot backups and read-back restoration, preview/override, and interrupted-write recovery. Use an awake supervisor, modest settings and a separate verified wake alarm. IR-24 platform timing and IR-29 power-loss durability also remain physical limits.
+These are limitations or future work, not fixed defects. [Known limitations](review/known-limitations.md) gives each reason, source pin and acceptance boundary.
 
-## Reproduce automated gate
+| Item | Remaining limitation / decision |
+|---|---|
+| IR-31 | Individual uncertain originals lack a Settings label. Claude's labelling fix follows the freeze. Missing v1 empty-slot provenance cannot be reconstructed. |
+| KL-05 | Widget theme refresh can lag while the app process is absent. |
+| G9 | Unknown or other-device originals are visible read-only; restoring an explicitly chosen source still needs command-owner/repository work. |
+| U-B1 | History draws the last revision if it can be parsed, otherwise the originally recorded steps; there is no revision-by-revision curve view. |
+| U-B2 | Background outcomes are not queued for later in-app display. |
+| U-B3 | A ±1 °C Cool check-in option is not implemented; current Cool/Dry proposals change both fan endpoints by 10 percentage points. |
+| U-B4 | “Tonight-only wake time” can wrap within a word at 320 dp / 200% text. |
+| U-B5 | Native picker dial crowding remains a device acceptance check. |
+| Smart wake | Wake timing driven by the room sensor is not built. |
+| D1 | Dialogue taps give haptic feedback through the activity's host view, rather than the dialogue's own view. |
+| Charger origin | The outer-timeout fallback sets CHARGER in code, but the saved notification log drops origin; that metadata is source-inspected only. This is an accepted limitation. |
+| Alarm provenance | START uses the alarm creator for policy, but History has no permanent creating-app field. |
 
-Use a local JDK 17 and Android SDK with `local.properties` pointing to the SDK. On Windows, from the repository root:
+Unmeasured BLE timing, background scheduling, Lull background advertising, Health Connect access, English-only core messages, unresolved Off tracking and the notice save-to-post gap remain in the limitations record. A saved reason or History event does not establish notification delivery.
 
-```powershell
-.\gradlew.bat --no-daemon :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
-```
+## Documents to use
 
-`ScreenshotCapture` is opt-in; use its fixed-clock fixture and record the generated image files separately. For a test release, use a throwaway key **outside Git**, verify it with the SDK's APK signer and record version, size, certificate and APK SHA-256. The target PR base is `claude/lucid-mayer-i1h2gy`; push only the completion branch without force and open a **draft** PR. Hardware acceptance must remain visibly pending in the PR.
+- [Source re-pin and coverage](review/docs2-repin.md): all 13 requested items, immutable references and verification limits.
+- [Completion dispositions](review/nocturne-completion.md): authoritative IR-01–IR-32 record; historical gate results remain labelled.
+- [Known limitations](review/known-limitations.md) and [recovery procedures](review/recovery-procedures.md): pending work and practical recovery steps.
+- [Supervised acceptance](review/samsung-bedjet-acceptance.md): install and signer checks first, explicit BedJet selection, originals and restore, then runtime/platform/UI cases. Every physical result is **NOT RUN**.
+- [Release instructions](review/release-instructions.md) and [owner production settings](review/release-production-settings.md): TEST-ONLY versus production artefacts and version/hash/signer checks, at their stated release-source pins.
+- [Register](review/register.md): preserved owner rows and historical base dispositions. Read the reference branches' owned rows with this prose until integration.
+- [Earlier reconciliation and gate](review/docs2-reconciliation.md): the c15c515 documentation pass, not a new result for these references.
+
+## Verification and remaining decisions
+
+This is a documentation-only update. **No Gradle run is needed or performed.** Checks cover allowed paths, unchanged register rows, source-link existence and line bounds at the named SHAs, and consistency across the IR record, recovery steps, limitations and acceptance expectations. Named tests describe inspected assertions; no test suite was executed for this re-pin.
+
+There is no new hardware, Samsung, TalkBack, on-device, CI or minified verification. All supervised results remain **NOT RUN**. Claude must integrate the independent workstreams, retain their owned register rows, arrange the post-freeze IR-31 label fix and decide the remaining backlog. Source inspection does not establish combined-runtime or physical acceptance.
