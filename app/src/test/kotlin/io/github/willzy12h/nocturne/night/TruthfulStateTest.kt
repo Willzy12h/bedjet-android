@@ -203,7 +203,7 @@ class TruthfulStateTest {
         assertEquals(first.recordId, graph.repository.activeNight.value!!.recordId)
     }
 
-    @Test fun aValidReplacedProgrammeOfferSurvivesAManualAdjustmentToItsReplacement() = runBlocking {
+    @Test fun aNewlyDisplacedProgrammeSupersedesTheOlderResumeOffer() = runBlocking {
         val first = start(); advance(5)
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.START_NIGHT).kind)
         val replacement = graph.repository.activeNight.value!!
@@ -214,24 +214,31 @@ class TruthfulStateTest {
             confirms = { it.targetTemperature == 50 }) { it.setTemperature(50) }
 
         val retained = graph.repository.runtime.value.resumeOffer!!
-        assertEquals("a manual adjustment must not steal the still-valid offer for the replaced programme", first.recordId, retained.night.recordId)
-        assertEquals(offer.remaining, retained.remaining)
-        assertEquals("preserving an offer must not extend its lifetime", offer.expiresAt, retained.expiresAt)
+        assertEquals(first.recordId, offer.night.recordId)
+        assertEquals("the newly displaced programme owns the newest recovery choice", replacement.recordId, retained.night.recordId)
+        assertEquals(replacement.applied, retained.night.applied)
+        assertEquals(graph.now().toString(), retained.stoppedAt)
+        assertEquals("displacing another programme starts that programme's own offer", graph.now().plusMinutes(15).toString(), retained.expiresAt)
         assertEquals(graph.repository.runtime.value.generation, retained.commandVersion)
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.RESUME).kind)
-        assertEquals(first.recordId, graph.repository.activeNight.value?.recordId)
+        assertEquals(replacement.recordId, graph.repository.activeNight.value?.recordId)
     }
 
-    @Test fun aValidReplacedProgrammeOfferSurvivesSnoozeAndKeepTracking() = runBlocking {
+    @Test fun snoozeOffersTheNewlyDisplacedProgrammeAndKeepTrackingPreservesThatExpiry() = runBlocking {
         val first = start(); advance(5)
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.START_NIGHT).kind)
+        val replacement = graph.repository.activeNight.value!!
         val offer = graph.repository.runtime.value.resumeOffer!!
+        assertEquals(first.recordId, offer.night.recordId)
         advance(1)
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.SNOOZE_WARM).kind)
+        val snoozedOffer = graph.repository.runtime.value.resumeOffer!!
+        assertEquals("snooze displaces the current programme", replacement.recordId, snoozedOffer.night.recordId)
+        assertEquals(graph.now().plusMinutes(15).toString(), snoozedOffer.expiresAt)
         assertEquals(OutcomeKind.LOCAL, run(NightActions.Command.KEEP_TRACKING).kind)
         val retained = graph.repository.runtime.value.resumeOffer!!
-        assertEquals("manual tracking must keep the older programme's valid Resume choice", first.recordId, retained.night.recordId)
-        assertEquals(offer.expiresAt, retained.expiresAt)
+        assertEquals("keeping an already manual night preserves the programme offer", replacement.recordId, retained.night.recordId)
+        assertEquals("manual-only changes must not extend an offer", snoozedOffer.expiresAt, retained.expiresAt)
         assertEquals(graph.repository.runtime.value.generation, retained.commandVersion)
     }
 
@@ -243,7 +250,7 @@ class TruthfulStateTest {
         advance(16)
         graph.actions.remote("Temperature set", affectsProgramme = true, expected = replacement.identity,
             confirms = { it.targetTemperature == 50 }) { it.setTemperature(50) }
-        assertEquals("only a still-valid older offer has priority", replacement.recordId, graph.repository.runtime.value.resumeOffer?.night?.recordId)
+        assertEquals("the current programme gets its own offer when displaced", replacement.recordId, graph.repository.runtime.value.resumeOffer?.night?.recordId)
     }
 
     @Test fun aNewExplicitProgrammeReplacementSupersedesTheOlderOffer() = runBlocking {

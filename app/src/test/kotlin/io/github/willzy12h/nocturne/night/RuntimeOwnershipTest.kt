@@ -303,14 +303,17 @@ class RuntimeOwnershipTest {
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(NightActions.Command.RESUME)).kind)
         assertNotNull(graph.repository.activeNight.value)
     }
-    @Test fun newerCommandInvalidatesResumeOfferAcrossReload() = runBlocking {
+    @Test fun aManualOnlyCommandKeepsTheResumeOfferAcrossReloadWithoutRenewingIt() = runBlocking {
         start(); graph.actions.perform(NightActions.Command.OFF)
         val version = graph.repository.runtime.value.generation
+        val original = graph.repository.runtime.value.resumeOffer!!
         graph.actions.perform(NightActions.Command.TURBO)
         assertTrue(graph.repository.runtime.value.generation > version)
-        assertNull(graph.repository.runtime.value.resumeOffer)
+        val expected = original.copy(commandVersion = graph.repository.runtime.value.generation)
+        assertEquals("No programme was displaced; retain the offer and its original expiry", expected, graph.repository.runtime.value.resumeOffer)
         val loaded = graphs.afterFinishing { Repository(context, graph.scope, now = { graph.now() }) }
         assertEquals(graph.repository.runtime.value.generation, loaded.runtime.value.generation)
+        assertEquals(expected, loaded.runtime.value.resumeOffer)
     }
     @Test fun remoteOffEndsNightAndLaterAlarmCannotRestartIt() = runBlocking {
         start()
@@ -487,6 +490,21 @@ class RuntimeOwnershipTest {
         val resumed = graph.actions.execute(graph.actions.capture(NightActions.Command.RESUME))
         assertEquals(resumed.message, OutcomeKind.CONFIRMED, resumed.kind)
         assertEquals(offer.night.recordId, graph.repository.activeNight.value?.recordId)
+    }
+    @Test fun handoverCannotReviveAWrongGenerationOfferAndPreservesRecoveryReason() = runBlocking {
+        start()
+        graph.actions.perform(NightActions.Command.OFF)
+        val offer = graph.repository.runtime.value.resumeOffer!!
+        assertTrue(graph.now().isBefore(ZonedDateTime.parse(offer.expiresAt)))
+        graph.repository.updateRuntime { it.copy(generation = it.generation + 1, reason = "Hardware state is uncertain.") }
+        val generation = graph.repository.runtime.value.generation
+        assertTrue(offer.commandVersion != generation)
+
+        assertEquals(OutcomeKind.LOCAL, graph.actions.releaseForOtherPhone().kind)
+
+        assertEquals(generation + 1, graph.repository.runtime.value.generation)
+        assertEquals("Hardware state is uncertain.", graph.repository.runtime.value.reason)
+        assertNull("Handover must validate before rebinding a stale offer to its new generation", graph.repository.runtime.value.resumeOffer)
     }
     @Test fun jobEligibilityIsCheckedAfterConnectionBeforeMutation() = runBlocking {
         var eligible = true
