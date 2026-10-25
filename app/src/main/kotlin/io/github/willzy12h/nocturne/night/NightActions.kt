@@ -243,9 +243,15 @@ class NightActions(private val graph: Graph) {
         }
     }
     private suspend fun applyPrepared(change: PreparedChange, message: Int, afterWrite: suspend () -> Unit): CommandOutcome {
+        var confirmedPublicationFailure: Exception? = null
         val result = graph.runner().apply(change, { repo.activeNight.value }, { repo.runtime.value.generation },
             publish = {
-                publishNight(it)
+                try { publishNight(it) } catch (e: Exception) {
+                    if (it != change.intended || repo.activeNight.value != it) throw e
+                    // The confirmed snapshot is already durable. Defer a later local failure (including
+                    // cancellation) beyond the core's hardware-failure catch so it cannot undo that proof.
+                    confirmedPublicationFailure = e
+                }
                 // IR-23: a first start's record exists before the first write, with the steps it is to run.
                 // The pending night of a fresh start carries no applied steps; its intended snapshot does.
                 val intended = it.pending?.intended
@@ -256,6 +262,7 @@ class NightActions(private val graph: Graph) {
                 }
                 if (it.confidence != Confidence.CONFIRMED) Notifications.cancelQuiet(context)
             }, beforeWrite = { backup(change.intended.deviceId, change.intended.slot) }, afterWrite = afterWrite)
+        confirmedPublicationFailure?.let { throw it }
         val outcome = when (result) {
             is NightMutation.Applied -> {
                 if (change.previous != null && change.previous!!.recordId != result.night.recordId) {

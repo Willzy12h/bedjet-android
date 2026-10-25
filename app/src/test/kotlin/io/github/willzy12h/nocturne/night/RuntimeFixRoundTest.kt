@@ -45,12 +45,16 @@ class RuntimeFixRoundTest {
     private lateinit var link: BedJetLink
     private val sent = mutableListOf<ByteArray>()
     private var beforeQuery: suspend (Int) -> Unit = {}
+    private var swallowOff = false
     @Volatile private var beforeFileWrite: ((File, ByteArray) -> Unit)? = null
 
     @Before fun setup() = runBlocking {
         demo = DemoBedJet(now = { graph.now() })
         link = object : BedJetLink by demo {
-            override suspend fun send(command: ByteArray) { sent += command; demo.send(command) }
+            override suspend fun send(command: ByteArray) {
+                sent += command
+                if (!swallowOff || !command.contentEquals(Codec.setMode(Mode.STANDBY)!!)) demo.send(command)
+            }
             override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) { beforeWrite(); send(command) }
             override suspend fun query(request: Int): ByteArray { beforeQuery(request); return demo.query(request) }
         }
@@ -327,15 +331,23 @@ class RuntimeFixRoundTest {
     @Test fun aWrongGenerationManualOfferIsNotRevived() = runBlocking { invalidManualOffer { it.copy(commandVersion = it.commandVersion - 1) } }
     @Test fun aPastWakeManualOfferIsNotRevived() = runBlocking { invalidManualOffer { it.copy(night = it.night.copy(wakeAt = "2026-10-21T23:04Z")) } }
 
-    private suspend fun operationAfterConfirmedSaveFailure(command: NightActions.Command, fileName: String, cancel: Boolean = false) {
-        if (command != NightActions.Command.START_NIGHT) {
+    private suspend fun operationAfterConfirmedSaveFailure(command: NightActions.Command, fileName: String,
+        cancel: Boolean = false, pendingEnd: Boolean = false) {
+        if (command != NightActions.Command.START_NIGHT || pendingEnd) {
             start()
             at("2026-10-21T23:00:00Z")
             if (command == NightActions.Command.RESUME) execute(NightActions.Command.SNOOZE_WARM)
+            if (pendingEnd) {
+                swallowOff = true
+                assertEquals(OutcomeKind.UNKNOWN, execute(NightActions.Command.OFF).kind)
+                swallowOff = false
+                assertEquals(graph.repository.activeNight.value?.identity, graph.repository.runtime.value.endRequested)
+            }
         }
         val initialStarts = starts()
         var published: ActiveNight? = null
         var failed = false
+        var failedClearingOldEnd = false
         val diskFailure = IOException("test local record disk failure")
         val cancellation = CancellationException("test owner cancellation after confirmation")
         beforeFileWrite = { file, bytes ->
@@ -346,6 +358,7 @@ class RuntimeFixRoundTest {
             val confirmed = published
             if (file.name == fileName && confirmed != null && graph.repository.activeNight.value == confirmed) {
                 failed = true
+                failedClearingOldEnd = graph.repository.runtime.value.endRequested?.let { it != confirmed.identity } == true
                 if (cancel) throw cancellation else throw diskFailure
             }
         }
@@ -353,6 +366,7 @@ class RuntimeFixRoundTest {
         val outcome = try { execute(command) } catch (e: Throwable) { thrown = e; null }
         finally { beforeFileWrite = null }
         assertTrue("The injected persistence failure must follow the exact CONFIRMED publication", failed)
+        if (pendingEnd) assertTrue("The failure must occur while the confirmed publication clears the older Off marker", failedClearingOldEnd)
         assertEquals(published, graph.repository.activeNight.value)
         assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value?.confidence)
         assertEquals("A local save failure must not repeat the hardware start", initialStarts + 1, starts())
@@ -374,6 +388,12 @@ class RuntimeFixRoundTest {
     @Test fun reapplyKeepsConfirmationAfterRuntimeSaveFailure() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.REAPPLY, "runtime.json") }
     @Test fun resumeKeepsConfirmationAfterHistorySaveFailure() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.RESUME, "history.json") }
     @Test fun resumeKeepsConfirmationAfterRuntimeSaveFailure() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.RESUME, "runtime.json") }
+    @Test fun startKeepsConfirmationWhenClearingAnOlderOffMarkerFails() = runBlocking {
+        operationAfterConfirmedSaveFailure(NightActions.Command.START_NIGHT, "runtime.json", pendingEnd = true)
+    }
+    @Test fun startStillPropagatesCancellationWhenClearingAnOlderOffMarkerFails() = runBlocking {
+        operationAfterConfirmedSaveFailure(NightActions.Command.START_NIGHT, "runtime.json", cancel = true, pendingEnd = true)
+    }
     @Test fun startStillPropagatesCancellationAfterConfirmation() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.START_NIGHT, "history.json", cancel = true) }
     @Test fun reapplyStillPropagatesCancellationAfterConfirmation() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.REAPPLY, "history.json", cancel = true) }
     @Test fun resumeStillPropagatesCancellationAfterConfirmation() = runBlocking { operationAfterConfirmedSaveFailure(NightActions.Command.RESUME, "history.json", cancel = true) }
