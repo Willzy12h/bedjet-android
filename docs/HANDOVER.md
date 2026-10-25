@@ -1,8 +1,10 @@
 # Nocturne — current engineering handover
 
+**Version pin — 25 October 2026.** This document describes `c15c515a4dabbeae719c12323b6a6c0639c8406e`. GPT-2r changes are in progress for D2 confirmation, M1/M5 notices, M2 Off ordering, D4 Take back and D5 Resume offer. **Those changes and haptics are NOT reflected here.** Claude will assign a later re-pin after GPT-2r and haptics land. All physical results remain **NOT RUN**.
+
 ## Branch state and ownership
 
-This is the GPT-5 documentation handover, dated 24 October 2026. Branch/review assignments below come from the owner's workstream brief; they are not inferred from a passing test suite.
+This is the GPT-5 documentation handover from 24 October 2026, corrected following Claude's review on 25 October 2026. Branch/review assignments below come from the owner's workstream brief; they are not inferred from a passing test suite.
 
 | Work | State |
 |---|---|
@@ -11,16 +13,16 @@ This is the GPT-5 documentation handover, dated 24 October 2026. Branch/review a
 | GPT-5 | `gpt/nocturne-docs2` — documentation reconciliation and acceptance preparation. Only `docs/review/**` and this file change. |
 | Final review and merge | Claude owns both. GPT-5 does not merge, open a PR, or push to the candidate or `main`. |
 
-The nominated candidate checkpoint and F1 approval do not imply that all open workstreams have been integrated. Later branch tips are outside this source review.
+The nominated candidate checkpoint and F1 approval do not imply that all open workstreams have been integrated. Later branch tips are outside this source review. The U06 merge preview still has one adjacent-row conflict in the register despite restoring its U06 row to the base. The [follow-up record](review/docs2-reconciliation.md#merge-compatibility-one-known-documentation-conflict) gives the exact row selection for Claude; the runtime-candidate preview is clean.
 
 ## Open workstreams
 
 | Workstream | Remaining responsibility / order |
 |---|---|
-| GPT-2 | Runtime follow-ups: D2–D6, D8, M1, M2, M3 and M5, with their register/completion text. GPT-5 preserves that runtime scope. |
+| GPT-2r | Runtime follow-ups: D2–D6, D8, M1, M2, M3 and M5, with their register/completion text. GPT-5 preserves that runtime scope. |
 | GPT-4 | Independent source audit. |
-| GPT-6a | Narrow-screen/large-font layout work; U06 remains partial. |
-| GPT-6b | Haptic timing and origin work; F13 remains partial. Run after GPT-2. |
+| GPT-6a | U06 delivered on `gpt/nocturne-u06` @ `66825099193256ad64d08f087cb0b4d08250a4b3`, approved by Claude and pending integration. Its register row is left at the `c15c515` base so the owning branch supplies the disposition. |
+| GPT-6b | Haptic timing and origin work; F13 remains partial. Run after GPT-2r. |
 | GPT-3 | Integration and the final combined gate, last after the other workstreams and Claude's reviews. |
 | Claude | Final engineering pass, disposition of source discrepancies and merge decisions; V06 remains pending. |
 
@@ -45,10 +47,10 @@ R33/R36 remain partial: the UI preview supplies the known alarm creator, whereas
 
 R38 remains partial: Quick Off still asks for confirmation while a night is tracked, although the runtime policy exempts Off from replacement confirmation. Claude should decide the intended UI treatment. Source: `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt:325–329`; `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/NightGuard.kt:27–39`; `app/src/main/kotlin/io/github/willzy12h/nocturne/night/RuntimeState.kt:59–68`.
 
-A consumed re-time failure can lose its notice if the process ends after saving but before posting. The reason is durable, but is not universally displayed for a still-CONFIRMED night. KL-13 records the precise visibility gap for Claude/GPT-2. Source: `app/src/main/kotlin/io/github/willzy12h/nocturne/night/NightActions.kt:576–579,607–641`; `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt:124–133`.
+A consumed re-time failure can lose its notice if the process ends after saving but before posting. The reason is durable, but is not universally displayed for a still-CONFIRMED night. KL-13 records the visibility gap at this pin for Claude/GPT-2r. Source: `app/src/main/kotlin/io/github/willzy12h/nocturne/night/NightActions.kt:576–579,607–641`; `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt:124–133`.
 
 ## Verification and release boundary
 
-The required gate is `./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`; this pass's actual result and host-startup qualifications are recorded in the [reconciliation evidence](review/docs2-reconciliation.md). No code, tests, resources, Gradle or workflow files are changed. A debug gate does not establish a fresh minified or production APK.
+The required gate is `./gradlew :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`; the 24 October run and its host-startup qualifications are recorded in the [reconciliation evidence](review/docs2-reconciliation.md). No code, tests, resources, Gradle or workflow files are changed. The 25 October correction checks documentation and merge compatibility; it does not rerun that gate or claim CI or minified verification. A debug gate does not establish a fresh minified or production APK.
 
 Production environment settings, signing identity and tag protection require owner evidence. Physical installation, same-signer upgrade, Samsung behaviour, BedJet timing, Lull interoperability, Health Connect provider behaviour and TalkBack are **NOT RUN**. Identify the exact APK before starting the supervised plan; retain a separate wake alarm and an awake supervisor.

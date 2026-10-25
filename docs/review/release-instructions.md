@@ -28,7 +28,7 @@ Sources: `docs/review/release-candidate-report.md:90–127,269–316`.
 | Debug APK | Development build using Android's debug signing arrangement. It is not the release candidate. The signing gate verifies that the test release uses a different certificate from the actual debug APK. | `.github/workflows/build.yml:103–109`; `.github/workflows/release_signing.py:130–137`; [Android signing guidance][android-signing] |
 | Unsigned release APK | Release variant with R8 and resource shrinking, produced when all four local signing inputs are absent. It is an inspection/signing input and cannot be installed as an unsigned APK. | `app/build.gradle.kts:57–100`; `.github/workflows/release_signing.py:80–94`; [Android signing guidance][android-signing] |
 | `nocturne-<version>-TEST-ONLY.apk` | Minified release variant signed with a newly generated, temporary RSA test key. The driver deletes that key and records `signing_identity: test-only`. It is for supervised acceptance only. | `.github/workflows/release_signing.py:96–143` |
-| `nocturne-<version>.apk` from the production package | The verified unsigned input, signed by the protected production job. Its certificate must match the independently established production fingerprint. Only this package feeds the release publication job. | `.github/workflows/build.yml:299–347,377–405` |
+| `nocturne-<version>.apk` from the production package | The verified unsigned input, signed by the environment-gated production job (protection rules set by the owner; not verified here). Its certificate must match the independently established production fingerprint. Only this package feeds the release publication job. | `.github/workflows/build.yml:299–347,377–405` |
 
 The release build has no automatic debug-key fallback. A partially supplied
 signing configuration, absent key file, invalid password or unusable alias fails
@@ -92,12 +92,13 @@ workflow, not verified live secret configuration. Source:
 
 ## 3. Review the release run
 
-The workflow runs on pushes to `main`, `v*` tag pushes and pull requests. For a
-tag, it removes the leading `v` to obtain `versionName` and requires an explicit
-positive `NOCTURNE_RELEASE_VERSION_CODE` no greater than `2100000000`. Non-tag CI
-uses `0.2.0-hardening-test.<run number>` and a code of `run number + 1`. A local
-build without version properties defaults to `0.1.0` / `1`; those defaults are not
-proof of an approved release version. Sources:
+The workflow runs on pushes to `main`, `v*` tag pushes and pull requests. A release
+tag must match `^v[0-9][A-Za-z0-9.+_-]*$`; a name outside that pattern fails the
+Version step. The workflow removes the leading `v` to obtain `versionName` and
+requires an explicit positive `NOCTURNE_RELEASE_VERSION_CODE` no greater than
+`2100000000`. Non-tag CI uses `0.2.0-hardening-test.<run number>` and a code of
+`run number + 1`. A local build without version properties defaults to `0.1.0` /
+`1`; those defaults are not proof of an approved release version. Sources:
 `.github/workflows/build.yml:3–7,56–76`; `app/build.gradle.kts:48–54`.
 
 For the next authorised release:
@@ -110,10 +111,12 @@ For the next authorised release:
    `docs/review/release-production-settings.md:145–173`.
 2. Require the whole `build` job to pass. It runs helper regressions, core/app
    tests, debug assembly/lint, unsigned and test-signed release checks, release
-   serialisation checks, a manifest inventory and screenshot checks. A
+   serialisation checks, the exact allow-list manifest audit described in section
+   5, and screenshot checks. Manifest audit issues fail the `build` job. A
    `TEST-ONLY` artefact can be uploaded after signing succeeds even if a later
    gate fails, so an available APK alone is insufficient. Sources:
-   `.github/workflows/build.yml:96–188,190–239`.
+   `.github/workflows/build.yml:96–188,190–239`;
+   `.github/workflows/release_manifest.py:161–196`.
 3. Review that run and attempt before approving its `production` deployment.
    The production job requires successful `build` and a `v*` tag push. After
    approval it checks published version history and rechecks the transferred
@@ -233,6 +236,7 @@ its signature. Reference: [apksigner][android-apksigner].
 | --- | --- | --- |
 | Signing and packaging | Unsigned output; all partial signing combinations and invalid-key probes; explicit test signer distinct from debug; identical unsigned/test program and resource bytes; actual package/version/hash/certificate checks. Sources: `.github/workflows/release_signing.py:36–58,80–149`; `.github/workflows/release_artifacts.py:86–115`. | A production key, live GitHub settings and installation/upgrade still need their own evidence. |
 | Shrinking and serialisation | R8/resource shrinking is enabled. The release fixture tests model round trips and private snapshot-wrapper persistence, then repeats them on separately R8-shrunk JVM classfiles. The gate also inspects actual APK class definitions and mapping/usage evidence. Sources: `app/build.gradle.kts:94–100`; `.github/workflows/release-serialization/ReleaseSerializationTest.kt:92–168`; `.github/workflows/release_serialization.py:250–267,340–403,438–453`. | The separate JVM run uses test roots and unshrunk dependencies. It does not execute APK DEX or prove Android restoration, widgets or arbitrary historical schema compatibility. |
+| Built release manifest | `release_manifest.py` applies an exact allow-list to the built, merged release manifest, including dependency components. Added, missing or duplicate components, changed exported state or effective component permissions, altered permission inventories, and failed package/SDK/application or selected alias/provider/widget checks produce audit issues. Any issue returns exit status `1` and fails the `build` job. Sources: `.github/workflows/release_manifest.py:19–76,85–151,161–196`; `.github/workflows/build.yml:170–175`. | The audit checks manifest policy. Intent filters describe routing and do not establish authorisation; the audit does not execute components or prove their runtime access checks. |
 | This documentation pass | Source review at the exact base above; the separate documentation gate recorded by the integrating reviewer. | No fresh minified build or current signed package identity is claimed here. Physical install, upgrade, Samsung/BedJet operation and TalkBack acceptance remain **NOT RUN** by this pass. |
 
 Use [the supervised acceptance sheet](samsung-bedjet-acceptance.md) for installation
