@@ -45,7 +45,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.night.OutcomeKind
-import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -65,11 +64,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        consumeTonightRequest(intent)
+        if (savedInstanceState == null) consumeTonightRequest(intent)
         setContent {
             val settings by model.settings.collectAsState()
-            var themeNow by remember { mutableStateOf(model.now()) }
-            LaunchedEffect(Unit) { while (true) { delay(1_000); themeNow = model.now() } }
+            val themeNow = rememberThemeNow(settings, model::now)
             val dark = settings.isDarkTheme(themeNow, isSystemInDarkTheme())
             // The bars are drawn over the app, so their icons follow the app's theme, not the phone's.
             LaunchedEffect(dark) {
@@ -143,8 +141,12 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     LaunchedEffect(Unit) { model.messages.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(tonightRequest) {
         if (tonightRequest > 0) {
-            parkedDraft = editingId != null && draftJson != null
-            editingId = null
+            if (editingId != null) {
+                // A new profile still needs Save even before its first edit (or first draft callback).
+                draftJson = draftJson ?: newProfileJson
+                parkedDraft = draftJson != null
+                editingId = null
+            }
             tab = Tab.TONIGHT
         }
     }

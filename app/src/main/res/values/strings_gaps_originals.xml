@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_backup_originals_title">From backup</string>
+    <string name="settings_backup_originals_help">Choose the original BedJet to put back a matching original. Originals without a recorded BedJet are shown for reference only.</string>
+    <string name="settings_backup_originals_empty">Saved from slot %1$d: empty slot</string>
+    <string name="settings_backup_originals_unknown">Original BedJet not recorded</string>
+    <string name="settings_backup_originals_source">Saved for %1$s</string>
+</resources>

@@ -1,5 +1,9 @@
 package io.github.willzy12h.nocturne.ui
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -7,13 +11,29 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.core.store.Settings
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
+import java.time.Duration
 import java.time.ZonedDateTime
 
 // Two fixed palettes replace Material You: "Midnight Ink" for dark and "Daylight" for light. Fixed colours keep the
@@ -34,6 +54,9 @@ data class NocturneColors(
     /** Simple view's wake-time line and timeline accent. */
     val accent: Color,
 ) {
+    /** The rendered curve tint, including the quieter after-wake bars. */
+    fun curveMode(mode: Mode, afterWake: Boolean): Color = mode(mode).copy(alpha = if (afterWake) 0.85f else 1f)
+
     fun mode(mode: Mode): Color = when (mode) {
         Mode.COOL -> cool
         Mode.HEAT -> heat
@@ -47,7 +70,7 @@ data class NocturneColors(
 private val InkGround = Color(0xFF0E1220)
 private val InkSurface = Color(0xFF171C2E)
 private val InkRaised = Color(0xFF1F2640)
-private val InkOutline = Color(0xFF343C5A)
+private val InkOutline = Color(0xFF6B7493)
 private val InkText = Color(0xFFE8ECF7)
 private val InkMuted = Color(0xFFA3ACC6)
 private val InkCool = Color(0xFF6EA8FE)
@@ -56,7 +79,7 @@ private val InkTurbo = Color(0xFFF2707A)
 
 private val DayGround = Color(0xFFF4F6FA)
 private val DaySurface = Color(0xFFFFFFFF)
-private val DayOutline = Color(0xFFDCE1EA)
+private val DayOutline = Color(0xFF7A849B)
 private val DayText = Color(0xFF141A2A)
 private val DayMuted = Color(0xFF4F5A73)
 private val DayCool = Color(0xFF2459B8)
@@ -74,8 +97,8 @@ val DaylightColors = NocturneColors(
     dry = Color(0xFF1E7F72), idle = Color(0xFF6B7489), connected = Color(0xFF1E8A55), accent = DayViolet,
 )
 
-// The outline tokens are hairlines for cards and dividers (outlineVariant). Material also draws text field and switch
-// borders with `outline`, which need 3:1 against the surface, so that role gets a stronger shade of the same hue.
+// Quick controls share outlineVariant with decorative card borders, so both outline roles need 3:1 against
+// the surrounding surface. Keep the existing palette hues and use the same accessible boundary shade.
 val MidnightInkScheme: ColorScheme = darkColorScheme(
     primary = InkCool, onPrimary = InkGround,
     primaryContainer = Color(0xFF24365C), onPrimaryContainer = InkText,
@@ -90,7 +113,7 @@ val MidnightInkScheme: ColorScheme = darkColorScheme(
     surfaceVariant = InkRaised, onSurfaceVariant = InkMuted,
     surfaceTint = InkCool,
     inverseSurface = InkText, inverseOnSurface = InkGround, inversePrimary = DayCool,
-    outline = Color(0xFF6B7493), outlineVariant = InkOutline,
+    outline = InkOutline, outlineVariant = InkOutline,
     scrim = Color.Black,
     surfaceBright = InkRaised, surfaceDim = InkGround,
     surfaceContainerLowest = InkGround, surfaceContainerLow = Color(0xFF131829),
@@ -111,7 +134,7 @@ val DaylightScheme: ColorScheme = lightColorScheme(
     surfaceVariant = Color(0xFFE9EDF4), onSurfaceVariant = DayMuted,
     surfaceTint = DayText,
     inverseSurface = DayText, inverseOnSurface = DayGround, inversePrimary = InkCool,
-    outline = Color(0xFF7A849B), outlineVariant = DayOutline,
+    outline = DayOutline, outlineVariant = DayOutline,
     scrim = Color.Black,
     surfaceBright = DaySurface, surfaceDim = Color(0xFFE6EAF1),
     surfaceContainerLowest = DaySurface, surfaceContainerLow = DaySurface,
@@ -119,6 +142,9 @@ val DaylightScheme: ColorScheme = lightColorScheme(
 )
 
 val LocalNocturneColors = staticCompositionLocalOf { MidnightInkColors }
+
+/** Shared unit preference for curve descriptions; standalone previews default to Celsius. */
+internal val LocalTemperatureFahrenheit = staticCompositionLocalOf { false }
 
 /** Whether a theme setting means dark right now. */
 fun ThemeMode.isDark(systemDark: Boolean): Boolean = when (this) {
@@ -136,7 +162,9 @@ fun NocturneTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () ->
 
 @Composable
 fun NocturneTheme(settings: Settings, at: ZonedDateTime, content: @Composable () -> Unit) {
-    NocturnePalette(settings.isDarkTheme(at, isSystemInDarkTheme()), content)
+    CompositionLocalProvider(LocalTemperatureFahrenheit provides settings.fahrenheit) {
+        NocturnePalette(settings.isDarkTheme(at, isSystemInDarkTheme()), content)
+    }
 }
 
 @Composable
@@ -154,3 +182,51 @@ val nocturneColors: NocturneColors
 @Composable
 @ReadOnlyComposable
 fun modeColor(mode: Mode): Color = nocturneColors.mode(mode)
+
+/** Uses the injected app clock and sleeps until the next local theme boundary; resuming refreshes it immediately. */
+@Composable
+internal fun rememberThemeNow(settings: Settings, now: () -> ZonedDateTime): ZonedDateTime {
+    var at by remember { mutableStateOf(now()) }
+    val currentClock by rememberUpdatedState(now)
+    var clockChange by remember { mutableIntStateOf(0) }
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(context, settings.themeMode) {
+        if (settings.themeMode != ThemeMode.SCHEDULED) onDispose { }
+        else {
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) { clockChange++ }
+            }
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_TIME_CHANGED)
+                addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            }
+            ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+            onDispose { context.unregisterReceiver(receiver) }
+        }
+    }
+    LaunchedEffect(lifecycle, settings.themeMode, settings.scheduledDarkMinute, settings.scheduledLightMinute, clockChange) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val current = currentClock()
+                at = current
+                val next = nextThemeBoundary(settings, current) ?: awaitCancellation()
+                delay(Duration.between(current, next).toMillis().coerceAtLeast(1))
+            }
+        }
+    }
+    return at
+}
+
+/** Clock changes at a daylight-saving transition can cross a boundary too, including a repeated local hour. */
+internal fun nextThemeBoundary(settings: Settings, at: ZonedDateTime): ZonedDateTime? {
+    if (settings.themeMode != ThemeMode.SCHEDULED || settings.scheduledDarkMinute == settings.scheduledLightMinute) return null
+    val boundaries = (0L..1L).flatMap { day ->
+        listOf(settings.scheduledDarkMinute, settings.scheduledLightMinute).flatMap { minute ->
+            val boundary = at.toLocalDate().plusDays(day).atTime(minute / 60, minute % 60).atZone(at.zone)
+            listOf(boundary.withEarlierOffsetAtOverlap(), boundary.withLaterOffsetAtOverlap())
+        }
+    }
+    val transition = at.zone.rules.nextTransition(at.toInstant())?.instant?.atZone(at.zone)
+    return (boundaries + listOfNotNull(transition)).filter { it.isAfter(at) }.minByOrNull { it.toInstant() }
+}

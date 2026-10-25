@@ -2,7 +2,9 @@ package io.github.willzy12h.nocturne.ui
 
 import android.os.Looper
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.AppliedProgram
@@ -49,7 +51,7 @@ class HistoryRevisionsTest {
             try { base.evaluate() } finally { graph.clock = previous }
         }
     } }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(fixture).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(GraphLifecycle()).around(fixture).around(compose)
     private val graph get() = compose.activity.graph
     private fun s(id: Int, vararg args: Any) = compose.activity.getString(id, *args)
 
@@ -89,4 +91,68 @@ class HistoryRevisionsTest {
         compose.onNodeWithText(s(R.string.history_curve_applied)).assertExists()
         compose.onNode(hasText(s(R.string.event_retimed), substring = true) and hasText("Alarm moved to 06:30", substring = true)).assertExists()
     }
+    private fun openNight(night: NightRecord) {
+        compose.runOnUiThread { runBlocking { graph.repository.addRecord(night) } }
+        compose.onNodeWithText("History").performClick()
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+            compose.onAllNodesWithText(night.profileName, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText(night.profileName, substring = true).performClick()
+    }
+
+    private fun stepText(step: RecordedStep): String =
+        if (step.mode.usesTemperature) s(R.string.history_step_temp, Format.clock(step.startsAt),
+            s(if (step.block == Block.MIDDLE) R.string.block_middle else R.string.block_wake), Format.modeName(step.mode), Format.temp(step.temperature, false), step.fanPercent, Format.duration(step.minutes))
+        else s(R.string.history_step, Format.clock(step.startsAt), s(if (step.block == Block.MIDDLE) R.string.block_middle else R.string.block_wake), Format.modeName(step.mode),
+            step.fanPercent, Format.duration(step.minutes))
+
+    @Test fun expandedStepsMatchTheLastAppliedCurveRatherThanOriginalProgramme() {
+        openNight(record)
+        retimed.steps.forEach { compose.onNodeWithText(stepText(it)).assertExists() }
+        original.forEach { compose.onNodeWithText(stepText(it)).assertDoesNotExist() }
+    }
+
+    @Test fun expandedLegacyStepsMatchTheOriginalCurveWithoutRevisions() {
+        openNight(record.copy(revisions = emptyList()))
+        original.forEach { compose.onNodeWithText(stepText(it)).assertExists() }
+        retimed.steps.forEach { compose.onNodeWithText(stepText(it)).assertDoesNotExist() }
+    }
+
+    @Test fun anUnreadableRevisionFallsBackToTheOriginalCurveAndExpandedSteps() {
+        val night = record.copy(revisions = listOf(retimed.copy(start = "invalid")))
+        assertEquals(original.map { it.startsAt }, historyPlan(night)!!.steps.map { it.startsAt.toString() })
+        openNight(night)
+        original.forEach { compose.onNodeWithText(stepText(it)).assertExists() }
+        retimed.steps.forEach { compose.onNodeWithText(stepText(it)).assertDoesNotExist() }
+    }
+
+    @Test fun eachHistoryCardHasItsHealthOverlayBelowItsOwnCurve() {
+        val second = record.copy(id = "n2", profileName = "Second night", startedAt = "2026-10-21T22:30Z")
+        compose.runOnUiThread { runBlocking {
+            graph.repository.updateSettings { it.copy(platform = it.platform.copy(healthSleepOverlay = true)) }
+            graph.repository.addRecord(record)
+            graph.repository.addRecord(second)
+        } }
+        compose.onNodeWithText("History").performClick()
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+            compose.onAllNodesWithText(record.profileName, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        listOf(record, second).forEach { night ->
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText(night.profileName, substring = true))
+            val card = hasClickAction() and hasAnyDescendant(hasText(night.profileName, substring = true))
+            val overlay = compose.onNode(hasText(s(R.string.feature_health_source)) and hasAnyAncestor(card), useUnmergedTree = true)
+            overlay.performScrollTo().assertIsDisplayed()
+            val curveInteraction = compose.onNode(hasContentDescription("Night plan", substring = true) and hasAnyAncestor(card), useUnmergedTree = true)
+            val curve = curveInteraction.fetchSemanticsNode()
+            val health = overlay.fetchSemanticsNode()
+            fun cardId(node: androidx.compose.ui.semantics.SemanticsNode): Int = generateSequence(node) { it.parent }
+                .first { it.config.contains(SemanticsActions.OnClick) }.id
+            assertEquals("${night.id} overlay belongs to its curve's card", cardId(curve), cardId(health))
+            assertTrue("${night.id} overlay must follow its own curve",
+                overlay.getUnclippedBoundsInRoot().top >= curveInteraction.getUnclippedBoundsInRoot().bottom)
+        }
+    }
+
 }

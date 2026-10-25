@@ -54,12 +54,13 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     val wakeColor = nocturneColors.accent
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
+    val fahrenheit = LocalTemperatureFahrenheit.current
     // A kept manual run has no wake programme: it is described, labelled and drawn by its own end instead.
     val description = stringResource(R.string.curve_description, Format.clock(plan.start), Format.clock(plan.end),
         end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake_lower, Format.clock(plan.wake)),
         plan.steps.map { step ->
-            pluralStringResource(R.plurals.curve_step, step.minutes, Format.clock(step.startsAt), blockName(step.block),
-                modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes)
+            pluralStringResource(R.plurals.curve_step_temperature, step.minutes, Format.clock(step.startsAt), blockName(step.block),
+                modeName(step.step.mode), (step.step.fanStep + 1) * 5, step.minutes, tempText(step.step.temperature, fahrenheit))
         }.joinToString("; "))
     Column(modifier) {
         Canvas(Modifier.fillMaxWidth().height(110.dp).semantics { contentDescription = description }) {
@@ -71,7 +72,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 val level = level(step.step.mode, step.step.temperature, (step.step.fanStep + 1) * 5)
                 val h = (kotlin.math.abs(level) * (mid - 4)).coerceAtLeast(3f)
                 val top = if (level >= 0) mid - h else mid
-                val color = colors.mode(step.step.mode).copy(alpha = if (step.block == Block.AFTER_WAKE) 0.55f else 1f)
+                val color = colors.curveMode(step.step.mode, step.block == Block.AFTER_WAKE)
                 drawRoundRect(color, Offset(x + 1, top), Size(w - 2, h), CornerRadius(4.dp.toPx()))
             }
             val wakeX = Duration.between(plan.start, plan.wake).toMinutes() / total * size.width
