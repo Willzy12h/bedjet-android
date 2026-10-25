@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import android.Manifest
 import android.os.Looper
 import androidx.lifecycle.ViewModelStore
 import io.github.willzy12h.nocturne.App
@@ -7,6 +8,7 @@ import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
+import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.night.CommandOutcome
 import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.NightActions
@@ -14,11 +16,14 @@ import io.github.willzy12h.nocturne.night.OutcomeKind
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -72,6 +77,51 @@ class CommandOriginFeedbackTest {
         assertTrue("Timed out driving the app command", check())
     }
 
+    /** Observe the real screen message and the outcome that report retained for once-only delivery. */
+    private suspend fun reportedOutcome(action: () -> Unit): CommandOutcome = coroutineScope {
+        val message = async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) {
+            model.messages.first()
+        }
+        try {
+            action()
+            until { message.isCompleted }
+            val reported = ReflectionHelpers.getField<ArrayDeque<CommandOutcome>>(model, "shownOutcomes").last()
+            assertEquals(message.await(), reported.message)
+            reported
+        } finally {
+            message.cancelAndJoin()
+        }
+    }
+
+    @Test fun aTimedOutAppCommandShowsTheResourceMessageAndKeepsItsAppOrigin() = runBlocking {
+        app.graph.repository.updateSettings { it.copy(demoMode = true) }
+        val outcome = reportedOutcome {
+            model.remote("Remote timeout") { withTimeout(1) { awaitCancellation() } }
+        }
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
+        assertEquals(CommandOrigin.APP, outcome.origin)
+        assertEquals("Coroutine implementation details must not reach the screen",
+            app.getString(R.string.runtime_no_answer), outcome.message)
+    }
+
+    @Test fun anAppAdmissionFailureKeepsAppOriginBeforeTheOwnerExists() = runBlocking {
+        app.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
+        shadowOf(app).denyPermissions(Manifest.permission.BLUETOOTH_CONNECT)
+        val outcome = reportedOutcome { model.run(NightActions.Command.START_NIGHT) }
+        assertEquals(OutcomeKind.FAILED, outcome.kind)
+        assertEquals(CommandOrigin.APP, outcome.origin)
+        assertEquals(app.getString(R.string.runtime_connect_permission), outcome.message)
+    }
+
+    @Test fun anAppLocalRefusalKeepsAppOriginWithoutAnOwnedOutcome() = runBlocking {
+        app.graph.repository.updateSettings { it.copy(demoMode = true) }
+        val otherTarget = SlotBackup("ble:11:22:33:44:55:66", 0, null, app.graph.now().toString())
+        val outcome = reportedOutcome { model.restoreSlot(otherTarget) }
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
+        assertEquals(CommandOrigin.APP, outcome.origin)
+        assertEquals(app.getString(R.string.runtime_restore_target_changed), outcome.message)
+    }
+
     @Test fun settingsSaveStaysQuietWhenItsWordingChanges() = runBlocking {
         val saved = app.graph.actions.updateSettings { it.copy(fahrenheit = !it.fahrenheit) }
         val seen = mutableListOf<String>()
@@ -94,7 +144,7 @@ class CommandOriginFeedbackTest {
             model.messages.collect { seen += it }
         }
         try {
-            model.report(CommandOutcome(OutcomeKind.LOCAL, message))
+            model.report(CommandOutcome(OutcomeKind.LOCAL, message, origin = CommandOrigin.APP))
             yield()
             assertEquals("Wording alone does not identify a settings save", listOf(message), seen)
         } finally {

@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.SubmissionTarget
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -115,10 +116,10 @@ import kotlinx.coroutines.launch
                 val outcome=withContext(SubmissionTarget(target)) {action()}
                 show(outcome)
             } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
-                show(io.github.willzy12h.nocturne.night.CommandOutcome(io.github.willzy12h.nocturne.night.OutcomeKind.UNKNOWN,graph.context.getString(R.string.feature_operation_timeout)))
+                show(io.github.willzy12h.nocturne.night.CommandOutcome(io.github.willzy12h.nocturne.night.OutcomeKind.UNKNOWN,graph.context.getString(R.string.feature_operation_timeout),origin=CommandOrigin.APP))
             } catch (e: kotlinx.coroutines.CancellationException) { throw e
             } catch (e: Exception) {
-                show(io.github.willzy12h.nocturne.night.CommandOutcome(io.github.willzy12h.nocturne.night.OutcomeKind.FAILED,e.message ?: graph.context.getString(R.string.runtime_failed)))
+                show(io.github.willzy12h.nocturne.night.CommandOutcome(io.github.willzy12h.nocturne.night.OutcomeKind.FAILED,e.message ?: graph.context.getString(R.string.runtime_failed),origin=CommandOrigin.APP))
             } finally {busy=false;onDismiss()}
         }
     }

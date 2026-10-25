@@ -110,6 +110,45 @@ class CommandOriginsTest {
         assertEquals(OutcomeKind.REFUSED, result.kind)
     }
 
+    @Test fun anOutcomeWithoutAnEntryPointDoesNotClaimTheAppInitiatedIt() {
+        val outcome = CommandOutcome(OutcomeKind.UNKNOWN, "No entry point supplied")
+        assertNotEquals("Missing attribution must remain distinguishable from a known app command",
+            CommandOrigin.APP, outcome.origin)
+    }
+
+    @Test fun serviceContextTagsAnUnspecifiedOwnedResultBeforeItIsReturnedAndEmitted() = runBlocking {
+        for (origin in listOf(CommandOrigin.WIDGET, CommandOrigin.NOTIFICATION, CommandOrigin.CHARGER)) {
+            val outcome = emittedOutcome {
+                withContext(CommandOriginContext(origin)) {
+                    graph.actions.execute(graph.actions.capture(NightActions.Command.STOP_TRACKING))
+                }
+            }
+            assertEquals(OutcomeKind.REFUSED, outcome.kind)
+            assertEquals(origin, outcome.origin)
+        }
+    }
+
+    @Test fun anExplicitSettingsResultIsNotReattributedToTheServiceContext() = runBlocking {
+        val outcome = emittedOutcome {
+            withContext(CommandOriginContext(CommandOrigin.NOTIFICATION)) {
+                graph.actions.setWakeOverride(graph.now().plusHours(8))
+            }
+        }
+        assertEquals(OutcomeKind.LOCAL, outcome.kind)
+        assertEquals(CommandOrigin.SETTINGS, outcome.origin)
+    }
+
+    @Test fun aDirectSlotWriteAcknowledgementKeepsAppOrigin() = runBlocking {
+        graph.repository.updateRuntime {
+            it.copy(slotWrite = SlotWrite(graph.repository.settings.value.deviceId()!!, 0, null,
+                confidence = io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN, label = "Restore"))
+        }
+        val outcome = graph.actions.acknowledgeSlotWrite()
+        assertEquals(OutcomeKind.LOCAL, outcome.kind)
+        assertNull("Acknowledgement clears the checked slot write locally", graph.repository.runtime.value.slotWrite)
+        assertEquals("This direct app entry does not pass through the owned outcome tagger", CommandOrigin.APP, outcome.origin)
+    }
+
     @Test fun explicitRequestOriginSurvivesStaleTargetAdmission() = runBlocking {
         val request = graph.actions.capture(NightActions.Command.STOP_TRACKING)
             .copy(deviceId = "ble:11:22:33:44:55:66", origin = CommandOrigin.WIDGET)

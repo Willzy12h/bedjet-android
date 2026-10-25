@@ -48,7 +48,7 @@ import kotlinx.serialization.Serializable
 }
 
 /** The entry that requested work; transient command metadata, never part of the runtime journal or backups. */
-enum class CommandOrigin { APP, WIDGET, SHORTCUT, NOTIFICATION, REMINDER, ALARM, CHARGER, SETTINGS, PEER }
+enum class CommandOrigin { APP, WIDGET, SHORTCUT, NOTIFICATION, REMINDER, ALARM, CHARGER, SETTINGS, PEER, UNSPECIFIED }
 internal fun defaultCommandOrigin(command: NightActions.Command): CommandOrigin = when (command) {
     NightActions.Command.RETIME, NightActions.Command.RETRY_RETIME -> CommandOrigin.ALARM
     else -> CommandOrigin.APP
@@ -60,7 +60,9 @@ data class CommandRequest(val command: NightActions.Command, val profileId: Stri
 enum class OutcomeKind { CONFIRMED, ACCEPTED, LOCAL, REFUSED, STALE, FAILED, UNKNOWN, CONFIRMATION_REQUIRED }
 data class CommandOutcome(val kind: OutcomeKind, val message: String,
     /** The outcome already has its own notice; service delivery must not post another one. */
-    val notificationHandled: Boolean = false, val origin: CommandOrigin = CommandOrigin.APP) {
+    val notificationHandled: Boolean = false,
+    /** The known entry point or command owner supplies attribution before delivery. */
+    val origin: CommandOrigin = CommandOrigin.UNSPECIFIED) {
     val succeeded: Boolean get() = kind in setOf(OutcomeKind.CONFIRMED, OutcomeKind.ACCEPTED, OutcomeKind.LOCAL)
 }
 data class BusyState(val runningLabel: String? = null, val queuedCount: Int = 0)

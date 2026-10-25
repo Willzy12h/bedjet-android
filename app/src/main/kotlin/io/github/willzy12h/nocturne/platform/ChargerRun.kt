@@ -11,6 +11,7 @@ import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.LoggedNotice
 import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.night.CommandOutcome
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
@@ -71,7 +72,7 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
                 }
             }
         } catch (e: TimeoutCancellationException) {
-            withContext(NonCancellable) { record(CommandOutcome(OutcomeKind.FAILED,graph.context.getString(R.string.runtime_interrupted))) }
+            withContext(NonCancellable) { record(CommandOutcome(OutcomeKind.FAILED,graph.context.getString(R.string.runtime_interrupted),origin=CommandOrigin.CHARGER)) }
             throw e
         }
         // An attempt stays claimed even if transport fails: an accepted partial write cannot be replayed.

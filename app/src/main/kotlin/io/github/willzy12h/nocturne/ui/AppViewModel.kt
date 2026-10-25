@@ -271,7 +271,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun acceptLostOriginals() = save { repo.dismissUnreadable(acceptLostOriginals = true) }
 
     /** Commands wait for saves asked for before them, so they act on what the person just saved. */
-    private fun refusal(message: String) = CommandOutcome(OutcomeKind.REFUSED, message)
+    private fun refusal(message: String) = CommandOutcome(OutcomeKind.REFUSED, message, origin = CommandOrigin.APP)
 
     /** A message from resources, for outcomes and snackbars. */
     private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
@@ -286,9 +286,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (hardware) kotlinx.coroutines.withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target)) {
                     io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false) { work() }
                 } else work()
-            } catch (e: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, e.message ?: text(R.string.runtime_no_answer))
+            } catch (_: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
             } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: text(R.string.runtime_something_wrong)) }
+            } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
             finally { _busy.value = false }
             report(outcome)
         }

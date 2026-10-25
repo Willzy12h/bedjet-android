@@ -103,7 +103,7 @@ class NightActions(private val graph: Graph) {
         work: suspend () -> CommandOutcome): CommandOutcome {
         val source = origin ?: currentCoroutineContext()[CommandOriginContext]?.origin ?: CommandOrigin.APP
         fun tagged(outcome: CommandOutcome): CommandOutcome =
-            if (outcome.origin == CommandOrigin.APP && source != CommandOrigin.APP) outcome.copy(origin = source) else outcome
+            if (outcome.origin == CommandOrigin.UNSPECIFIED) outcome.copy(origin = source) else outcome
         _busy.update { it.copy(queuedCount = it.queuedCount + 1) }
         var acquired = false
         val owner = Any()
@@ -1161,7 +1161,7 @@ class NightActions(private val graph: Graph) {
     /** The user has checked the BedJet: a slot write in question no longer holds anything back (IR-06). Local only. */
     suspend fun acknowledgeSlotWrite(): CommandOutcome = lock.withLock {
         repo.updateRuntime { it.copy(slotWrite = null) }
-        CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_slot_write_acknowledged))
+        CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_slot_write_acknowledged), origin = CommandOrigin.APP)
     }
     suspend fun initialise() {
         lock.withLock {

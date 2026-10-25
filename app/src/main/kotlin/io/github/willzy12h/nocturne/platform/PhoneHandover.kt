@@ -9,6 +9,7 @@ import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.CommandOutcome
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.night.SubmissionTarget
 import io.github.willzy12h.nocturne.R
@@ -72,7 +73,7 @@ class PhoneHandover(private val graph: Graph) {
                 AdvertiseData.Builder().addServiceUuid(ParcelUuid(PlatformPolicy.handoverUuid(name))).setIncludeDeviceName(false).build(),callback)
             if (!withTimeout(3_000) {started.await()}) return refused(R.string.feature_advertise_unavailable)
             delay(8_000)
-            return CommandOutcome(OutcomeKind.LOCAL,graph.context.getString(R.string.feature_handover_requested))
+            return CommandOutcome(OutcomeKind.LOCAL,graph.context.getString(R.string.feature_handover_requested),origin=CommandOrigin.APP)
         } catch (e: CancellationException) {throw e
         } catch (_: Exception) {return refused(R.string.feature_advertise_unavailable)
         } finally {
@@ -81,5 +82,5 @@ class PhoneHandover(private val graph: Graph) {
             catch (_: Exception) { /* Adapter disappeared; preserve the request outcome/cancellation. */ }
         }
     }
-    private fun refused(resource:Int)=CommandOutcome(OutcomeKind.REFUSED,graph.context.getString(resource))
+    private fun refused(resource:Int)=CommandOutcome(OutcomeKind.REFUSED,graph.context.getString(resource),origin=CommandOrigin.APP)
 }

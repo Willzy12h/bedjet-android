@@ -7,7 +7,9 @@ import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.core.link.SourcedStatus
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -34,7 +36,11 @@ class ChargerRunTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixtur
     @Test fun eligibleJobShowsGraceStartsOnceAndPersistsAttempt() = runBlocking {
         val graph=graph(); var notices=0
         val run=ChargerRun(graph,{true},{_,_->notices++;true},{},{true})
+        val outcome = async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) {
+            graph.actions.outcomes.first()
+        }
         run.execute()
+        assertEquals(CommandOrigin.CHARGER, withTimeout(5_000) { outcome.await() }.origin)
         assertEquals(1,notices)
         assertNotNull(graph.repository.activeNight.value)
         assertTrue(graph.repository.automation.value.claims.any { it.startsWith("charger:") })
