@@ -532,6 +532,41 @@ class RetimeNotificationTest {
         assertFalse(retryScheduled())
     }
 
+    @Test fun takeoverNoticeSurvivesATimeoutClearingTheAdmittedRetry() = runBlocking {
+        pendingForReceiver()
+        var changed = false
+        afterSend = {
+            if (!changed && it[0] == 0x40.toByte()) {
+                changed = true
+                demo.send(Codec.setMode(Mode.STANDBY)!!)
+            }
+        }
+        var timedOut = false
+        var noticeWasPosted = false
+        runtimeWriteFailure = {
+            if (!timedOut && graph.repository.runtime.value.reason == app.getString(R.string.runtime_takeover)) {
+                noticeWasPosted = shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(5) != null
+                timedOut = true
+                // The takeover notice was posted by apply; cancellation of subsequent journal cleanup is
+                // part of that same admitted delivery, not a second device outcome.
+                runBlocking { withTimeout(1) { awaitCancellation() } }
+            }
+        }
+        val delivery = ServiceStartContext(app)
+        assertTrue(BedJetService.start(delivery, NightActions.Command.RETRY_RETIME, notifyFailures = true))
+        assertNull("Cancellation still propagates without a coordinator outcome", completedResult(delivery))
+        assertTrue("Exercise takeover during a real upload", changed)
+        assertTrue("Cancel the cleanup only after its terminal notice exists", timedOut && noticeWasPosted)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+        until { graph.repository.notices.value.any { it.kind == NoticeKind.INFO } }
+        graph.repository.updateRuntime { it }
+        assertEquals("The original takeover notice is the sole terminal notice", 1, graph.repository.notices.value.size)
+        assertEquals(NoticeKind.INFO, graph.repository.notices.value.single().kind)
+        assertNull("The service must not replace takeover with a second timeout warning", error())
+        assertFalse(graph.actions.retimePending)
+        assertFalse(retryScheduled())
+    }
+
     @Test fun explicitRetryTakeoverBeforeUploadKeepsItsSingleExistingNotice() = runBlocking {
         pendingForReceiver()
         demo.connect()
@@ -647,6 +682,114 @@ class RetimeNotificationTest {
         assertEquals(OutcomeKind.LOCAL, retryReceiver().kind)
         assertOneExpiryNotice()
         assertOneTerminalNotice(unknown = false)
+    }
+
+    @Test fun admittedRetimeTimeoutPastDeadlineKeepsItsPendingExpiryQuiet() = runBlocking {
+        timeoutPastDeadline(waitingForOwnership = false)
+    }
+
+    @Test fun queuedRetimeTimeoutPastDeadlineKeepsItsPendingExpiryQuiet() = runBlocking {
+        timeoutPastDeadline(waitingForOwnership = true)
+    }
+
+    private suspend fun timeoutPastDeadline(waitingForOwnership: Boolean) = kotlinx.coroutines.coroutineScope {
+        val night = pendingForReceiver()
+        val pending = graph.repository.runtime.value.retime!!
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val holder = if (waitingForOwnership) async(start = CoroutineStart.UNDISPATCHED) {
+            graph.actions.exclusive { entered.complete(Unit); release.await() }
+        } else null
+        if (holder != null) entered.await()
+        else beforeConnect = { entered.complete(Unit); awaitCancellation() }
+        val count = writes
+        val delivery = receiverDelivery()
+        NightAlarms.cancelRetry(app)
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { if (waitingForOwnership) graph.actions.busy.value.queuedCount == 1 else entered.isCompleted }
+            atBoundary(night)
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(NightActions.OPERATION_MS + 1))
+            until { shadowOf(service).isStoppedBySelf }
+            assertEquals("A cancelled read or queue wait cannot write to the BedJet", count, writes)
+            assertEquals(night, graph.repository.activeNight.value)
+            assertEquals("Expiry still owns this durable no-write request", pending, graph.repository.runtime.value.retime)
+            assertTrue(java.io.File(app.filesDir, "runtime.json").readText().contains(pending.id))
+            assertFalse("A confirmed unchanged night must not gain an unconfirmed-change reason",
+                graph.repository.runtime.value.reason.orEmpty().contains("could not confirm"))
+            graph.repository.updateRuntime { it }
+            assertTrue("A no-write timeout stays quiet even after the deadline", graph.repository.notices.value.isEmpty())
+            assertQuiet()
+            val retry = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.single {
+                shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+            }
+            assertTrue("Schedule a future observation so the normal expiry owner can finish", retry.triggerAtTime > graph.clock.millis())
+        } finally {
+            release.complete(Unit)
+            holder?.await()
+            controller.destroy()
+            beforeConnect = {}
+        }
+        assertEquals(OutcomeKind.LOCAL, retryReceiver().kind)
+        assertEquals(count, writes)
+        assertOneExpiryNotice()
+        assertOneTerminalNotice(unknown = false)
+    }
+
+    @Test fun queuedRetimeTimeoutWithAnEmptyJournalStaysQuiet() = runBlocking {
+        val night = start()
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val holder = async(start = CoroutineStart.UNDISPATCHED) {
+            graph.actions.exclusive { entered.complete(Unit); release.await() }
+        }
+        entered.await()
+        val count = writes
+        val delivery = ServiceStartContext(app)
+        assertTrue(BedJetService.start(delivery, NightActions.Command.RETRY_RETIME, notifyFailures = true))
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { graph.actions.busy.value.queuedCount == 1 }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(NightActions.OPERATION_MS + 1))
+            until { shadowOf(service).isStoppedBySelf }
+            assertEquals(count, writes)
+            assertEquals(night, graph.repository.activeNight.value)
+            assertFalse(graph.actions.retimePending)
+            assertFalse(retryScheduled())
+            graph.repository.updateRuntime { it }
+            assertTrue("No pending work and no write means no extra information notice", graph.repository.notices.value.isEmpty())
+            assertQuiet()
+        } finally { release.complete(Unit); holder.await(); controller.destroy() }
+    }
+
+    @Test fun admittedRetimeTimeoutAfterLocalExpiryKeepsTheSingleExpiryNotice() = runBlocking {
+        val night = pendingForReceiver()
+        val entered = CompletableDeferred<Unit>()
+        beforeConnect = { entered.complete(Unit); awaitCancellation() }
+        val count = writes
+        val delivery = receiverDelivery()
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            val service = controller.get()
+            service.onStartCommand(delivery.delivered, 0, 1)
+            until { entered.isCompleted }
+            atBoundary(night)
+            graph.actions.submitAlarmChange()
+            assertOneExpiryNotice()
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(NightActions.OPERATION_MS + 1))
+            until { shadowOf(service).isStoppedBySelf }
+            graph.repository.updateRuntime { it }
+            assertEquals("The completed expiry owns the only notice for this no-write request", 1,
+                graph.repository.notices.value.size)
+            assertEquals(app.getString(R.string.runtime_retime_expired), BedJetService.lastResult)
+            assertEquals(night, graph.repository.activeNight.value)
+            assertEquals(count, writes)
+            assertOneExpiryNotice()
+        } finally { controller.destroy(); beforeConnect = {} }
     }
 
     @Test fun receiverTimeoutWaitingForOwnershipKeepsItsDurableObservationQuiet() = runBlocking {
@@ -773,6 +916,8 @@ class RetimeNotificationTest {
             assertTrue("Show the current confirmed wake, without attributing it to the timed-out request", notice.title.contains(wake))
             assertTrue(notice.text.contains("timed out"))
             assertTrue(notice.text.contains("current programme is confirmed"))
+            assertFalse("Runtime feedback must not expose the coroutine timeout implementation",
+                graph.repository.runtime.value.reason.orEmpty().contains("Timed out waiting for"))
             assertFalse(graph.actions.retimePending)
             assertFalse(retryScheduled())
             val wakeAlarm = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.single {
@@ -880,8 +1025,24 @@ class RetimeNotificationTest {
         graph.actions.submitAlarmChange()
         assertNotNull(graph.repository.runtime.value.alarmInbox)
         atBoundary(night)
-        assertEquals(OutcomeKind.LOCAL, retryService(notifyFailures = true).kind)
+        val outcome = retryService(notifyFailures = true)
+        assertEquals(OutcomeKind.LOCAL, outcome.kind)
+        assertEquals("Expiry feedback belongs to the observation consumed by this operation",
+            app.getString(R.string.runtime_retime_expired), outcome.message)
         assertOneExpiryNotice()
+    }
+
+    @Test fun anExpiryMessageCannotHideAnUnknownNightReconciliationRefusal() = runBlocking {
+        val night = start().copy(confidence = Confidence.UNKNOWN)
+        graph.repository.setActiveNight(night)
+        graph.repository.updateRuntime { it.copy(reason = app.getString(R.string.runtime_retime_expired)) }
+        val count = writes
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        assertEquals("Display text cannot make UNKNOWN state eligible or claim a fresh expiry", OutcomeKind.REFUSED, outcome.kind)
+        assertEquals(app.getString(R.string.runtime_reconcile_needed), outcome.message)
+        assertEquals(night, graph.repository.activeNight.value)
+        assertEquals(count, writes)
+        assertFalse(graph.actions.retimePending)
     }
 
     /** Transfer the real broadcast's asynchronous lifetime to the receiver under test. */

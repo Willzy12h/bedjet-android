@@ -42,6 +42,7 @@ class BedJetService : Service() {
             failure(this, e, notifyFailures); if (pending == 0) stopSelf(startId); return START_NOT_STICKY
         }
         pending++
+        val retimeExecution = RetimeExecution()
         val operation = scope.launch {
             try {
                 if (handoff != null) {
@@ -52,20 +53,26 @@ class BedJetService : Service() {
                     handoff.result.complete(value)
                     return@launch
                 }
-                val result = withTimeout(SERVICE_MS) { graph.actions.execute(request!!) }
+                val result = withTimeout(SERVICE_MS) { withContext(retimeExecution) { graph.actions.execute(request!!) } }
                 lastResult = result.message
                 // A stale re-time retry only discards obsolete work. Other stale commands still report their failure.
-                if (!result.succeeded && notifyFailures && !result.notificationHandled &&
+                if (!result.succeeded && notifyFailures && !result.notificationHandled && retimeExecution.reportedNotice == null &&
                     !(request?.command == NightActions.Command.RETRY_RETIME && result.kind == OutcomeKind.STALE))
                     Notifications.showError(this@BedJetService, getString(R.string.runtime_failed), result.message)
             } catch (e: CancellationException) {
                 handoff?.result?.cancel(e)
                 if (e is TimeoutCancellationException) {
-                    if (handoff == null && request?.command == NightActions.Command.RETRY_RETIME) {
-                        val current = graph.actions.currentConfirmedProgramme()
-                        if (graph.actions.rearmRetimeAfterTimeout(request)) {
-                            lastResult = getString(R.string.runtime_retime_pending)
-                        } else if (current != null) {
+                    if (retimeExecution.reportedNotice != null) lastResult = retimeExecution.reportedNotice
+                    else if (handoff == null && request?.command == NightActions.Command.RETRY_RETIME) {
+                        val expected = retimeExecution.identity ?: request.expected
+                        val sameNight = expected == graph.repository.activeNight.value?.identity &&
+                            request.deviceId == graph.repository.settings.value.deviceId()
+                        val quiet = if (sameNight) graph.actions.quietRetimeTimeout(expected, request.deviceId,
+                            admitted = retimeExecution.identity != null) else null
+                        val current = graph.actions.currentConfirmedProgramme()?.takeIf { sameNight }
+                        if (!sameNight) lastResult = getString(R.string.runtime_stale)
+                        else if (quiet != null) lastResult = quiet
+                        else if (current != null) {
                             // Only obsolete journal cleanup may have timed out, or another owner may have published
                             // this programme. Report current confirmation without attributing it to the timed-out request.
                             val wake = ZonedDateTime.parse(current.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
@@ -178,7 +185,8 @@ class BedJetService : Service() {
             context.graph.repository.settings.value.demoMode || command == NightActions.Command.STOP_TRACKING ||
                 context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
         private fun failure(context: Context, e: Exception, notifyFailures: Boolean = true) {
-            lastResult = e.message ?: context.getString(R.string.runtime_failed)
+            lastResult = if (e is TimeoutCancellationException) context.getString(R.string.runtime_operation_timeout)
+                else e.message ?: context.getString(R.string.runtime_failed)
             if (notifyFailures) Notifications.showError(context, context.getString(R.string.runtime_failed), lastResult.orEmpty())
         }
         fun pendingIntent(context: Context, command: NightActions.Command, profileId: String? = null): PendingIntent {

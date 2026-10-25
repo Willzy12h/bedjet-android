@@ -56,4 +56,10 @@ class OriginFeedbackTest : io.github.willzy12h.nocturne.platform.PlatformGraphFi
     @Test fun serviceTimeoutRemainsATimeoutWithoutDuplicateNotification() {
         assertTrue(serviceFailure {withTimeout(1){awaitCancellation()}} is TimeoutCancellationException)
     }
+    @Test fun serviceTimeoutUsesReadableFailureText() {
+        assertTrue(serviceFailure {withTimeout(1){awaitCancellation()}} is TimeoutCancellationException)
+        val detail = BedJetService.lastResult.orEmpty()
+        assertFalse("Coroutine implementation details must not become service feedback", detail.contains("Timed out waiting for"))
+        assertTrue("The user should still know the command timed out", detail.lowercase().contains("timed out"))
+    }
 }

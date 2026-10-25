@@ -93,6 +93,13 @@ internal class CommandOriginContext(val origin: CommandOrigin) : kotlin.coroutin
     companion object Key : kotlin.coroutines.CoroutineContext.Key<CommandOriginContext>
 }
 
+/** A queued retry may admit newer work. Cancellation belongs to the identity and notice it actually handled. */
+internal class RetimeExecution : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+    var identity: NightIdentity? = null
+    var reportedNotice: String? = null
+    companion object Key : kotlin.coroutines.CoroutineContext.Key<RetimeExecution>
+}
+
 @Serializable data class LocalDelivery(val id: String, val action: String, val expected: NightIdentity, val receivedAt: String)
 
 @Serializable data class WakeSourceChange(val expected: NightIdentity, val origin: WakeOrigin)

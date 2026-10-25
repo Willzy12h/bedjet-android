@@ -416,9 +416,10 @@ class NightActions(private val graph: Graph) {
         }
         val confirmed = sentAndConfirmed(confirms, allowCurrentStatus) {
             try { work() } catch (e: Exception) {
+                val reason = if (e is TimeoutCancellationException) text(R.string.runtime_operation_timeout) else e.message
                 withContext(NonCancellable) {
                     pending?.let { publishNight(it.copy(confidence = Confidence.UNKNOWN)) }
-                    repo.updateRuntime { it.copy(reason = e.message) }
+                    repo.updateRuntime { it.copy(reason = reason) }
                 }
                 throw e
             }
@@ -531,36 +532,39 @@ class NightActions(private val graph: Graph) {
     val retimePending: Boolean get() = repo.runtime.value.retime != null || repo.runtime.value.alarmInbox != null
     suspend fun retryPendingRetime(): String? = if (!retimePending) null else owned(label(Command.RETIME), repo.settings.value.deviceId(), MIN_BUDGET_MS,
         retimeWork = true, origin = CommandOrigin.ALARM) { consumeAlarmObservation() ?: retryRetimeLocked() }.message
+    /** Transient disposition for an expiry completed while another delivery waits. Display text is never policy. */
+    private data class RetimeExpiry(val expected: NightIdentity, val deviceId: String, val generation: Long)
+    @Volatile private var lastRetimeExpiry: RetimeExpiry? = null
+    private fun retimeWasExpired(night: ActiveNight): Boolean = lastRetimeExpiry?.let {
+        night.confidence == Confidence.CONFIRMED && it.expected == night.identity && it.deviceId == night.deviceId &&
+            it.deviceId == repo.settings.value.deviceId() && it.generation == repo.runtime.value.generation
+    } == true
     /** This describes the current programme only; it never credits a timed-out request with a successful change. */
     internal fun currentConfirmedProgramme(): ActiveNight? = repo.activeNight.value?.takeIf {
         it.confidence == Confidence.CONFIRMED && !it.trackingManual &&
             it.deviceId == repo.settings.value.deviceId() && !hasUnfinishedReplacement(it)
     }
-    /** A timeout is quiet only while this captured night still has safe, durable work and a newly armed delivery.
-     * An observation can outlive the ownership wait before it has become a PendingRetime. Neither case permits
-     * replay after a possible write: the runner then publishes UNKNOWN, which fails these checks. */
-    internal fun rearmRetimeAfterTimeout(request: CommandRequest): Boolean {
-        val night = repo.activeNight.value ?: return false
-        val target = repo.settings.value.deviceId()
-        if (request.expected != night.identity || request.deviceId != target) return false
-        repo.runtime.value.retime?.takeIf(::canRetryRetime)?.let {
-            NightAlarms.scheduleRetry(context, it, graph.now())
-            return true
+    /** Quietly return a no-write timeout to the matching eligibility or expiry owner, including a due deadline. */
+    internal fun quietRetimeTimeout(expected: NightIdentity?, target: String?, admitted: Boolean): String? {
+        val night = repo.activeNight.value ?: return null
+        if (night.identity != expected || night.deviceId != target || repo.settings.value.deviceId() != target) return null
+        // A queued delivery never reached BLE. After admission, an unchanged confirmed programme is required;
+        // a possible write publishes UNKNOWN and must receive its own terminal notice instead.
+        val unchanged = night.confidence == Confidence.CONFIRMED && !night.trackingManual && !hasUnfinishedReplacement(night)
+        if (admitted && !unchanged) return null
+        val runtime = repo.runtime.value
+        val now = graph.now()
+        val pending = runtime.retime?.takeIf { it.expected == expected && it.deviceId == target }
+        val observed = runtime.alarmInbox?.let { it.nightId == night.recordId && it.deviceId == target } == true
+        when {
+            pending != null && now.isBefore(ZonedDateTime.parse(pending.deadline)) -> NightAlarms.scheduleRetry(context, pending, now)
+            // scheduleRetry cancels a due deadline. A future observation lets normal expiry own its sole notice.
+            pending != null || observed -> NightAlarms.scheduleObservation(context, now)
+            unchanged && runtime.retime == null && runtime.alarmInbox == null -> return text(
+                if (retimeWasExpired(night)) R.string.runtime_retime_expired else R.string.runtime_unchanged)
+            else -> return null
         }
-        if (night.confidence != Confidence.CONFIRMED || night.trackingManual || night.wakeOrigin == WakeOrigin.OVERRIDE ||
-            hasUnfinishedReplacement(night) || night.deviceId != target ||
-            !graph.now().isBefore(ZonedDateTime.parse(night.wakeUpStart))) return false
-        val observed = repo.runtime.value.alarmInbox ?: return false
-        if (observed.nightId != night.recordId || observed.deviceId != target) return false
-        NightAlarms.scheduleObservation(context, graph.now())
-        return true
-    }
-    private fun canRetryRetime(pending: PendingRetime): Boolean {
-        val night = repo.activeNight.value ?: return false
-        return repo.runtime.value.retime?.id == pending.id && night.identity == pending.expected &&
-            night.confidence == Confidence.CONFIRMED && !night.trackingManual && night.wakeOrigin != WakeOrigin.OVERRIDE &&
-            !hasUnfinishedReplacement(night) && pending.deviceId == repo.settings.value.deviceId() && night.deviceId == pending.deviceId &&
-            graph.now().isBefore(ZonedDateTime.parse(pending.deadline)) && graph.now().isBefore(ZonedDateTime.parse(night.wakeUpStart))
+        return text(R.string.runtime_retime_pending)
     }
     /** Cancel only the settled request's delivery; a separately saved observation still needs its own retry. */
     private fun settleRetimeAlarm(pendingId: String?) {
@@ -606,20 +610,22 @@ class NightActions(private val graph: Graph) {
     private suspend fun consumeAlarmObservation(): CommandOutcome? {
         val observed = repo.runtime.value.alarmInbox ?: return null
         val night = repo.activeNight.value
+        var expiry: RetimeExpiry? = null
         val outcome = if (night?.recordId == observed.nightId && repo.settings.value.deviceId() == observed.deviceId) {
             if (!graph.now().isBefore(ZonedDateTime.parse(night.wakeUpStart))) {
-                expireRetimeFor(night.recordId)
-                null
+                expiry = expireRetimeFor(night.recordId)
+                expiry?.let { local(R.string.runtime_retime_expired) }
             } else queueRetimeLocked()
         } else null
         repo.updateRuntime { if (it.alarmInbox?.id == observed.id) it.copy(alarmInbox = null) else it }
         if (!retimePending) NightAlarms.cancelRetry(context)
         // Keep the terminal notice's outcome, so an explicit service retry cannot report the same refusal twice.
-        return outcome?.takeIf { it.notificationHandled }
+        return outcome?.takeIf { it.notificationHandled || expiry != null }
     }
     /** Atomically consume the real pending change; repeated observations/retries cannot post duplicate expiry notices. */
-    private suspend fun expireRetimeFor(nightId: String) {
+    private suspend fun expireRetimeFor(nightId: String): RetimeExpiry? {
         var expired = false
+        var disposition: RetimeExpiry? = null
         repo.updateRuntime { runtime ->
             val active = repo.activeNight.value?.takeIf { it.recordId == nightId }
             // An alarm observation does not own an in-flight re-time. START may already have been sent;
@@ -629,9 +635,11 @@ class NightActions(private val graph: Graph) {
             val pending = runtime.retime?.takeIf { it.expected.nightId == nightId }
             expired = pending != null && active?.identity == pending.expected && active.confidence == Confidence.CONFIRMED
             val observed = runtime.alarmInbox?.nightId == nightId
+            if (expired || (pending == null && observed && active?.confidence == Confidence.CONFIRMED))
+                disposition = RetimeExpiry(active!!.identity, active.deviceId, runtime.generation)
             // Publication can win this race: an old revision's request says nothing about a new or uncertain start.
             val reason = when {
-                expired || (pending == null && observed && active?.confidence == Confidence.CONFIRMED) -> text(R.string.runtime_retime_expired)
+                disposition != null -> text(R.string.runtime_retime_expired)
                 pending != null && active?.confidence == Confidence.CONFIRMED && active.identity != pending.expected -> null
                 else -> runtime.reason
             }
@@ -639,8 +647,13 @@ class NightActions(private val graph: Graph) {
                 alarmInbox = runtime.alarmInbox?.takeUnless { it.nightId == nightId },
                 reason = reason)
         }
+        disposition?.let { lastRetimeExpiry = it }
         if (!retimePending) NightAlarms.cancelRetry(context)
-        if (expired) Notifications.showError(context, text(R.string.runtime_retime_expired), text(R.string.runtime_retime_expired_detail))
+        if (expired) {
+            Notifications.showError(context, text(R.string.runtime_retime_expired), text(R.string.runtime_retime_expired_detail))
+            currentCoroutineContext()[RetimeExecution]?.reportedNotice = text(R.string.runtime_retime_expired)
+        }
+        return disposition
     }
     /** A Boost that displaced [night] and may have run. An old FAILED entry wrote nothing (IR-06). */
     private fun hasUnfinishedReplacement(night: ActiveNight): Boolean =
@@ -664,6 +677,7 @@ class NightActions(private val graph: Graph) {
         val pending = PendingRetime(UUID.randomUUID().toString(), n.identity, repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target),
             alarm?.time?.toString(), alarm?.creator, deadline.toString())
         repo.updateRuntime { it.copy(retime = pending, reason = text(R.string.runtime_retime_pending)) }
+        if (repo.runtime.value.retime?.id == pending.id) lastRetimeExpiry = null
         NightAlarms.scheduleRetry(context, pending, graph.now())
         return CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_retime_pending))
     }
@@ -677,11 +691,12 @@ class NightActions(private val graph: Graph) {
         return notifyRetimeFailure(outcome)
     }
     private suspend fun retryRetimeLocked(): CommandOutcome {
+        val execution = currentCoroutineContext()[RetimeExecution]
         val pending = repo.runtime.value.retime ?: return when {
-            repo.runtime.value.reason == text(R.string.runtime_retime_expired) -> local(R.string.runtime_retime_expired)
             repo.activeNight.value == null -> refused(R.string.runtime_no_night)
             repo.activeNight.value?.let { it.confidence != Confidence.CONFIRMED || hasUnfinishedReplacement(it) } == true -> refused(R.string.runtime_reconcile_needed)
             repo.activeNight.value?.trackingManual == true -> refused(R.string.runtime_manual_tracking)
+            repo.activeNight.value?.let(::retimeWasExpired) == true -> local(R.string.runtime_retime_expired)
             else -> local(R.string.runtime_unchanged)
         }
         val n = repo.activeNight.value
@@ -710,15 +725,19 @@ class NightActions(private val graph: Graph) {
             // A background retry has no screen to show the refusal, so the wake-up change isn't dropped silently (IR-03).
             return notifyRetimeFailure(refusal)
         }
-        var intended: ActiveNight? = null
+        execution?.identity = pending.expected
+        var preparedChange: PreparedChange? = null
         return try {
             connected {
                 // A remote Off or manual change may have happened while disconnected. A local
                 // CONFIRMED night is not evidence that the BedJet is still running our programme.
-                takeoverBeforeRewrite(n)?.let { return@connected it }
+                takeoverBeforeRewrite(n)?.let {
+                    if (it.notificationHandled) execution?.reportedNotice = it.message
+                    return@connected it
+                }
                 val preparation = graph.runner().prepareRetime(n, pending.expected, pending.alarmAt?.let(ZonedDateTime::parse),
                     ZonedDateTime.parse(pending.deadline), repo.profile(n.profileId), repo.settings.value, pending.alarmOrigin)
-                intended = (preparation as? Preparation.Ready)?.change?.intended
+                preparedChange = (preparation as? Preparation.Ready)?.change
                 if (!graph.now().isBefore(ZonedDateTime.parse(pending.deadline))) {
                     expireRetimeFor(pending.expected.nightId)
                     return@connected local(R.string.runtime_retime_expired)
@@ -729,6 +748,7 @@ class NightActions(private val graph: Graph) {
                         // behind transaction ownership. Reconnect to demand a fresh hardware report.
                         if (!matchesCurrentProgramme(n, freshStatus(), graph.now())) throw RetimeTakeover()
                     })
+                if (result.notificationHandled) execution?.reportedNotice = result.message
                 val current = repo.activeNight.value
                 if (result.kind == OutcomeKind.FAILED && current?.identity == pending.expected && current.confidence == Confidence.CONFIRMED) {
                     // IR-05: it failed before writing and the night runs on unchanged, so the change is tried
@@ -747,20 +767,28 @@ class NightActions(private val graph: Graph) {
             }
         } catch (e: CancellationException) {
             val current = repo.activeNight.value
-            if (e is TimeoutCancellationException && current != null && current.identity == intended?.identity && current.confidence == Confidence.CONFIRMED) {
+            val change = preparedChange
+            if (e is TimeoutCancellationException && current != null && current.identity == change?.intended?.identity && current.confidence == Confidence.CONFIRMED) {
                 withContext(NonCancellable) {
                     try {
                         withTimeout(8_000) {
-                            settleConfirmedRetime(pending, current, text(R.string.runtime_retime_record_incomplete, e.message.orEmpty()))
+                            settleConfirmedRetime(pending, current, text(R.string.runtime_retime_record_incomplete,
+                                text(R.string.runtime_operation_timeout)))
                         }
                     } catch (cleanup: Exception) { e.addSuppressed(cleanup) }
+                    val detail = text(R.string.runtime_retime_timeout_current_confirmed)
+                    Notifications.showInfo(context, text(R.string.runtime_retime_timeout_current_wake, clock(current.wakeAt)), detail)
+                    execution?.reportedNotice = detail
                 }
-            } else if (e is TimeoutCancellationException && !canRetryRetime(pending)) {
+            } else if (e is TimeoutCancellationException && change != null && current?.identity == pending.expected &&
+                current.confidence == Confidence.UNKNOWN && current.pending?.requestId == change.request.requestId) {
+                // Only this request's possible write is terminal. A confirmed no-write timeout retains its
+                // journal even past the deadline, so the observation/expiry path still owns its one notice.
                 withContext(NonCancellable) {
                     try {
                         withTimeout(8_000) {
                             repo.updateRuntime { if (it.retime?.id == pending.id)
-                                it.copy(retime = null, reason = text(R.string.runtime_retime_timeout_detail)) else it }
+                                it.copy(retime = null, reason = execution?.reportedNotice ?: text(R.string.runtime_retime_timeout_detail)) else it }
                         }
                     } catch (cleanup: Exception) { e.addSuppressed(cleanup)
                     } finally { settleRetimeAlarm(pending.id) }
@@ -771,7 +799,7 @@ class NightActions(private val graph: Graph) {
             val current = repo.activeNight.value
             // Publication of this prepared revision proves the BedJet confirmed it. A later local save failure
             // cannot turn that into a failed change, nor credit some unrelated CONFIRMED revision to this request.
-            if (current != null && current.identity == intended?.identity && current.confidence == Confidence.CONFIRMED) {
+            if (current != null && current.identity == preparedChange?.intended?.identity && current.confidence == Confidence.CONFIRMED) {
                 val detail = text(R.string.runtime_retime_record_incomplete, e.message ?: text(R.string.runtime_failed))
                 settleConfirmedRetime(pending, current, detail)
                 Notifications.showInfo(context, text(R.string.runtime_moved_title, clock(current.wakeAt)), detail)
@@ -819,12 +847,13 @@ class NightActions(private val graph: Graph) {
         }
     }
     /** Terminal re-time failures own their notice; routine retries and already-reported outcomes stay quiet. */
-    private fun notifyRetimeFailure(outcome: CommandOutcome): CommandOutcome {
+    private suspend fun notifyRetimeFailure(outcome: CommandOutcome): CommandOutcome {
         if (outcome.succeeded || outcome.kind == OutcomeKind.STALE || outcome.notificationHandled) return outcome
         val unknown = outcome.kind == OutcomeKind.UNKNOWN || repo.activeNight.value?.confidence == Confidence.UNKNOWN
         val title = if (!unknown && outcome.kind == OutcomeKind.REFUSED) R.string.runtime_retime_refused else R.string.runtime_retime_failed
         val detail = if (unknown) text(R.string.runtime_retime_unknown_detail, outcome.message) else outcome.message
         Notifications.showError(context, text(title), detail)
+        currentCoroutineContext()[RetimeExecution]?.reportedNotice = detail
         return outcome.copy(notificationHandled = true)
     }
     private suspend fun resumeLocked(): CommandOutcome {
@@ -1110,14 +1139,15 @@ class NightActions(private val graph: Graph) {
             repo.updateRuntime { it.copy(slotWrite = intent.copy(confidence = Confidence.CONFIRMED)) }
             return CommandOutcome(OutcomeKind.CONFIRMED, label)
         } catch (e: Exception) {
+            val reason = if (e is TimeoutCancellationException) text(R.string.runtime_operation_timeout) else e.message
             withContext(NonCancellable) {
                 if (!writing) {
                     // IR-05/IR-06: nothing reached the BedJet after a backup failure. Keep the error message, but leave
                     // the journal and the running night as they were: no false uncertain intent, no FAILED night.
                     repo.updateRuntime { it.copy(slotWrite = earlier?.takeIf { w -> w.confidence == Confidence.PENDING || w.confidence == Confidence.UNKNOWN },
-                        reason = e.message) }
+                        reason = reason) }
                 } else {
-                    repo.updateRuntime { it.copy(slotWrite = intent.copy(confidence = Confidence.UNKNOWN), reason = e.message) }
+                    repo.updateRuntime { it.copy(slotWrite = intent.copy(confidence = Confidence.UNKNOWN), reason = reason) }
                     if (start) repo.activeNight.value?.let { publishNight(it.copy(confidence = Confidence.UNKNOWN)) }
                 }
             }

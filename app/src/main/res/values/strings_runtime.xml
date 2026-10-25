@@ -4,6 +4,7 @@
     <string name="runtime_stale">This action belongs to an older night. Open Nocturne for current controls.</string>
     <string name="runtime_choose_target">Choose a BedJet in setup first.</string>
     <string name="runtime_failed">The command did not finish.</string>
+    <string name="runtime_operation_timeout">The command timed out. Check the BedJet before trying again.</string>
     <string name="runtime_slot_backups_unreadable">Saved slot originals are unreadable. Restore a backup of this BedJet\'s slot before writing it.</string>
     <string name="runtime_retime_refused">The wake-up change wasn\'t applied.</string>
     <string name="runtime_retime_failed">The wake-up change did not finish.</string>
