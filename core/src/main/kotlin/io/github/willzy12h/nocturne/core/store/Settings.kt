@@ -55,7 +55,7 @@ data class Settings(
     val scheduledDarkMinute: Int = 22 * 60,
     val scheduledLightMinute: Int = 7 * 60,
     /** Tonight shows the night as a list of steps instead of the bar curve. */
-    val simpleView: Boolean = false,
+    val simpleView: Boolean = true,
     val quickControlsCollapsed: Boolean = false,
     /** Stable section IDs; unknown, repeated and missing IDs are normalised when displayed. */
     val tonightSectionOrder: List<String> = listOf("night", "wake", "connection"),
