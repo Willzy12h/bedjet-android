@@ -63,7 +63,7 @@ data class Profile(
 )
 
 @Serializable
-enum class Block { START, MIDDLE, WAKE, AFTER_WAKE }
+enum class Block { START, MIDDLE, WAKE, AFTER_WAKE, TEMPORARY }
 
 data class PlannedStep(val block: Block, val step: ProgramStep, val startsAt: ZonedDateTime, val minutes: Int) {
     val endsAt: ZonedDateTime get() = startsAt.plusMinutes(minutes.toLong())

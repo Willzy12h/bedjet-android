@@ -5,6 +5,7 @@ import io.github.willzy12h.nocturne.core.plan.AlarmPolicy
 import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Plan
+import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
 import io.github.willzy12h.nocturne.core.plan.PlanException
 import io.github.willzy12h.nocturne.core.plan.RetryablePlanException
@@ -16,6 +17,7 @@ import io.github.willzy12h.nocturne.core.plan.TurboChain
 import io.github.willzy12h.nocturne.core.plan.WakeChoice
 import io.github.willzy12h.nocturne.core.plan.WakeResolver
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.ActionPreset
@@ -27,14 +29,64 @@ import io.github.willzy12h.nocturne.core.store.RecordedStep
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import java.time.Duration
+import java.time.DateTimeException
 import java.time.ZonedDateTime
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 /** Starts, re-times and interrupts nights on a BedJet. Everything here is what the buttons, widgets and alarms do. */
 class NightRunner(private val controller: BedJetController, private val now: () -> ZonedDateTime) {
+    private class StaleApplication(val expected: NightIdentity?, val actual: NightIdentity?) : Exception()
+
+    /** Prepare one complete on-device programme; returning to the night needs no later phone command. */
+    fun prepareTemporary(night: ActiveNight, expected: NightIdentity, preset: ActionPreset): Preparation {
+        if (night.identity != expected) return Preparation.Stale(expected, night.identity)
+        fun refused(reason: TemporaryRefusal) = Preparation.Refused("", temporaryRefusal = reason)
+        if (night.actualEnd != null) return refused(TemporaryRefusal.ENDED)
+        if (night.confidence != Confidence.CONFIRMED || night.pending != null) return refused(TemporaryRefusal.NOT_CONFIRMED)
+        if (night.trackingManual) return refused(TemporaryRefusal.MANUAL)
+        val profile = night.profile ?: return refused(TemporaryRefusal.MISSING_SNAPSHOT)
+        val base = night.temporary?.base ?: night.applied
+        if (!hasTemporarySnapshot(night, base)) return refused(TemporaryRefusal.MISSING_SNAPSHOT)
+        if (preset.mode in setOf(Mode.STANDBY, Mode.WAIT) || preset.minutes !in 1..120 ||
+            (preset.mode == Mode.TURBO && preset.minutes > 30) || preset.fanPercent !in 5..100 || preset.temperature !in 38..86)
+            return refused(TemporaryRefusal.INVALID_PRESET)
+        val time = now()
+        if (!time.isBefore(ZonedDateTime.parse(night.wakeUpStart))) return refused(TemporaryRefusal.TOO_CLOSE_TO_WAKE)
+        return try {
+            val composed = TemporaryProgramme.prepare(profile, base, time, preset)
+            val revision = night.revision + 1
+            val intended = night.copy(revision = revision, applied = AppliedProgram.from(composed.plan, revision),
+                temporary = composed.temporary, confidence = Confidence.CONFIRMED, pending = null,
+                wakeUpStart = composed.plan.wakeUpStart.toString(), endsAt = composed.plan.end.toString())
+            val request = PendingChange(UUID.randomUUID().toString(), ChangeKind.TEMPORARY, night.wakeAt,
+                time.toString(), time.plusMinutes(1).toString(), expected)
+            Preparation.Ready(PreparedChange(composed.plan, intended, night, request))
+        } catch (e: TemporaryProgramme.Refusal) { refused(e.reason)
+        } catch (_: PlanException) { refused(TemporaryRefusal.PROFILE_LIMITS) }
+    }
+
+    /** Runtime JSON can be syntactically valid while its dates are not. A pure preview must fail closed. */
+    private fun hasTemporarySnapshot(night: ActiveNight, base: AppliedProgram): Boolean = try {
+        val snapshots = listOf(night.applied, base)
+        if (snapshots.any { it.steps.isEmpty() || it.steps.size > Limits.STEPS_PER_PROGRAM || it.programSteps.size != it.steps.size }) false
+        else {
+            listOf(night.startedAt, night.wakeAt, night.wakeUpStart, night.endsAt).forEach { ZonedDateTime.parse(it) }
+            val plansAvailable = snapshots.all { it.plan() != null }
+            val temporaryDatesAvailable = night.temporary?.let { temporary ->
+                if (temporary.steps.isEmpty() || temporary.steps.size > Limits.STEPS_PER_PROGRAM) false
+                else {
+                    ZonedDateTime.parse(temporary.until)
+                    temporary.steps.forEach { ZonedDateTime.parse(it.startsAt).plusMinutes(it.minutes.toLong()) }
+                    true
+                }
+            } ?: true
+            plansAvailable && temporaryDatesAvailable
+        }
+    } catch (_: DateTimeException) { false }
 
     fun prepareStart(profile: Profile, alarm: ZonedDateTime?, slot: Int, deviceId: String,
         expected: NightIdentity?, current: ActiveNight?, override: TonightOverride? = null,
@@ -86,8 +138,9 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         val length = Duration.between(ZonedDateTime.parse(night.startedAt), wake)
         if (length < WakeResolver.MIN_NIGHT || length > WakeResolver.MAX_NIGHT || !wake.isAfter(time)) return Preparation.Refused("A night must last 1–16 hours. Set a tonight-only wake time.")
         return try {
-            val original = night.activePlan(profile) ?: return Preparation.Refused("The applied programme is unavailable.")
-            val plan = if (kind == ChangeKind.REAPPLY) {
+            val original = night.temporary?.base?.plan() ?: night.activePlan(profile)
+                ?: return Preparation.Refused("The applied programme is unavailable.")
+            val base = if (kind == ChangeKind.REAPPLY) {
                 var elapsed = Duration.between(ZonedDateTime.parse(night.startedAt), time).toMinutes().toInt()
                 val remaining = profile.start.mapNotNull { phase ->
                     val skipped = minOf(elapsed.coerceAtLeast(0), phase.minutes)
@@ -97,11 +150,16 @@ class NightRunner(private val controller: BedJetController, private val now: () 
                 PlanCompiler.compile(profile.copy(start = remaining), time, wake)
             } else PlanCompiler.replan(profile, original, time, wake) ?: return Preparation.Refused("Tonight's wake-up has already started.")
             val revision = night.revision + 1
+            val composed = night.temporary?.takeIf { time.isBefore(ZonedDateTime.parse(it.until)) }
+                ?.let { TemporaryProgramme.replan(profile, base, it, time, revision) }
+                ?: TemporaryProgramme.Composition(base, null)
+            val plan = composed.plan
             val intended = night.copy(profile = profile, profileId = profile.id, wakeAt = wake.toString(),
                 wakeFromAlarm = origin == WakeOrigin.ALARM, wakeOrigin = origin, revision = revision,
                 wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(), applied = AppliedProgram.from(plan, revision),
-                confidence = Confidence.CONFIRMED, pending = null)
+                confidence = Confidence.CONFIRMED, pending = null, temporary = composed.temporary)
             Preparation.Ready(PreparedChange(plan, intended, night, request))
+        } catch (e: TemporaryProgramme.Refusal) { Preparation.Refused("", temporaryRefusal = e.reason)
         } catch (e: PlanException) { Preparation.Refused(e.message.orEmpty()) }
     }
 
@@ -143,7 +201,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             val plan = Plan(now.withSecond(0).withNano(0), ZonedDateTime.parse(offer.night.wakeAt), steps)
             val revision = offer.night.revision + 1
             val intended = offer.night.copy(revision = revision, applied = AppliedProgram.from(plan, revision),
-                wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(), confidence = Confidence.CONFIRMED, actualEnd = null, pending = null)
+                wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(), confidence = Confidence.CONFIRMED,
+                actualEnd = null, pending = null, temporary = null)
             // The offer may outlive tonight's wake; execution must satisfy both boundaries too.
             val deadline = minOf(ZonedDateTime.parse(offer.expiresAt), wake)
             val request = PendingChange(UUID.randomUUID().toString(), ChangeKind.RESUME, intended.wakeAt, now.toString(), deadline.toString(), null)
@@ -167,40 +226,53 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         // What is running now; a failure before any write publishes it back unchanged, whatever its confidence (IR-05).
         val before = current()
         val pending = change.pendingNight
-        publish(pending)
         var writeMayHaveHappened = false
         var startMayHaveHappened = false
-        try {
-            beforeWrite()
+        fun ownsPending(night: ActiveNight?): Boolean = night?.identity == pending.identity &&
+            night.confidence == Confidence.PENDING && night.pending?.requestId == change.request.requestId
+        fun checkOwnership() {
             val latest = current()
-            val expectedIdentity = change.request.expected
-            // A callback may publish this request's pending start state; no other identity is accepted.
-            val ownPendingStart = expectedIdentity == null && latest?.recordId == change.intended.recordId && latest.pending?.requestId == change.request.requestId
-            if (latest?.identity != expectedIdentity && !ownPendingStart) return NightMutation.Stale(expectedIdentity, latest?.identity)
-            if (change.expectedCommand != null && change.expectedCommand != commandVersion()) return NightMutation.Stale(expectedIdentity, latest?.identity)
+            // The unchanged snapshot also supports read-only owners; a different request never does.
+            if ((latest != before && !ownsPending(latest)) ||
+                (change.expectedCommand != null && change.expectedCommand != commandVersion()))
+                throw StaleApplication(change.request.expected, latest?.identity)
+        }
+        try {
+            // Publication can commit and then throw cancellation while returning from the durable writer.
+            publish(pending)
+            beforeWrite()
+            checkOwnership()
             // Backing up/persisting may have consumed the remaining request lifetime.
             checkExecutionTime(change)
             writeMayHaveHappened = true
             controller.store(StoredProgram(change.intended.profile!!.name, change.plan.programSteps), change.intended.slot)
+            checkOwnership()
             checkExecutionTime(change)
             controller.startProgram(change.intended.slot, onStartAttempt = { startMayHaveHappened = true },
-                beforePrepare = { afterWrite(); checkExecutionTime(change) }) {
+                beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change) }) {
+                checkOwnership()
                 checkExecutionTime(change)
             }
             publish(change.intended)
             return NightMutation.Applied(change.plan, change.intended)
         } catch (e: Exception) {
-            // A failed backup has not touched the unit. Restore the night that was there, confirmed or not,
-            // instead of turning it into a failed replacement (IR-05).
-            if (!writeMayHaveHappened && before != null) {
-                withContext(NonCancellable) { publish(before) }
+            // A committed confirmation stays authoritative even when returning from its writer was cancelled.
+            if (current() == change.intended && change.intended.confidence == Confidence.CONFIRMED) {
                 if (e is CancellationException) throw e
-                return NightMutation.Failed(before, e, nothingWritten = true)
+                return NightMutation.Applied(change.plan, change.intended)
             }
-            val failed = pending.copy(confidence = if (writeMayHaveHappened &&
-                    (change.request.kind != ChangeKind.START || change.previous != null || startMayHaveHappened || e is CancellationException)) Confidence.UNKNOWN else Confidence.FAILED)
-            withContext(NonCancellable) { publish(failed) }
+            // Restore a known pre-write state, otherwise retain this exact request's uncertain intention.
+            val failed = if (!writeMayHaveHappened && before != null) before else pending.copy(confidence =
+                if (writeMayHaveHappened && (change.request.kind != ChangeKind.START || change.previous != null ||
+                        startMayHaveHappened || e is CancellationException)) Confidence.UNKNOWN else Confidence.FAILED)
+            try {
+                withContext(NonCancellable) { withTimeout(8_000) {
+                    val latest = current()
+                    if (ownsPending(latest) || (!writeMayHaveHappened && latest == before)) publish(failed)
+                } }
+            } catch (cleanup: Exception) { if (cleanup !== e) e.addSuppressed(cleanup) }
             if (e is CancellationException) throw e
+            if (e is StaleApplication) return NightMutation.Stale(e.expected, e.actual)
             return NightMutation.Failed(failed, e, nothingWritten = !writeMayHaveHappened)
         }
     }
@@ -209,14 +281,18 @@ class NightRunner(private val controller: BedJetController, private val now: () 
     private fun checkExecutionTime(change: PreparedChange) {
         val time = now()
         if (!time.isBefore(ZonedDateTime.parse(change.request.deadline))) throw PlanException("This request has expired.")
-        if ((change.request.kind == ChangeKind.RETIME || change.request.kind == ChangeKind.REAPPLY) &&
+        val rewrite = change.request.kind in setOf(ChangeKind.RETIME, ChangeKind.REAPPLY, ChangeKind.TEMPORARY)
+        if (rewrite &&
             change.previous != null && !time.isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) {
             throw PlanException("Tonight's wake-up has already started.")
         }
         // IR-10: the new plan's own wake-up start too, which is earlier than the old one when the alarm moved earlier.
         // Start and Resume are left out: a start is compiled moments before, and a resume may continue a wake-up.
-        if ((change.request.kind == ChangeKind.RETIME || change.request.kind == ChangeKind.REAPPLY) &&
+        if (rewrite &&
             !time.isBefore(change.plan.wakeUpStart)) throw PlanException("Tonight's wake-up has already started.")
+        // A fresh preparation may continue Heat or the underlying night, but this elapsed prefix cannot restart.
+        if (change.plan.steps.firstOrNull { it.block == Block.TEMPORARY }?.let { !time.isBefore(it.endsAt) } == true)
+            throw RetryablePlanException("This request has expired.")
         // Clock-time BedJet steps wrap to tomorrow once their programmed end has passed.
         // Recheck the new plan after uploads and clock sync, including a safe write margin.
         if (change.plan.steps.any { it.step.endsAtClockTime && !time.isBefore(it.endsAt.minusMinutes(PlanCompiler.MIN_CLOCK_TIME_STEP.toLong())) }) {

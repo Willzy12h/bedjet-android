@@ -68,7 +68,6 @@ data class AlarmExplanation(
             }
             val state = when {
                 night == null -> WakeExplanationState.PREVIEW
-                // Manual tracking describes a confirmed run; it must never conceal uncertainty.
                 confidence == Confidence.PENDING -> WakeExplanationState.PENDING
                 confidence == Confidence.FAILED -> WakeExplanationState.FAILED
                 confidence != Confidence.CONFIRMED -> WakeExplanationState.UNKNOWN
@@ -132,7 +131,6 @@ fun AlarmExplanation.description(context: Context): String {
             else -> R.string.alarm_source_saved_profile
         }
     }, wake)
-    // An override needs no current alarm; keep the saved state's confidence wording.
     if (reason == AlarmReason.OVERRIDE && alarm == null) return saved
     val current = when {
         alarm == null -> text(R.string.alarm_source_none)

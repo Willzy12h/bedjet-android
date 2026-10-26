@@ -15,6 +15,12 @@ These are source constraints and unmeasured assumptions, not physical findings. 
 
 Use the [release instructions](release-instructions.md) to identify the APK, then follow the [supervised Samsung + BedJet acceptance plan](samsung-bedjet-acceptance.md). Keep an independent wake alarm.
 
+## fixes2 alarm and BLE acceptance boundary
+
+Android exposes only the next upcoming alarm-clock event through [`AlarmManager.getNextAlarmClock()`](https://developer.android.com/reference/android/app/AlarmManager#getNextAlarmClock()), not a list of alarms. Rejecting that event cannot reveal a later Samsung alarm through this API. The new Tonight source line and exported alarm reason distinguish unknown/disallowed source, tonight’s one-to-sixteen-hour window, profile opt-out, override and no exposed alarm. A null creator is rejected only if the saved unknown-source option is off; its existing default remains true. These are code-supported explanations, not a diagnosis of a particular phone. See [fixes2 alarm evidence](fixes2-alarm-evidence.md).
+
+The 30-second idle disconnect and foreground status limit are host-tested policy. Actual battery savings, reconnect delay, notification rate, Samsung background scheduling and TalkBack output remain **NOT RUN**. During app-switch reconnect the same target’s last reported Remote data stays visible; it cannot confirm a command or enable controls before a current report. See [BLE before/after](fixes2-ble-behaviour.md) and the [phone-test guide](phone-test-guide.md).
+
 ## Data, background work and presentation
 
 | ID | Remaining limitation | Pinned source evidence | Acceptance |

@@ -14,6 +14,8 @@ import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.*
 import io.github.willzy12h.nocturne.service.BedJetService
+import io.github.willzy12h.nocturne.ui.captureQuickAction
+import io.github.willzy12h.nocturne.ui.showTemporaryActionDialog
 import java.time.format.DateTimeFormatter
 
 /** Private, explicit widget/reminder preview. Existing-night identity comes from the rendered widget intent. */
@@ -37,6 +39,13 @@ class PlatformActionActivity : ComponentActivity() {
         val replacement=ReplacementPolicy.decide(command,repo.activeNight.value).needsConfirmation
         if (command != NightActions.Command.START_NIGHT && !replacement) {
             runRequest(request, false)
+            return
+        }
+        if (replacement) captureQuickAction(graph, request.copy(origin = CommandOrigin.WIDGET))?.let { captured ->
+            showTemporaryActionDialog(this, graph, captured, R.string.feature_cancel,
+                openTonight = { startActivity(NightTileService.openIntent(this)); finish() }) { selected ->
+                runRequest(selected, selected.replacementConfirmed)
+            }
             return
         }
         val description=if (command == NightActions.Command.START_NIGHT) {

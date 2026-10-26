@@ -16,7 +16,7 @@ These are API contracts, not measurements of the owner's Samsung phone. In parti
 
 `night/AlarmSource.kt` reads `AlarmManager.nextAlarmClock` and obtains the nullable `info.showIntent?.creatorPackage`. Its `counts` flag checks only source acceptance. `core/plan/NightPreview.kt` then uses `AlarmPolicy.accept` to check the source and the night window before selecting the alarm. Exact durations of one and sixteen hours are accepted; shorter or longer durations are rejected. At Start, the anchor is the current start time. A running night's re-time anchors the window to its original start.
 
-The baseline `Settings.acceptUnknownAlarmSource` default is `true`. An explicit `acceptUnknownAlarmSource = false` rejects a missing creator, even if the owner expects the event to be a Samsung alarm. A known Samsung package, `com.sec.android.app.clockpackage`, is in the default allow-list. The profile's `useAlarm = false`, a valid tonight-only override, an unapproved source and an out-of-window event are separate reasons for a profile or override wake.
+`acceptUnknownAlarmSource = false` rejects a missing creator, even if the owner expects the event to be a Samsung alarm. The persisted setting defaults to true; the null-creator rejection applies when it is off. A known Samsung package, `com.sec.android.app.clockpackage`, is in the default allow-list. The profile's `useAlarm = false`, a valid tonight-only override, an unapproved source and an out-of-window event are separate reasons for a profile or override wake.
 
 The baseline Tonight screen shows a warning for an unapproved creator and a note for some missing alarms, but has no consistent explanation beneath the wake. It does not explain an accepted-source alarm outside the window. Running nights keep the stored `wakeAt`, which can differ from the currently exposed alarm while a change is pending, failed or not yet observed. The stored night has an origin enum but no permanent creator package, so a current creator must not be presented as the historical source of a saved wake.
 
@@ -24,7 +24,7 @@ The baseline Tonight screen shows a warning for an unapproved creator and a note
 
 [AlarmExplanation](../../app/src/main/kotlin/io/github/willzy12h/nocturne/night/AlarmExplanation.kt) supplies the decision for both the small Tonight line and the diagnostics helper. It calls the existing `AlarmPolicy.acceptsSource` and `AlarmPolicy.accept` methods; no core policy, default, allow-list or window boundary is changed. Current settings are checked again rather than trusting an older `NextAlarm.counts` value.
 
-The decision is separate from the wake state. `ELIGIBLE` means the current alarm passes the current profile/source/window policy, not that a running BedJet has applied it. Preview wording can say “used”; running wording names the saved wake and then the current observation. Matching current/saved alarm times are labelled as matching, without claiming the current creator is historical provenance. Pending, failed, unknown and manual states have explicit descriptions. Running decisions prefer the saved profile snapshot and original start, and matching pending journal entries are checked against the night identity and target device.
+The decision is separate from the wake state. `ELIGIBLE` means the current alarm passes the current profile/source/window policy, not that a running BedJet has applied it. Preview wording can say “used”; running wording names the saved wake and then the current observation. Matching current/saved alarm times are labelled as matching, without claiming the current creator is historical provenance. Pending, failed, unknown and manual states have explicit descriptions. Confidence takes precedence over a manual-tracking flag, so an unconfirmed manual attempt does not claim that a manual programme is confirmed. A saved tonight-only override retains its policy even when a later manual attempt is uncertain. Running decisions prefer the saved profile snapshot and original start, and matching pending journal entries are checked against the night identity and target device.
 
 [TonightScreen](../../app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt) places the wrapping line beneath the wake headline/stat tiles or beneath the simple timeline. [AlarmExplanationLine](../../app/src/main/kotlin/io/github/willzy12h/nocturne/ui/AlarmExplanationLine.kt) preserves the existing palette and small-body typography, with a full-width target of at least 48 dp and an action label. Existing wake-origin labels and their 320 dp/200% compact title rule are unchanged. All new app-facing sentences and clock app names are in [strings_alarm_sources.xml](../../app/src/main/res/values/strings_alarm_sources.xml).
 
@@ -77,6 +77,77 @@ Saved wake 07:00 — change pending · Next alarm 06:30 from Samsung Clock
 ```
 
 The implementation changes the one pending resource to the generic “change pending”; the explicit RETIME test remains. The START control subsequently uses a faithful new-start snapshot (no applied programme, no previous expected identity, saved/requested wake 06:30); the MANUAL control retains its previous requested wake. This does not change command policy or invent a second pending-kind flag.
+
+### RED: confidence and saved override after a manual attempt
+
+Independent review identified that a manual-tracking flag could hide `UNKNOWN` or `PENDING` confidence. `NightActions.manualChange` can leave that flag set after an unconfirmed attempt, so the explanation must preserve the uncertainty. The broader run labelled `alarm-final-green` was executed after adding those two regression tests and was **not green**: **45 tests, 2 assertion failures, 0 errors, 0 skipped**. Its failures were:
+
+```text
+unknownManualAdjustmentDoesNotClaimAConfirmedManualProgramme
+java.lang.AssertionError: expected:<UNKNOWN> but was:<MANUAL>
+
+pendingCommandOnAManualNightKeepsItsPendingBoundary
+java.lang.AssertionError: expected:<PENDING> but was:<MANUAL>
+```
+
+A further control checked that uncertain manual tracking does not suppress the saved override policy. Before either production correction, `alarm-manual-policy-red` executed `:app:testDebugUnitTest --tests '*AlarmExplanationRuntimeTest*'`: **9 tests, 3 assertion failures, 0 errors, 0 skipped**. It reproduced both failures above and added:
+
+```text
+uncertainManualAttemptKeepsItsSavedOverridePolicy
+java.lang.AssertionError: expected:<OVERRIDE> but was:<ELIGIBLE>
+```
+
+The correction gives pending, failed and unknown confidence precedence over confirmed manual wording, and removes the manual-flag exception from the saved `OVERRIDE` decision. It does not change runtime command handling or alarm policy. Both RED runs have executed-task logs, result metadata and JUnit XML in their named shared evidence directories. Independent read-only re-review confirmed that these narrow corrections resolve the finding and that the three added tests check both the decision state and the rendered wording; that review did not run builds.
+
+### Final verification
+
+The interrupted `alarm-reviewed-green` attempt produced no log, result metadata or JUnit XML and is excluded from verification evidence. The fresh run is labelled `alarm-reviewed-green-resume`.
+
+`alarm-reviewed-green-resume` executed **54 tests, 1 assertion failure, 0 errors, 0 skipped**. All 46 alarm explanation, callback, layout, wake-title and START-attribution controls passed, including the confidence/override corrections. Seven of eight existing `WakeFeedbackTest` controls passed. The remaining control, `aRunningNightOnATonightOnlyWakeIsLabelledSoInEveryLook`, failed at line 100 with `java.lang.AssertionError: DARK simple=false`: the new generic no-alarm suffix appeared beside a saved tonight-only override, contrary to the existing override presentation contract. This run is not reported as all-green.
+
+Before correcting that description, `alarm-override-red` ran `:app:testDebugUnitTest --tests '*AlarmExplanationTest*'`: **22 tests, 1 assertion failure, 0 errors, 0 skipped**. Only the new `SAVED_OVERRIDE_NO_ALARM` case failed:
+
+```text
+java.lang.AssertionError: Failed: assertExists.
+Reason: Expected exactly '1' node but could not find any node that satisfies:
+(Text + EditableText contains 'Saved tonight-only wake 07:00' (ignoreCase: false))
+```
+
+The one-line correction returns the saved override/state description when no current alarm exists to assess. The line remains present and clickable, the diagnostics reason remains `OVERRIDE`, and no existing wake-feedback assertion is weakened. The new control also checks the diagnostic text/state and opens the existing tonight-only picker.
+
+The final run, `alarm-complete-green`, executed:
+
+```text
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-alarm-work \
+  --label alarm-complete-green -- \
+  :app:testDebugUnitTest \
+  --tests '*AlarmExplanation*' \
+  --tests '*TonightWakeLabelLayoutTest*' \
+  --tests '*StartAlarmSourceTest*' \
+  --tests '*WakeFeedbackTest*'
+```
+
+Result: **55 tests passed, 0 failures, 0 errors, 0 skipped**, exit 0, 114.30 seconds excluding the queue. The log records an executed `:app:testDebugUnitTest` task and `BUILD SUCCESSFUL`; the test task was not up-to-date. The fresh JUnit XML reports:
+
+| Suite | Passed |
+|---|---:|
+| `AlarmExplanationTest` — UI wording, existing policy, diagnostics and wake picker | 22 |
+| `AlarmExplanationRuntimeTest` — saved identity, original window, confidence and override controls | 9 |
+| `AlarmExplanationActionTest` — source/profile/settings callbacks | 3 |
+| `AlarmExplanationLayoutTest` — source line at 320 dp and 200% font scale in four looks | 4 |
+| Existing `TonightWakeLabelLayoutTest` | 8 |
+| Existing `StartAlarmSourceTest` | 1 |
+| Existing `WakeFeedbackTest`, including its unchanged four-look override assertion | 8 |
+
+Raw final evidence is in `fixes2-evidence/alarm-complete-green/gradle.log`, `result.json` and the seven `app/TEST-*.xml` files under the shared workspace. `git diff --check` and the staged equivalent are clean. Root integration retains ownership of the Settings destination/control, exported-diagnostics call and full combined gate.
+
+The source-line geometry check uses the no-alarm paragraph in all four looks; the longer source/status paragraphs have semantic coverage at 411 dp. These checks do not establish every possible long-paragraph layout, physical Samsung behaviour, BedJet operation or TalkBack behaviour.
+
+
+## Historical concurrent continuation from 367968b
+
+The following section is preserved from `fixes2-alarm-evidence.md` at remote commit `367968bddc390e5b2bb12876fc1662ffa07e47c3` (tree `f1d7b8638693d1d161891ae331c8e68d868f0dff`). These are the separate continuation's recorded runs in `/workspace/scratch/93c42f112bf4`, including its deliberate manual-first replay and no-alarm override controls. They do not replace the local evidence above or validate the local `e114cc25481731e052a0abc564e74775666ec47e` tree or the later union. The union keeps the local `SAVED_OVERRIDE_NO_ALARM` rendered case and adds the remote runtime/manual-confidence cases; no current policy or formatter change is part of this preservation.
 
 ### RED: manual tracking must not hide confidence or saved policy
 

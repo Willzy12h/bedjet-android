@@ -56,7 +56,11 @@ internal fun defaultCommandOrigin(command: NightActions.Command): CommandOrigin 
 
 data class CommandRequest(val command: NightActions.Command, val profileId: String?, val deviceId: String?,
     val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false,
-    val origin: CommandOrigin = CommandOrigin.APP)
+    val origin: CommandOrigin = CommandOrigin.APP,
+    /** The exact quick action reviewed by the caller, including its one-action duration. */
+    val actionPreset: io.github.willzy12h.nocturne.core.store.ActionPreset? = null)
+
+data class TemporaryActionPreview(val plan: io.github.willzy12h.nocturne.core.plan.Plan?, val refusal: String?)
 enum class OutcomeKind { CONFIRMED, ACCEPTED, LOCAL, REFUSED, STALE, FAILED, UNKNOWN, CONFIRMATION_REQUIRED }
 data class CommandOutcome(val kind: OutcomeKind, val message: String,
     /** The outcome already has its own notice; service delivery must not post another one. */

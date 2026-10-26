@@ -52,8 +52,196 @@ Fresh JUnit XML: **78 passed, 0 failures, 0 errors, 0 skips**, exit 0.
 
 Evidence is retained under `/workspace/scratch/6cc8f67848d1/fixes2-evidence/runtime-f1-red/` and `runtime-f1-green/`: each contains the exact command/result, Gradle log and copied JUnit XML. Existing deprecation and missing-platform-tools warnings were emitted; no lint or physical-device claim is made by these focused runs.
 
+### F1 follow-up: timed manual publication
 
-## Continuation of the interrupted runtime work
+Snooze and Extend change the programme. Their shared manual transaction now publishes `UNKNOWN` manual tracking before returning to the later timed-plan save. Cancelling that later save cannot restore the old programme as `CONFIRMED`. The earlier transition also makes the original programme available for Resume, so the later duplicate Resume bookkeeping was removed.
+
+The two new tests cancel after the command has been confirmed, at the save of the new timed plan. They assert the earlier identity is already durably `UNKNOWN`, no pending request remains, and the original programme is still the Resume offer, before any reconciliation.
+
+Run `runtime-f1-timed-red` used:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-f1-timed-red -- :app:testDebugUnitTest \
+  --tests '*ManualCancellationSettlementTest.cancellingSnooze*' \
+  --tests '*ManualCancellationSettlementTest.cancellingExtend*'
+```
+
+Observed RED: **2 tests, 2 failures, 0 errors, 0 skips**, exit 1. Both assertions reported `expected:<UNKNOWN> but was:<CONFIRMED>`.
+
+After the change, `runtime-f1-timed-f2-green` passed **97 tests, 0 failures, 0 errors, 0 skips**, exit 0. Its exact filters were:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-f1-timed-f2-green -- :app:testDebugUnitTest \
+  --tests '*ManualCancellationSettlementTest*' \
+  --tests '*ManualTrackingTest*' \
+  --tests '*RestoreOriginalCaptureTest*' \
+  --tests '*ImportedOriginalRestoreTest*' \
+  --tests '*RuntimeOwnershipTest*' \
+  --tests '*AdmissionTest*'
+```
+
+Fresh XML counts were 12 cancellation-settlement, 10 manual-tracking, 6 captured-original, 10 imported-original, 50 runtime-ownership and 9 admission tests.
+
+### F1 follow-up: a confirmed ending already journalled
+
+Independent review identified cancellation as `finishLocked` publishes a durable, matching `STOPPED` ending journal. That state already records the BedJet's confirmed end. The bounded repair now completes that local journal, instead of publishing `UNKNOWN`. It requires this call's observed confirmation, `endsNight`, a matching ending identity and `STOPPED` kind, and either this request's still-pending active night or an already-cleared active night. It does not send another packet or replace another pending request.
+
+The added regression cancels while the journal is written, proves the matching `STOPPED` journal exists on disk before cleanup, then checks the active night is cleared on disk and in memory, the ending/intention journals are clear, and exactly one Off packet and one `STOPPED` event exist. It performs no reconciliation.
+
+The completed review-boundary RED run was:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-review-boundaries-red-resumed -- :app:testDebugUnitTest \
+  --tests '*ManualCancellationSettlementTest.cancellingAsConfirmedOffEnding*' \
+  --tests '*RestoreOriginalCaptureTest.anImportQueuedDuringTheSlotJournalSave*' \
+  --tests '*UnchangedAlarmObservationTest.anUnchangedObservationQueuedBeforeWake*'
+```
+
+Fresh XML: **3 tests, 3 failures, 0 errors, 0 skips**, exit 1. The ending regression failed with `A durably confirmed Off must finish locally before reconciliation expected null`, and the actual active night was `UNKNOWN` with no pending request. The other two failures are recorded under F2 and F3 below. For the F2 test only, the already-added final post-backup comparison was temporarily removed to prove that specific guard is necessary; it was restored before the GREEN run.
+
+`runtime-review-boundaries-red` did not execute tests because a new fixture used `SlotWrite.program` instead of `SlotWrite.intended`. `runtime-review-boundaries-red-valid` was interrupted before test execution and has no `result.json`. Neither is counted as behavioural RED or GREEN; copied older XML from a compile failure is not fresh test evidence.
+
+### Focused GREEN after the first boundary review
+
+After all three boundary repairs, the following run executed against the combined F1–F3 working tree:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-review-boundaries-green -- :app:testDebugUnitTest \
+  --tests '*ManualCancellationSettlementTest*' \
+  --tests '*RestoreOriginalCaptureTest*' \
+  --tests '*UnchangedAlarmObservationTest*' \
+  --tests '*ManualEndRequestTest*' \
+  --tests '*SendConfirmationTest*' \
+  --tests '*RetimeExpiryBoundaryTest*'
+```
+
+Fresh XML: **104 passed, 0 failures, 0 errors, 0 skips**, exit 0, elapsed 217.10 seconds after acquiring the shared build lock.
+
+| Suite | Passed |
+|---|---:|
+| `ManualCancellationSettlementTest` | 13 |
+| `RestoreOriginalCaptureTest` | 7 |
+| `UnchangedAlarmObservationTest` | 14 |
+| `ManualEndRequestTest` | 28 |
+| `SendConfirmationTest` | 37 |
+| `RetimeExpiryBoundaryTest` | 5 |
+
+This includes the three previously failing review-boundary cases. The independent reviewer rechecked their final guards and reported no further defect; that review was read-only and is separate from these executed tests. Every counted RED or GREEN label has its exact command/result, Gradle log and fresh app JUnit XML under `/workspace/scratch/6cc8f67848d1/fixes2-evidence/<label>/`. The repeated suites across labels are separate runs, not additional unique tests.
+
+## F2 — restore only the original that was reviewed
+
+`AppViewModel.restoreSlot` passes its captured `SlotBackup` to the command owner. The owner compares that entire record after acquiring its mutex and after `Repository.originalsFor` preparation. It repeats the comparison after fresh status, after the generation save and after the slot journal/backup preparation, before a hardware write. The payload always comes from the captured record. The legacy `restoreOriginal(Int)` entry captures before queuing too; it cannot silently bind to an original that was missing or different at submission. A changed record is refused with the resource-backed message: “The saved original has changed. Review it again before restoring.”
+
+[`RestoreOriginalCaptureTest`](../../app/src/test/kotlin/io/github/willzy12h/nocturne/night/RestoreOriginalCaptureTest.kt) uses the actual replacement policy. It accepts lost unreadable originals, records uncertain non-imported A, and imports a validated bundle with exact-device original B. `Repository.restore` really replaces A with imported B. Tests cover a queued direct restore, the ViewModel's captured preview, replacement during fresh-status reconnect, an absent original appearing while queued, and the positive controls for unchanged A and a newly reviewed B.
+
+Run `runtime-f2-red-valid` used:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-f2-red-valid -- :app:testDebugUnitTest \
+  --tests '*RestoreOriginalCaptureTest*'
+```
+
+Observed RED: **6 tests, 4 failures, 0 errors, 0 skips**, exit 1. The queued direct, queued ViewModel, fresh-preparation replacement and absent-before-queue cases expected `REFUSED` and received `CONFIRMED`; both valid restore controls passed. The earlier `runtime-f2-red` fixture used programme names longer than the codec allows and is excluded from behavioural RED. Only the fixture names were shortened to `Preview A` and `Imported B` before the valid run.
+
+The six cases passed in `runtime-f1-timed-f2-green`, together with the existing imported-original, ownership, admission and manual-tracking controls: **97 passed**, as recorded above.
+
+### Final preparation suspension
+
+Independent review requested a direct check of the final post-backup comparison. A seventh test starts the real import from the repository writer while the pending slot journal saves. The import queues before backup preparation gets its next writer turn, after the fresh-status and generation comparisons have already passed. This exercises the final guard separately from the earlier checks.
+
+For the completed `runtime-review-boundaries-red-resumed` run, only that final comparison was temporarily removed. The new test failed with `A changed original requires a new review expected:<REFUSED> but was:<CONFIRMED>`. The comparison was then restored. The test requires a refusal, no hardware packet or slot mutation, and no leftover slot-write intention, while confirming that B was actually imported. This is a mutation check of the already-added guard, not a claim that the initial six-test RED covered that suspension.
+
+The direct integer route also refuses if migration preparation changes an unknown-device original's identity. A new direct request can capture the newly adopted record; the UI uses the exact reviewed `SlotBackup` route and retains its existing target checks. No original is silently rebound during a queued confirmation.
+
+## F3 — keep unchanged alarm observations quiet
+
+`queueRetimeLocked` now resolves the proposed wake before applying unknown/manual tracking refusals. When it resolves to the already tracked wake, the observation is consumed as `LOCAL`. `consumeAlarmObservation` retains quiet outcomes that did not prepare a new re-time request, so it cannot fall through to an unsafe-night refusal or execute an older pending change. Filtered sources, overrides and expired observations retain their quiet handling; genuinely changed wakes retain terminal reporting.
+
+[`UnchangedAlarmObservationTest`](../../app/src/test/kotlin/io/github/willzy12h/nocturne/night/UnchangedAlarmObservationTest.kt) covers unknown and manual nights with the same accepted alarm and the same fallback default, an out-of-window alarm resolving to the same default, confirmed tracking, filtered sources, overrides and expiry. Unchanged cases require `LOCAL`, no connection or packet, no terminal History event or problem notice, an empty consumed inbox and the existing tracking/reason. Four changed-wake controls still require one terminal History failure and one problem notice.
+
+Run `runtime-f3-red` used:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-f3-red -- :app:testDebugUnitTest \
+  --tests '*UnchangedAlarmObservationTest*'
+```
+
+Observed RED: **13 tests, 7 failures, 0 errors, 0 skips**, exit 1. The unknown/manual same-alarm and same-default cases, same-default out-of-window case, filtered-source case and manual-override case each reported `An observation with no resolved wake change is a quiet local result expected:<LOCAL> but was:<REFUSED>`. Six controls passed.
+
+Run `runtime-f3-green` used:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-f3-green -- :app:testDebugUnitTest \
+  --tests '*UnchangedAlarmObservationTest*' \
+  --tests '*RuntimeDeliveryTest*' \
+  --tests '*RetimeNotificationTest*' \
+  --tests '*RetimeExpiryBoundaryTest*'
+```
+
+Fresh XML: **97 passed, 0 failures, 0 errors, 0 skips**, exit 0: 13 unchanged-observation, 20 runtime-delivery, 59 re-time-notification and 5 expiry-boundary tests.
+
+### Observation queued across the wake boundary
+
+Independent review found a narrower path: an unknown night's unchanged observation could be submitted just before `wakeUpStart` but consumed afterwards. With no actual `PendingRetime`, the expiry helper cleared the inbox and returned no expiry disposition. The consumer then fell through to a reconcile-needed refusal.
+
+The fourteenth test submits at one second before wake-up start, consumes at one second after, and verifies `LOCAL`, the same unknown night/reason/history, no connection or packet, no pending work and no problem notice. Before the follow-up change, `runtime-review-boundaries-red-resumed` failed with `A queued unchanged observation must remain quiet across wake-up start expected:<LOCAL> but was:<REFUSED>`. The consumer now returns quiet `LOCAL` for that observation-only expiry. The fallback is restricted to no prior `PendingRetime`; genuine pending expiry retains its existing notice and History handling.
+
+### Integration follow-up: confirmed and manual observations across wake-up
+
+A later comparison found that the first boundary test covered only `UNKNOWN` tracking. With `CONFIRMED` tracking, including a manual night, the expiry helper could still manufacture an expiry disposition for an unchanged queued observation. Consuming it after wake-up start set an expiry reason; submitting the broadcast again after the boundary reached the same helper and also replaced the existing manual tracking reason.
+
+Four additional regressions exercise confirmed/manual tracking through both consumption and repeated submission. Run `runtime-confirmed-observation-red` used:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-confirmed-observation-red -- :app:testDebugUnitTest \
+  --tests '*UnchangedAlarmObservationTest.anUnchangedManualObservationQueuedBeforeWake*' \
+  --tests '*UnchangedAlarmObservationTest.anUnchangedConfirmedObservationQueuedBeforeWake*' \
+  --tests '*UnchangedAlarmObservationTest.aRepeatedPostWakeObservation*'
+```
+
+Observed RED: **4 tests, 4 failures, 0 errors, 0 skips**, exit 1, elapsed 72.03 seconds. Both confirmed cases expected a null reason and found `The wake-up change expired.` Both manual cases expected `Existing tracking reason` and found that expiry text instead.
+
+The repair checks the resolved wake before creating an expiry disposition for an observation with no pending re-time request. It uses the same override/source filtering and `prepareRetime` equality as normal queue preparation. Equality is checked before post-deadline eligibility, so the check remains valid after wake-up begins. The existing consumer already returns quiet `LOCAL` for a null disposition with no prior pending request; a second check there is unnecessary. A genuine matching `PendingRetime` still takes the first expiry branch, preserving its History, sole notice and cancellation repair. The in-flight `PENDING` re-time guard is unchanged.
+
+The tests now also require the unchanged outcome message and verify that a later no-work timeout cannot remember an invented expiry. The independent reviewer rechecked this narrow branch and found no additional pending-expiry defect.
+
+The F1 and F2 variants considered during this comparison were not adopted. Production ending writers share the command mutex, and no reachable replacement of a same-identity ending journal was identified; completing an existing valid `STOPPED` journal after a fresh confirmed Off remains truthful. The original-restore refusal already preserves the exact slot-write intention guard and existing runtime reason. Prior `CONFIRMED`/`FAILED` slot-write records do not count as unresolved work, so removing that guard and rewriting the reason added no demonstrated safety.
+
+Run `runtime-confirmed-observation-green` used:
+
+```sh
+python /workspace/scratch/6cc8f67848d1/run_nocturne_gradle.py \
+  --project /workspace/scratch/6cc8f67848d1/nocturne-runtime-work \
+  --label runtime-confirmed-observation-green -- :app:testDebugUnitTest \
+  --tests '*UnchangedAlarmObservationTest*' \
+  --tests '*RetimeExpiryBoundaryTest*' \
+  --tests '*RetimeNotificationTest*'
+```
+
+Fresh XML: **82 passed, 0 failures, 0 errors, 0 skips**, exit 0, elapsed 221.71 seconds: 18 unchanged-observation, 5 expiry-boundary and 59 re-time-notification tests. This includes all four new regressions, the earlier unknown/manual no-op cases, and the genuine expiry, in-flight ownership, terminal-notice and cancellation-recovery controls. The comparison workspace was read only; production changes remain confined to this runtime worktree, with F1/F2 unchanged by this follow-up.
+
+
+## Historical concurrent continuation from 367968b
+
+The following section is preserved from `fixes2-runtime-evidence.md` at remote commit `367968bddc390e5b2bb12876fc1662ffa07e47c3` (tree `f1d7b8638693d1d161891ae331c8e68d868f0dff`). It records the separate continuation in `/workspace/scratch/93c42f112bf4` and its named runs. It does not replace the completed local/resumed evidence above or verify the local `e114cc25481731e052a0abc564e74775666ec47e` tree or the later union. In particular, references to an earlier invalid or interrupted run concern that named attempt, not the subsequent valid resumed run.
+
+The historical description includes that continuation's exact `PendingEnd` and restore-journal variants. The union retains the local production implementation and its additional unchanged-outcome/false-expiry assertions; this preservation introduces no production changes. The remote full-gate record is retained separately in [concurrent verification](fixes2-concurrent-verification.md).
 
 The continuation starts from `b2d3ee58fbf1f4a98a03f8f0d04016da06d96a73`, the F1 commit documented above, and preserves the earlier uncommitted F1 timed-control, F2 and F3 work. The original checkout remains untouched. New runs use `/workspace/scratch/93c42f112bf4/run_gradle.py`, the same serial build lock, offline JDK/SDK/dependency caches and unsigned configuration. New evidence lives in `/workspace/scratch/93c42f112bf4/evidence/<run-label>/`; each completed run retains the command/result JSON, Gradle log and copied JUnit XML.
 

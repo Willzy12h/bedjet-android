@@ -59,6 +59,7 @@ import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.WakeResolver
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.AlarmExplanation
@@ -162,7 +163,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
             // Pending versus confirmed (U10): the headline keeps the wake the BedJet runs; the request is shown beside it.
             if (nightStatus.confidence == Confidence.PENDING) {
-                val requested = running.pending?.requestedWake ?: runtime.retime?.alarmAt
+                val requested = running.pending?.takeUnless { it.kind == ChangeKind.TEMPORARY }?.requestedWake ?: runtime.retime?.alarmAt
                 val wakeChange = requested != null || runtime.retime != null || runtime.alarmInbox != null ||
                     running.pending?.kind == ChangeKind.RETIME || running.pending?.kind == ChangeKind.REAPPLY
                 if (wakeChange) Note(requested?.let { stringResource(R.string.wake_requested, Format.clock(it)) }
@@ -189,6 +190,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     stringResource(R.string.tonight_now, blockName(step.block), modeName(step.step.mode), (step.step.fanStep + 1) * 5),
                     style = MaterialTheme.typography.bodyLarge,
                 )
+            }
+            running.temporary?.takeIf { confirmed && !running.trackingManual && now.isBefore(ZonedDateTime.parse(it.until)) }?.let {
+                Note(stringResource(R.string.temporary_planned, Format.clock(it.until)))
             }
             // Mid-night the controls come before the plan: they're what you reach for, and up here the
             // "night started" snackbar at the bottom of the screen doesn't cover them.
@@ -349,6 +353,7 @@ private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {
+    val context = LocalContext.current
     val colors = nocturneColors
     Text(stringResource(R.string.tonight_quick), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
     val startBoost = stringResource(R.string.guard_start_boost)
@@ -356,9 +361,22 @@ private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGu
     val startCooling = stringResource(R.string.guard_start_cooling)
     val turnOff = stringResource(R.string.guard_turn_off)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 2) {
-        QuickButton(stringResource(R.string.feature_boost), stringResource(R.string.minutes_short, settings.boostMinutes), colors.turbo, Modifier.weight(1f)) { guard.confirm(startBoost) { model.run(Command.BOOST, replacementConfirmed = true) } }
-        QuickButton(stringResource(R.string.feature_warm), null, colors.heat, Modifier.weight(1f)) { guard.confirm(startWarming) { model.run(Command.WARM, replacementConfirmed = true) } }
-        QuickButton(stringResource(R.string.feature_cool), null, colors.cool, Modifier.weight(1f)) { guard.confirm(startCooling) { model.run(Command.COOL, replacementConfirmed = true) } }
+        QuickButton(stringResource(R.string.feature_boost), stringResource(R.string.minutes_short, settings.boostMinutes), colors.turbo, Modifier.weight(1f)) {
+            val captured = model.quickAction(Command.BOOST)
+            guard.confirm(startBoost, captured.temporary) { model.runCaptured(captured.end) }
+        }
+        QuickButton(stringResource(R.string.feature_warm), null, colors.heat, Modifier.weight(1f)) {
+            val captured = model.quickAction(Command.WARM)
+            val what = if (captured.temporary.preset.mode == Mode.HEAT) startWarming
+                else context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(captured.temporary.preset.mode)))
+            guard.confirm(what, captured.temporary) { model.runCaptured(captured.end) }
+        }
+        QuickButton(stringResource(R.string.feature_cool), null, colors.cool, Modifier.weight(1f)) {
+            val captured = model.quickAction(Command.COOL)
+            val what = if (captured.temporary.preset.mode == Mode.COOL) startCooling
+                else context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(captured.temporary.preset.mode)))
+            guard.confirm(what, captured.temporary) { model.runCaptured(captured.end) }
+        }
         QuickButton(stringResource(R.string.feature_off), null, colors.idle, Modifier.weight(1f)) { guard.confirm(turnOff) { model.run(Command.OFF) } }
     }
 }
@@ -394,10 +412,11 @@ private fun cardBorder() = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineV
 fun ConnectionLine(model: AppViewModel) {
     val state by model.linkState.collectAsState()
     val status by model.status.collectAsState()
+    val hasLiveStatus by model.hasLiveStatus.collectAsState()
     val settings by model.settings.collectAsState()
     val colors = nocturneColors
     val text = when (state) {
-        LinkState.READY -> status?.let { stringResource(R.string.connection_status, modeName(it.mode), tempText(it.ambientTemperature, settings.fahrenheit),
+        LinkState.READY -> status?.takeIf { hasLiveStatus }?.let { stringResource(R.string.connection_status, modeName(it.mode), tempText(it.ambientTemperature, settings.fahrenheit),
             tempText(it.actualTemperature, settings.fahrenheit)) } ?: stringResource(R.string.connection_ready)
         LinkState.CONNECTING -> stringResource(R.string.connection_connecting)
         LinkState.SEARCHING -> stringResource(R.string.connection_searching)
@@ -419,6 +438,7 @@ fun ConnectionLine(model: AppViewModel) {
 
 @Composable
 fun blockName(block: Block): String = stringResource(when (block) {
+    Block.TEMPORARY -> R.string.temporary_block
     Block.START -> R.string.block_start
     Block.MIDDLE -> R.string.block_middle
     Block.WAKE -> R.string.block_wake

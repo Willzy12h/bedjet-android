@@ -11,7 +11,12 @@ sealed interface Preparation {
     data class Ready(val change: PreparedChange): Preparation
     data class Stale(val expected: NightIdentity?, val actual: NightIdentity?): Preparation
     /** [unchanged] identifies a harmless re-time no-op without comparing user-facing reason text. */
-    data class Refused(val reason: String, val unchanged: Boolean = false): Preparation
+    data class Refused(val reason: String, val unchanged: Boolean = false,
+        val temporaryRefusal: TemporaryRefusal? = null): Preparation
+}
+/** The app maps these new reasons to its own string resources. */
+enum class TemporaryRefusal {
+    NOT_CONFIRMED, MANUAL, ENDED, MISSING_SNAPSHOT, INVALID_PRESET, PROFILE_LIMITS, TOO_CLOSE_TO_WAKE, TOO_MANY_STEPS,
 }
 /** No hardware work has happened. Persist [pendingNight] before executing this change. */
 data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previous: ActiveNight?, val request: PendingChange,
@@ -44,13 +49,15 @@ object Eligibility {
     fun check(night: ActiveNight?, now: ZonedDateTime, request: PendingChange): Result {
         if (night?.identity != request.expected) return Stale(request.expected, night?.identity)
         if (!now.isBefore(ZonedDateTime.parse(request.deadline))) return Refused("This request has expired.")
-        if (request.kind == ChangeKind.RETIME || request.kind == ChangeKind.REAPPLY) {
+        if (request.kind == ChangeKind.RETIME || request.kind == ChangeKind.REAPPLY || request.kind == ChangeKind.TEMPORARY) {
             if (night == null || night.actualEnd != null) return Refused("This night has ended.")
             if (!now.isBefore(ZonedDateTime.parse(night.wakeUpStart))) return Refused("Tonight's wake-up has already started.")
             val legacyFallback = night.profile == null && night.applied.steps.isEmpty() && night.pending == null
             if ((night.confidence == Confidence.UNKNOWN && !legacyFallback) || night.confidence == Confidence.FAILED) {
                 return Refused("The BedJet programme must be checked before changing this night.")
             }
+            if (request.kind == ChangeKind.TEMPORARY && (night.confidence != Confidence.CONFIRMED || night.pending != null || night.trackingManual))
+                return Refused("The BedJet programme must be checked before changing this night.")
         }
         return Allowed
     }
@@ -62,7 +69,9 @@ data class LocalTransition(val night: ActiveNight, val event: HistoryEvent, val 
 }
 /** Local only: callers persist this transition and the offer under the same command lock. */
 fun stopTracking(night: ActiveNight, reason: String, at: ZonedDateTime, commandVersion: Long = 0): LocalTransition {
-    val remaining = night.applied.steps.mapNotNull { s ->
+    val underlying = night.temporary?.base?.plan()?.let { base -> night.copy(applied = night.temporary.base,
+        temporary = null, wakeUpStart = base.wakeUpStart.toString(), endsAt = base.end.toString()) } ?: night
+    val remaining = underlying.applied.steps.mapNotNull { s ->
         val start = ZonedDateTime.parse(s.startsAt)
         val end = start.plusMinutes(s.minutes.toLong())
         when {
@@ -73,7 +82,7 @@ fun stopTracking(night: ActiveNight, reason: String, at: ZonedDateTime, commandV
         }
     }.filter { it.minutes > 0 }
     val offer = if (night.profile != null && at.isBefore(ZonedDateTime.parse(night.wakeAt))) {
-        ResumeOffer(night, remaining, at.toString(), at.plusMinutes(15).toString(), commandVersion)
+        ResumeOffer(underlying, remaining, at.toString(), at.plusMinutes(15).toString(), commandVersion)
     } else null
     return LocalTransition(night.copy(actualEnd = at.toString(), pending = null), HistoryEvent(at.toString(), EventKind.STOPPED, reason), offer)
 }

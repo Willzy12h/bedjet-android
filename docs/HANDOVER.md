@@ -1,6 +1,50 @@
 # Nocturne — current handover
 
-**Final-fixes handover — 25 October 2026.** `gpt/nocturne-final-fixes` starts from integrated base `c9befe66f0b78fff4fe9da15d217895ca4b48eee`, which includes the earlier workstreams. The current changes close IR-31's individual uncertainty labels, replace core enum spellings in user-facing mode errors, and fix U-B4's narrow, large-text wake title. Use [final-fixes verification](review/final-fixes-verification.md) for the current gate and release results, and the [phone-test guide](review/phone-test-guide.md) for delivery and supervised checks. All physical results remain **NOT RUN**.
+**fixes2 checkpoint handover — 26 October 2026. Full gate and release PASSED; publication PENDING_FINAL_VERIFICATION.** The requested branch is `gpt/nocturne-fixes2`, based on `gpt/nocturne-final-fixes` at **`1c67c0a28084238377c7675e6dc25d0444fe2c22`**. The original fixes/reconnect source passed the full gate and separate release assembly at local SHA **`e114cc25481731e052a0abc564e74775666ec47e`**. GitHub code commit **`173edc81ccdb97b262aff6a91dfb6d536f1784b6`** is prepared with the exact same tree; this does not establish completed branch publication. The remote branch has advanced independently and its latest ancestry must be preserved. Use [fixes2 verification](review/fixes2-verification.md) for the source/input manifest, full inventory, RED/GREEN evidence, protocol citations and BLE before/after. The eventual delivered branch head will be reported separately; this document pins the original tested checkpoint.
+
+The work addresses F1 manual cancellation, F2 the captured restore original, F3 unchanged alarm observations, F4 the long restore preview and F5 Off/Pause fan alternatives. Lights/beeps already match the cited public protocol and have explicit command/bit/UI-confirmation tests. The alarm explanation preserves the existing unknown-source default (**true**) and saved choice; Android exposes only the **next** alarm, not a multi-alarm list. Null creator and outside-window rejection are possible code paths, not a diagnosed Samsung fault.
+
+Hidden UI collection stops, and the last connection holder starts an approximately 30-second disconnect grace. Owner work retains raw status demand and its connection hold. Only actual/ambient sensor temperatures are sampled at most once per second; mode, setpoint, fan, timer, accessory, programme-progress and limit fields update immediately. Sampling the whole status had delayed existing U06 mode/switch feedback; the unchanged controls reproduced **8 assertion failures in 8 tests**. The correction passed a separate **22-test GREEN**, including the unchanged mode/timer, switch and slider assertions.
+
+The user's later amendment keeps the same target's last-known Remote UI visible through app-switch reconnect, with **Last reported**, the real connection indicator and current-report control gating. Its focused combined run passed **23 tests, 0 failures/errors/skips**, including the actual Remote screen and receipt safeguards. The later sampling GREEN also passes the actual Remote reconnect cases. The earlier hidden-value-null expectation is superseded by the retained-UI requirement, while receipt-based confirmation and **UI 115 s > service 100 s > owner 90 s** remain unchanged.
+
+Completed targeted evidence includes **104 runtime review-boundary tests**, **82 subsequent unchanged-observation/expiry tests**, **14 F4/F5/uncertainty tests**, **12 core + 4 app protocol tests**, **55 alarm tests**, **18 Settings/diagnostics integration tests**, **73 BLE demand tests**, **14 idle-telemetry/receipt tests**, **23 reconnect tests**, **18 lifecycle expectation tests** and **22 final sampling/control-feedback tests**, all passing within their named runs. These suites overlap and are not a full-suite total. The alarm GREEN follows an explicit **22-test / 1-failure** saved-override regression; the correction preserves the clickable saved-override wording and diagnostic reason without weakening existing wake-feedback assertions.
+
+The [52-path changed-file inventory](review/fixes2-verification.md#changed-file-inventory) includes the original fixes/reconnect source, test, resource, build and documentation changes. The tested source tree is **`41a0b7ccba8393b459e26377299f6355d0ceb433`**. All **259 tracked non-documentation input hashes** remained unchanged through the gate and release assembly. **`fixes2-full-gate` passed**, exit 0, **848.80 seconds**; **`fixes2-release` passed**, exit 0, **157.22 seconds**. Only branch publication remains **PENDING_FINAL_VERIFICATION**.
+
+**Subsequent request outside this checkpoint:** design and implementation of temporary Turbo or Heat followed by automatic return to the running night, as a distinct choice from ending the night, is proceeding in a separate worktree. That feature is not included in this tested source or covered by these results. Any eventual combined publication needs verification of its own final source.
+
+## Executed fixes2 gate and release status
+
+The exact gate passed on the integrated source above:
+
+```sh
+./gradlew --no-daemon --offline --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' -Pkotlin.compiler.execution.strategy=in-process :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+```
+
+The separate release command also passed under label `fixes2-release`:
+
+```sh
+./gradlew --no-daemon --offline --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' -Pkotlin.compiler.execution.strategy=in-process :app:assembleRelease
+```
+
+| Full-gate check | Exact result |
+|---|---|
+| Core tests | **187 total, 187 passed, 0 failures/errors/skips**. |
+| App tests | **995 total, 957 passed, 38 skipped, 0 failures/errors**. |
+| Debug assembly | **PASSED**. |
+| Lint | **0 errors, 14 warnings, 1 hint**; no new or removed findings against the baseline by ID, severity, message and path. |
+| Input integrity | **259 / 259 non-documentation hashes unchanged**, including after release assembly. |
+| Release assembly | **PASSED**, exit 0, **157.22 seconds**; unsigned APK, **51 actionable tasks: 48 executed, 3 up-to-date**. |
+| Branch publication | **PENDING_FINAL_VERIFICATION** — prepared code object has the exact tested tree; publication is not completed, and the independently advanced remote ancestry must be preserved. |
+
+The unsigned release output is `app/build/outputs/apk/release/app-release-unsigned.apk`, **4,523,115 bytes**, SHA-256 **`ef6ac3fe25d2ee98fd53bba6ba93b680f9088ab5cbb963f14676e8d1f43f4307`**. Its signature check confirms that it is not a signed delivery artefact; production signing is outside this work.
+
+The supplied base counts — core **175**, app **889 total / 38 skipped**, lint **0 errors / 14 warnings + 1 hint** — remain historical comparison values. All physical Samsung, BedJet, TalkBack, installation, battery and minified-APK runtime results remain **NOT RUN**; use the [phone-test guide](review/phone-test-guide.md) for the supervised checks.
+
+## Historical final-fixes base
+
+The preceding `gpt/nocturne-final-fixes` work started from integrated base `c9befe66f0b78fff4fe9da15d217895ca4b48eee`, which includes the earlier workstreams. It closed IR-31's individual uncertainty labels, replaced core enum spellings in user-facing mode errors, and fixed U-B4's narrow, large-text wake title. [Final-fixes verification](review/final-fixes-verification.md) records that earlier gate and release result; it is not a gate for fixes2. The following source pins and acceptance limits are retained as historical context.
 
 ## Earlier docs2 source references and ownership
 
@@ -15,7 +59,7 @@ The earlier documentation-only re-pin started from `gpt/nocturne-docs2` at `ab6f
 
 During that earlier docs2 pass, GPT-5 changed documentation only, preserved the owned register rows and left integration decisions with Claude. That restriction describes the earlier pass, not the integrated final-fixes base. The candidate at `262c52f`, F1 approval at `c15c515` and U06 adjacent-row merge conflict remain historical checkpoints in the [earlier reconciliation](review/docs2-reconciliation.md#merge-compatibility-one-known-documentation-conflict).
 
-## Current behaviour and evidence
+## Integrated-base behaviour and earlier evidence
 
 [nocturne-completion.md](review/nocturne-completion.md) is the authoritative IR-01–IR-32 record. **IR-31 is fixed:** Settings displays `settings_original_uncertain` only for an uncertain record in the matching originals list, read-only **From backup** group and restore dialogue. [`UncertainOriginalsSettingsTest`](../app/src/test/kotlin/io/github/willzy12h/nocturne/ui/UncertainOriginalsSettingsTest.kt) passed **6/6**, covering uncertain and certain records on all three surfaces after three genuine missing-warning failures. The separate **KL-01** limitation remains: missing v1 empty-slot provenance cannot be recovered.
 
@@ -53,18 +97,21 @@ Unmeasured BLE timing, background scheduling, Lull background advertising, Healt
 
 ## Documents to use
 
-- [Final-fixes verification](review/final-fixes-verification.md): current targeted evidence, full gate and release results.
+- [fixes2 verification](review/fixes2-verification.md): tested fixes/reconnect checkpoint, per-item evidence, exact full-gate results, release/publication status, protocol citations, alarm policy and BLE behaviour.
+- [Final-fixes verification](review/final-fixes-verification.md): historical base targeted evidence, full gate and release results.
 - [Phone-test guide](review/phone-test-guide.md): APK delivery and supervised phone checks.
 - [Source re-pin and coverage](review/docs2-repin.md): the earlier 13-item review, immutable references and current IR-31/U-B4 dispositions.
 - [Completion dispositions](review/nocturne-completion.md): authoritative IR-01–IR-32 record; historical gate results remain labelled.
 - [Known limitations](review/known-limitations.md) and [recovery procedures](review/recovery-procedures.md): pending work and practical recovery steps.
 - [Supervised acceptance](review/samsung-bedjet-acceptance.md): install and signer checks first, explicit BedJet selection, originals and restore, then runtime/platform/UI cases. Every physical result is **NOT RUN**.
 - [Release instructions](review/release-instructions.md) and [owner production settings](review/release-production-settings.md): TEST-ONLY versus production artefacts and version/hash/signer checks, at their stated release-source pins.
-- [Register](review/register.md): owned rows and historical base dispositions; current final-fixes evidence is linked above.
+- [Register](review/register.md): owned rows and historical base dispositions; fixes2 integration must reconcile its current evidence without overwriting historical pins.
 - [Earlier reconciliation and gate](review/docs2-reconciliation.md): the c15c515 documentation pass, not a new result for these references.
 
 ## Verification and remaining decisions
 
-The earlier docs2 re-pin was documentation only: no Gradle run was performed for that pass, and its checks covered allowed paths, preserved register rows, source-link existence and line bounds, and cross-document consistency. Its named tests described inspected assertions. The final-fixes host results above are subsequent executed evidence; [final-fixes verification](review/final-fixes-verification.md) records the full gate and release outcome without carrying historical counts forward.
+The earlier docs2 re-pin was documentation only: no Gradle run was performed for that pass, and its checks covered allowed paths, preserved register rows, source-link existence and line bounds, and cross-document consistency. Its named tests described inspected assertions. The final-fixes host results above are subsequent executed evidence for that base; [final-fixes verification](review/final-fixes-verification.md) records its full gate and release outcome. Neither record supplies current fixes2 counts.
+
+The original fixes/reconnect full gate, separate release assembly, lint comparison and input-integrity check have passed. Branch publication is not completed and remains **PENDING_FINAL_VERIFICATION** in [fixes2 verification](review/fixes2-verification.md). Preserve the independently advanced remote ancestry before an eventual publication, which may also include the separately developed temporary Turbo/Heat return feature. That later combined source needs its own verification; the results above remain pinned to the original checkpoint. Report the exact delivered branch head separately. Preserve the current alarm default and use the phone explanation/diagnostics to investigate the actual device case; no new source-policy decision is needed for a null creator.
 
 All supervised Samsung, BedJet, TalkBack, physical haptic, installation and minified-APK runtime checks remain **NOT RUN**. The integrated base and host fixes do not establish those results. The remaining work is the recorded backlog and supervised acceptance, including KL-01's original-slot inventory/read-back and U-B5's native picker readability.

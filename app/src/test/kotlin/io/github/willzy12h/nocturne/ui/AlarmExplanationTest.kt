@@ -66,6 +66,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         SAVED_MANUAL_UNKNOWN("Saved wake 07:00 — BedJet wake unknown · Next alarm 06:30 from Samsung Clock"),
         SAVED_FAILED("Saved wake 07:00 — wake change failed · Next alarm 06:30 from Samsung Clock"),
         SAVED_OVERRIDE("Saved tonight-only wake 07:00 · Alarm 06:30 ignored: tonight-only wake set — tap to change"),
+        SAVED_OVERRIDE_NO_ALARM("Saved tonight-only wake 07:00"),
         MANUAL("Manual control — no alarm wake programme · Next alarm 06:30 from Samsung Clock"),
     }
 
@@ -93,10 +94,10 @@ class AlarmExplanationTest(private val scenario: Scenario) {
                 val plan = PlanCompiler.compile(profile, graph.now(), wake)
                 graph.repository.setActiveNight(ActiveNight(
                     recordId = "saved-night", profileId = profile.id, startedAt = graph.now().toString(),
-                    wakeAt = wake.toString(), wakeFromAlarm = scenario != Scenario.SAVED_OVERRIDE,
+                    wakeAt = wake.toString(), wakeFromAlarm = scenario !in setOf(Scenario.SAVED_OVERRIDE, Scenario.SAVED_OVERRIDE_NO_ALARM),
                     slot = 2, wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(),
                     deviceId = "demo", profile = profile, applied = AppliedProgram.from(plan),
-                    wakeOrigin = if (scenario == Scenario.SAVED_OVERRIDE) WakeOrigin.OVERRIDE else WakeOrigin.ALARM,
+                    wakeOrigin = if (scenario in setOf(Scenario.SAVED_OVERRIDE, Scenario.SAVED_OVERRIDE_NO_ALARM)) WakeOrigin.OVERRIDE else WakeOrigin.ALARM,
                     confidence = when (scenario) {
                         Scenario.SAVED_UNKNOWN, Scenario.SAVED_MANUAL_UNKNOWN -> Confidence.UNKNOWN
                         Scenario.SAVED_FAILED -> Confidence.FAILED
@@ -105,7 +106,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
                 ))
             }
         }
-        if (scenario !in setOf(Scenario.NO_ALARM, Scenario.PROFILE_ONLY_NO_ALARM)) {
+        if (scenario !in setOf(Scenario.NO_ALARM, Scenario.PROFILE_ONLY_NO_ALARM, Scenario.SAVED_OVERRIDE_NO_ALARM)) {
             val app = RuntimeEnvironment.getApplication() as App
             val pending = PendingIntent.getBroadcast(app, 81, Intent("test.alarm.explanation"), PendingIntent.FLAG_IMMUTABLE)
             shadowOf(pending).setCreatorPackage(if (scenario == Scenario.APP_DENIED) "unapproved.clock" else SAMSUNG_PACKAGE)
@@ -168,7 +169,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             Scenario.TOO_SOON, Scenario.TOO_LATE -> "OUTSIDE_WINDOW"
             Scenario.NO_ALARM -> "NO_ALARM"
             Scenario.PROFILE_ONLY, Scenario.PROFILE_ONLY_NO_ALARM -> "PROFILE_ALARMS_OFF"
-            Scenario.OVERRIDE, Scenario.SAVED_OVERRIDE -> "OVERRIDE"
+            Scenario.OVERRIDE, Scenario.SAVED_OVERRIDE, Scenario.SAVED_OVERRIDE_NO_ALARM -> "OVERRIDE"
             else -> "ELIGIBLE"
         }, diagnostic.getValue("reason").jsonPrimitive.content)
         assertEquals(when (scenario) {
@@ -176,7 +177,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             Scenario.SAVED_UNKNOWN, Scenario.SAVED_MANUAL_UNKNOWN -> "UNKNOWN"
             Scenario.SAVED_FAILED -> "FAILED"
             Scenario.MANUAL -> "MANUAL"
-            Scenario.SAVED_MATCH, Scenario.SAVED_CHANGED, Scenario.SAVED_OVERRIDE -> "SAVED"
+            Scenario.SAVED_MATCH, Scenario.SAVED_CHANGED, Scenario.SAVED_OVERRIDE, Scenario.SAVED_OVERRIDE_NO_ALARM -> "SAVED"
             else -> "PREVIEW"
         }, diagnostic.getValue("wakeState").jsonPrimitive.content)
         assertEquals(scenario == Scenario.SAVED_MATCH, diagnostic.getValue("matchesSavedWake").jsonPrimitive.boolean)
@@ -184,7 +185,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         if (scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED)) {
             assertEquals(JsonNull, diagnostic.getValue("creatorPackage"))
         }
-        if (scenario in setOf(Scenario.TOO_SOON, Scenario.TOO_LATE, Scenario.OVERRIDE, Scenario.SAVED_OVERRIDE)) {
+        if (scenario in setOf(Scenario.TOO_SOON, Scenario.TOO_LATE, Scenario.OVERRIDE, Scenario.SAVED_OVERRIDE, Scenario.SAVED_OVERRIDE_NO_ALARM)) {
             ui.compose.onNodeWithText(scenario.expected).performScrollTo().performClick()
             assertTrue("A wake choice must open the existing tonight-only picker", ShadowDialog.getLatestDialog() is TimePickerDialog)
         }

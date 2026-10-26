@@ -3,6 +3,7 @@ package io.github.willzy12h.nocturne.ui
 import android.content.Context
 import android.content.Intent
 import io.github.willzy12h.nocturne.night.CommandRequest
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.NightAlarms
 import android.app.Activity
 import android.app.AlertDialog
@@ -31,6 +32,13 @@ class ShortcutActivity : Activity() {
         // Notification requests retain render-time identity. External extras never waive confirmation.
         val captured = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) current.copy(
             deviceId = intent.getStringExtra(EXTRA_TARGET), expected = NightAlarms.identity(intent)) else current
+        if (graph.repository.activeNight.value != null) captureQuickAction(graph,
+            captured.copy(origin = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT))?.let { quick ->
+            showTemporaryActionDialog(this, graph, quick, android.R.string.cancel) { selected ->
+                BedJetService.start(this, selected); finish()
+            }
+            return
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.runtime_confirm_title)
             .setMessage(getString(R.string.runtime_confirm_command, NightActions.commandLabel(this, command)))

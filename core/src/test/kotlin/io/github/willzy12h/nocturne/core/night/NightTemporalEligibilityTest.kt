@@ -68,7 +68,7 @@ class NightTemporalEligibilityTest {
             val change = f.resume()
             val originalSlot = f.link.slots[2]
             f.now = f.wake.plusMinutes(lateMinutes)
-            val result = f.observedRunner().apply(change, { null }, { 1 }, f::publish)
+            val result = f.observedRunner().apply(change, { f.published.lastOrNull() }, { 1 }, f::publish)
             assertTrue(result is NightMutation.Refused, "Resume must expire at its agreed wake: $result")
             assertEquals(0, f.writes)
             assertEquals(0, f.starts)
@@ -82,7 +82,7 @@ class NightTemporalEligibilityTest {
             val f = Fixture()
             val change = f.resume()
             val originalSlot = f.link.slots[2]
-            val result = f.observedRunner().apply(change, { null }, { 1 }, f::publish, beforeWrite = {
+            val result = f.observedRunner().apply(change, { f.published.lastOrNull() }, { 1 }, f::publish, beforeWrite = {
                 delay(1)
                 f.now = f.wake.plusMinutes(lateMinutes)
             })
@@ -113,7 +113,7 @@ class NightTemporalEligibilityTest {
             val deadline = f.now.plusSeconds(1)
             val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, f.wake.plusMinutes(30), deadline))
             val runner = f.observedRunner(afterUpload = { delay(1); f.now = deadline.plusSeconds(lateSeconds) })
-            assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish=f::publish))
+            assertUnknownWithoutStart(f, change, runner.apply(change, { f.published.lastOrNull() ?: night }, publish=f::publish))
         }
     }
 
@@ -125,7 +125,7 @@ class NightTemporalEligibilityTest {
             f.now = boundary.minusSeconds(1)
             val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, f.wake.plusMinutes(30), f.wake))
             val runner = f.observedRunner(afterReadback = { delay(1); f.now = boundary.plusSeconds(lateSeconds) })
-            assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish=f::publish))
+            assertUnknownWithoutStart(f, change, runner.apply(change, { f.published.lastOrNull() ?: night }, publish=f::publish))
         }
     }
 
@@ -133,7 +133,7 @@ class NightTemporalEligibilityTest {
         val f = Fixture()
         val change = f.resume()
         val runner = f.observedRunner(afterReadback = { delay(1); f.now = f.wake })
-        assertUnknownWithoutStart(f, change, runner.apply(change, { null }, { 1 }, f::publish))
+        assertUnknownWithoutStart(f, change, runner.apply(change, { f.published.lastOrNull() }, { 1 }, f::publish))
     }
 
     @Test fun `clock sync crossing deadline refuses final start and cancels confirmation waiter`() = runTest {
@@ -144,7 +144,7 @@ class NightTemporalEligibilityTest {
         val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, f.wake.plusMinutes(30), deadline))
         val runner = f.observedRunner(afterClock = { delay(1); f.now = deadline })
         val before = testScheduler.currentTime
-        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish=f::publish))
+        assertUnknownWithoutStart(f, change, runner.apply(change, { f.published.lastOrNull() ?: night }, publish=f::publish))
         assertTrue(testScheduler.currentTime - before < 10_000, "Cancelled confirmation must not wait for its timeout")
     }
 
@@ -156,7 +156,7 @@ class NightTemporalEligibilityTest {
         val clockEnd = change.plan.steps.first { it.step.endsAtClockTime }.endsAt
         assertTrue(clockEnd.minusMinutes(5).isBefore(ZonedDateTime.parse(night.wakeUpStart)))
         val runner = f.observedRunner(afterClock = { f.now = clockEnd.minusMinutes(5) })
-        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
+        assertUnknownWithoutStart(f, change, runner.apply(change, { f.published.lastOrNull() ?: night }, publish = f::publish))
     }
 
     @Test fun `offset change during upload never starts a clock time programme`() = runTest {
@@ -166,7 +166,7 @@ class NightTemporalEligibilityTest {
         val change = Fixture.ready(f.runner.prepareRetime(night, night.identity, f.wake.plusMinutes(30), f.wake))
         assertTrue(change.plan.steps.any { it.step.endsAtClockTime })
         val runner = f.observedRunner(afterClock = { f.now = f.now.withZoneSameInstant(ZoneOffset.ofHours(1)) })
-        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
+        assertUnknownWithoutStart(f, change, runner.apply(change, { f.published.lastOrNull() ?: night }, publish = f::publish))
     }
 
 
@@ -183,7 +183,7 @@ class NightTemporalEligibilityTest {
         val newBoundary = change.plan.wakeUpStart
         assertTrue(newBoundary.isBefore(ZonedDateTime.parse(night.wakeUpStart)))
         val runner = f.observedRunner(afterReadback = { delay(1); f.now = newBoundary })
-        assertUnknownWithoutStart(f, change, runner.apply(change, { night }, publish = f::publish))
+        assertUnknownWithoutStart(f, change, runner.apply(change, { f.published.lastOrNull() ?: night }, publish = f::publish))
     }
 
     // IR-05: a failure before any write publishes back the night that was there, whatever its confidence.

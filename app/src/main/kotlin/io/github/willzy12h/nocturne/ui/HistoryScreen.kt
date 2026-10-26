@@ -184,6 +184,7 @@ internal fun historyPlan(night: NightRecord): Plan? =
 private fun eventKindName(kind: EventKind): String = stringResource(when (kind) {
     EventKind.STARTED -> R.string.event_started
     EventKind.RETIMED -> R.string.event_retimed
+    EventKind.TEMPORARY -> R.string.runtime_command_temporary
     EventKind.SNOOZED -> R.string.event_snoozed
     EventKind.EXTENDED -> R.string.event_extended
     EventKind.STOPPED -> R.string.event_stopped
