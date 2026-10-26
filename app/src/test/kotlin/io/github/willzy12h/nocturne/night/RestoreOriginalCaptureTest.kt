@@ -12,6 +12,7 @@ import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.BackupCodec
+import io.github.willzy12h.nocturne.core.store.BackupException
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.ui.AppViewModel
@@ -97,22 +98,23 @@ class RestoreOriginalCaptureTest {
     }
 
     @Test fun aQueuedSlotRestoreCannotRebindToAnImportedReplacement() = runBlocking {
+        // A previously reviewed record is stale even when replacement happened before command admission.
+        importReplacement()
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
         val holder = async { graph.actions.exclusive { entered.complete(Unit); release.await() } }
         entered.await()
         val slotsBefore = demo.slots.toList()
-        val restore = async(start = CoroutineStart.UNDISPATCHED) { graph.actions.restoreOriginal(0) }
+        val restore = async(start = CoroutineStart.UNDISPATCHED) { graph.actions.restoreOriginal(previewed) }
         try {
             assertEquals(1, graph.actions.busy.value.queuedCount)
-            importReplacement()
             release.complete(Unit)
             holder.await()
             assertChangedRefusal(restore.await(), slotsBefore)
         } finally { release.complete(Unit); holder.cancelAndJoin(); restore.cancelAndJoin() }
     }
 
-    @Test fun theViewModelsCapturedPreviewSurvivesWaitingForTheOwner() = runBlocking {
+    @Test fun theViewModelsCapturedPreviewSurvivesARefusedImportWhileWaitingForTheOwner() = runBlocking {
         val model = AppViewModel(app)
         models.put("restore", model)
         val entered = CompletableDeferred<Unit>()
@@ -124,46 +126,55 @@ class RestoreOriginalCaptureTest {
         try {
             model.restoreSlot(previewed)
             until { graph.actions.busy.value.queuedCount == 1 }
-            // The ViewModel pre-check has succeeded. Only command-owner validation can now reject this replacement.
-            importReplacement()
+            // R5 rejects the competing import at admission, retaining the original reviewed by this tap.
+            assertTrue(runCatching { importReplacement() }.exceptionOrNull() is BackupException)
+            assertEquals(previewed, graph.repository.originalSlot("demo", 0))
+            assertEquals(slotsBefore, demo.slots.toList())
             release.complete(Unit)
             holder.await()
             until { outcome.isCompleted && !model.busy.value }
-            assertChangedRefusal(outcome.await(), slotsBefore)
+            assertEquals(OutcomeKind.CONFIRMED, outcome.await().kind)
+            assertEquals(programmeA, demo.slots[0])
+            assertFalse("An unreviewed replacement must never reach hardware", programmeB in demo.slots)
         } finally { release.complete(Unit); holder.cancelAndJoin(); outcome.cancelAndJoin() }
     }
 
     @Test fun anImportDuringFreshStatusPreparationIsRefusedBeforeWriting() = runBlocking {
         val slotsBefore = demo.slots.toList()
-        var replaced = false
+        var attempted = false
+        var importFailure: Throwable? = null
         beforeConnect = {
             if (connects == 2) {
-                importReplacement()
-                replaced = true
+                attempted = true
+                importFailure = runCatching { importReplacement() }.exceptionOrNull()
+                assertEquals(slotsBefore, demo.slots.toList())
             }
         }
 
         val outcome = graph.actions.restoreOriginal(0)
 
-        assertTrue("The replacement must occur inside the fresh-status preparation", replaced)
-        assertChangedRefusal(outcome, slotsBefore)
+        assertTrue("Attempt the import inside fresh-status preparation", attempted)
+        assertTrue("The import must be refused before any replacement", importFailure is BackupException)
+        assertEquals(previewed, graph.repository.originalSlot("demo", 0))
+        assertEquals(OutcomeKind.CONFIRMED, outcome.kind)
+        assertEquals(programmeA, demo.slots[0])
+        assertFalse("An unreviewed replacement must never reach hardware", programmeB in demo.slots)
     }
 
-    @Test fun anImportQueuedDuringTheSlotJournalSaveIsRefusedAfterBackupPreparation() = runBlocking {
+    @Test fun anImportDuringThePendingSlotJournalSaveIsRefusedAtAdmission() = runBlocking {
         val repo = graph.repository
         val incoming = SlotBackup("demo", 0, programmeB, graph.now().minusDays(1).toString())
         val bundle = repo.importFrom(BackupCodec.encode(repo.bundle().copy(slotBackups = listOf(incoming))).byteInputStream())
         val slotsBefore = demo.slots.toList()
         val scope = this
-        var replacement: Deferred<Unit>? = null
+        var replacement: Deferred<Result<Unit>>? = null
         beforeFileWrite = { file, bytes ->
             if (file.name == "runtime.json") {
                 val intent = BackupCodec.json.decodeFromString(RuntimeState.serializer(), bytes.decodeToString()).slotWrite
                 if (intent?.confidence == Confidence.PENDING && intent.intended == programmeA) {
                     beforeFileWrite = null
-                    // Queue the real import on the same serial writer while the slot intention is saving. It runs
-                    // before backup's next writer turn, after restore's fresh-status and generation comparisons.
-                    replacement = scope.async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { repo.restore(bundle) }
+                    // R5 must refuse before queueing on the writer while the hardware intention is saving.
+                    replacement = scope.async(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { runCatching { repo.restore(bundle) } }
                 }
             }
         }
@@ -171,9 +182,12 @@ class RestoreOriginalCaptureTest {
         val outcome = try { graph.actions.restoreOriginal(0) } finally { beforeFileWrite = null }
 
         assertNotNull("The import must be queued from the pending slot journal", replacement)
-        withTimeout(5_000) { replacement!!.await() }
-        assertEquals(incoming.copy(imported = true), repo.originalSlot("demo", 0))
-        assertChangedRefusal(outcome, slotsBefore)
+        assertTrue(withTimeout(5_000) { replacement!!.await() }.exceptionOrNull() is BackupException)
+        assertEquals(previewed, repo.originalSlot("demo", 0))
+        assertEquals(OutcomeKind.CONFIRMED, outcome.kind)
+        assertEquals(programmeA, demo.slots[0])
+        assertEquals(slotsBefore.drop(1), demo.slots.drop(1))
+        assertFalse("An unreviewed replacement must never reach hardware", programmeB in demo.slots)
     }
 
     @Test fun aMissingOriginalCapturedBeforeQueuingCannotBindToANewImport() = runBlocking {
@@ -184,7 +198,8 @@ class RestoreOriginalCaptureTest {
         entered.await()
         val restore = async(start = CoroutineStart.UNDISPATCHED) { graph.actions.restoreOriginal(1) }
         try {
-            importReplacement(slot = 1)
+            assertTrue(runCatching { importReplacement(slot = 1) }.exceptionOrNull() is BackupException)
+            assertNull(graph.repository.originalSlot("demo", 1))
             release.complete(Unit)
             holder.await()
             assertEquals(OutcomeKind.REFUSED, restore.await().kind)

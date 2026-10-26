@@ -1,0 +1,9 @@
+<resources>
+    <string name="import_busy">Wait for the current BedJet command or restore to finish, then try importing again.</string>
+    <string name="import_command_blocked">A backup import is in progress. Try the BedJet command again when it finishes.</string>
+    <string name="import_preview_changed">Your data changed after this preview. Open the backup again to review the latest changes.</string>
+    <string name="import_invalid">This backup contains invalid or oversized fields and cannot be imported.</string>
+    <string name="import_damaged">This file is damaged or contains unsupported data. Choose a compatible Nocturne backup.</string>
+    <string name="import_newer">This backup is from a newer version of Nocturne. Update the app first.</string>
+    <string name="import_too_large">The backup exceeds the 5 MB import limit.</string>
+</resources>

@@ -163,9 +163,12 @@ class NightActions(private val graph: Graph) {
         }
 
     /** A read-only compatibility route. Production writes use named owned methods below. */
-    internal suspend fun <T> exclusive(work: suspend () -> T): T = lock.withLock {
-        try { withTimeout(OPERATION_MS) { graph.sessions.withConnection { work() } } }
-        finally { drainLocalSafely() }
+    internal suspend fun <T> exclusive(work: suspend () -> T): T {
+        val admission = repo.operationAdmission.tryCommand() ?: error(text(R.string.import_command_blocked))
+        try { return lock.withLock {
+            try { withTimeout(OPERATION_MS) { graph.sessions.withConnection { work() } } }
+            finally { drainLocalSafely() }
+        } } finally { admission.close() }
     }
 
     private suspend fun owned(label: String, target: String?, minimumRemainingMs: Long = 0, retimeWork: Boolean = false,
@@ -174,6 +177,8 @@ class NightActions(private val graph: Graph) {
         val source = origin ?: currentCoroutineContext()[CommandOriginContext]?.origin ?: CommandOrigin.APP
         fun tagged(outcome: CommandOutcome): CommandOutcome =
             if (outcome.origin == CommandOrigin.UNSPECIFIED) outcome.copy(origin = source) else outcome
+        val admission = repo.operationAdmission.tryCommand()
+            ?: return tagged(refused(R.string.import_command_blocked)).also { _outcomes.emit(it) }
         _busy.update { it.copy(queuedCount = it.queuedCount + 1) }
         var acquired = false
         val owner = Any()
@@ -215,6 +220,7 @@ class NightActions(private val graph: Graph) {
             return tagged(CommandOutcome(if (!bluetoothOff && repo.activeNight.value?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
                 reason ?: text(R.string.runtime_failed), notificationHandled = bluetoothOff)).also { _outcomes.emit(it) }
         } finally {
+            try {
             radio?.close()
             // Ownership is tested even if timeout raced with resumption after lock.lock().
             _busy.update { if (acquired) it.copy(runningLabel = null) else it.copy(queuedCount = (it.queuedCount - 1).coerceAtLeast(0)) }
@@ -223,6 +229,7 @@ class NightActions(private val graph: Graph) {
                 val cleanupMs = minOf(8_000L, OPERATION_MS + 8_000L - (elapsedMs() - startedAt))
                 try { drainLocalSafely(cleanupMs) } finally { lock.unlock(owner) }
             }
+            } finally { admission.close() }
         }
     }
     /** Only a refused re-time attempt may have consumed its alarm. Other queued taps leave that retry's time alone. */

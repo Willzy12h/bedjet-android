@@ -18,6 +18,7 @@ import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.BackupBundle
 import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.BackupException
+import io.github.willzy12h.nocturne.core.store.BackupFailure
 import io.github.willzy12h.nocturne.core.store.BackupValidator
 import io.github.willzy12h.nocturne.core.store.History
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
@@ -112,6 +113,7 @@ class Repository(
     private val dir = context.filesDir
     val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { now() }
     private val lock = Mutex()
+    val operationAdmission = OperationAdmission()
 
     // Declared before the loads below, which add to them.
     /** Files found unreadable while loading, moved aside by the writer once the Repository is made. */
@@ -481,7 +483,36 @@ class Repository(
     suspend fun restore(bundle: BackupBundle, label: String = context.getString(R.string.snapshot_label_before_import)) {
         val errors = BackupValidator.validate(bundle)
         if (errors.isNotEmpty()) throw BackupException(errors)
-        serially {
+        val admission = operationAdmission.tryImport() ?: throw importBusy()
+        try { serially {
+            requireImportIdle()
+            // Validation before queueing is only an early error. Re-read the actual bundle under the writer,
+            // then freeze it so a mutable caller cannot change what is written after this final validation.
+            val finalErrors = BackupValidator.validate(bundle)
+            if (finalErrors.isNotEmpty()) throw BackupException(finalErrors)
+            val checked = BackupCodec.decode(BackupCodec.encode(bundle))
+            val checkedErrors = BackupValidator.validate(checked)
+            if (checkedErrors.isNotEmpty()) throw BackupException(checkedErrors)
+            restoreLocked(checked, label)
+        } } finally { admission.close() }
+    }
+
+    private fun importBusy() = BackupException(context.getString(R.string.import_busy), failure = BackupFailure.BUSY)
+
+    /** A durable pending intention survives process queues; an already scheduled future alarm is not pending work. */
+    private fun requireImportIdle() {
+        val runtime = _runtime.value
+        val night = _activeNight.value
+        val pendingJob = context.getSystemService(android.app.job.JobScheduler::class.java)
+            ?.getPendingJob(io.github.willzy12h.nocturne.platform.ChargerJobs.ID)
+        if (pendingJournal != null || _restoreUnfinished.value ||
+            runtime.slotWrite?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.PENDING ||
+            night?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.PENDING || night?.pending != null ||
+            runtime.retime != null || runtime.alarmInbox != null || pendingJob?.isPeriodic == false) throw importBusy()
+    }
+
+    /** Called only with exclusive import admission and the repository writer held. */
+    private fun restoreLocked(bundle: BackupBundle, label: String) {
             snapshots.save(bundle(), label, manual = true)
             _snapshotList.value = snapshots.list()
             val restoreAt = now()
@@ -502,7 +533,7 @@ class Repository(
                 val incoming = bundle.slotBackups.map { it.copy(imported = true) }
                 // One saved after the loss of unreadable originals was accepted may be the app's own programme, so
                 // the bundle's exact record of that BedJet's slot replaces it.
-                val list = current.filterNot { saved -> savedAfterLoss(saved) && incoming.any { it.deviceId == saved.deviceId && it.slot == saved.slot } }
+                val list = current.filterNot { saved -> savedAfterLoss(saved) && incoming.any { DeviceId.same(it.deviceId, saved.deviceId) && it.slot == saved.slot } }
                 list + incoming.filter { restored -> list.none { it.covers(restored) } }
             }
             writeAllOrNone(listOf(
@@ -521,7 +552,6 @@ class Repository(
                     clearUnreadable()
                 },
             ))
-        }
     }
 
     /** Restores a snapshot; false when it couldn't be read. */
@@ -773,7 +803,7 @@ class Repository(
 
     /** Two backups of the same slot of the same BedJet, counting a migrated one as the real BedJet's. */
     private fun SlotBackup.covers(other: SlotBackup) =
-        slot == other.slot && (deviceId == other.deviceId ||
+        slot == other.slot && (DeviceId.same(deviceId, other.deviceId) ||
             adopts(deviceId, other.deviceId) || (!imported && adopts(other.deviceId, deviceId)))
 
     /** Re-tags, durably, the migrated originals of slots [deviceId] has none for. Call on the writer. */
