@@ -1,0 +1,11 @@
+<resources>
+    <string name="gpt12_expand_section">Expand %1$s</string>
+    <string name="gpt12_collapse_section">Collapse %1$s</string>
+    <string name="gpt12_wake_next_alarm">Next phone alarm</string>
+    <string name="gpt12_wake_profile_fallback">Profile fallback</string>
+    <string name="gpt12_wake_override">Tonight-only wake</string>
+    <string name="gpt12_wake_no_alarm">No phone alarm available</string>
+    <string name="gpt12_wake_unaccepted_alarm">Phone alarm source not accepted</string>
+    <string name="gpt12_wake_too_soon">Next alarm is less than 1 hour after the night starts</string>
+    <string name="gpt12_wake_too_late">Next alarm is beyond the 18-hour night window</string>
+</resources>

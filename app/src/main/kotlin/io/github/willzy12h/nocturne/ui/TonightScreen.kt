@@ -138,12 +138,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     }
     val manualLabel = if (night?.trackingManual == true)
         stringResource(if (confirmed) R.string.tonight_manual_until else R.string.planned_end) else null
-    val wakeLabel = manualLabel ?: stringResource(when {
-        night == null -> R.string.tonight_wakes_at
-        confirmed -> R.string.tonight_waking_at
-        else -> R.string.tonight_planned_wake
-    })
-    val wakeTime = if (manualLabel != null) Format.clock(night!!.endsAt) else plannedWake?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time)
+    val headline = tonightWakeHeadline(settings, profile, now, alarm, night)
+    val wakeTime = headline.at?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time)
     val editPhase: (Block, ZonedDateTime) -> Unit = phaseEdit@{ block, at ->
         val selected = profile ?: return@phaseEdit
         val displayedPlan = plan ?: return@phaseEdit
@@ -162,19 +158,27 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 modifier = Modifier.weight(.4f).padding(top = 4.dp).semantics { heading() })
             Column(Modifier.weight(.6f).testTag("tonight-fixed-wake").semantics(mergeDescendants = true) {},
                 horizontalAlignment = Alignment.End) {
-                Text(wakeLabel, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
+                Text(stringResource(headline.label), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(wakeTime, fontSize = if (LocalConfiguration.current.fontScale >= 1.5f) 24.sp else 32.sp,
                     fontWeight = FontWeight.Light, textAlign = TextAlign.End)
+                headline.reason?.let {
+                    Text(stringResource(it), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
-        AlarmExplanationLine(explanation, openExplanation)
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
             .testTag("tonight-content").padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            AlarmExplanationLine(explanation, openExplanation)
             BusyIndicator(model)
             BluetoothBanner(model)
             QuickControls(model, settings, guard)
-            TonightSections(settings, onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } }) { section ->
+            TonightSections(settings,
+                onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } },
+                onCollapse = { id -> model.updateSettings { it.copy(collapsedTonightSections =
+                    if (id in it.collapsedTonightSections) it.collapsedTonightSections - id else it.collapsedTonightSections + id) } },
+            ) { section ->
                 when (section) {
                     "connection" -> {
                         ConnectionLine(model)
@@ -359,11 +363,15 @@ private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true
 private fun QuickControls(model: AppViewModel, settings: Settings, guard: NightGuard) {
     val collapsed = settings.quickControlsCollapsed
     val state = stringResource(if (collapsed) R.string.ux_collapsed else R.string.ux_expanded)
+    val title = stringResource(R.string.tonight_quick)
+    val action = stringResource(if (collapsed) R.string.gpt12_expand_section else R.string.gpt12_collapse_section, title)
     Column(Modifier.testTag("quick-controls"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = { model.updateSettings { it.copy(quickControlsCollapsed = !it.quickControlsCollapsed) } },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { heading(); stateDescription = state },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics {
+                heading(); stateDescription = state; contentDescription = action
+            },
             contentPadding = PaddingValues(0.dp)) {
-            Text(stringResource(R.string.tonight_quick), style = MaterialTheme.typography.titleMedium,
+            Text(title, style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
             Icon(if (collapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess, null)
         }

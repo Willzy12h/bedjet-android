@@ -57,6 +57,8 @@ data class Settings(
     /** Tonight shows the night as a list of steps instead of the bar curve. */
     val simpleView: Boolean = true,
     val quickControlsCollapsed: Boolean = false,
+    /** Collapsing content never removes the section's accessible header. */
+    val collapsedTonightSections: Set<String> = emptySet(),
     /** Stable section IDs; unknown, repeated and missing IDs are normalised when displayed. */
     val tonightSectionOrder: List<String> = listOf("night", "wake", "connection"),
     val quietNightNotification: Boolean = false,
