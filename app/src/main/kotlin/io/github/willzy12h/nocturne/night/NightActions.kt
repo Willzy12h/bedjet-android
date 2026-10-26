@@ -94,7 +94,7 @@ class NightActions(private val graph: Graph) {
         return graph.runner().prepareTemporary(night, night.identity, preset)
     }
 
-    /** Off resolves the captured target even when a notification/widget carries an older night identity. */
+    /** Unconfirmed emergency Off resolves the captured target; a reviewed approval retains its captured night. */
     suspend fun perform(command: Command, profileId: String? = null, replacementConfirmed: Boolean = false): String =
         execute(capture(command, profileId, requireIdentity = replacementConfirmed).copy(replacementConfirmed = replacementConfirmed)).message
     /** Every command that may reach the BedJet is admitted only with [MIN_BUDGET_MS] left; Stop tracking is local (IR-11). */
@@ -102,10 +102,16 @@ class NightActions(private val graph: Graph) {
         minimumRemainingMs = if (request.command != Command.STOP_TRACKING) MIN_BUDGET_MS else 0,
         retimeWork = request.command == Command.RETIME || request.command == Command.RETRY_RETIME,
         origin = currentCoroutineContext()[CommandOriginContext]?.origin?.takeUnless { it == CommandOrigin.APP } ?: request.origin) {
-        if (request.command !in setOf(Command.OFF, Command.CHECK_BEDJET) && (request.requireIdentity || request.command == Command.TEMPORARY) &&
+        // A visible Off approval belongs to its reviewed night; unconfirmed emergency Off remains target-based.
+        if (request.command != Command.CHECK_BEDJET && (request.command != Command.OFF || request.replacementConfirmed) &&
+            (request.requireIdentity || request.command == Command.TEMPORARY) &&
             request.expected != repo.activeNight.value?.identity) return@owned stale()
         if (request.command.usesCapturedPreset() && request.actionPreset?.let { !validCapturedPreset(request.command, it) } == true)
             return@owned refused(R.string.runtime_temporary_invalid)
+        val manualPreset = timedPreset(request.command)
+        manualPreset?.let { timedPresetRefusal(context, it) }?.let { reason ->
+            return@owned CommandOutcome(OutcomeKind.REFUSED, reason)
+        }
         if (ReplacementPolicy.decide(request.command, repo.activeNight.value).needsConfirmation && !request.replacementConfirmed)
             return@owned CommandOutcome(OutcomeKind.CONFIRMATION_REQUIRED, text(R.string.runtime_replace_confirmation))
         when (request.command) {
@@ -137,18 +143,22 @@ class NightActions(private val graph: Graph) {
                     result.copy(message = if (result.succeeded) detail else text(R.string.alarm_recheck_outcome, detail, result.message))
                 } else result
             }
-            else -> slotWriteRefusal(request.command) ?: connected { run(request) }
+            else -> slotWriteRefusal(request.command) ?: connected { run(request, manualPreset) }
         }
     }
     /** No FGS, detached launch or retry. Job cancellation propagates after durable uncertainty is saved. */
     suspend fun performJobOwned(request: CommandRequest, eligible: suspend (DeviceStatus) -> Boolean): CommandOutcome =
         owned(label(request.command), request.deviceId, minimumRemainingMs = MIN_BUDGET_MS, origin = CommandOrigin.CHARGER) {
             if (request.requireIdentity && request.expected != repo.activeNight.value?.identity) return@owned stale()
+            val manualPreset = timedPreset(request.command)
+            manualPreset?.let { timedPresetRefusal(context, it) }?.let { reason ->
+                return@owned CommandOutcome(OutcomeKind.REFUSED, reason)
+            }
             slotWriteRefusal(request.command)?.let { return@owned it }
             connected {
                 val fresh = freshStatus()
                 if (repo.activeNight.value != null || !eligible(fresh)) return@connected refused(R.string.runtime_ineligible)
-                run(request)
+                run(request, manualPreset)
             }
         }
 
@@ -287,7 +297,18 @@ class NightActions(private val graph: Graph) {
             })
         }
     }
-    private suspend fun run(request: CommandRequest): CommandOutcome {
+    /** Resolve once under the owner, before a connection can suspend or the command changes generation. */
+    private fun timedPreset(command: Command): ActionPreset? = repo.settings.value.let { settings ->
+        when (command) {
+            Command.SNOOZE_WARM -> settings.snoozeWarm
+            Command.SNOOZE_COOL -> settings.snoozeCool
+            Command.EXTEND_WARM -> settings.extendWarm
+            Command.EXTEND_COOL -> settings.extendCool
+            else -> null
+        }
+    }
+
+    private suspend fun run(request: CommandRequest, manualPreset: ActionPreset?): CommandOutcome {
         if (request.deviceId != repo.settings.value.deviceId()) return stale(R.string.runtime_target_changed)
         val command = request.command
         if (command == Command.RESUME) return resumeLocked()
@@ -321,10 +342,10 @@ class NightActions(private val graph: Graph) {
             Command.WARM -> quick(request.actionPreset ?: repo.settings.value.extendWarm,
                 request.actionPreset?.let { capturedPresetMessage(context, it) } ?: text(R.string.runtime_warming))
             Command.BOOST -> boostLocked(request.actionPreset)
-            Command.SNOOZE_WARM -> timedManual(repo.settings.value.snoozeWarm, EventKind.SNOOZED, text(R.string.runtime_snooze_warm))
-            Command.SNOOZE_COOL -> timedManual(repo.settings.value.snoozeCool, EventKind.SNOOZED, text(R.string.runtime_snooze_cool))
-            Command.EXTEND_WARM -> timedManual(repo.settings.value.extendWarm, EventKind.EXTENDED, text(R.string.runtime_extend_warm))
-            Command.EXTEND_COOL -> timedManual(repo.settings.value.extendCool, EventKind.EXTENDED, text(R.string.runtime_extend_cool))
+            Command.SNOOZE_WARM -> timedManual(requireNotNull(manualPreset), EventKind.SNOOZED, text(R.string.runtime_snooze_warm))
+            Command.SNOOZE_COOL -> timedManual(requireNotNull(manualPreset), EventKind.SNOOZED, text(R.string.runtime_snooze_cool))
+            Command.EXTEND_WARM -> timedManual(requireNotNull(manualPreset), EventKind.EXTENDED, text(R.string.runtime_extend_warm))
+            Command.EXTEND_COOL -> timedManual(requireNotNull(manualPreset), EventKind.EXTENDED, text(R.string.runtime_extend_cool))
             else -> refused(R.string.runtime_ineligible)
         }
     }

@@ -52,6 +52,8 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
         val request = temporary?.forMinutes(minutes)
         val preview = remember(request, night, model.now()) { request?.let(model.graph.actions::previewTemporary) }
         var useTemporary by remember(captured) { mutableStateOf(preview?.plan != null) }
+        val endingRefusal = if (useTemporary) null else temporary?.let { temporaryEndRefusal(context, it) }
+        val canConfirm = if (useTemporary) preview?.plan != null else temporary?.canEnd != false
         AlertDialog(
             onDismissRequest = { pending = null },
             title = { Text(stringResource(when { resume -> R.string.guard_resume_title; temporary == null -> R.string.guard_title; else -> R.string.temporary_title })) },
@@ -75,14 +77,15 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
                         Text(stringResource(R.string.guard_running_waking, name, what))
                         requestedEndDetail(context, temporary, settings.fahrenheit)?.let { Text(it) }
                     }
-                    preview?.refusal?.let { Text(it) }
+                    (endingRefusal ?: preview?.refusal)?.let { Text(it) }
                 }
             },
             confirmButton = { TextButton(onClick = {
+                if (!canConfirm) return@TextButton
                 pending = null
                 if (useTemporary && request != null) model.runCaptured(request)
                 else model.withConfirmedNight(running.identity, action)
-            }, enabled = !useTemporary || preview?.plan != null) {
+            }, enabled = canConfirm) {
                 Text(stringResource(when { resume -> R.string.recovery_resume_programme; useTemporary -> R.string.temporary_confirm; else -> R.string.guard_confirm }))
             } },
             dismissButton = { TextButton(onClick = { pending = null }) {

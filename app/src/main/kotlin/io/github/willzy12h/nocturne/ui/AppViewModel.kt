@@ -374,7 +374,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** The reviewed target, night and one-action preset remain captured across the dialogue. */
     internal fun runCaptured(request: io.github.willzy12h.nocturne.night.CommandRequest) {
-        act { graph.actions.execute(request.copy(origin = CommandOrigin.APP)) }
+        act(hardware = request.command != NightActions.Command.STOP_TRACKING) {
+            graph.actions.execute(request.copy(origin = CommandOrigin.APP))
+        }
     }
 
     internal fun quickAction(command: NightActions.Command): CapturedQuickAction =

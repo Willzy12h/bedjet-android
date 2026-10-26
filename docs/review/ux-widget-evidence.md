@@ -4,6 +4,20 @@ Scope: approved `2026-10-26-nocturne-ux` design and plan, P4 only. Base: `367968
 
 **Later P1 correction:** historical RED examples below retain the exact text used by those earlier tests. Their “Turbo 15m” expectation is superseded: the app now names Turbo and Heat separately for split Boosts; the compact widget uses “Turbo→Heat” with the complete segment durations in its description. The latest correction and actual responsive-widget Temporary integration have separate review regressions; the old examples are not the final product labels.
 
+## Current integrated verification
+
+The responsive widget route, its Temporary/Stop night overlay, captured-preset transport and native presentation repairs have focused passing evidence. The shared idle capture repair is also verified: the native approval shows Turbo 10 minutes plus Heat 5 minutes, Settings changes to 30 minutes while it is open, and the actual owner-confirmed stored programme still contains exactly the reviewed 10+5 minutes. Cancellation sends nothing, the confirmed outcome retains SHORTCUT origin, and the route does not launch MainActivity. Full integration/release gates remain root-owned and pending.
+
+| Focused evidence | Fresh requested result | What it establishes |
+| --- | --- | --- |
+| `ux-temporary-merge-behaviour-red` | P1 classes 42/42 | Exact app Boost segment labels, compact both-mode widget labels/full descriptions, native preview wording and retained responsive control/type budgets. |
+| `ux-temporary-native-fixture-red-2` | WidgetConfirmation 17/17, WidgetCommandFeedback 12/12, WidgetFreshness 2/2 | Actual rendered Quick/Single controls, captured target/night/preset, Temporary/Stop choices, Off/local Stop tracking guards, receipt feedback and freshness. |
+| `ux-timed-policy-red-capture-green` | TemporaryNativeAction 7/7; IdleQuickCapture 2/2 | Real native/service and app owner paths preserve the reviewed idle preset; unsupported imported idle Warm is refused. |
+| `ux-timed-policy-red-capture-green` | TemporaryNativeLayout 7/7; WidgetProvider 4/4 | Actual 320dp/200% native windows retain complete text, contrast and 48dp/56dp targets; actual inflated previews remain readable in Android day/night configurations. |
+| `ux-timed-policy-red-capture-green` | StopTrackingCapture 4/4; RecoveryNotificationActions 2/2 | Local Stop tracking capture and notification Stop/Resume controls remain intact beside the shared native changes. |
+
+The latest batch completed in 200.66s with **38 tests: 30 pass, 8 deliberate role/cap regression failures, zero errors/skips**. The six named GREEN suites above contribute 26 passing cases; this does not relabel the whole batch GREEN. NativeAction's seven cases took 18.106s, NativeLayout's seven 39.480s and WidgetProvider's four 0.223s. Counts use the requested fresh XML, not retained results from prior focused runs. The exact RED/fix/GREEN sequence and actual-window captures are recorded in [ux-widget-temporary-review.md](ux-widget-temporary-review.md).
+
 ## Rulings and interface checks
 
 - Ruling: use the cached Glance 1.1.1 `GlanceAppWidget.compose` API and inflate its real RemoteViews in Robolectric SDK 34, with GraphLifecycle. No test dependency is added — the offline cache already provides the production translation API — tests do not prove launcher-specific rendering on physical Samsung hardware.
@@ -14,7 +28,7 @@ Scope: approved `2026-10-26-nocturne-ux` design and plan, P4 only. Base: `367968
 
 ## Verification ledger
 
-Focused P4 implementation is ready for integration. The final whole-tree gate remains with root; no physical launcher or BedJet claim is made.
+The following entries preserve the implementation history and its exact observations. Current results are above; the final whole-tree gate remains with root, and no physical launcher or BedJet claim is made.
 
 ### Initial actual layout RED
 
@@ -34,7 +48,7 @@ Focused P4 implementation is ready for integration. The final whole-tree gate re
 - `mediumQuickHasTwoLargeActions`: `java.lang.AssertionError: Real controls on quick:0 at 280.0.dp x 180.0.dp expected:<[Cool, Warm]> but was:<[Start tonight, Boost, Turbo, Cool, Warm, Off]>`
 - `compactQuickHasOneLargeAction`: `java.lang.AssertionError: Real controls on quick:0 at 200.0.dp x 128.0.dp expected:<[Cool]> but was:<[Start tonight, Boost]>`
 
-The owner subsequently clarified visible Boost/Turbo duration labels; expected controls are now Turbo 15m (Boost default) and Turbo 10m. The separate label RED is recorded with the next pre-implementation run.
+At this stage the owner clarified visible Boost/Turbo duration labels; the then-current expectations were Turbo 15m (Boost default) and Turbo 10m. The separate label RED follows. The later P1 correction above supersedes that Boost wording.
 
 ### Entry, cadence, provider and clarified label RED
 
@@ -130,22 +144,22 @@ The actual large-font fix retains 16sp/20sp and 56dp controls. Above 130% text s
 
 The unresolved-slot presentation now applies the existing exact displaced-night confidence rule; an unrelated-night slot journal has a positive control. The native button style explicitly retains sentence case and removes inherited letter spacing, and the compact Single header uses BedJet while its full device name remains accessible. The 200% test now checks actual text layout height and ellipsis, beyond control rectangles alone. Arbitrarily long saved profile names may still ellipsise inside a fixed-size button; their full action name is always its accessibility description. Fixed primary/control labels are required to fit in full.
 
-## Final focused GREEN and handover
+## Initial focused GREEN and handover
 
 `ux-widget-font-native-slot-green`: **34 requested tests passed, zero failures/errors**, `BUILD SUCCESSFUL` (124.39 seconds). Counted only fresh `WidgetResponsiveLayoutTest` (27) and `WidgetTruthLabelsTest` (7), not stale XML from earlier focused runs. This resolves all four behavioural failures from the preceding 74-test run. That preceding run already passed the other 40 widget tests. A final assertion helper recognises the state prefix when the accessibility description also names the device; root’s integrated gate re-runs the complete suite.
 
-- Normal geometry: `compactNightHasOneLargePrimaryAction`, `mediumNightHasTwoLargePrimaryActions`, `largeNightHasThreeLargePrimaryActions`, plus each Quick/Device/Profile/App page and all Single sizes. Primary controls remain Start tonight / Turbo 15m (configured Boost) / Turbo 10m.
+- Normal geometry: `compactNightHasOneLargePrimaryAction`, `mediumNightHasTwoLargePrimaryActions`, `largeNightHasThreeLargePrimaryActions`, plus each Quick/Device/Profile/App page and all Single sizes. This historical run used Start tonight / Turbo 15m (configured Boost) / Turbo 10m; the later P1 cycle preserves the geometry while correcting the Boost label and full description.
 - Enlarged text: `everySizeAndPageKeepsControlsAndTextInsideItsBoundsAtTwoHundredPercentFont` traverses every paginated group and overflow page at 200%, checking the actual RemoteViews text/control bounds, text layout height, primary-label ellipsis and button dimensions. `aConfirmedPlanAndSingleActionFitAtNormalAndTwoHundredPercentText` adds a real confirmed plan/report and both widget types at 100%/200%.
 - Truth labels: `anUnknownWakeIsUnconfirmedRatherThanStillPending`, `aFailedWakeIsFailedRatherThanStillPending`, `aPendingWakeRetainsItsPendingLabel`, `aPlannedPhaseCarriesItsAbsoluteTimeSpanForAFrozenHostView`, both matching unresolved-slot tests and `anUnresolvedWriteForAnotherNightDoesNotColourThisNight`.
 - Receipt/lifetime (12 previously GREEN): `pendingIsPublishedBeforeTheFirstBedJetWrite`, `aNewMatchingReceiptConfirmsInPlaceWithWidgetOrigin`, `aMatchingCachedStatusCannotConfirmANewWidgetRequest`, `aRefusedStartShowsFailedWithoutClaimingConfirmation`, `cancellingWhileAWriteIsUnsettledChangesPendingToUnknown`, `anOffTappedBeforeANightStartsCannotEndThatNewNightWhileQueued`, `aLaterPendingTapCannotBeOverwrittenByAnEarlierResult`, `theCallbackReleasesItsReceiverWhileTheOwnedCommandStillWaits`, `aCompletedReceiptLeavesNoLiveDeliveryOrDeadlineChild`, `pendingFromAnEarlierProcessRendersUnknown`, `pendingPastItsBoundRendersUnknownAtTheNextRender`, `aConfirmedResultForAnotherTargetIsNotShownAsCurrentConfirmation`.
 - Confirmation (9 previously GREEN): actual RemoteViews directly start the excluded translucent activity for Off/Stop and guarded replacements; cancellation sends nothing; confirmed Off settles its captured night; Stop is local; changed target, changed open-dialog night and changed queued night are refused.
 - Event/paging (previously GREEN): `anIdleWidgetDoesNotRedrawOnARepeatingMinuteTimer`, `aTrackedPlanRefreshesAtItsPhaseBoundaryWithoutAnIdleMinuteLoop`, both `WidgetPagingTest` tests, both provider tests, and five actual click-route tests. The phase observer runs finite plan deadlines only while this process lives; a cached phase includes its absolute date/time span if the host outlives the process.
 
-### Integration-only seams owned by root
+### Integrated owner and presentation boundaries
 
-1. In `WidgetDelivery`, use the newly added `BedJetService.runOwned(..., hardware = request.command != Command.STOP_TRACKING)` argument. This isolated base predates that overload. Keep `notifyFailures = false`: root’s Bluetooth-off handling still posts its deduplicated WIDGET notice. The UNDISPATCHED handoff reaches runOwned and retains its per-submission admission guard; no retry is added.
-2. Replace the duplicate widget Boost description with root’s `night.boostDescription(context, minutes)` helper once integrated; visible mode/duration labels and tested wording already match it.
-3. Add exported=false WidgetConfirmationActivity to the release manifest exact allowlist after root’s observed manifest RED. No serializable model or dependency was added.
+1. `WidgetDelivery` uses `BedJetService.runOwned(..., hardware = request.command != Command.STOP_TRACKING)`. `notifyFailures = false` retains the service's deduplicated WIDGET Bluetooth notice. The UNDISPATCHED handoff reaches the shared owner/admission guard, with no widget retry or second command owner; Stop tracking needs no radio.
+2. Widget descriptions use the shared `night.boostDescription(context, minutes)` helper. Split Boosts visibly name both modes and their complete descriptions name the exact captured segment durations; feedback does not reread a later Settings preset.
+3. WidgetConfirmationActivity is private (`exported=false`), excluded from recents and has no task affinity. The actual Quick/Single route invokes the shared native Temporary dialog without an Open Tonight callback; only the explicit Open app control targets MainActivity. Release manifest verification remains a separate root-owned gate.
 4. Device remains Off + Stop tracking; Check BedJet is in the requested warning/notification recovery route and is not an extra P4 requirement.
 
 ### Practical limits
@@ -156,15 +170,18 @@ No physical Samsung launcher, hardware BLE connection or release-install verific
 
 | Behaviour | Implementation | Regression |
 |---|---|---|
-| Responsive budgets, paging and type | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/Widgets.kt:81` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetResponsiveLayoutTest.kt:135` |
-| Confirmed-plan geometry and both widget types | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/Widgets.kt:170` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetResponsiveLayoutTest.kt:175` |
-| Activity-free ordinary callbacks | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:76` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetInPlaceActionTest.kt:47` |
-| In-place persisted pages | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:65` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetPagingTest.kt:29` |
-| Receipt state and request CAS | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:140` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetCommandFeedbackTest.kt:182` |
-| Dead/expired Pending | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:111` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetCommandFeedbackTest.kt:237` |
-| Callback handoff and cancellable deadline | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:171` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetCommandFeedbackTest.kt:227` |
-| Strict Off identity under the shared owner | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:206` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetCommandFeedbackTest.kt:156` |
-| Direct translucent approval | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationActivity.kt:24` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationTest.kt:111` |
-| Approval identity change refusal | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationActivity.kt:62` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationTest.kt:202` |
+| Responsive budgets, paging and type | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/Widgets.kt:82` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetResponsiveLayoutTest.kt:190` |
+| Confirmed-plan geometry and both widget types | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/Widgets.kt:172` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetResponsiveLayoutTest.kt:230` |
+| Activity-free ordinary callbacks | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:91` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetInPlaceActionTest.kt:47` |
+| In-place persisted pages | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:80` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetPagingTest.kt:29` |
+| Receipt state and request CAS | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:156` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetCommandFeedbackTest.kt:112` |
+| Dead/expired Pending | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:127` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetCommandFeedbackTest.kt:237` |
+| Callback handoff and cancellable deadline | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:213` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetCommandFeedbackTest.kt:227` |
+| Strict Off identity under the shared owner | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetActions.kt:224` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetCommandFeedbackTest.kt:156` |
+| Direct translucent approval | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationActivity.kt:25` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationTest.kt:311` |
+| Approval identity change refusal | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationActivity.kt:50` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationTest.kt:279` |
 | Finite phase events, no idle loop | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetUpdater.kt:53` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetUpdateCadenceTest.kt:48` |
-| Night/slot truth labels | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetPresentation.kt:121` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetTruthLabelsTest.kt:46` |
+| Night/slot truth labels | `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetPresentation.kt:137` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetTruthLabelsTest.kt:46` |
+| Native complete text, touch and contrast | `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TemporaryNativeDialog.kt:22` | `app/src/test/kotlin/io/github/willzy12h/nocturne/platform/TemporaryNativeLayoutTest.kt:282` |
+| Native idle approval captures its actual preset | `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ShortcutActivity.kt:38`; `ui/TemporaryActions.kt:48` | `app/src/test/kotlin/io/github/willzy12h/nocturne/platform/TemporaryNativeActionTest.kt:161` |
+| Day/night launcher-preview contrast | `app/src/main/res/drawable/widget_preview_background.xml:4` | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetProviderTest.kt:48` |

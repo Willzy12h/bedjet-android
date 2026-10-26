@@ -58,6 +58,10 @@ import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.notify.Notifications
+import io.github.willzy12h.nocturne.night.NightActions
+import io.github.willzy12h.nocturne.night.NightActions.Command
+import io.github.willzy12h.nocturne.night.timedPresetRefusal
+import io.github.willzy12h.nocturne.night.validCapturedPreset
 import io.github.willzy12h.nocturne.ui.features.PlatformSettingsSection
 import io.github.willzy12h.nocturne.ui.features.PhoneHandoverMenuItems
 import java.time.LocalDate
@@ -203,8 +207,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             }
             PresetEditor(stringResource(R.string.settings_preset_snooze_warm), settings.snoozeWarm, f) { p -> model.updateSettings { it.copy(snoozeWarm = p) } }
             PresetEditor(stringResource(R.string.settings_preset_snooze_cool), settings.snoozeCool, f) { p -> model.updateSettings { it.copy(snoozeCool = p) } }
-            PresetEditor(stringResource(R.string.settings_preset_extend_warm), settings.extendWarm, f) { p -> model.updateSettings { it.copy(extendWarm = p) } }
-            PresetEditor(stringResource(R.string.settings_preset_extend_cool), settings.extendCool, f) { p -> model.updateSettings { it.copy(extendCool = p) } }
+            PresetEditor(stringResource(R.string.settings_preset_extend_warm), settings.extendWarm, f, quickCommand = Command.WARM) { p -> model.updateSettings { it.copy(extendWarm = p) } }
+            PresetEditor(stringResource(R.string.settings_preset_extend_cool), settings.extendCool, f, quickCommand = Command.COOL) { p -> model.updateSettings { it.copy(extendCool = p) } }
             Text(io.github.willzy12h.nocturne.night.boostDescription(context, settings.boostMinutes))
             Slider(settings.boostMinutes.toFloat(), { v -> model.updateSettings { it.copy(boostMinutes = v.roundToInt()) } }, valueRange = 10f..30f, steps = 3,
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)))
@@ -373,12 +377,26 @@ private fun Group(title: String, modifier: Modifier = Modifier, content: @Compos
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, onChange: (ActionPreset) -> Unit) {
+private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, quickCommand: Command? = null,
+    onChange: (ActionPreset) -> Unit) {
+    val context = LocalContext.current
+    val timedRefusal = timedPresetRefusal(context, preset)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
-            Text(if (preset.mode.usesTemperature) stringResource(R.string.settings_preset_summary_temp, title, modeName(preset.mode),
-                tempText(preset.temperature, f), preset.fanPercent, preset.minutes)
-                else stringResource(R.string.settings_preset_summary, title, modeName(preset.mode), preset.fanPercent, preset.minutes), style = MaterialTheme.typography.bodyMedium)
+            // Timed Snooze/Extend and the Quick buttons which share Extend presets have distinct policies.
+            if (timedRefusal != null) {
+                Text(title, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_preset_unsupported), color = MaterialTheme.colorScheme.error)
+                Text(timedRefusal, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            } else {
+                Text(if (preset.mode.usesTemperature) stringResource(R.string.settings_preset_summary_temp, title, modeName(preset.mode),
+                    tempText(preset.temperature, f), preset.fanPercent, preset.minutes)
+                    else stringResource(R.string.settings_preset_summary, title, modeName(preset.mode), preset.fanPercent, preset.minutes), style = MaterialTheme.typography.bodyMedium)
+                if (quickCommand != null && !validCapturedPreset(quickCommand, preset)) {
+                    Text(stringResource(R.string.settings_preset_quick_unsupported, NightActions.commandLabel(context, quickCommand)),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY).forEach { mode ->
                     FilterChip(preset.mode == mode, { onChange(preset.copy(mode = mode, temperature = preset.temperature.coerceIn(mode.temperatureRange))) }, label = { ModeLabel(mode, f) })

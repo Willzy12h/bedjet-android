@@ -3,13 +3,19 @@ package io.github.willzy12h.nocturne.ui
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
+import android.content.res.Configuration
+import android.util.TypedValue
+import android.view.ContextThemeWrapper
 import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.ListAdapter
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.CommandRequest
 
 /** Native widget/shortcut equivalent of NightGuard, retaining each entry's existing cancellation/navigation. */
@@ -19,7 +25,7 @@ internal fun showTemporaryActionDialog(
     captured: CapturedQuickAction,
     cancelLabel: Int,
     openTonight: (() -> Unit)? = null,
-    dialogContext: Context = activity,
+    dialogContext: Context = nativeActionDialogContext(activity, graph),
     submit: (CommandRequest) -> Unit,
 ) {
     val choice = captured.temporary
@@ -27,8 +33,11 @@ internal fun showTemporaryActionDialog(
     var minutes = choice.preset.minutes
     var temporary = graph.actions.previewTemporary(choice.request).plan != null
     val spacing = (16 * activity.resources.displayMetrics.density).toInt()
+    val minimumTarget = ((if (captured.end.origin == CommandOrigin.WIDGET) 56 else 48) *
+        activity.resources.displayMetrics.density).toInt()
     fun textView() = TextView(dialogContext).apply {
         setTextAppearance(android.R.style.TextAppearance_Material_Body1)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
         setPadding(0, spacing / 2, 0, spacing / 2)
     }
     val body = LinearLayout(dialogContext).apply {
@@ -47,7 +56,8 @@ internal fun showTemporaryActionDialog(
         contentDescription = activity.getString(R.string.slider_minutes)
         min = 1; max = choice.maximumMinutes
         progress = minutes.coerceIn(1, max)
-        minimumHeight = (48 * activity.resources.displayMetrics.density).toInt()
+        // ProgressBar's own measurement does not honor View.minimumHeight for its touch surface.
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, minimumTarget)
     }
     val planned = textView()
     val explanation = textView()
@@ -68,11 +78,12 @@ internal fun showTemporaryActionDialog(
         planned.text = returnText
         planned.visibility = if (temporary && returnText != null) View.VISIBLE else View.GONE
         explanation.setText(if (temporary) R.string.temporary_schedule else R.string.temporary_native_end)
-        refusal.text = preview.refusal
-        refusal.visibility = if (preview.refusal == null) View.GONE else View.VISIBLE
+        val refusalText = if (temporary) preview.refusal else temporaryEndRefusal(activity, choice) ?: preview.refusal
+        refusal.text = refusalText
+        refusal.visibility = if (refusalText == null) View.GONE else View.VISIBLE
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).apply {
             setText(if (temporary) R.string.temporary_confirm else R.string.guard_confirm)
-            isEnabled = !temporary || preview.plan != null
+            isEnabled = if (temporary) preview.plan != null else choice.canEnd
         }
     }
     val builder = AlertDialog.Builder(dialogContext).setTitle(R.string.temporary_title)
@@ -85,6 +96,28 @@ internal fun showTemporaryActionDialog(
     if (openTonight != null) builder.setNeutralButton(R.string.feature_open_tonight) { _, _ -> openTonight() }
     dialog = builder.create()
     dialog.show()
+    val choices = dialog.listView
+    val originalAdapter = choices.adapter
+    choices.adapter = object : ListAdapter by originalAdapter {
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+            originalAdapter.getView(position, convertView, parent).apply { minimumHeight = minimumTarget }
+    }
+    choices.setItemChecked(if (temporary) 0 else 1, true)
+    for (id in listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL)) {
+        dialog.getButton(id)?.apply {
+            minimumHeight = minimumTarget
+            minimumWidth = minimumTarget
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        }
+    }
+    // Material normally gives a custom panel zero weight when it also has a choice list. Let only
+    // our scrolling body shrink so native choices and buttons retain their measured space.
+    val choiceParents = generateSequence(choices.parent) { it.parent }.toSet()
+    val customPanel = generateSequence<View>(scroll) { it.parent as? View }
+        .firstOrNull { it.parent in choiceParents && it.layoutParams is LinearLayout.LayoutParams }
+    customPanel?.let { panel ->
+        panel.layoutParams = (panel.layoutParams as LinearLayout.LayoutParams).apply { weight = 1f }
+    }
     seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
         override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
             if (fromUser) { minutes = progress; render() }
@@ -93,9 +126,18 @@ internal fun showTemporaryActionDialog(
         override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
     })
     dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        if (!temporary && !choice.canEnd) return@setOnClickListener
         val request = if (temporary) choice.forMinutes(minutes) else captured.end
         dialog.dismiss()
         submit(request)
     }
     render()
+}
+
+/** Shortcut activities are translucent; their window theme is not a readable dialog palette. */
+internal fun nativeActionDialogContext(activity: Activity, graph: Graph): Context {
+    val systemDark = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    val dark = graph.repository.settings.value.isDarkTheme(graph.now(), systemDark)
+    return ContextThemeWrapper(activity, if (dark) android.R.style.Theme_Material_Dialog_Alert
+        else android.R.style.Theme_Material_Light_Dialog_Alert)
 }

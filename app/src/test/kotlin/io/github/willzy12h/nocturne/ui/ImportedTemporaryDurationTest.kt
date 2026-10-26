@@ -88,4 +88,41 @@ class ImportedTemporaryDurationTest {
         assertEquals(physical, ui.graph.link.status.value)
         assertEquals(imported, ui.graph.repository.settings.value.extendWarm)
     }
+
+    @Test fun settingsExplainsAnUnsupportedImportedPresetWithoutChangingItUntilAValidModeIsChosen() {
+        val original = ui.graph.repository.activeNight.value
+        val generation = ui.graph.repository.runtime.value.generation
+        ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        val unsupportedReason = "This saved action uses unsupported settings. Choose a mode below to repair it."
+        // Collect both presentation observations before repairing the preset, so the valid Heat
+        // repair and no-owner-work controls still execute when the unsupported presentation is RED.
+        val explainsUnsupported = ui.compose.onAllNodesWithText(unsupportedReason)
+            .fetchSemanticsNodes().size == 1
+        val advertisesTurboFifteen = ui.compose.onAllNodes(
+            hasText("Turbo", substring = true) and hasText("15 min", substring = true),
+        ).fetchSemanticsNodes().isNotEmpty()
+        assertEquals("Rendering Settings must not normalize the imported action", imported,
+            ui.graph.repository.settings.value.extendWarm)
+        assertEquals(generation, ui.graph.repository.runtime.value.generation)
+        assertEquals(original, ui.graph.repository.activeNight.value)
+
+        // The four editors appear in their saved-action order; Extend warm is the third one.
+        val heatChoices = ui.compose.onAllNodes(hasText(ui.s(R.string.mode_heat)) and hasClickAction() and
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected))
+        heatChoices.assertCountEquals(4)
+        heatChoices[2].performScrollTo().performClick()
+        val repaired = ActionPreset(Mode.HEAT, 80, 100, 15)
+        ui.waitUntil { ui.graph.repository.settings.value.extendWarm == repaired }
+        assertEquals("An explicit supported mode keeps duration/fan and clamps to Heat's temperature limit",
+            repaired, ui.graph.repository.settings.value.extendWarm)
+        ui.compose.onNodeWithText(ui.s(R.string.settings_preset_summary_temp,
+            ui.s(R.string.settings_preset_extend_warm), ui.s(R.string.mode_heat), "40°C", 100, 15))
+            .performScrollTo().assertIsDisplayed()
+        ui.compose.onAllNodesWithText(unsupportedReason).assertCountEquals(0)
+        assertEquals("Editing the saved preset must not submit a BedJet command", generation,
+            ui.graph.repository.runtime.value.generation)
+        assertEquals(original, ui.graph.repository.activeNight.value)
+        assertTrue("Settings must explain why the imported Warm preset is unsupported", explainsUnsupported)
+        assertFalse("Settings must not advertise an executable Turbo 15 min action", advertisesTurboFifteen)
+    }
 }

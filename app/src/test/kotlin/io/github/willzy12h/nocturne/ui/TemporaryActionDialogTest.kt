@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsProperties
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.night.OutcomeKind
@@ -39,7 +40,8 @@ class TemporaryActionDialogTest(look: U06Look) {
         temporary.assertExists("A running-night Quick action must offer automatic return as well as ending the night")
         temporary.assertIsSelected()
         ui.checkControl(temporary, "Temporary choice")
-        ui.checkControl(ui.compose.onNode(hasText("End tonight") and inDialog), "End choice")
+        ui.checkControl(ui.compose.onNode(hasText("Stop night") and inDialog and
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)), "Stop choice")
         val preview = ui.graph.actions.previewTemporary(ui.model.quickAction(NightActions.Command.WARM).temporary.request)
         ui.checkLayout(ui.compose.onNode(hasText(requireNotNull(temporaryReturn(ui.compose.activity, preview))) and inDialog), "Complete return and wake")
         ui.checkLayout(ui.compose.onNode(hasText(ui.s(R.string.temporary_schedule)) and inDialog), "Complete schedule explanation")

@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import android.os.Looper
 import org.robolectric.Shadows.shadowOf
@@ -49,7 +50,11 @@ class TemporaryActionDispatchTest {
     @get:Rule val rules = ui.rules
     private val graph get() = ui.graph
     private fun dialogText(text: String) = ui.compose.onNode(hasText(text) and hasAnyAncestor(isDialog()))
-    private fun dialogButton(id: Int) = dialogText(ui.s(id))
+    private fun dialogButton(id: Int): SemanticsNodeInteraction {
+        val choice = SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)
+        val role = if (id == R.string.temporary_choice || id == R.string.temporary_end_choice) choice else !choice
+        return ui.compose.onNode(hasText(ui.s(id)) and hasAnyAncestor(isDialog()) and role)
+    }
 
     private fun duration(minutes: Int) {
         ui.compose.onNode(hasContentDescription(ui.s(R.string.slider_minutes)) and hasAnyAncestor(isDialog()))

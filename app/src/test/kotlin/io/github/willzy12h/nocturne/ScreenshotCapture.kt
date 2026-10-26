@@ -104,7 +104,8 @@ class ScreenshotCapture {
     @Test fun featureViews() {
         compose.runOnUiThread { runBlocking {
             graph.repository.updateSettings {
-                it.copy(demoMode = true, themeMode = ThemeMode.DARK, lullHandover = true)
+                it.copy(demoMode = true, themeMode = ThemeMode.DARK,
+                    platform = it.platform.copy(lullHandover = true))
             }
             graph.repository.setActiveNight(null)
         } }

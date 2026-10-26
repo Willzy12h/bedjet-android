@@ -11,10 +11,11 @@ import io.github.willzy12h.nocturne.night.CommandRequest
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.night.TemporaryActionPreview
 import io.github.willzy12h.nocturne.night.boostDescription
+import io.github.willzy12h.nocturne.night.validCapturedPreset
 
 /** One reviewed action. Changing minutes never recaptures its target, night or preset. */
 internal data class TemporaryChoice(val request: CommandRequest, val maximumMinutes: Int,
-    val endPreset: ActionPreset? = request.actionPreset, val boost: Boolean = false) {
+    val endPreset: ActionPreset? = request.actionPreset, val boost: Boolean = false, val canEnd: Boolean = true) {
     val preset: ActionPreset get() = requireNotNull(request.actionPreset)
     fun forMinutes(minutes: Int): CommandRequest = request.copy(actionPreset = preset.copy(minutes = minutes))
 }
@@ -41,9 +42,10 @@ internal fun captureQuickAction(graph: Graph, request: CommandRequest): Captured
     val temporaryPreset = preset.copy(minutes = preset.minutes.coerceIn(1, maximum))
     return CapturedQuickAction(
         TemporaryChoice(captured.copy(command = Command.TEMPORARY, replacementConfirmed = false,
-            actionPreset = temporaryPreset), maximum, endPreset = preset, boost = request.command == Command.BOOST),
-        // With no dialogue/night, retain the existing quick-action behaviour and feedback.
-        captured.copy(replacementConfirmed = true, actionPreset = preset.takeIf { captured.expected != null }),
+            actionPreset = temporaryPreset), maximum, endPreset = preset, boost = request.command == Command.BOOST,
+            canEnd = validCapturedPreset(request.command, preset)),
+        // Idle taps retain the same reviewed preset; owner admission must not recapture saved settings.
+        captured.copy(replacementConfirmed = true),
     )
 }
 
@@ -55,10 +57,14 @@ internal fun captureRemoteTemporary(graph: Graph, mode: Mode, status: DeviceStat
 }
 
 /** End uses the captured request; its owner still applies the saved profile limits before sending. */
-internal fun requestedEndDetail(context: Context, choice: TemporaryChoice, fahrenheit: Boolean): String? = choice.endPreset?.let {
+internal fun requestedEndDetail(context: Context, choice: TemporaryChoice, fahrenheit: Boolean): String? = choice.endPreset?.takeIf { choice.canEnd }?.let {
     val detail = if (choice.boost) boostDescription(context, it.minutes) else presetDetail(context, it, fahrenheit)
     context.getString(R.string.temporary_requested, detail)
 }
+
+/** Eligibility belongs to the captured ending action, independently of the Temporary slider's duration. */
+internal fun temporaryEndRefusal(context: Context, choice: TemporaryChoice): String? =
+    if (choice.canEnd) null else context.getString(R.string.runtime_temporary_invalid)
 
 /** Formats the owner's actual split/clamped temporary prefix, never the future programme as an action preset. */
 internal fun temporaryDetails(context: Context, request: CommandRequest, preview: TemporaryActionPreview,

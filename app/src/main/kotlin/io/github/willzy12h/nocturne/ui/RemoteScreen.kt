@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
@@ -115,9 +116,13 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         }
         if (s.isRunning) {
             val timerSet = stringResource(R.string.remote_timer_set)
+            val maximumMinutes = if (s.mode == Mode.TURBO) minOf(s.maxRuntimeMinutes, Limits.TURBO_MINUTES)
+                else s.maxRuntimeMinutes
+            val timerChoices = listOf(15, 30, 60, 120, 240, 480).filter { it <= maximumMinutes }
+                .ifEmpty { listOf(maximumMinutes).filter { it > 0 } }
             Text(stringResource(R.string.remote_run_for), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(15, 30, 60, 120, 240, 480).forEach { minutes ->
+                timerChoices.forEach { minutes ->
                     AssistChip({ model.remote(timerSet, affectsProgramme = true, confirms = { kotlin.math.abs(it.remainingSeconds - minutes * 60) <= 90 }) { it.setRuntime(minutes) } }, enabled = canControl, label = { Text(durationText(minutes)) })
                 }
             }

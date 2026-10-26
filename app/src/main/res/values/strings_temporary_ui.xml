@@ -4,7 +4,7 @@
     <string name="temporary_timeline_title">Temporary · %1$s</string>
     <string name="temporary_title">Run this action?</string>
     <string name="temporary_choice">Temporarily, then resume</string>
-    <string name="temporary_end_choice">End tonight</string>
+    <string name="temporary_end_choice">Stop night</string>
     <string name="temporary_running">%1$s is tracked for tonight.</string>
     <string name="temporary_confirm">Run, then resume</string>
     <string name="temporary_duration">Run for %1$s</string>
@@ -14,6 +14,6 @@
     <string name="temporary_preset_temperature">%1$s · %2$s · fan %3$d%% · %4$s</string>
     <string name="temporary_preset_fan">%1$s · fan %2$d%% · %3$s</string>
     <string name="temporary_preset_time">%1$s · %2$s</string>
-    <string name="temporary_native_end">This will end tonight’s night and run the action. The night will not continue automatically.</string>
+    <string name="temporary_native_end">This will stop the night and run the action. The night will not resume automatically.</string>
     <string name="temporary_requested">Requested settings: %1$s</string>
 </resources>

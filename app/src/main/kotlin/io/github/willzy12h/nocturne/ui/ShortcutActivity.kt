@@ -8,6 +8,8 @@ import io.github.willzy12h.nocturne.night.NightAlarms
 import android.app.Activity
 import android.app.AlertDialog
 import android.os.Bundle
+import android.util.TypedValue
+import android.widget.TextView
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.night.NightActions
@@ -33,32 +35,54 @@ class ShortcutActivity : Activity() {
         // Notification requests retain render-time identity. External extras never waive confirmation.
         val captured = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) current.copy(
             deviceId = intent.getStringExtra(EXTRA_TARGET), expected = NightAlarms.identity(intent)) else current
-        if (graph.repository.activeNight.value != null) captureQuickAction(graph,
-            captured.copy(origin = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT))?.let { quick ->
+        val quick = captureQuickAction(graph,
+            captured.copy(origin = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT))
+        if (graph.repository.activeNight.value != null && quick != null) {
             showTemporaryActionDialog(this, graph, quick, android.R.string.cancel) { selected ->
                 BedJetService.start(this, selected); finish()
             }
             return
         }
+        // Idle shortcuts still show an approval. Its wording and service request share this captured preset.
+        val reviewed = quick?.end ?: captured
         val recovery = command == NightActions.Command.END_NIGHT || command == NightActions.Command.RESUME
-        AlertDialog.Builder(this)
-            .setTitle(when (command) {
-                NightActions.Command.END_NIGHT -> R.string.guard_title
-                NightActions.Command.RESUME -> R.string.guard_resume_title
-                else -> R.string.runtime_confirm_title
+        val title = when (command) {
+            NightActions.Command.END_NIGHT -> R.string.guard_title
+            NightActions.Command.RESUME -> R.string.guard_resume_title
+            else -> R.string.runtime_confirm_title
+        }
+        val dialogContext = nativeActionDialogContext(this, graph)
+        val padding = (24 * resources.displayMetrics.density).toInt()
+        val dialog = AlertDialog.Builder(dialogContext)
+            // Native DialogTitle caps itself at two lines; preserve the complete wording at large text.
+            .setCustomTitle(TextView(dialogContext).apply {
+                setText(title)
+                setTextAppearance(android.R.style.TextAppearance_Material_Title)
+                setPadding(padding, padding, padding, 0)
+                isAccessibilityHeading = true
             })
             .setMessage(when (command) {
                 NightActions.Command.END_NIGHT -> getString(R.string.runtime_confirm_stop)
                 NightActions.Command.RESUME -> getString(R.string.guard_resume_body)
                 NightActions.Command.BOOST -> getString(R.string.runtime_confirm_command,
-                    boostDescription(this, captured.actionPreset?.minutes ?: graph.repository.settings.value.boostMinutes))
+                    boostDescription(this, requireNotNull(reviewed.actionPreset).minutes))
                 else -> getString(R.string.runtime_confirm_command, NightActions.commandLabel(this, command))
             })
             .setPositiveButton(if (recovery) NightActions.commandLabel(this, command) else getString(R.string.runtime_confirm)) { _, _ ->
-                BedJetService.start(this, captured.copy(replacementConfirmed = true)); finish()
+                BedJetService.start(this, reviewed.copy(replacementConfirmed = true)); finish()
             }
             .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }
             .setOnCancelListener { finish() }
-            .show()
+            .create()
+        dialog.setTitle(title)
+        dialog.show()
+        val minimumTarget = (48 * resources.displayMetrics.density).toInt()
+        for (id in listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE)) {
+            dialog.getButton(id).apply {
+                minimumHeight = minimumTarget
+                minimumWidth = minimumTarget
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            }
+        }
     }
 }

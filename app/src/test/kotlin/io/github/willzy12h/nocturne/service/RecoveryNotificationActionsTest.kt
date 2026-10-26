@@ -64,9 +64,18 @@ class RecoveryNotificationActionsTest {
         try {
             service.get().onStartCommand(intent, 0, 1)
             val deadline = System.nanoTime() + 5_000_000_000L
+            var lastTick = System.nanoTime()
+            var remainder = 0L
             fun settled() = condition() && shadowOf(service.get()).isStoppedBySelf
             while (!settled() && System.nanoTime() < deadline) {
-                shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10)); Thread.yield()
+                // Disk publication runs on a real worker. Do not advance the 100-second service
+                // deadline hundreds of times faster than that worker can finish its actual I/O.
+                val tick = System.nanoTime()
+                val elapsed = tick - lastTick + remainder
+                lastTick = tick
+                remainder = elapsed % 1_000_000
+                shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(elapsed / 1_000_000))
+                Thread.yield()
             }
             assertTrue("The accepted action must settle through the command owner: result=${BedJetService.lastResult}, " +
                 "night=${graph.repository.activeNight.value?.identity}, reason=${graph.repository.runtime.value.reason}, " +

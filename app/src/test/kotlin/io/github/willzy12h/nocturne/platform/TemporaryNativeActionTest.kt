@@ -158,6 +158,57 @@ class TemporaryNativeActionTest : PlatformGraphFixture() {
         } finally { activity.pause().stop().destroy() }
     }
 
+    @Test fun idleShortcutBoostRunsTheFifteenMinutesReviewedBeforeSettingsChanged() {
+        runBlocking {
+            assertEquals(OutcomeKind.CONFIRMED,
+                graph.actions.execute(graph.actions.capture(NightActions.Command.END_NIGHT).copy(replacementConfirmed = true)).kind)
+            graph.repository.updateSettings { it.copy(boostMinutes = 15) }
+        }
+        assertNull(graph.repository.activeNight.value)
+        val expected = "Turbo heat for 10 minutes, then Heat for 5 minutes"
+        val intent = Intent(app, ShortcutActivity::class.java).putExtra("command", NightActions.Command.BOOST.name)
+        val before = graph.link.status.value
+        val cancelled = Robolectric.buildActivity(ShortcutActivity::class.java, intent).setup()
+        try {
+            val dialog = ShadowAlertDialog.getLatestAlertDialog()
+            assertTrue(shadowOf(dialog).message.toString().contains(expected))
+            runBlocking { graph.repository.updateSettings { it.copy(boostMinutes = 30) } }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNull(graph.repository.activeNight.value)
+            assertEquals(before, graph.link.status.value)
+            assertNull("Cancel must not hand an idle Boost to the owner", shadowOf(app).nextStartedService)
+            assertNull("The shortcut must not open MainActivity", shadowOf(app).nextStartedActivity)
+        } finally { cancelled.pause().stop().destroy() }
+
+        runBlocking { graph.repository.updateSettings { it.copy(boostMinutes = 15) } }
+        outcomes.clear()
+        val accepted = Robolectric.buildActivity(ShortcutActivity::class.java, intent).setup()
+        try {
+            val dialog = ShadowAlertDialog.getLatestAlertDialog()
+            assertTrue("Approval must review the actual 15-minute sequence", shadowOf(dialog).message.toString().contains(expected))
+            runBlocking { graph.repository.updateSettings { it.copy(boostMinutes = 30) } }
+            assertTrue("The open approval still describes its captured request", shadowOf(dialog).message.toString().contains(expected))
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            var delivered: Intent? = null
+            until { delivered = delivered ?: shadowOf(app).nextStartedService; delivered != null }
+            val service = Robolectric.buildService(BedJetService::class.java).create()
+            try {
+                service.get().onStartCommand(delivered, 0, 1)
+                until { outcomes.any { it.origin == CommandOrigin.SHORTCUT } && shadowOf(service.get()).isStoppedBySelf }
+                val result = outcomes.single { it.origin == CommandOrigin.SHORTCUT }
+                assertEquals(result.message, OutcomeKind.CONFIRMED, result.kind)
+                val steps = runBlocking { graph.controller().programSteps(graph.repository.settings.value.workingSlot) }
+                assertEquals("The service must write the reviewed programme, not the new Settings duration",
+                    listOf(Mode.TURBO to 10, Mode.HEAT to 5), steps.map { it.mode to it.durationMinutes })
+                assertEquals(expected, result.message)
+                assertEquals(30, graph.repository.settings.value.boostMinutes)
+                assertNull(graph.repository.activeNight.value)
+                assertNull("Acceptance must remain outside MainActivity", shadowOf(app).nextStartedActivity)
+            } finally { service.destroy() }
+        } finally { accepted.pause().stop().destroy() }
+    }
+
     private fun until(check: () -> Boolean) {
         val deadline = System.nanoTime() + 10_000_000_000L
         var lastTick = System.nanoTime()
@@ -176,7 +227,7 @@ class TemporaryNativeActionTest : PlatformGraphFixture() {
     private fun assertChoices(dialog: AlertDialog) {
         val choices = dialog.listView
         assertNotNull("Running quick actions need an explicit temporary/end choice before sending", choices)
-        assertEquals(listOf("Temporarily, then resume", "End tonight"),
+        assertEquals(listOf("Temporarily, then resume", "Stop night"),
             (0 until choices.adapter.count).map { choices.adapter.getItem(it).toString() })
         assertEquals("Eligible actions initially choose temporary", 0, choices.checkedItemPosition)
     }

@@ -92,6 +92,11 @@ class TemporaryTrackingTruthTest {
         val stopChoice = ui.compose.onNode(hasText(ui.s(R.string.temporary_end_choice)) and
             hasClickAction() and inDialog and selectedChoice)
         stopChoice.assertTextEquals("Stop night")
+        val inconsistentMessages = listOf(R.string.runtime_temporary_too_close,
+            R.string.runtime_temporary_too_many_steps, R.string.temporary_native_end).map { ui.s(it) }
+            .filter { !it.contains("stop", ignoreCase = true) || it.contains("end tonight", ignoreCase = true) }
+        assertTrue("Temporary messages must use the same Stop action wording:\n${inconsistentMessages.joinToString("\n")}",
+            inconsistentMessages.isEmpty())
         stopChoice.performScrollTo().performClick()
         ui.compose.onNode(hasText(ui.s(R.string.guard_confirm)) and hasClickAction() and inDialog and !selectedChoice)
             .assertIsEnabled()

@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.night.ActiveNight
+import io.github.willzy12h.nocturne.night.CommandRequest
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.ui.features.PhoneHandoverMenuItems
 import io.github.willzy12h.nocturne.core.store.deviceId
@@ -42,7 +43,7 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
     val resumePrevious = stringResource(R.string.guard_resume_previous)
     val hasMore = night != null || settings.platform.lullHandover
     var more by remember(hasMore) { mutableStateOf(false) }
-    var stopTracking by remember { mutableStateOf(false) }
+    var stopTracking by remember { mutableStateOf<CommandRequest?>(null) }
     Column {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (hasMore) OutlinedButton(onClick = { more = true }) { Text(stringResource(R.string.recovery_more)) }
@@ -50,7 +51,10 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
                 OutlinedButton(onClick = { model.run(Command.KEEP_TRACKING) }) { Text(stringResource(R.string.runtime_command_keep_tracking)) }
             }
             if (night != null) {
-                OutlinedButton(onClick = { stopTracking = true }) { Text(stringResource(R.string.runtime_command_stop_tracking)) }
+                OutlinedButton(onClick = {
+                    stopTracking = model.graph.actions.capture(Command.STOP_TRACKING, requireIdentity = true)
+                        .copy(expected = night.identity, deviceId = night.deviceId)
+                }) { Text(stringResource(R.string.runtime_command_stop_tracking)) }
             }
             // The offer is for this night's own programme, which a manual run left (P3b).
             if (night?.trackingManual == true && offer?.night?.recordId == night.recordId) {
@@ -72,11 +76,13 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
             PhoneHandoverMenuItems(model.graph, onOutcome = model::report, includeRelease = false) { more = false }
         }
     }
-    if (stopTracking) AlertDialog(
-        onDismissRequest = { stopTracking = false },
-        title = { Text(stringResource(R.string.recovery_stop_tracking_title)) },
-        text = { Text(stringResource(R.string.stop_tracking_text)) },
-        confirmButton = { TextButton(onClick = { stopTracking = false; model.run(Command.STOP_TRACKING) }) { Text(stringResource(R.string.runtime_command_stop_tracking)) } },
-        dismissButton = { TextButton(onClick = { stopTracking = false }) { Text(stringResource(R.string.runtime_command_keep_tracking)) } },
-    )
+    stopTracking?.let { request ->
+        AlertDialog(
+            onDismissRequest = { stopTracking = null },
+            title = { Text(stringResource(R.string.recovery_stop_tracking_title)) },
+            text = { Text(stringResource(R.string.stop_tracking_text)) },
+            confirmButton = { TextButton(onClick = { stopTracking = null; model.runCaptured(request) }) { Text(stringResource(R.string.runtime_command_stop_tracking)) } },
+            dismissButton = { TextButton(onClick = { stopTracking = null }) { Text(stringResource(R.string.runtime_command_keep_tracking)) } },
+        )
+    }
 }
