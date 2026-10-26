@@ -17,7 +17,6 @@ import kotlin.io.path.deleteIfExists
 import kotlin.io.path.exists
 import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.name
-import kotlin.io.path.readText
 
 data class SnapshotInfo(val id: String, val createdAt: String, val label: String?, val manual: Boolean)
 
@@ -71,6 +70,7 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
     fun list(): List<SnapshotInfo> {
         if (!dir.exists()) return emptyList()
         return dir.listDirectoryEntries("snap-*.json")
+            .filter { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }
             .mapNotNull { path ->
                 val id = path.name.removeSuffix(".json")
                 runCatching { path.bufferedReader().use { HeaderReader(it).read() } }
@@ -81,13 +81,19 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
 
     /** Null when missing, unreadable, or written by a newer version than this one. Older ones are migrated. */
     fun load(id: String): BackupBundle? = runCatching {
-        val file = BackupCodec.json.parseToJsonElement(dir.resolve("$id.json").readText()).jsonObject
+        if (!validId(id)) return@runCatching null
+        val path = dir.resolve("$id.json")
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return@runCatching null
+        val file = Files.newInputStream(path).use { BackupCodec.parseDocument(BackupValidator.readWithinLimit(it)) }
         BackupCodec.decode(file.getValue("bundle").jsonObject)
     }.getOrNull()
 
     fun delete(id: String) {
+        require(validId(id)) { "SNAPSHOT_ID_INVALID" }
         dir.resolve("$id.json").deleteIfExists()
     }
+
+    private fun validId(id: String): Boolean = id.length <= 128 && Regex("snap-[0-9]+-[am]x*").matches(id)
 
     private fun prune() {
         list().filter { !it.manual }.drop(KEEP_AUTOMATIC).forEach { delete(it.id) }
@@ -106,6 +112,12 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
      * large. Null when the file doesn't start that way.
      */
     private class HeaderReader(private val reader: Reader) {
+        private var consumed = 0
+        private fun nextCharacter(): Int {
+            check(++consumed <= 8_192) { "SNAPSHOT_HEADER_LIMIT" }
+            return reader.read()
+        }
+
         fun read(): Header? {
             if (nextToken() != '{'.code) return null
             var createdAt: String? = null
@@ -140,25 +152,26 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
 
         private fun nextToken(): Int {
             var c: Int
-            do c = reader.read() while (c == ' '.code || c == '\n'.code || c == '\r'.code || c == '\t'.code)
+            do c = nextCharacter() while (c == ' '.code || c == '\n'.code || c == '\r'.code || c == '\t'.code)
             return c
         }
 
-        private fun literal(rest: String) = rest.all { reader.read() == it.code }
+        private fun literal(rest: String) = rest.all { nextCharacter() == it.code }
 
         /** The rest of a string whose opening quote has been read. */
         private fun string(): String = buildString {
             while (true) {
-                when (val c = reader.read()) {
+                check(length <= 2_048) { "SNAPSHOT_HEADER_STRING_LIMIT" }
+                when (val c = nextCharacter()) {
                     -1 -> error("Unterminated string")
                     '"'.code -> return@buildString
-                    '\\'.code -> when (val e = reader.read()) {
+                    '\\'.code -> when (val e = nextCharacter()) {
                         'n'.code -> append('\n')
                         't'.code -> append('\t')
                         'r'.code -> append('\r')
                         'b'.code -> append('\b')
                         'f'.code -> append('\u000C')
-                        'u'.code -> append(CharArray(4) { reader.read().toChar() }.concatToString().toInt(16).toChar())
+                        'u'.code -> append(CharArray(4) { nextCharacter().toChar() }.concatToString().toInt(16).toChar())
                         -1 -> error("Unterminated string")
                         else -> append(e.toChar())
                     }

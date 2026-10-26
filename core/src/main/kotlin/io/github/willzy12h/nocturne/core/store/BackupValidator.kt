@@ -7,6 +7,10 @@ import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
+import kotlinx.serialization.json.*
 import java.time.ZonedDateTime
 
 /**
@@ -18,10 +22,25 @@ object BackupValidator {
     const val MAX_BYTES = 5 * 1024 * 1024
     const val MAX_PHASE_MINUTES = 720
     const val MAX_RAMP_STEPS = 8
+    const val MAX_PROFILES = 128
+    const val MAX_HISTORY = 2_048
+    const val MAX_ORIGINALS = 384
+    private const val MAX_ID = 128
+    private const val MAX_NAME = 120
+    private const val MAX_DETAIL = 2_048
+    private const val MAX_PHASES = 64
+    private const val MAX_EVENTS = 1_024
+    private const val MAX_SAMPLES = 4_096
+    private const val MAX_REVISIONS = 256
+    private const val MAX_RECORDED_STEPS = 256
     private val FAN = 5..100
     private val PHASE_MINUTES = 1..MAX_PHASE_MINUTES
     private val RAMP_STEPS = 1..MAX_RAMP_STEPS
     private val SLOTS = 0 until Limits.SLOTS
+    // Accept bounded hexadecimal legacy associations. Selecting or commanding a real unit still requires its
+    // complete Bluetooth address at the owner boundary; a shorter saved identifier cannot select a unit.
+    private val SAVED_DEVICE = Regex("ble:(?:[0-9A-Fa-f]{2}:){0,5}[0-9A-Fa-f]{2}")
+    private fun validDevice(value: String) = value == DeviceId.DEMO || value == Migrations.UNKNOWN_DEVICE || SAVED_DEVICE.matches(value)
     private val BOOST_MINUTES = 10..30
     private val ACTION_MINUTES = 1..120
     private val MINUTE_OF_DAY = 0 until 24 * 60
@@ -43,13 +62,22 @@ object BackupValidator {
             val n = input.read(buffer)
             if (n < 0) break
             out.write(buffer, 0, n)
-            if (out.size() > MAX_BYTES) throw BackupException("This file is too big to be a Nocturne backup (over 5 MB).")
+            if (out.size() > MAX_BYTES) throw BackupException("This file is too big to be a Nocturne backup (over 5 MB).", failure = BackupFailure.TOO_LARGE)
         }
-        return out.toByteArray().decodeToString()
+        return try {
+            Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(out.toByteArray())).toString()
+        } catch (_: CharacterCodingException) {
+            throw BackupException("BACKUP_UTF8_INVALID", failure = BackupFailure.DAMAGED)
+        }
     }
 
     /** Every problem with [bundle]; empty when it is safe to restore. */
     fun validate(bundle: BackupBundle): List<String> = buildList {
+        // Diagnostic codes are mapped to resource-backed import messages by the app, never shown as UI text.
+        addAll(strictBounds(bundle))
+        if (isNotEmpty()) return@buildList
+        if (bundle.schema < 1) add("BACKUP_SCHEMA_INVALID")
         if (bundle.schema > BackupCodec.SCHEMA) add("This backup is from a newer version of Nocturne. Update the app first.")
         time("The backup's creation time", bundle.createdAt)
 
@@ -62,7 +90,7 @@ object BackupValidator {
             if (backup.slot !in SLOTS) add("A saved slot is numbered ${backup.slot + 1}; it must be 1 to ${Limits.SLOTS}.")
             time("The time slot ${backup.slot + 1} was saved", backup.savedAt)
             val device = backup.deviceId
-            if (device != DeviceId.DEMO && device != Migrations.UNKNOWN_DEVICE && DeviceId.address(device).isNullOrBlank())
+            if (!validDevice(device))
                 add("The original of slot ${backup.slot + 1} was saved for \"$device\", which isn't a BedJet this app knows.")
             if (backup.empty != (backup.program == null)) add("A saved slot's empty marker disagrees with its programme.")
             backup.program?.let { program ->
@@ -92,6 +120,102 @@ object BackupValidator {
             night.events.forEach { time("$what event time", it.at) }
             night.temperatures.forEach { time("$what temperature reading time", it.at) }
         }
+    }
+
+    /** Bound every independently growing field before the more descriptive existing checks iterate it. */
+    private fun strictBounds(bundle: BackupBundle): List<String> = buildList {
+        fun invalid(path: String) { add("BACKUP_FIELD_INVALID:$path") }
+        fun bounded(value: String, path: String, maximum: Int, blank: Boolean = false) {
+            if (value.length > maximum || (!blank && value.isBlank()) || value.any { it.isISOControl() }) invalid(path)
+        }
+        fun count(size: Int, maximum: Int, path: String) { if (size > maximum) invalid(path) }
+        count(bundle.profiles.size, MAX_PROFILES, "profiles")
+        count(bundle.history.size, MAX_HISTORY, "history")
+        count(bundle.slotBackups.size, MAX_ORIGINALS, "slotBackups")
+        if (isNotEmpty()) return@buildList
+        bundle.profiles.forEach { profile ->
+            bounded(profile.id, "profile.id", MAX_ID)
+            bounded(profile.name, "profile.name", MAX_NAME)
+            count(profile.start.size, MAX_PHASES, "profile.start")
+            count(profile.wake.size, MAX_PHASES, "profile.wake")
+            count(profile.afterWake.size, MAX_PHASES, "profile.afterWake")
+        }
+        fun recorded(step: RecordedStep) {
+            if (step.fanPercent !in 0..100 || step.temperature !in CODEC_BYTE || step.minutes !in 0..1_080)
+                invalid("history.step")
+        }
+        bundle.history.forEach { night ->
+            bounded(night.id, "history.id", MAX_ID)
+            bounded(night.profileId, "history.profileId", MAX_ID)
+            bounded(night.profileName, "history.profileName", MAX_NAME)
+            bounded(night.deviceId, "history.deviceId", MAX_ID)
+            if (!validDevice(night.deviceId))
+                invalid("history.deviceId")
+            count(night.steps.size, MAX_RECORDED_STEPS, "history.steps")
+            count(night.events.size, MAX_EVENTS, "history.events")
+            count(night.temperatures.size, MAX_SAMPLES, "history.temperatures")
+            count(night.revisions.size, MAX_REVISIONS, "history.revisions")
+            if (night.steps.size <= MAX_RECORDED_STEPS) night.steps.forEach(::recorded)
+            if (night.events.size <= MAX_EVENTS) night.events.forEach { event ->
+                if (event.detail.length > MAX_DETAIL || event.detail.any { it.isISOControl() && it != '\n' && it != '\t' }) invalid("history.event.detail")
+            }
+            if (night.temperatures.size <= MAX_SAMPLES) night.temperatures.forEach {
+                if (it.room !in CODEC_BYTE || it.air !in CODEC_BYTE) invalid("history.temperature")
+            }
+            if (night.revisions.size <= MAX_REVISIONS) night.revisions.forEach { revision ->
+                if (revision.revision < 0) invalid("history.revision")
+                if (revision.start.isNotEmpty() && runCatching { ZonedDateTime.parse(revision.start) }.isFailure) invalid("history.revision.start")
+                if (revision.wake.isNotEmpty() && runCatching { ZonedDateTime.parse(revision.wake) }.isFailure) invalid("history.revision.wake")
+                count(revision.steps.size, MAX_RECORDED_STEPS, "history.revision.steps")
+                count(revision.programSteps.size, Limits.STEPS_PER_PROGRAM, "history.revision.programSteps")
+                if (revision.steps.size <= MAX_RECORDED_STEPS) revision.steps.forEach {
+                    recorded(it)
+                    if (runCatching { ZonedDateTime.parse(it.startsAt) }.isFailure) invalid("history.revision.step.time")
+                }
+                if (revision.programSteps.size <= Limits.STEPS_PER_PROGRAM) revision.programSteps.forEach { step ->
+                    if (step.fanStep !in 0..19 || step.temperature !in CODEC_BYTE || step.minutes !in 0..59 ||
+                        step.hours !in (if (step.endsAtClockTime) 0..23 else 0..11) ||
+                        (!step.endsAtClockTime && step.durationMinutes !in 1..Limits.MAX_STEP_MINUTES)) invalid("history.revision.programStep")
+                }
+            }
+        }
+        if (bundle.history.map { it.id }.distinct().size != bundle.history.size) invalid("history.duplicateId")
+        bundle.slotBackups.forEach { bounded(it.deviceId, "slotBackups.deviceId", MAX_ID) }
+        if (bundle.slotBackups.map { it.deviceId.lowercase(java.util.Locale.ROOT) to it.slot }.distinct().size != bundle.slotBackups.size)
+            invalid("slotBackups.duplicateIdentity")
+        val settings = bundle.settings
+        settings.selectedProfileId?.let { bounded(it, "settings.selectedProfileId", MAX_ID) }
+        settings.tonightChoice?.let { bounded(it.profileId, "settings.tonightChoice.profileId", MAX_ID) }
+        settings.targetDevice?.let { bounded(it, "settings.targetDevice", MAX_ID); if (!validDevice(it)) invalid("settings.targetDevice") }
+        settings.setupFanCheckedDevice?.let { bounded(it, "settings.setupFanCheckedDevice", MAX_ID); if (!validDevice(it)) invalid("settings.setupFanCheckedDevice") }
+        count(settings.alarmPackages.size, 128, "settings.alarmPackages")
+        settings.alarmPackages.take(129).forEach { bounded(it, "settings.alarmPackages", 255) }
+        count(settings.tonightSectionOrder.size, 64, "settings.tonightSectionOrder")
+        settings.tonightSectionOrder.take(65).forEach { bounded(it, "settings.tonightSectionOrder", MAX_ID) }
+        // Also bound additive schema-2 fields introduced alongside this importer without depending on their
+        // compile-time model revision. Local device remembrance and Health proof still have strict import types.
+        if (isNotEmpty()) return@buildList
+        val encoded = BackupCodec.json.encodeToJsonElement(BackupBundle.serializer(), bundle).jsonObject
+        fun inspect(value: JsonElement, path: String, key: String = "") {
+            when (value) {
+                is JsonObject -> value.forEach { (name, child) -> inspect(child, "$path.$name", name) }
+                is JsonArray -> {
+                    if (key == "rememberedBedJets" && (value.size > 16 || value.any {
+                            val id = (it as? JsonPrimitive)?.content.orEmpty()
+                            !Regex("ble:(?:[0-9A-F]{2}:){5}[0-9A-F]{2}").matches(id)
+                        } || value.distinct().size != value.size)) invalid(path)
+                    if (key == "collapsedTonightSections" && value.any { (it as? JsonPrimitive)?.content !in setOf("night", "wake", "connection") }) invalid(path)
+                    if (value.size > MAX_SAMPLES) invalid(path)
+                    else value.forEach { inspect(it, path, key) }
+                }
+                is JsonPrimitive -> if (value !is JsonNull) {
+                    if (value.isString && value.content.length > MAX_DETAIL) invalid(path)
+                    if (key in setOf("healthExportVersion", "healthExportedVersion") && (value.longOrNull ?: -1) < 0) invalid(path)
+                    if (key == "confirmedCompletionAt" && runCatching { ZonedDateTime.parse(value.content) }.isFailure) invalid(path)
+                }
+            }
+        }
+        inspect(encoded, "backup")
     }
 
     private fun MutableList<String>.profile(profile: Profile) {
