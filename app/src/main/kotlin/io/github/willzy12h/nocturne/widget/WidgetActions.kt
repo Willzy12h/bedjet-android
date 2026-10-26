@@ -198,19 +198,31 @@ internal object WidgetDelivery {
         val request = if (captured.command == Command.START_NIGHT && captured.profileId == null)
             captured.copy(profileId = context.graph.repository.tonightsProfile()?.id) else captured
         val stamp = WidgetFeedback.stamp(context, request)
+        // Saving Pending can wait on Glance's writer; admission covers that wait before service/owner handoff.
+        val admission = context.graph.repository.operationAdmission.tryCommand()
+        val refusal = if (admission == null) CommandOutcome(OutcomeKind.REFUSED,
+            context.getString(R.string.import_command_blocked), origin = CommandOrigin.WIDGET) else null
+        var handedOff = false
         try {
             WidgetFeedback.pending(context, id, kind, stamp)
             currentCoroutineContext().ensureActive()
-            return context.graph.scope.launch(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) {
-                deliver(context, id, kind, request, stamp)
+            val delivery = context.graph.scope.launch(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) {
+                deliver(context, id, kind, request, stamp, refusal)
             }
+            // Also runs if the application job was already cancelled before the delivery body could start.
+            delivery.invokeOnCompletion { admission?.close() }
+            handedOff = true
+            return delivery
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { WidgetFeedback.finish(context, id, kind, stamp, interrupted(context)) }
             throw cancelled
+        } finally {
+            if (!handedOff) admission?.close()
         }
     }
 
-    private suspend fun deliver(context: Context, id: GlanceId, kind: String, request: CommandRequest, stamp: WidgetRequestStamp) = coroutineScope {
+    private suspend fun deliver(context: Context, id: GlanceId, kind: String, request: CommandRequest,
+        stamp: WidgetRequestStamp, refusal: CommandOutcome?) = coroutineScope {
         var settled = false
         var result: CommandOutcome? = null
         // Only a live request has a deadline job. No timer remains after its result is durably published.
@@ -219,7 +231,7 @@ internal object WidgetDelivery {
             WidgetFeedback.finish(context, id, kind, stamp, interrupted(context), onlyPending = true)
         }
         try {
-            result = try {
+            result = refusal ?: try {
                 withContext(CommandOriginContext(CommandOrigin.WIDGET) + SubmissionTarget(request.deviceId)) {
                     BedJetService.runOwned(context, notifyFailures = false, hardware = request.command != Command.STOP_TRACKING) {
                         if (request.expected != null && !request.replacementConfirmed &&
