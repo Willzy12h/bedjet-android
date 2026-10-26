@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,7 +53,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.annotation.StringRes
 import io.github.willzy12h.nocturne.core.store.ActionPreset
-import io.github.willzy12h.nocturne.core.store.SnapshotInfo
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.core.store.WakeAction
@@ -72,6 +72,8 @@ import kotlin.math.roundToInt
 fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0, alarmsRequest: Int = 0) {
     val settings by model.settings.collectAsState()
     val snapshots by model.snapshots.collectAsState()
+    val importPreview by model.importPreview.collectAsState()
+    val importApplying by model.importApplying.collectAsState()
     val slotBackups by model.slotBackups.collectAsState()
     val fromBackup = slotBackups.filter { it.deviceId != settings.deviceId() }
     val unreadable by model.unreadable.collectAsState()
@@ -87,7 +89,6 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val context = LocalContext.current
     val systemDark = isSystemInDarkTheme()
     var pendingTheme by remember { mutableStateOf<ThemeMode?>(null) }
-    var restoring by remember { mutableStateOf<SnapshotInfo?>(null) }
     var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
     var snapshotLabel by remember { mutableStateOf("") }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
@@ -255,22 +256,25 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             UnreadableDataBanner(UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked),
                 onDismiss = model::dismissUnreadable, onRestore = null, onAcceptLoss = model::acceptLostOriginals)
             Text(stringResource(R.string.settings_snapshots_help), style = MaterialTheme.typography.bodySmall)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(snapshotLabel, { snapshotLabel = it.take(40) }, label = { Text(stringResource(R.string.settings_label)) }, singleLine = true, modifier = Modifier.weight(1f))
-                FilledTonalButton(onClick = { model.snapshotNow(snapshotLabel); snapshotLabel = "" }) { Text(stringResource(R.string.settings_snapshot_now)) }
+            if (settings.demoMode) Text(stringResource(R.string.import_demo_unavailable), style = MaterialTheme.typography.bodySmall)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(snapshotLabel, { snapshotLabel = it.take(40) }, label = { Text(stringResource(R.string.settings_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                FilledTonalButton(enabled = !settings.demoMode && !importApplying, onClick = { model.snapshotNow(snapshotLabel); snapshotLabel = "" }) { Text(stringResource(R.string.settings_snapshot_now)) }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }) { Text(stringResource(R.string.settings_export_file)) }
-                OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text(stringResource(R.string.settings_restore_from_file)) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(enabled = !settings.demoMode && !importApplying, onClick = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }) { Text(stringResource(R.string.settings_export_file)) }
+                OutlinedButton(enabled = !settings.demoMode && !importApplying, onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text(stringResource(R.string.settings_restore_from_file)) }
             }
             snapshots.forEach { snap ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column {
                         Text(snap.label ?: stringResource(R.string.settings_automatic), style = MaterialTheme.typography.bodyMedium)
                         Text(snap.createdAt.take(16).replace('T', ' '), style = MaterialTheme.typography.bodySmall)
                     }
-                    TextButton(onClick = { restoring = snap }) { Text(stringResource(R.string.settings_restore)) }
-                    if (snap.manual) TextButton(onClick = { model.deleteSnapshot(snap.id) }) { Text(stringResource(R.string.settings_delete)) }
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(enabled = !settings.demoMode && !importApplying, onClick = { model.restoreSnapshot(snap.id) }) { Text(stringResource(R.string.settings_restore)) }
+                        if (snap.manual) TextButton(enabled = !settings.demoMode && !importApplying, onClick = { model.deleteSnapshot(snap.id) }) { Text(stringResource(R.string.settings_delete)) }
+                    }
                 }
             }
         }
@@ -326,14 +330,10 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         }
     }
 
-    restoring?.let { snap ->
-        AlertDialog(
-            onDismissRequest = { restoring = null },
-            title = { Text(stringResource(R.string.settings_restore_snapshot_title)) },
-            text = { Text(stringResource(R.string.settings_restore_snapshot_text, snap.createdAt.take(16).replace('T', ' '))) },
-            confirmButton = { TextButton(onClick = { model.restoreSnapshot(snap.id); restoring = null }) { Text(stringResource(R.string.settings_restore)) } },
-            dismissButton = { TextButton(onClick = { restoring = null }) { Text(stringResource(R.string.feature_cancel)) } },
-        )
+    importPreview?.let { preview ->
+        key(preview) {
+            ImportPreviewDialog(preview, importApplying, onApply = { model.confirmImport(preview) }, onCancel = model::cancelImport)
+        }
     }
     restoringSlot?.let { backup ->
         val program = backup.program

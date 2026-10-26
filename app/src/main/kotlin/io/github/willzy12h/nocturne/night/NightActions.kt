@@ -819,7 +819,12 @@ class NightActions(private val graph: Graph) {
     }
     /** A coalesced observation inbox, not a second command owner. This only uses the repository writer.
      * The receiver can submit while a whole hardware transaction holds the coordinator mutex. */
-    suspend fun submitAlarmChange(): CommandOutcome = submitAlarmChangeLocal().copy(origin = CommandOrigin.ALARM)
+    suspend fun submitAlarmChange(): CommandOutcome {
+        val admission = repo.operationAdmission.tryCommand()
+            ?: return refused(R.string.import_command_blocked).copy(origin = CommandOrigin.ALARM)
+        try { return submitAlarmChangeLocal().copy(origin = CommandOrigin.ALARM) }
+        finally { admission.close() }
+    }
     private suspend fun submitAlarmChangeLocal(): CommandOutcome {
         val night = repo.activeNight.value
         if (night == null) {

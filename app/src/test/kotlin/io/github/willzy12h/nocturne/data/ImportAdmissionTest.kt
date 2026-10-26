@@ -116,4 +116,19 @@ class ImportAdmissionTest {
             assertRestoreRefused()
         } finally { release.complete(Unit); restore.cancel(); until { restore.isCompleted } }
     }
+    @Test fun alarmObservationCannotQueueAWriteWhileImportOwnsAdmission() = runBlocking {
+        val now = graph.now()
+        val repo = graph.repository
+        repo.setActiveNight(io.github.willzy12h.nocturne.core.night.ActiveNight("live", "profile", now.toString(),
+            now.plusHours(8).toString(), false, 2, now.plusHours(7).toString(), now.plusHours(9).toString(),
+            deviceId = "ble:AA:BB:CC:DD:EE:FF", confidence = io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED))
+        val before = repo.runtime.value
+        val admission = requireNotNull(repo.operationAdmission.tryImport())
+        try {
+            val outcome = graph.actions.submitAlarmChange()
+            assertEquals(io.github.willzy12h.nocturne.night.OutcomeKind.REFUSED, outcome.kind)
+            assertEquals("Import exclusion includes alarm observations before their later hardware retry", before, repo.runtime.value)
+        } finally { admission.close() }
+    }
+
 }

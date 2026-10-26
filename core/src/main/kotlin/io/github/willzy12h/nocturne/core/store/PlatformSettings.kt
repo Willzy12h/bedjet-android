@@ -38,6 +38,8 @@ data class PlatformSettings(
     /** Explicit opt-in is tied to the selected real unit. Changing target cannot transfer authorisation. */
     val chargerDevice: String? = null,
     val healthSleepOverlay: Boolean = false,
+    /** Separate explicit consent for writing completed, confirmed BedJet programme sessions. */
+    val healthSleepExport: Boolean = false,
     val lullHandover: Boolean = false,
     /** Null reads the legacy charging-only opt-in until its one-time local migration. */
     val autoStart: AutoStartSettings? = null,

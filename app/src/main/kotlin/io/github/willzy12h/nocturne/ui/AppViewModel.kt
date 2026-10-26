@@ -31,6 +31,10 @@ import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.core.store.Release
 import io.github.willzy12h.nocturne.core.store.Settings
+import io.github.willzy12h.nocturne.core.store.BackupException
+import io.github.willzy12h.nocturne.core.store.BackupFailure
+import io.github.willzy12h.nocturne.data.ImportPreview
+import io.github.willzy12h.nocturne.data.RestoreUnfinished
 import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.data.MiddleSuggestion
 import io.github.willzy12h.nocturne.data.MorningCheckIn
@@ -114,6 +118,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val activeNight = repo.activeNight
     val slotBackups = repo.slotBackups
     val snapshots = repo.snapshotList
+    private val _importPreview = MutableStateFlow<ImportPreview?>(null)
+    val importPreview: StateFlow<ImportPreview?> = _importPreview.asStateFlow()
+    private val _importApplying = MutableStateFlow(false)
+    val importApplying: StateFlow<Boolean> = _importApplying.asStateFlow()
+    private var importGeneration = 0L
     val notices = repo.notices
     val unreadable = repo.unreadable
     /** A restore still not finished on disk; the banner says so instead of "set aside" (P5). */
@@ -434,6 +443,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
 
     private fun act(hardware: Boolean = true, deferBluetoothCheck: Boolean = false, work: suspend () -> CommandOutcome) {
+        // A tap is pending before its coroutine can wait for earlier saves or reach the service/owner.
+        val admission = repo.operationAdmission.tryCommand() ?: run {
+            report(refusal(text(R.string.import_command_blocked)))
+            return
+        }
         val pending = lastSave
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
         val feedback = if (hardware) tapHaptics.capture() else null
@@ -463,8 +477,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 finally { _busy.value = false }
                 feedback?.complete(outcome)
                 report(outcome)
-            } finally { radio?.close(); feedback?.close() }
-        }
+            } finally { radio?.close(); feedback?.close(); admission.close() }
+        }.invokeOnCompletion { admission.close() }
     }
 
     // Profiles, settings, backups
@@ -512,7 +526,61 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit(text(R.string.runtime_snapshot_saved)) }
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
-    fun restoreSnapshot(id: String) = save { _messages.tryEmit(snapshotRestoreMessage(text(R.string.runtime_snapshot_restored), text(R.string.runtime_snapshot_unreadable)) { repo.restoreSnapshot(id) }) }
+    fun restoreSnapshot(id: String) = stageImport { repo.previewSnapshot(id) }
+
+    private fun stageImport(read: suspend () -> ImportPreview?) {
+        if (_importApplying.value) return
+        val generation = ++importGeneration
+        _importPreview.value = null
+        save {
+            try {
+                val preview = read()
+                if (generation != importGeneration) return@save
+                _importPreview.value = preview
+                _messages.tryEmit(text(if (preview == null) R.string.runtime_snapshot_unreadable else R.string.import_review_ready))
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { if (generation == importGeneration) _messages.tryEmit(importError(e)) }
+        }
+    }
+
+    fun cancelImport() {
+        if (_importApplying.value) return
+        importGeneration++
+        _importPreview.value = null
+    }
+
+    fun confirmImport(preview: ImportPreview) {
+        if (_importPreview.value !== preview) {
+            _messages.tryEmit(text(R.string.import_preview_changed))
+            return
+        }
+        if (_importApplying.value || !preview.canApply) return
+        _importApplying.value = true
+        save {
+            try {
+                repo.applyImport(preview)
+                _importPreview.value = null
+                _messages.tryEmit(text(R.string.runtime_backup_restored))
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                if (e is BackupException && e.failure == BackupFailure.CHANGED) _importPreview.value = null
+                _messages.tryEmit(importError(e))
+            } finally { _importApplying.value = false }
+        }
+    }
+
+    private fun importError(error: Exception): String = when (error) {
+        is RestoreUnfinished -> error.message ?: text(R.string.runtime_read_failed)
+        is BackupException -> text(when (error.failure) {
+            BackupFailure.BUSY -> R.string.import_busy
+            BackupFailure.CHANGED -> R.string.import_preview_changed
+            BackupFailure.NEWER_SCHEMA -> R.string.import_newer
+            BackupFailure.TOO_LARGE -> R.string.import_too_large
+            BackupFailure.DAMAGED -> R.string.import_damaged
+            BackupFailure.INVALID -> R.string.import_invalid
+        })
+        else -> text(R.string.runtime_read_failed)
+    }
 
     fun export(uri: android.net.Uri) {
         graph.scope.launch {
@@ -534,13 +602,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun import(uri: android.net.Uri) {
-        graph.scope.launch {
-            runCatching { repo.restore(repo.importFrom(uri)) }
-                .onSuccess { _messages.tryEmit(text(R.string.runtime_backup_restored)) }
-                .onFailure { _messages.tryEmit(it.message ?: text(R.string.runtime_read_failed)) }
-        }
-    }
+    fun import(uri: android.net.Uri) = stageImport { repo.previewImport(repo.importFrom(uri)) }
 
     /** The latest save, which later saves and commands wait for. Only touched on the main thread. */
     private var lastSave: Job? = null
