@@ -208,8 +208,6 @@
     <!-- The step running now: block, mode and fan. -->
     <string name="tonight_now">Now: %1$s · %2$s · fan %3$d%%</string>
     <string name="tonight_end_night">End night</string>
-    <string name="tonight_alarm_not_clock">Your next alarm at %1$s is from %2$s, which isn\'t a clock app. Allow it in Settings.</string>
-    <string name="tonight_no_alarm">No alarm set, so the profile\'s wake time is used.</string>
     <string name="tonight_start_now">Start night now</string>
     <string name="tonight_set_wake">Set tonight-only wake</string>
     <string name="tonight_change_wake">Change tonight-only wake · %1$s</string>

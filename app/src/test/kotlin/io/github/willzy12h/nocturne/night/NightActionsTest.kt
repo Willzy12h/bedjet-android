@@ -11,6 +11,7 @@ import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
@@ -34,6 +35,7 @@ import java.time.ZonedDateTime
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class NightActionsTest {
+    @get:org.junit.Rule val graphs = GraphLifecycle()
     private val context: Context = RuntimeEnvironment.getApplication()
     private val graph get() = context.graph
     private var previousClock: java.time.Clock? = null
@@ -146,9 +148,8 @@ class NightActionsTest {
         idle()
         assertEquals(LinkState.READY, graph.link.state.value)
         sessions.holdForScreen(false)
-        idleFor(Duration.ofSeconds(6))
-        // One release undoes three "visible" calls.
-        assertEquals(LinkState.SEARCHING, graph.link.state.value)
+        // One release undoes three "visible" calls, after the complete foreground reuse window.
+        assertReleasedAtThirtySeconds()
     }
 
     @Test
@@ -158,11 +159,10 @@ class NightActionsTest {
         sessions.holdForScreen(true)
         idle()
         repeat(3) { sessions.holdForScreen(false) }
-        idleFor(Duration.ofSeconds(6))
+        idleFor(Duration.ofSeconds(30))
         assertEquals(LinkState.READY, graph.link.state.value)
         sessions.releaseLater()
-        idleFor(Duration.ofSeconds(6))
-        assertEquals(LinkState.SEARCHING, graph.link.state.value)
+        assertReleasedAtThirtySeconds()
     }
 
     @Test
@@ -171,12 +171,19 @@ class NightActionsTest {
         idle()
         assertEquals(LinkState.READY, graph.link.state.value)
         graph.sessions.reconnect()
-        idleFor(Duration.ofSeconds(6))
+        idleFor(Duration.ofSeconds(30))
         // The retry gave its own hold back; the screen's is still there.
         assertEquals(LinkState.READY, graph.link.state.value)
         graph.sessions.holdForScreen(false)
-        idleFor(Duration.ofSeconds(6))
-        assertEquals(LinkState.SEARCHING, graph.link.state.value)
+        assertReleasedAtThirtySeconds()
+    }
+
+    private fun assertReleasedAtThirtySeconds() {
+        idle()
+        idleFor(Duration.ofMillis(29_999))
+        assertEquals("The last holder keeps the connection throughout the 30-second grace", LinkState.READY, graph.link.state.value)
+        idleFor(Duration.ofMillis(1))
+        assertEquals("The idle connection releases exactly at the grace boundary", LinkState.SEARCHING, graph.link.state.value)
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()

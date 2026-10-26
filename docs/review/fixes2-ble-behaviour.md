@@ -14,7 +14,7 @@ Source: `1c67c0a28084238377c7675e6dc25d0444fe2c22`. These are code observations,
 
 ## Requested change and decisions
 
-Keep command receipts and hardware ownership unthrottled. Limit the screen's displayed status to visible activity lifetime and at most one update per second, with an immediate initial snapshot. Stop idle split-status enrichment when no screen/command holder needs it. Set idle disconnect grace to **30 seconds**; an active connection holder must protect its work, and returning to the foreground cancels pending release. Explicitly requested commands and pending recovery retain their existing ability to connect.
+Keep command receipts and hardware ownership unthrottled. Limit displayed actual/ambient sensor temperatures to visible activity lifetime and at most one update per second, with an immediate initial snapshot. Control and other status fields remain immediate. Stop idle split-status enrichment when no screen/command holder needs it. Set idle disconnect grace to **30 seconds**; an active connection holder must protect its work, and returning to the foreground cancels pending release. Explicitly requested commands and pending recovery retain their existing ability to connect.
 
 The 30-second grace is a connection reuse window, not an assertion of continuous background monitoring. Background command confirmation still requires full status; switching off reads needed for it would violate the existing truthfulness contract.
 
@@ -22,7 +22,7 @@ The 30-second grace is a connection reuse window, not an assertion of continuous
 
 | Boundary | Before | After |
 |---|---|---|
-| Visible activity | Connection held; every selected-target report can reach the UI. | Connection held; immediate initial snapshot, then at most one displayed status update per second. This also bounds displayed temperature updates. |
+| Visible activity | Connection held; every selected-target report can reach the UI. | Connection held; immediate initial snapshot, then actual/ambient sensor temperatures update at most once per second. Mode, target, fan, timer, accessory flags and other status fields update immediately. |
 | Hidden activity | The ViewModel keeps collecting and exposing full status. | The presentation subscription is cancelled and its value becomes null. Returning shows the selected target's latest snapshot immediately. |
 | Last connection holder releases | Disconnect after 5 seconds; split-status reads continue during that grace. | Disable new split-status remainder reads and routine platform observation saves; disconnect after 30 seconds. Returning before then reuses the connection. |
 | Background owner | Its connection hold protects its work. | The same hold restores full-status demand and protects work even after the activity hides. Its release starts the 30-second grace only if no other holder remains. |
@@ -41,6 +41,7 @@ Implementation: [LinkSessions](../../app/src/main/kotlin/io/github/willzy12h/noc
 - `ble-green-2`: **73 passed, 0 failures/errors/skips** across the three new suites and existing LinkSessions, GattLink, AndroidBedJetLink, FreshReadBoundary and Admission suites. The preceding GREEN attempt failed Kotlin type inference before tests; it is not counted as behavioural evidence.
 - `ble-telemetry-red`: **2 tests, 1 assertion failure, 0 errors**. A hidden idle report changed the durable automation observation; the hidden-owner positive control passed. The implementation adds the holder-demand guard without gating late raw Off settlement.
 - `ble-telemetry-green-2`: **14 passed, 0 failures/errors/skips**, covering all four new suites and the existing two GattStatusReceipt cases. The hidden-owner test was strengthened during independent review to await a distinguishable remainder and require equality with the head's captured receipt. Its preceding run passed that case and both telemetry cases, but an idle fixture hid during the final part of connection acquisition and correctly cancelled that unfinished connect. The fixture now awaits the suspending acquisition before testing established-connection grace; no production change was made for that race.
+- Integration regression: the initial whole-status throttle delayed controls. The sensor-only correction passed 21 focused tests, including all eight previously failing U06 cases. See [display evidence](fixes2-display-evidence.md).
 - The final integration gate is recorded in [fixes2 verification](fixes2-verification.md).
 
 Tests: [ForegroundConnectionTest](../../app/src/test/kotlin/io/github/willzy12h/nocturne/night/ForegroundConnectionTest.kt), [ForegroundStatusTest](../../app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ForegroundStatusTest.kt), [IdleStatusDemandTest](../../app/src/test/kotlin/io/github/willzy12h/nocturne/ble/IdleStatusDemandTest.kt) and [IdleTelemetryTest](../../app/src/test/kotlin/io/github/willzy12h/nocturne/platform/IdleTelemetryTest.kt). The connection timing tests use virtual time; the UI tests use the real ViewModel lifecycle methods; the GATT tests use scripted callbacks. They do not measure a phone's battery use.

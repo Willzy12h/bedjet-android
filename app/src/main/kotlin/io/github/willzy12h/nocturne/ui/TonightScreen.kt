@@ -61,6 +61,8 @@ import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.WakeResolver
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.deviceId
+import io.github.willzy12h.nocturne.night.AlarmExplanation
+import io.github.willzy12h.nocturne.night.AlarmSettingsTarget
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.delay
 import java.time.ZonedDateTime
@@ -71,7 +73,8 @@ import java.time.ZonedDateTime
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenBackups: () -> Unit = {}) {
+fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenBackups: () -> Unit = {},
+    onOpenAlarmSettings: () -> Unit = {}) {
     val profiles by model.profiles.collectAsState()
     val settings by model.settings.collectAsState()
     val night by model.activeNight.collectAsState()
@@ -118,9 +121,33 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
 
         val running = night
         var plannedWake = running?.wakeAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
+        val wakeOverride = settings.resolveWakeOverride(now)
+        // The command owner refuses a tonight-only wake for a night that isn't confirmed or runs manually.
+        val overridable = running == null || (running.confidence == Confidence.CONFIRMED &&
+            nightStatus.confidence == Confidence.CONFIRMED && !running.trackingManual)
+        val pickWake: () -> Unit = {
+            if (overridable) {
+                val current = model.now()
+                val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse)
+                    ?: plannedWake ?: current
+                TimePickerDialog(context, { _, hour, minute ->
+                    val wake = WakeResolver.nextOccurrence(hour * 60 + minute, model.now())
+                    model.setTonightWake(wake)
+                }, initial.hour, initial.minute, true).show()
+            }
+        }
+        fun openAlarmExplanation(explanation: AlarmExplanation, profile: Profile?) {
+            when (explanation.target) {
+                AlarmSettingsTarget.ALARM_SOURCES -> onOpenAlarmSettings()
+                AlarmSettingsTarget.PROFILE_WAKE -> profile?.let(onEdit) ?: onOpenAlarmSettings()
+                AlarmSettingsTarget.TONIGHT_WAKE -> if (overridable) pickWake() else onOpenAlarmSettings()
+            }
+        }
         if (running != null) {
             val plan = remember(running, profiles) { model.activePlan() }
             val profile = profiles.firstOrNull { it.id == running.profileId }
+            val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, running, runtime, nightStatus)
+            val openExplanation = { openAlarmExplanation(explanation, profile) }
             val startedAt = runCatching { ZonedDateTime.parse(running.startedAt) }.getOrNull()
             val confirmed = running.confidence == Confidence.CONFIRMED && nightStatus.confidence == Confidence.CONFIRMED
             Text(profile?.name ?: stringResource(R.string.tonights_night), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -156,6 +183,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 dark -> WakeHeadline(stringResource(if (confirmed) R.string.tonight_waking_at else R.string.tonight_planned_wake), Format.clock(running.wakeAt), running.wakeOrigin)
                 else -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", stringResource(if (confirmed) R.string.tonight_started else R.string.tonight_planned_start), Format.clock(running.wakeAt), running.wakeOrigin, waking = confirmed, planned = !confirmed)
             }
+            if (!simple || plan == null) AlarmExplanationLine(explanation, openExplanation)
             if (confirmed) plan?.stepAt(now)?.second?.let { step ->
                 Text(
                     stringResource(R.string.tonight_now, blockName(step.block), modeName(step.step.mode), (step.step.fanStep + 1) * 5),
@@ -169,7 +197,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 BigButton(stringResource(R.string.tonight_end_night), onClick = { guard.confirm(turnOff) { model.run(Command.END_NIGHT) } })
             }
             val end = manualUntil?.let { label -> runCatching { PlanEnd(label, ZonedDateTime.parse(running.endsAt)) }.getOrNull() }
-            plan?.let { PlanCard(it, settings, running.wakeOrigin, now = now, end = end) }
+            plan?.let { PlanCard(it, settings, running.wakeOrigin, now = now, end = end,
+                sourceExplanation = { AlarmExplanationLine(explanation, openExplanation) }) }
         } else {
             val choiceId = settings.resolveTonightChoice(now)?.profileId
             val scheduleWindow = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
@@ -177,11 +206,14 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             val profile = chosen
             val preview = profile?.let { model.startPreview(it, now) }
             val wake = preview?.wake
+            val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, previewWake = wake)
+            val openExplanation = { openAlarmExplanation(explanation, profile) }
             plannedWake = wake?.time
             if (wake != null && !simple) {
                 if (dark) WakeHeadline(stringResource(R.string.tonight_wakes_at), Format.clock(wake.time), wake.origin)
                 else StatTiles(Format.clock(now), stringResource(R.string.tonight_starts), Format.clock(wake.time), wake.origin, waking = false)
             }
+            if (!simple || profile == null) AlarmExplanationLine(explanation, openExplanation)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 profiles.forEach { p ->
                     FilterChip(
@@ -193,28 +225,18 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 profile?.let { TextButton(onClick = { onEdit(it) }) { Text(stringResource(R.string.action_edit)) } }
             }
             profile?.let {
-                alarm?.let { next ->
-                    if (!next.counts) Note(stringResource(R.string.tonight_alarm_not_clock, Format.clock(next.time), next.creator.toString()))
-                } ?: if (it.wakeSource.useAlarm && wake?.origin != WakeOrigin.OVERRIDE) Note(stringResource(R.string.tonight_no_alarm)) else Unit
-                preview?.plan?.let { plan -> PlanCard(plan, settings, wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null) }
-                    ?: Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.error)
+                preview?.plan?.let { plan -> PlanCard(plan, settings, wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null,
+                    sourceExplanation = { AlarmExplanationLine(explanation, openExplanation) }) }
+                    ?: run {
+                        if (simple) AlarmExplanationLine(explanation, openExplanation)
+                        Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.error)
+                    }
                 BigButton(stringResource(R.string.tonight_start_now), enabled = !busy && preview?.plan != null, onClick = { model.run(Command.START_NIGHT, it.id) })
             }
         }
 
-        val wakeOverride = settings.resolveWakeOverride(now)
-        // The command owner refuses a tonight-only wake for a night that isn't confirmed or runs manually.
-        val overridable = night.let { it == null || (it.confidence == Confidence.CONFIRMED && nightStatus.confidence == Confidence.CONFIRMED && !it.trackingManual) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (overridable) OutlinedButton(onClick = {
-                val current = model.now()
-                val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse)
-                    ?: plannedWake ?: current
-                TimePickerDialog(context, { _, hour, minute ->
-                    val wake = WakeResolver.nextOccurrence(hour * 60 + minute, model.now())
-                    model.setTonightWake(wake)
-                }, initial.hour, initial.minute, true).show()
-            }) { Text(if (wakeOverride == null) stringResource(R.string.tonight_set_wake) else stringResource(R.string.tonight_change_wake, Format.clock(wakeOverride.wakeAt))) }
+            if (overridable) OutlinedButton(onClick = pickWake) { Text(if (wakeOverride == null) stringResource(R.string.tonight_set_wake) else stringResource(R.string.tonight_change_wake, Format.clock(wakeOverride.wakeAt))) }
             if (wakeOverride != null && overridable) TextButton(onClick = { model.setTonightWake(null) }) { Text(stringResource(R.string.tonight_clear_wake)) }
             if (settings.resolveTonightChoice(now) != null) TextButton(onClick = { model.updateSettings { it.followSchedule() } }) {
                 Text(stringResource(R.string.tonight_follow_schedule))
@@ -297,11 +319,13 @@ private fun StatTile(label: String, value: String, note: String?, modifier: Modi
 
 /** The night itself: the bar curve, or in simple view the step list. */
 @Composable
-private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: ZonedDateTime?, end: PlanEnd? = null) {
+private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: ZonedDateTime?, end: PlanEnd? = null,
+    sourceExplanation: @Composable () -> Unit = {}) {
     Card(Modifier.fillMaxWidth(), colors = surfaceCard(), border = cardBorder()) {
         Column(Modifier.padding(16.dp)) {
             if (settings.simpleView) {
                 NightTimeline(plan, origin, settings.fahrenheit, now = now, end = end)
+                sourceExplanation()
             } else {
                 Text(stringResource(R.string.tonight_the_night), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
                 NightCurve(plan, now = now, legend = !nocturneColors.dark, end = end)

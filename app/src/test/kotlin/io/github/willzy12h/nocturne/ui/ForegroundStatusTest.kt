@@ -99,14 +99,108 @@ class ForegroundStatusTest {
         assertSame("Displaying status must not stamp a new command receipt", lastRaw, link.latestSourcedStatus())
     }
 
+    @Test fun modeChangesReachTheScreenBeforeTheNextSensorUpdate() {
+        visible()
+        link.receive(ReportsLink.sample(60).copy(mode = Mode.COOL, ambientTemperature = 48))
+        val received = link.latestSourcedStatus()
+        idle()
+
+        assertEquals("Mode controls must follow the unit without waiting for sensor sampling", Mode.COOL, model.status.value?.mode)
+        assertEquals(50, model.status.value?.actualTemperature)
+        assertEquals(44, model.status.value?.ambientTemperature)
+        assertSame("Presentation must leave the received report untouched", received, link.latestSourcedStatus())
+    }
+
+    @Test fun accessoryChangesReachTheScreenBeforeTheNextSensorUpdate() {
+        visible()
+        link.receive(ReportsLink.sample(60).copy(extra = DeviceStatus.Extra(true, true, 3, 1)))
+        idle()
+
+        assertEquals("Lights, beeps and programme details must remain live", DeviceStatus.Extra(true, true, 3, 1), model.status.value?.extra)
+        assertEquals(50, model.status.value?.actualTemperature)
+    }
+
+    @Test fun targetTemperatureFanAndTimerChangesDoNotReleaseSensorSamplesEarly() {
+        visible()
+        repeat(4) { index ->
+            link.receive(ReportsLink.sample(60 + index).copy(targetTemperature = 68 + index,
+                fanStep = 12 + index, remainingSeconds = 900 + index, ambientTemperature = 48 + index))
+            idle(100)
+            assertEquals("The chosen temperature is a control value", 68 + index, model.status.value?.targetTemperature)
+            assertEquals(12 + index, model.status.value?.fanStep)
+            assertEquals(900 + index, model.status.value?.remainingSeconds)
+            assertEquals("Control changes must not bypass the sensor cadence", 50, model.status.value?.actualTemperature)
+            assertEquals(44, model.status.value?.ambientTemperature)
+        }
+        idle(600)
+        assertEquals(63, model.status.value?.actualTemperature)
+        assertEquals(51, model.status.value?.ambientTemperature)
+        assertEquals("The sensor update must retain the latest control values", 71, model.status.value?.targetTemperature)
+        assertEquals(15, model.status.value?.fanStep)
+        assertEquals(903, model.status.value?.remainingSeconds)
+    }
+
+    @Test fun sensorOnlyBurstsDoNotPublishDuplicatePresentationValues() {
+        visible()
+        val displayed = mutableListOf<DeviceStatus>()
+        graph.scope.launch { model.status.collect { it?.let(displayed::add) } }
+        idle()
+        repeat(9) { index ->
+            link.receive(ReportsLink.sample(51 + index).copy(ambientTemperature = 45 + index))
+            idle(100)
+        }
+        assertEquals("Sensor-only input must not repaint equal presentation values", 1, displayed.size)
+        idle(100)
+        assertEquals(2, displayed.size)
+        assertEquals(59, displayed.last().actualTemperature)
+        assertEquals(53, displayed.last().ambientTemperature)
+    }
+
+    @Test fun losingStatusClearsTheControlsBeforeTheNextSensorUpdate() {
+        visible()
+        link.clearStatus()
+        idle()
+        assertNull("Unavailable status must not leave old controls on screen", model.status.value)
+    }
+
+    @Test fun switchingTargetDiscardsThePreviousDevicesQueuedTemperatures() = runBlocking {
+        val first = "ble:AA:BB:CC:DD:EE:01"
+        val second = "ble:AA:BB:CC:DD:EE:02"
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = first) }
+        link.receive(ReportsLink.sample(50), first)
+        visible()
+        link.receive(ReportsLink.sample(60), first)
+        idle(100)
+
+        graph.repository.updateSettings { it.copy(targetDevice = second) }
+        idle()
+        assertNull("The previous target's snapshot cannot stand for the new target", model.status.value)
+        link.receive(ReportsLink.sample(70).copy(mode = Mode.COOL, ambientTemperature = 52), second)
+        idle()
+        assertEquals("A new target gets its own immediate sensor snapshot", 70, model.status.value?.actualTemperature)
+        assertEquals(52, model.status.value?.ambientTemperature)
+        assertEquals(Mode.COOL, model.status.value?.mode)
+
+        link.receive(ReportsLink.sample(61), first)
+        idle()
+        assertNull("A later old-target report must clear rather than replace the selected target", model.status.value)
+        idle(1_000)
+        assertNull("No delayed old sensor sample may reappear", model.status.value)
+    }
+
     private class ReportsLink : BedJetLink {
         override val state = MutableStateFlow(LinkState.SEARCHING)
         override val status = MutableStateFlow<DeviceStatus?>(sample(50))
         override val sourcedStatus = MutableStateFlow<SourcedStatus?>(SourcedStatus("demo", status.value!!))
         override fun latestSourcedStatus() = sourcedStatus.value
-        fun receive(temperature: Int) {
-            status.value = sample(temperature)
-            sourcedStatus.value = SourcedStatus("demo", status.value!!)
+        fun receive(temperature: Int) = receive(sample(temperature))
+        fun receive(value: DeviceStatus, source: String = "demo") {
+            status.value = value
+            sourcedStatus.value = SourcedStatus(source, value)
+        }
+        fun clearStatus() {
+            status.value = null
+            sourcedStatus.value = null
         }
         override suspend fun connect() { state.value = LinkState.READY }
         override suspend fun disconnect() { state.value = LinkState.SEARCHING }

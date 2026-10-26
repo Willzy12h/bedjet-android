@@ -449,6 +449,7 @@ class NightActions(private val graph: Graph) {
         val pending = night?.copy(confidence = Confidence.PENDING, pending = PendingChange(UUID.randomUUID().toString(),
             ChangeKind.MANUAL, null, requestedAt.toString(), requestedAt.plusMinutes(1).toString(), night.identity))
         var writeMayHaveHappened = false
+        var confirmedEnd: PendingEnd? = null
         try {
             pending?.let { publishNight(it) }
             if (endsNight && night != null) {
@@ -464,7 +465,11 @@ class NightActions(private val graph: Graph) {
                 work()
             }
             if (endsNight && night != null) {
-                if (confirmed) finishLocked(night, EventKind.STOPPED, message)
+                if (confirmed) {
+                    val end = PendingEnd(night.identity, event(EventKind.STOPPED, message))
+                    confirmedEnd = end
+                    finishLocked(night, EventKind.STOPPED, message, end)
+                }
                 else {
                     publishNight(night.copy(confidence = Confidence.UNKNOWN, pending = null))
                     repo.updateRuntime { it.copy(retime = null, reason = unconfirmed) }
@@ -498,7 +503,11 @@ class NightActions(private val graph: Graph) {
                     val current = repo.activeNight.value
                     val ownsPending = pending != null && current?.identity == pending.identity &&
                         current.confidence == Confidence.PENDING && current.pending?.requestId == pending.pending?.requestId
-                    if (ownsPending) {
+                    if (confirmedEnd != null && repo.runtime.value.ending == confirmedEnd && (ownsPending || current == null)) {
+                        // The matching report and its durable ending already won; finish that exact journal locally.
+                        completeLocalEnd()
+                        repo.runtime.value.resumeOffer?.let { Notifications.showResume(context) }
+                    } else if (ownsPending) {
                         publishNight(if (writeMayHaveHappened) current!!.copy(confidence = Confidence.UNKNOWN, pending = null) else night)
                         // Publishing the same night retains any valid Off intention and its receipt boundary.
                         repo.updateRuntime { it.copy(reason = reason) }
@@ -512,7 +521,7 @@ class NightActions(private val graph: Graph) {
         val old = repo.activeNight.value
         val message = text(R.string.runtime_timed, label, preset.minutes)
         var sentAt = elapsedMs()
-        val result = manualChange(message, false, confirms = runs(preset) { sentAt }) {
+        val result = manualChange(message, false, affectsProgramme = true, confirms = runs(preset) { sentAt }) {
             sentAt = elapsedMs()
             runPreset(preset)
         }
@@ -529,7 +538,6 @@ class NightActions(private val graph: Graph) {
             repo.addEvent(n.recordId, event(kind, message))
             repo.updateRuntime { it.copy(retime = null, wakeShown = n.identity, manualWakeShown = true,
                 reason = text(R.string.runtime_manual_tracking)) }
-            offerProgrammeResume(old)
             NightAlarms.schedule(context, n)
             Notifications.showWakeUp(context, n, repo.settings.value, result.message, logNotice = false)
         }
@@ -545,10 +553,11 @@ class NightActions(private val graph: Graph) {
     suspend fun finish(night: ActiveNight, kind: EventKind, detail: String) = lock.withLock {
         if (repo.activeNight.value?.identity == night.identity) finishLocked(night, kind, detail)
     }
-    private suspend fun finishLocked(night: ActiveNight, kind: EventKind, detail: String) {
+    private suspend fun finishLocked(night: ActiveNight, kind: EventKind, detail: String,
+        end: PendingEnd = PendingEnd(night.identity, event(kind, detail))) {
         val transition = io.github.willzy12h.nocturne.core.night.stopTracking(night, detail, graph.now(), repo.runtime.value.generation)
         // IR-06: a slot write made in this night, or one that displaced it, ends with it.
-        repo.updateRuntime { it.copy(ending = PendingEnd(night.identity, event(kind, detail)),
+        repo.updateRuntime { it.copy(ending = end,
             endRequested = null, endRequestedLabel = null, endRequestedAt = null, retime = null,
             endRequestedEpoch = null, endRequestedSequence = null,
             resumeOffer = when {
@@ -671,20 +680,34 @@ class NightActions(private val graph: Graph) {
         return CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_retime_pending))
     }
     suspend fun recordPendingRetime(): CommandOutcome = submitAlarmChange()
+    private fun unchangedAlarmObservation(night: ActiveNight): Boolean {
+        if (night.wakeOrigin == WakeOrigin.OVERRIDE) return true
+        val alarm = AlarmSource.describe(context, repo.settings.value)
+        return alarm?.counts == false || (graph.runner().prepareRetime(night, night.identity, alarm?.time,
+            ZonedDateTime.parse(night.wakeUpStart), repo.profile(night.profileId), repo.settings.value,
+            alarm?.creator) as? Preparation.Refused)?.unchanged == true
+    }
     private suspend fun consumeAlarmObservation(): CommandOutcome? {
         val observed = repo.runtime.value.alarmInbox ?: return null
         val night = repo.activeNight.value
+        val previousPendingId = repo.runtime.value.retime?.id
         var expiry: RetimeExpiry? = null
         val outcome = if (night?.recordId == observed.nightId && repo.settings.value.deviceId() == observed.deviceId) {
             if (!graph.now().isBefore(ZonedDateTime.parse(night.wakeUpStart))) {
-                expiry = expireRetimeFor(night.recordId)
-                expiry?.let { local(R.string.runtime_retime_expired) }
+                val unchanged = previousPendingId == null && unchangedAlarmObservation(night)
+                // An observation that never requested a new wake cannot acquire an expiry reason while queued.
+                if (unchanged) local(R.string.runtime_unchanged) else {
+                    expiry = expireRetimeFor(night.recordId)
+                    expiry?.let { local(R.string.runtime_retime_expired) }
+                }
             } else queueRetimeLocked(observed.id)
         } else null
+        val preparedNewRequest = repo.runtime.value.retime?.id?.let { it != previousPendingId } == true
         repo.updateRuntime { if (it.alarmInbox?.id == observed.id) it.copy(alarmInbox = null) else it }
         if (!retimePending) NightAlarms.cancelRetry(context)
-        // Keep the terminal notice's outcome, so an explicit service retry cannot report the same refusal twice.
-        return outcome?.takeIf { it.notificationHandled || expiry != null }
+        // A quiet observation must not fall through to an unsafe-night refusal or execute an older pending change.
+        // Keep terminal outcomes too, so an explicit service retry cannot report the same refusal twice.
+        return outcome?.takeIf { it.notificationHandled || expiry != null || (it.kind == OutcomeKind.LOCAL && !preparedNewRequest) }
     }
     /** Atomically consume the real pending change; repeated observations/retries cannot post duplicate expiry notices. */
     private suspend fun expireRetimeFor(nightId: String): RetimeExpiry? {
@@ -710,7 +733,8 @@ class NightActions(private val graph: Graph) {
                     expiredAt = active!!.wakeUpStart
                 }
                 val observed = runtime.alarmInbox?.nightId == nightId
-                if (expired || (pending == null && observed && active?.confidence == Confidence.CONFIRMED))
+                if (expired || (pending == null && observed && active?.confidence == Confidence.CONFIRMED &&
+                        !unchangedAlarmObservation(active)))
                     disposition = RetimeExpiry(active!!.identity, active.deviceId, runtime.generation)
                 // Publication can win this race: an old revision's request says nothing about a new or uncertain start.
                 val reason = when {
@@ -773,15 +797,15 @@ class NightActions(private val graph: Graph) {
         if (n.wakeOrigin == WakeOrigin.OVERRIDE) return local(R.string.runtime_unchanged)
         val alarm = AlarmSource.describe(context, repo.settings.value)
         if (alarm?.counts == false) return local(R.string.runtime_unchanged)
-        if (hasUnfinishedReplacement(n) || n.confidence != Confidence.CONFIRMED) return dropRetimeLocked(refused(R.string.runtime_reconcile_needed), observationId)
-        if (n.trackingManual) return dropRetimeLocked(refused(R.string.runtime_manual_tracking), observationId)
         val deadline = ZonedDateTime.parse(n.wakeUpStart)
         if (!graph.now().isBefore(deadline)) return local(R.string.runtime_retime_expired)
         val prepared = graph.runner().prepareRetime(n, n.identity, alarm?.time, deadline, repo.profile(n.profileId), repo.settings.value, alarm?.creator)
+        // An unchanged resolved wake asks for no hardware change, even while existing tracking needs checking.
+        if (prepared is Preparation.Refused && prepared.unchanged) return dropRetimeLocked(local(R.string.runtime_unchanged), observationId)
+        if (hasUnfinishedReplacement(n) || n.confidence != Confidence.CONFIRMED) return dropRetimeLocked(refused(R.string.runtime_reconcile_needed), observationId)
+        if (n.trackingManual) return dropRetimeLocked(refused(R.string.runtime_manual_tracking), observationId)
         if (prepared !is Preparation.Ready) {
-            val outcome = if (prepared is Preparation.Refused) {
-                if (prepared.unchanged) local(R.string.runtime_unchanged) else CommandOutcome(OutcomeKind.REFUSED, prepared.reason)
-            } else stale()
+            val outcome = if (prepared is Preparation.Refused) CommandOutcome(OutcomeKind.REFUSED, prepared.reason) else stale()
             return dropRetimeLocked(outcome, observationId)
         }
         val pending = PendingRetime(UUID.randomUUID().toString(), n.identity, repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target),
@@ -1244,12 +1268,23 @@ class NightActions(private val graph: Graph) {
             writeSlotLocked(slot, program, text(R.string.runtime_pinned, slot + 1))
         }
     }
-    suspend fun restoreOriginal(slot: Int): CommandOutcome = owned(text(R.string.runtime_restore_label), repo.settings.value.deviceId(), MIN_BUDGET_MS) {
+    /** Capture before owner admission: a direct slot request cannot bind to a later imported record either. */
+    suspend fun restoreOriginal(slot: Int): CommandOutcome {
+        val target = repo.settings.value.deviceId()
+        return restoreOriginal(slot, target, target?.let { repo.originalSlot(it, slot) })
+    }
+    /** The exact record that was previewed, including its payload and provenance. */
+    suspend fun restoreOriginal(original: SlotBackup): CommandOutcome =
+        restoreOriginal(original.slot, original.deviceId, original)
+    private suspend fun restoreOriginal(slot: Int, target: String?, expectedOriginal: SlotBackup?): CommandOutcome =
+        owned(text(R.string.runtime_restore_label), target, MIN_BUDGET_MS) {
         if (!ReplacementPolicy.permitsSlotRestore(repo.activeNight.value)) return@owned refused(R.string.runtime_restore_active)
         if (slot !in 0..2) return@owned refused(R.string.runtime_pin_slot)
-        val target = repo.settings.value.deviceId() ?: return@owned refused(R.string.runtime_choose_target)
-        repo.originalsFor(target)
-        val original = repo.originalSlot(target, slot) ?: return@owned refused(R.string.runtime_no_original)
+        val device = repo.settings.value.deviceId() ?: return@owned refused(R.string.runtime_choose_target)
+        repo.originalsFor(device)
+        val original = expectedOriginal ?: return@owned refused(R.string.runtime_no_original)
+        fun originalChanged() = original.deviceId != device || original.slot != slot || repo.originalSlot(device, slot) != original
+        if (originalChanged()) return@owned refused(R.string.runtime_restore_preview_changed)
         // The validator lets a saved original hold any temperature the codec carries, as a BedJet recorded it. One
         // from a backup file or snapshot may have been edited, so heating/cooling steps must stay in range,
         // including Turbo's fixed temperature. Standby and Wait ignore their placeholder temperature byte.
@@ -1259,11 +1294,14 @@ class NightActions(private val graph: Graph) {
             return@owned refused(R.string.runtime_restore_imported_out_of_range)
         connected {
             if (freshStatus().extra?.programStep != 0) return@connected refused(R.string.runtime_slot_running)
+            if (originalChanged()) return@connected refused(R.string.runtime_restore_preview_changed)
             advanceGeneration()
-            writeSlotLocked(slot, original.program, text(R.string.runtime_restored, slot + 1))
+            if (originalChanged()) return@connected refused(R.string.runtime_restore_preview_changed)
+            writeSlotLocked(slot, original.program, text(R.string.runtime_restored, slot + 1), expectedOriginal = original)
         }
     }
-    private suspend fun writeSlotLocked(slot: Int, program: StoredProgram?, label: String, start: Boolean = false): CommandOutcome {
+    private suspend fun writeSlotLocked(slot: Int, program: StoredProgram?, label: String, start: Boolean = false,
+        expectedOriginal: SlotBackup? = null): CommandOutcome {
         val target = repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target)
         val earlier = repo.runtime.value.slotWrite
         val night = repo.activeNight.value
@@ -1273,6 +1311,12 @@ class NightActions(private val graph: Graph) {
         var writing = false
         try {
             backup(target, slot)
+            if (expectedOriginal != null && repo.originalSlot(target, slot) != expectedOriginal) {
+                val outcome = refused(R.string.runtime_restore_preview_changed)
+                repo.updateRuntime { it.copy(slotWrite = earlier?.takeIf { w ->
+                    w.confidence == Confidence.PENDING || w.confidence == Confidence.UNKNOWN }, reason = outcome.message) }
+                return outcome
+            }
             writing = true
             if (program != null) graph.controller().store(program, slot) else {
                 graph.link.send(Codec.deleteProgram(slot))
@@ -1488,6 +1532,9 @@ class NightActions(private val graph: Graph) {
         put("originalsBlocked", kotlinx.serialization.json.JsonPrimitive(repo.originalsBlocked.value))
         put("runtimeReason", kotlinx.serialization.json.JsonPrimitive(repo.runtime.value.reason))
         put("nightConfidence", kotlinx.serialization.json.JsonPrimitive(repo.activeNight.value?.confidence?.name))
+        put("alarm", AlarmSource.diagnostics(context, repo.settings.value,
+            repo.activeNight.value?.let { repo.profile(it.profileId) } ?: repo.tonightsProfile(),
+            repo.activeNight.value, repo.runtime.value, status.value, graph.now()))
         put("settings", BackupCodec.json.encodeToJsonElement(Settings.serializer(), repo.settings.value))
         put("activeNight", repo.activeNight.value?.let { BackupCodec.json.encodeToJsonElement(ActiveNight.serializer(), it) } ?: kotlinx.serialization.json.JsonNull)
         put("events", BackupCodec.json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(HistoryEvent.serializer()), repo.history.value.flatMap { it.events }.sortedByDescending { it.at }.take(50)))

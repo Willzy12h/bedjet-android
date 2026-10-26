@@ -41,6 +41,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +51,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
@@ -107,14 +109,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val linkState: StateFlow<LinkState> = repo.settings.map { graph.link }.flatMapLatest { it.state }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LinkState.SEARCHING)
     private val visible = MutableStateFlow(false)
-    /** Foreground presentation only, at most once a second. Commands still consume unmodified raw sourced receipts. */
+    /** Visible controls stay live; only actual/ambient sensor temperatures are sampled at most once a second. */
     val status: StateFlow<DeviceStatus?> = combine(repo.settings.map { it.deviceId() }.distinctUntilChanged(), visible) { target, shown ->
         target to shown
     }.flatMapLatest { (target, shown) ->
         if (!shown) flowOf<DeviceStatus?>(null)
-        else graph.link.sourcedStatus.map { displayedStatus(it, target) }.conflate().transform<DeviceStatus?, DeviceStatus?> {
-            emit(it)
-            delay(1_000)
+        else {
+            val live = graph.link.sourcedStatus.map { displayedStatus(it, target) }
+            val temperatures = live.filterNotNull().map { it.actualTemperature to it.ambientTemperature }
+                .distinctUntilChanged().conflate().transform<Pair<Int, Int>, Pair<Int, Int>> {
+                    emit(it)
+                    delay(1_000)
+                }
+            combine(live, temperatures) { current, (actual, ambient) ->
+                current?.copy(actualTemperature = actual, ambientTemperature = ambient)
+            }.onStart { emit(null) }.distinctUntilChanged()
         }
     }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -266,7 +275,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (backup.deviceId != repo.settings.value.deviceId()) refusal(text(R.string.runtime_restore_target_changed))
         else if (repo.slotBackups.value.firstOrNull { it.deviceId == backup.deviceId && it.slot == backup.slot } != backup)
             refusal(text(R.string.runtime_restore_original_changed))
-        else graph.actions.restoreOriginal(backup.slot)
+        else graph.actions.restoreOriginal(backup)
     }
 
     fun pinProfile(profile: Profile, slot: Int, expectedTarget: String, expectedWorkingSlot: Int,
@@ -331,7 +340,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSettings(change: (Settings) -> Settings) = save {
         // Shown once with the owner's feed; a plain save is not announced.
         val outcome = graph.actions.updateSettings(change)
-        withContext(Dispatchers.Main) { report(outcome) }
+        withContext(Dispatchers.Main) { refreshAlarm(); report(outcome) }
     }
 
     fun setTonightWake(wake: ZonedDateTime?) {

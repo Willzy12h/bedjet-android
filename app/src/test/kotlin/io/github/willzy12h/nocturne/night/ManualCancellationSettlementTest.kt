@@ -287,6 +287,81 @@ class ManualCancellationSettlementTest {
         } finally { request.cancelAndJoin() }
     }
 
+    @Test fun cancellingAsConfirmedOffEndingPublishesCompletesItBeforeReconciliation() = runBlocking {
+        val night = start()
+        val before = writes
+        val owner = Job(currentCoroutineContext()[Job])
+        var cancelledAtEnding = false
+        var sawDurableConfirmedEnd = false
+        beforeFileWrite = { file, bytes ->
+            if (file.name == "runtime.json" && !cancelledAtEnding) {
+                val ending = BackupCodec.json.decodeFromString(RuntimeState.serializer(), bytes.decodeToString()).ending
+                if (ending?.identity == night.identity && ending.event.kind == EventKind.STOPPED) {
+                    cancelledAtEnding = true
+                    // Let the journal write and publication finish, then propagate prompt cancellation to its caller.
+                    owner.cancel(CancellationException("test cancellation as confirmed ending publishes"))
+                }
+            }
+            if (file.name == "active-night.json" && cancelledAtEnding) {
+                val ending = diskRuntime().ending
+                sawDurableConfirmedEnd = ending?.identity == night.identity && ending.event.kind == EventKind.STOPPED
+                beforeFileWrite = null
+            }
+        }
+        val failure = try { runCatching {
+            withContext(owner) { graph.actions.execute(graph.actions.capture(NightActions.Command.OFF)) }
+        }.exceptionOrNull() } finally { beforeFileWrite = null; owner.complete() }
+
+        assertTrue(cancelledAtEnding)
+        assertTrue("The matching confirmed STOPPED journal must exist on disk before cleanup", sawDurableConfirmedEnd)
+        assertTrue(failure is CancellationException)
+        assertEquals("Repair is local and must not send Off again", before + 1, writes)
+        assertNull("A durably confirmed Off must finish locally before reconciliation", graph.repository.activeNight.value)
+        assertNull(diskNight())
+        assertNull(graph.repository.runtime.value.ending)
+        assertNull(graph.repository.runtime.value.endRequested)
+        assertEquals(graph.repository.runtime.value, diskRuntime())
+        assertEquals(app.getString(R.string.runtime_off), graph.repository.history.value.single { it.id == night.recordId }
+            .events.single { it.kind == EventKind.STOPPED }.detail)
+    }
+
+    private suspend fun cancelTimedPlanPublication(command: NightActions.Command) {
+        val night = start()
+        val before = writes
+        val owner = Job(currentCoroutineContext()[Job])
+        var interruptedPublication = false
+        beforeFileWrite = { file, bytes ->
+            if (file.name == "active-night.json") {
+                val next = BackupCodec.json.decodeFromString(ActiveNight.serializer().nullable, bytes.decodeToString())
+                if (next?.trackingManual == true && next.revision == night.revision + 1) {
+                    interruptedPublication = true
+                    beforeFileWrite = null
+                    val cancellation = CancellationException("test cancellation before timed manual plan publication")
+                    owner.cancel(cancellation)
+                    throw cancellation
+                }
+            }
+        }
+        val failure = try { runCatching {
+            withContext(owner) { graph.actions.execute(graph.actions.capture(command).copy(replacementConfirmed = true)) }
+        }.exceptionOrNull() } finally { beforeFileWrite = null; owner.complete() }
+
+        assertTrue("Exercise the later manual-plan save after command confirmation", interruptedPublication)
+        assertTrue("The timed command must have reached the BedJet", writes > before)
+        assertTrue(failure is CancellationException)
+        assertSettled(night)
+        assertTrue("The displaced programme must not still describe this manual run", graph.repository.activeNight.value!!.trackingManual)
+        assertEquals("The original programme must retain its Resume offer", night, graph.repository.runtime.value.resumeOffer?.night)
+    }
+
+    @Test fun cancellingSnoozeBeforeItsPlanPublishesCannotRestoreAConfirmedProgramme() = runBlocking {
+        cancelTimedPlanPublication(NightActions.Command.SNOOZE_WARM)
+    }
+
+    @Test fun cancellingExtendBeforeItsPlanPublishesCannotRestoreAConfirmedProgramme() = runBlocking {
+        cancelTimedPlanPublication(NightActions.Command.EXTEND_COOL)
+    }
+
     @Test fun confirmedManualControlsStillSettleNormally() = runBlocking {
         val night = start()
         assertEquals(OutcomeKind.CONFIRMED, temperature(CompletableDeferred()).kind)

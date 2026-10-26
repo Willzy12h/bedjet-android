@@ -62,7 +62,7 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0) {
+fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0, alarmsRequest: Int = 0) {
     val settings by model.settings.collectAsState()
     val snapshots by model.snapshots.collectAsState()
     val slotBackups by model.slotBackups.collectAsState()
@@ -72,6 +72,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val originalsBlocked by model.originalsBlocked.collectAsState()
     val backups = remember { BringIntoViewRequester() }
     LaunchedEffect(backupsRequest) { if (backupsRequest > 0) { delay(100); backups.bringIntoView() } }
+    val alarms = remember { BringIntoViewRequester() }
+    LaunchedEffect(alarmsRequest) { if (alarmsRequest > 0) { delay(100); alarms.bringIntoView() } }
     val alarm by model.nextAlarm.collectAsState()
     val f = settings.fahrenheit
     val context = LocalContext.current
@@ -186,7 +188,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)))
         }
 
-        Group(stringResource(R.string.settings_alarms)) {
+        Group(stringResource(R.string.settings_alarms), Modifier.bringIntoViewRequester(alarms)) {
             val next = alarm
             Text(
                 if (next == null) stringResource(R.string.settings_no_alarm)
@@ -198,6 +200,10 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 FilledTonalButton(onClick = { model.useAlarmsFrom(next.creator!!) }) {
                     Text(stringResource(R.string.settings_use_alarms_from, next.creator.orEmpty()))
                 }
+            }
+            SwitchRow(stringResource(R.string.settings_unknown_alarm_sources),
+                stringResource(R.string.settings_unknown_alarm_sources_help), settings.acceptUnknownAlarmSource) { on ->
+                model.updateSettings { it.copy(acceptUnknownAlarmSource = on) }
             }
             Text(stringResource(R.string.settings_used_from, settings.alarmPackages.joinToString()), style = MaterialTheme.typography.bodySmall)
         }

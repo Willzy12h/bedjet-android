@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="alarm_source_samsung_clock">Samsung Clock</string>
+    <string name="alarm_source_google_clock">Google Clock</string>
+    <string name="alarm_source_unknown_app">Unknown app</string>
+    <string name="alarm_source_used">Next alarm %1$s · %2$s — used</string>
+    <string name="alarm_source_ignored">Alarm %1$s ignored: %2$s — tap to change</string>
+    <string name="alarm_source_no_alarm">No alarm set — profile wake %1$s</string>
+    <string name="alarm_source_profile_only">Profile wake %1$s — alarms off for this profile</string>
+    <string name="alarm_source_override">Tonight-only wake %1$s — alarm not used</string>
+    <string name="alarm_source_no_profile">Choose a profile to set a wake time</string>
+    <string name="alarm_source_reason_unknown">source unknown</string>
+    <string name="alarm_source_reason_not_allowed">app not allowed</string>
+    <string name="alarm_source_reason_outside_window">outside tonight’s 1–16 hour window</string>
+    <string name="alarm_source_reason_profile_off">alarms off for this profile</string>
+    <string name="alarm_source_reason_override">tonight-only wake set</string>
+    <string name="alarm_source_saved_alarm">Saved alarm wake %1$s</string>
+    <string name="alarm_source_saved_profile">Saved profile wake %1$s</string>
+    <string name="alarm_source_saved_override">Saved tonight-only wake %1$s</string>
+    <string name="alarm_source_saved_pending">Saved wake %1$s — change pending</string>
+    <string name="alarm_source_saved_failed">Saved wake %1$s — wake change failed</string>
+    <string name="alarm_source_saved_unknown">Saved wake %1$s — BedJet wake unknown</string>
+    <string name="alarm_source_manual">Manual control — no alarm wake programme</string>
+    <string name="alarm_source_none">No alarm set</string>
+    <string name="alarm_source_current">Next alarm %1$s from %2$s</string>
+    <string name="alarm_source_current_matches">Next alarm %1$s from %2$s matches</string>
+    <string name="alarm_source_current_not_applied">Next alarm %1$s from %2$s not applied</string>
+    <string name="alarm_source_saved_and_current">%1$s · %2$s</string>
+    <string name="alarm_source_open_sources">Change alarm sources</string>
+    <string name="alarm_source_open_profile">Change profile wake settings</string>
+    <string name="alarm_source_open_tonight">Change tonight’s wake time</string>
+</resources>

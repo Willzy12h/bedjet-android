@@ -130,6 +130,7 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     var parkedDrafts by rememberSaveable { mutableStateOf(emptyList<String>()) }
     // Tonight's "Restore" opens Settings at the snapshots.
     var backupsRequest by remember { mutableIntStateOf(0) }
+    var alarmsRequest by remember { mutableIntStateOf(0) }
     val edit: (Profile) -> Unit = { profile ->
         val parked = parkedDrafts.firstOrNull { Json.decodeFromString<ProfileDraft>(it).original.id == profile.id }
         draftJson = parked ?: Json.encodeToString(ProfileDraft(profile, profile))
@@ -195,11 +196,13 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         val snackbarInset = with(density) { snackbarHeight.toDp() }
         val modifier = Modifier.padding(padding).padding(bottom = snackbarInset)
         when (tab) {
-            Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onOpenBackups = { tab = Tab.SETTINGS; backupsRequest++ })
+            Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit,
+                onOpenBackups = { tab = Tab.SETTINGS; alarmsRequest = 0; backupsRequest++ },
+                onOpenAlarmSettings = { tab = Tab.SETTINGS; backupsRequest = 0; alarmsRequest++ })
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
             Tab.REMOTE -> RemoteScreen(model, modifier)
             Tab.HISTORY -> HistoryScreen(model, modifier)
-            Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest)
+            Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest)
         }
     }
 }
