@@ -1,6 +1,10 @@
 package io.github.willzy12h.nocturne
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -63,6 +67,10 @@ class AppSmokeTest {
     @get:Rule val rules: TestRule = RuleChain.outerRule(pinClock).around(compose)
 
     private val graph get() = compose.activity.graph
+    private fun s(id: Int) = compose.activity.getString(id)
+    private fun confirmStopNight() = compose.onNode(
+        hasText(s(R.string.guard_confirm)) and hasClickAction() and hasAnyAncestor(isDialog())
+    ).performClick()
 
 
     @Before
@@ -92,12 +100,12 @@ class AppSmokeTest {
     fun confirmationCannotStopANightThatChangedWhileDialogWasOpen() {
         compose.onNodeWithText("Start night now").performScrollTo().performClick()
         waitForConfirmedNight()
-        compose.onNodeWithText("End night").performScrollTo().performClick()
+        compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
         val original = graph.repository.activeNight.value!!
         val replacement = original.copy(revision = original.revision + 1)
         runBlocking { graph.repository.setActiveNight(replacement) }
         compose.waitForIdle()
-        compose.onNodeWithText("Stop night and continue").performClick()
+        confirmStopNight()
         compose.waitForIdle()
         waitForText(compose.activity.getString(R.string.runtime_stale))
         assertEquals(replacement.identity, graph.repository.activeNight.value?.identity)
@@ -120,8 +128,8 @@ class AppSmokeTest {
 
     @Test
     fun handoverIsReachableWhileIdle() {
-        compose.onNodeWithText("More").performScrollTo().performClick()
-        compose.onNodeWithText("Release BedJet for another phone").assertIsDisplayed()
+        compose.onNodeWithText(s(R.string.tab_settings)).performClick()
+        compose.onNodeWithText(s(R.string.feature_release)).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -143,8 +151,17 @@ class AppSmokeTest {
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText("BedJet state unknown", substring = true)).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("Planned wake").assertIsDisplayed()
-        assertTrue(compose.onAllNodes(hasText("End night")).fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithText(s(R.string.tonight_planned_wake)).assertIsDisplayed()
+        compose.onNodeWithText(s(R.string.tonight_waking_at)).assertDoesNotExist()
+        assertTrue(compose.onAllNodes(hasText("Now:", substring = true)).fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithTag("night-active-phase").assertDoesNotExist()
+        // Stop is deliberately available in UNKNOWN state; its presence must not claim a confirmed run.
+        val original = graph.repository.activeNight.value!!.identity
+        compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
+        compose.onNode(hasText(s(R.string.guard_title)) and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(hasText(s(R.string.guard_keep)) and hasAnyAncestor(isDialog())).performClick()
+        assertEquals(original, graph.repository.activeNight.value?.identity)
+        assertEquals(io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
         compose.onNodeWithText("Keep tracking").performScrollTo().assertIsDisplayed()
     }
 
@@ -157,13 +174,13 @@ class AppSmokeTest {
         assertNotNull(graph.repository.runtime.value.resumeOffer)
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
-            compose.onAllNodes(hasText("Resume previous night")).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(hasText(s(R.string.recovery_resume_previous))).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("Resume previous night").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(s(R.string.recovery_resume_previous)).performScrollTo().assertIsDisplayed()
         graph.clock = java.time.Clock.offset(graph.clock, Duration.ofMinutes(16))
         compose.mainClock.advanceTimeBy(30_001)
         compose.waitForIdle()
-        assertTrue(compose.onAllNodes(hasText("Resume previous night")).fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodes(hasText(s(R.string.recovery_resume_previous))).fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -175,9 +192,9 @@ class AppSmokeTest {
         assertNotNull(graph.repository.runtime.value.resumeOffer)
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
-            compose.onAllNodes(hasText("Resume previous night")).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(hasText(s(R.string.recovery_resume_previous))).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("Resume previous night").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(s(R.string.recovery_resume_previous)).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -194,17 +211,22 @@ class AppSmokeTest {
             compose.onAllNodes(hasText("Manual run until")).fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(compose.onAllNodes(hasText("Waking you at")).fetchSemanticsNodes().isEmpty())
-        compose.onNodeWithText("Resume programme").performScrollTo().assertIsDisplayed()
-        // P5 (P3b review): the plan card claims no wake either: no wake label, marker text or spoken "wake".
+        compose.onNodeWithText(s(R.string.recovery_resume_programme)).performScrollTo().assertIsDisplayed()
+        // P5 (P3b review): the applied plan claims no wake: no wake label, marker text or spoken "wake".
+        // The separate "Wake and recovery" navigation heading names a category, not this manual run's end.
         fun noWakeClaims(look: String) {
+            val inPlan = hasAnyAncestor(hasTestTag("tonight-section-night"))
             listOf("Wake ", "Your alarm", "Wake time", "Profile's wake time", "From your alarm", "Tonight-only wake time").forEach { text ->
-                assertTrue("$look shows '$text'", compose.onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isEmpty())
+                assertTrue("$look shows '$text'", compose.onAllNodes(hasText(text, substring = true) and inPlan).fetchSemanticsNodes().isEmpty())
             }
             val spoken = compose.onAllNodes(SemanticsMatcher("speaks of a wake") { node ->
                 node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)
                     ?.any { it.contains("wake", ignoreCase = true) } == true
-            }).fetchSemanticsNodes()
+            } and inPlan).fetchSemanticsNodes()
             assertTrue("$look speaks of a wake", spoken.isEmpty())
+            assertTrue("$look has no manual end in the plan", compose.onAllNodes(
+                hasText(s(R.string.tonight_manual_until), substring = true) and inPlan
+            ).fetchSemanticsNodes().isNotEmpty())
         }
         noWakeClaims("curve")
         runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } }
@@ -225,8 +247,8 @@ class AppSmokeTest {
         compose.onNodeWithText("Start night now").performScrollTo().performClick()
         waitForConfirmedNight()
         val profileBefore = graph.repository.profiles.value.first { it.id == graph.repository.activeNight.value!!.profileId }
-        compose.onNodeWithText("End night").performScrollTo().performClick()
-        compose.onNodeWithText("Stop night and continue").performClick()
+        compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
+        confirmStopNight()
         waitForText("Start night now")
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("Morning check-in").performScrollTo().performClick()
@@ -286,9 +308,9 @@ class AppSmokeTest {
         assertNotNull(graph.repository.activeNight.value)
         assertEquals(1, graph.repository.history.value.size)
         assertEquals(1, graph.link.status.value?.extra?.programStep)
-        compose.onNodeWithText("End night").performScrollTo().performClick()
+        compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
         // Ending a running night asks first.
-        compose.onNodeWithText("Stop night and continue").performClick()
+        confirmStopNight()
         waitForText("Start night now")
         assertNull(graph.repository.activeNight.value)
     }
@@ -303,7 +325,7 @@ class AppSmokeTest {
             compose.onAllNodes(hasText("started", substring = true)).fetchSemanticsNodes().isEmpty()
         }
         compose.onNodeWithText("Off").performScrollTo().performClick()
-        compose.onNodeWithText("Stop tonight's night?").assertIsDisplayed()
+        compose.onNode(hasText(s(R.string.guard_title)) and hasAnyAncestor(isDialog())).assertIsDisplayed()
         compose.onNodeWithText("Keep tonight").performClick()
         compose.waitForIdle()
         assertNotNull(graph.repository.activeNight.value)

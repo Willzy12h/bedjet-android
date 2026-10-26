@@ -61,11 +61,12 @@ import java.time.ZonedDateTime
 /**
  * The night as bars over time: up for heat, down for cooling, height for strength. A dashed line marks the
  * wake time and a solid one marks now. [legend] names the colours underneath (the light layout shows it).
+ * Preview cards stay passive; editor and Tonight callers opt into [phaseInteraction].
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = null, legend: Boolean = false,
-    end: PlanEnd? = null, onEditPhase: ((PlannedStep) -> Unit)? = null) {
+    end: PlanEnd? = null, phaseInteraction: Boolean = false, onEditPhase: ((PlannedStep) -> Unit)? = null) {
     val total = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1).toFloat()
     val outline = MaterialTheme.colorScheme.outlineVariant
     val nowColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -73,7 +74,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
     val fahrenheit = LocalTemperatureFahrenheit.current
-    var selected by remember(plan) { mutableStateOf<Int?>(null) }
+    var selected by remember(plan, phaseInteraction) { mutableStateOf<Int?>(null) }
     val currentEdit by rememberUpdatedState(onEditPhase)
     val details = plan.steps.map { step ->
         if (step.step.mode.usesTemperature || step.step.mode == Mode.TURBO)
@@ -97,7 +98,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
         }.joinToString("; "))
     Column(modifier) {
         Canvas(Modifier.fillMaxWidth().height(110.dp).testTag("night-curve")
-            .pointerInput(plan) {
+            .then(if (!phaseInteraction) Modifier else Modifier.pointerInput(plan) {
                 fun phaseAt(x: Float): Int? {
                     val minute = (x / size.width.coerceAtLeast(1) * total).coerceIn(0f, total)
                     return plan.steps.indexOfFirst { Duration.between(plan.start, it.endsAt).toMinutes() > minute }
@@ -107,12 +108,14 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                     selected = phaseAt(point.x)
                     selected?.let { currentEdit?.invoke(plan.steps[it]) }
                 })
-            }.semantics {
+            }).semantics {
                 contentDescription = description
-                onClick(label = showDetails) {
-                    if (plan.steps.isEmpty()) false else { selected = ((selected ?: -1) + 1) % plan.steps.size; true }
+                if (phaseInteraction) {
+                    onClick(label = showDetails) {
+                        if (plan.steps.isEmpty()) false else { selected = ((selected ?: -1) + 1) % plan.steps.size; true }
+                    }
+                    customActions = details.mapIndexed { index, detail -> CustomAccessibilityAction(detail) { selected = index; true } }
                 }
-                customActions = details.mapIndexed { index, detail -> CustomAccessibilityAction(detail) { selected = index; true } }
             }) {
             val mid = size.height / 2
             drawLine(outline, Offset(0f, mid), Offset(size.width, mid), 1.dp.toPx())

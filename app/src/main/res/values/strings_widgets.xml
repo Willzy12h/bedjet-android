@@ -24,7 +24,6 @@
     <string name="widget_confirmed">Confirmed</string>
     <string name="widget_failed">Failed</string>
     <string name="widget_local">Updated</string>
-    <string name="widget_result_action">Last: %1$s</string>
     <string name="widget_sending">Sending %1$s…</string>
     <string name="widget_interrupted">Command interrupted. Check BedJet before trying again.</string>
     <string name="widget_timed_out">Timed out. Check BedJet before trying again.</string>

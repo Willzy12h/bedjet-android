@@ -5,9 +5,9 @@ import android.app.PendingIntent
 import android.app.TimePickerDialog
 import android.content.Intent
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.AppliedProgram
@@ -185,7 +185,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             assertEquals(JsonNull, diagnostic.getValue("creatorPackage"))
         }
         if (scenario in setOf(Scenario.TOO_SOON, Scenario.TOO_LATE, Scenario.OVERRIDE, Scenario.SAVED_OVERRIDE)) {
-            ui.compose.onNodeWithText(scenario.expected).performScrollTo().performClick()
+            ui.compose.onNodeWithText(scenario.expected).assertIsDisplayed().performClick()
             assertTrue("A wake choice must open the existing tonight-only picker", ShadowDialog.getLatestDialog() is TimePickerDialog)
         }
     }

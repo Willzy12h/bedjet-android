@@ -81,13 +81,13 @@ class WidgetResponsiveLayoutTest : io.github.willzy12h.nocturne.platform.Platfor
     @Test fun compactNightHasOneLargePrimaryAction() = checkPage(compact, "night:0", listOf("Start tonight"), 1)
     @Test fun compactQuickHasOneLargeAction() = checkPage(compact, "quick:0", listOf("Cool"), 1)
     @Test fun compactDeviceHasOneLargeAction() = checkPage(compact, "device:0", listOf("Off"), 1)
-    @Test fun mediumNightHasTwoLargePrimaryActions() = checkPage(medium, "night:0", listOf("Start tonight", "Turbo 15m"), 2)
+    @Test fun mediumNightHasTwoLargePrimaryActions() = checkPage(medium, "night:0", listOf("Start tonight", "Turbo→Heat"), 2)
     @Test fun mediumQuickHasTwoLargeActions() = checkPage(medium, "quick:0", listOf("Cool", "Warm"), 2)
     @Test fun mediumDeviceHasTwoLargeActions() = checkPage(medium, "device:0", listOf("Off", "Stop tracking"), 2)
-    @Test fun largeNightHasThreeLargePrimaryActions() = checkPage(large, "night:0", listOf("Start tonight", "Turbo 15m", "Turbo 10m"), 3)
+    @Test fun largeNightHasThreeLargePrimaryActions() = checkPage(large, "night:0", listOf("Start tonight", "Turbo→Heat", "Turbo 10m"), 3)
     @Test fun largeQuickHasTwoLargeActions() = checkPage(large, "quick:0", listOf("Cool", "Warm"), 3)
     @Test fun largeDeviceHasTwoLargeActions() = checkPage(large, "device:0", listOf("Off", "Stop tracking"), 3)
-    @Test fun compactCanReachBoost() = checkPage(compact, "night:1", listOf("Turbo 15m"), 1)
+    @Test fun compactCanReachBoost() = checkPage(compact, "night:1", listOf("Turbo→Heat"), 1)
     @Test fun compactCanReachTurbo() = checkPage(compact, "night:2", listOf("Turbo 10m"), 1)
     @Test fun mediumCanReachTurbo() = checkPage(medium, "night:2", listOf("Turbo 10m"), 2)
 
@@ -110,8 +110,57 @@ class WidgetResponsiveLayoutTest : io.github.willzy12h.nocturne.platform.Platfor
     @Test fun compactCanReachWarm() = checkPage(compact, "quick:1", listOf("Warm"), 1)
     @Test fun compactCanReachStopTracking() = checkPage(compact, "device:1", listOf("Stop tracking"), 1)
     @Test fun boostDescriptionNamesBothPartsOfItsRun() {
-        val boost = descendants(rendered(medium, "night:0")).filterIsInstance<Button>().first { it.text.toString() == "Turbo 15m" }
+        val boost = descendants(rendered(medium, "night:0")).filterIsInstance<Button>().first { it.text.toString() == "Turbo→Heat" }
         assertEquals("Turbo heat for 10 minutes, then Heat for 5 minutes", boost.contentDescription?.toString())
+    }
+
+    @Test fun everyCompactBoostDurationNamesItsModesAndFitsAtTwoHundredPercent() = runBlocking {
+        val saved = android.content.res.Configuration(context.resources.configuration)
+        try {
+            context.resources.updateConfiguration(android.content.res.Configuration(saved).apply { fontScale = 2f }, context.resources.displayMetrics)
+            assertEquals(2f, context.resources.configuration.fontScale, 0f)
+            for (minutes in listOf(10, 15, 20, 25, 30)) {
+                context.graph.repository.updateSettings { it.copy(boostMinutes = minutes) }
+                for (widget in listOf(QuickControlsWidget(), SingleActionWidget())) {
+                    val single = widget is SingleActionWidget
+                    val preferences = if (single) preferencesOf(SingleActionWidget.KEY_COMMAND to "BOOST",
+                        SingleActionWidget.KEY_LABEL to "Stale saved label")
+                        else preferencesOf(QuickControlsWidget.KEY_PAGE to "night:1")
+                    val root = rendered(compact, "night:1", widget, preferences) as ViewGroup
+                    val buttons = descendants(root).filterIsInstance<Button>()
+                    val action = buttons.single { it.text.toString() !in listOf("‹", "›", "Open app") }
+                    val expected = if (minutes == 10) "Turbo 10m" else "Turbo→Heat"
+                    assertEquals("${widget.javaClass.simpleName} must visibly name every actual mode", expected, action.text.toString())
+                    assertEquals(if (minutes == 10) "Turbo heat for 10 minutes"
+                        else "Turbo heat for 10 minutes, then Heat for ${minutes - 10} minutes", action.contentDescription?.toString())
+                    assertEquals("Keep the fixed compact control budget", if (single) 2 else 3, buttons.size)
+                    val bounds = android.graphics.Rect(0, 0, root.width, root.height)
+                    val touchBounds = buttons.map { button ->
+                        val density = context.resources.displayMetrics.density
+                        assertTrue("${button.text} needs a 56dp-wide touch target", button.width / density >= 56f)
+                        assertTrue("${button.text} needs a 56dp-high touch target", button.height / density >= 56f)
+                        assertTrue("${button.text} must retain 16sp type", button.textSize / context.resources.displayMetrics.scaledDensity >= 16f)
+                        val rect = android.graphics.Rect()
+                        button.getDrawingRect(rect)
+                        root.offsetDescendantRectToMyCoords(button, rect)
+                        assertTrue("${button.text} must be wholly inside the widget: $rect", bounds.contains(rect))
+                        val layout = requireNotNull(button.layout) { "A native button must have actual laid-out text" }
+                        assertEquals("Sentence-case labels must survive native rendering", button.text.toString(), layout.text.toString())
+                        assertTrue("${button.text} must fit vertically", layout.height <= button.height - button.totalPaddingTop - button.totalPaddingBottom)
+                        assertEquals("Every label character must be laid out", layout.text.length, layout.getLineEnd(layout.lineCount - 1))
+                        for (line in 0 until layout.lineCount) {
+                            assertEquals("${button.text} must not ellipsise at 200%", 0, layout.getEllipsisCount(line))
+                            assertTrue("${button.text} must fit horizontally", layout.getLineWidth(line) <=
+                                button.width - button.totalPaddingLeft - button.totalPaddingRight + 1f)
+                        }
+                        rect
+                    }
+                    touchBounds.forEachIndexed { index, rect -> touchBounds.drop(index + 1).forEach {
+                        assertFalse("Compact controls must not overlap", android.graphics.Rect.intersects(rect, it))
+                    } }
+                }
+            }
+        } finally { context.resources.updateConfiguration(saved, context.resources.displayMetrics) }
     }
 
     private fun checkSingle(size: DpSize) {

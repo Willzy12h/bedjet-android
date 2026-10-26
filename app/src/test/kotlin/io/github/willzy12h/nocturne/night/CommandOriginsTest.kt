@@ -3,12 +3,14 @@ package io.github.willzy12h.nocturne.night
 import android.Manifest
 import android.app.AlertDialog
 import android.app.NotificationManager
+import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.os.Looper
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
+import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.data.SlotBackupsUnreadable
 import io.github.willzy12h.nocturne.notify.Notifications
@@ -195,6 +197,13 @@ class CommandOriginsTest {
     @Test fun retimeCommandsDefaultToAlarmAtCaptureAndLegacyServiceDelivery() = runBlocking {
         for (command in listOf(NightActions.Command.RETIME, NightActions.Command.RETRY_RETIME)) {
             assertEquals(CommandOrigin.ALARM, graph.actions.capture(command).origin)
+            if (command == NightActions.Command.RETRY_RETIME) {
+                // An empty ended-night retry now settles before the owner. Use real outstanding
+                // tracking that the owner must refuse, so its legacy origin is still exercised.
+                assertEquals(OutcomeKind.CONFIRMED,
+                    graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT)).kind)
+                graph.repository.setActiveNight(graph.repository.activeNight.value!!.copy(confidence = Confidence.UNKNOWN))
+            }
             val legacyIntent = Intent(app, BedJetService::class.java)
                 .putExtra(BedJetService.EXTRA_COMMAND, command.name)
                 .putExtra("target", graph.repository.settings.value.deviceId())
@@ -284,6 +293,7 @@ class CommandOriginsTest {
 
     @Test fun widgetEntryCarriesItsOriginAcrossTheServiceHandoff() = runBlocking {
         graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         val rendered = PlatformActionActivity.intent(app,
             graph.actions.capture(NightActions.Command.STOP_TRACKING, requireIdentity = true))
         val activity = Robolectric.buildActivity(PlatformActionActivity::class.java, rendered).setup()

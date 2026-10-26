@@ -100,8 +100,9 @@ private fun MainValue(text: String, modifier: GlanceModifier = GlanceModifier, c
 
 @Composable
 private fun ActionButton(context: Context, action: WidgetAction, kind: String, id: GlanceId, modifier: GlanceModifier) {
+    val active by context.graph.repository.activeNight.collectAsState()
     val request = widgetRequest(context, action)
-    val click = if (widgetNeedsConfirmation(request, context.graph.repository.activeNight.value))
+    val click = if (widgetNeedsConfirmation(request, active))
         actionStartActivity(WidgetConfirmationActivity.intent(context, request, id, kind))
         else actionRunCallback<WidgetActionCallback>(widgetParameters(request, kind))
     Button(text = action.label,

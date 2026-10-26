@@ -5,9 +5,9 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.activity.compose.setContent
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
@@ -80,21 +80,21 @@ class AlarmExplanationActionTest {
 
     @Test fun unknownSourceOpensAlarmSettingsWithoutEditingAProfile() {
         show(unknown = true)
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").performScrollTo().performClick()
+        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").assertIsDisplayed().performClick()
         assertEquals(1, sourceRequests)
         assertEquals(emptyList<Profile>(), profileRequests)
     }
 
     @Test fun profileAlarmOptOutOpensThatProfilesWakeSettings() {
         show(profileOnly = true)
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: alarms off for this profile — tap to change").performScrollTo().performClick()
+        ui.compose.onNodeWithText("Alarm 06:30 ignored: alarms off for this profile — tap to change").assertIsDisplayed().performClick()
         assertEquals(0, sourceRequests)
         assertEquals(listOf(ui.model.tonightsProfile()), profileRequests)
     }
 
     @Test fun changedAlarmOnASavedWakeOpensSourcesWithoutImplyingAProfileEditAppliesTonight() {
         show(savedWake = true)
-        ui.compose.onNodeWithText("Saved alarm wake 07:00 · Next alarm 06:30 from Samsung Clock not applied").performScrollTo().performClick()
+        ui.compose.onNodeWithText("Saved alarm wake 07:00 · Next alarm 06:30 from Samsung Clock not applied").assertIsDisplayed().performClick()
         assertEquals(1, sourceRequests)
         assertEquals(emptyList<Profile>(), profileRequests)
         assertEquals("07:00", Format.clock(ui.graph.repository.activeNight.value!!.wakeAt))

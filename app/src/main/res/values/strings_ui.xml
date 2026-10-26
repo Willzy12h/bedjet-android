@@ -22,7 +22,7 @@
     <string name="slot_write_checked">Mark as checked</string>
     <!-- Settings: quiet status and diagnostics -->
     <string name="settings_quiet_title">Quiet night status</string>
-    <string name="settings_quiet_help">While a confirmed night runs, a silent notification shows its wake time with an End button.</string>
+    <string name="settings_quiet_help">While a confirmed night runs, a silent notification shows its wake time with a Stop night button.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_diagnostics_help">A file to help work out a problem: app version, phone model, connection state, your settings (including the chosen BedJet\'s address), the night in progress and the last 50 events and notifications. Your update token is never included. Nothing is sent anywhere; you choose where the file is saved.</string>
     <string name="settings_diagnostics_export">Export diagnostics</string>
@@ -143,10 +143,6 @@
     <string name="settings_preset_summary">%1$s: %2$s, fan %3$d%%, %4$d min</string>
     <!-- A preset's slider name, e.g. "Snooze warm: Fan". -->
     <string name="settings_preset_slider">%1$s: %2$s</string>
-    <plurals name="settings_boost">
-        <item quantity="one">Boost: Turbo, then Heat, for %1$d minute</item>
-        <item quantity="other">Boost: Turbo, then Heat, for %1$d minutes</item>
-    </plurals>
     <string name="settings_alarms">Alarms</string>
     <string name="settings_no_alarm">No alarm is set on this phone.</string>
     <string name="settings_next_alarm">Next alarm %1$s from %2$s.</string>
@@ -199,12 +195,9 @@
     <string name="tonight_state_failed">Change failed. Check the BedJet before trying again.</string>
     <string name="tonight_state_unknown">BedJet state unknown. Check the unit before another programme.</string>
     <string name="tonight_state_manual">Tracking manually. Nocturne has not resumed the programme.</string>
-    <string name="tonight_started">Started</string>
-    <string name="tonight_planned_start">Planned start</string>
     <string name="tonight_waking_at">Waking you at</string>
     <string name="tonight_planned_wake">Planned wake</string>
     <string name="tonight_wakes_at">Wakes you at</string>
-    <string name="tonight_starts">Starts</string>
     <!-- The step running now: block, mode and fan. -->
     <string name="tonight_now">Now: %1$s · %2$s · fan %3$d%%</string>
     <string name="tonight_end_night">Stop night</string>
@@ -232,7 +225,7 @@
     <string name="guard_resume_previous">resume the previous night</string>
     <string name="guard_switch_to">switch to %1$s</string>
     <string name="guard_title">Stop night?</string>
-    <string name="guard_running_waking">%1$s is running, waking you at %2$s. This will %3$s, and the night won\'t continue.</string>
+    <string name="guard_running_waking">%1$s is tracked for tonight. This will %2$s.</string>
     <string name="guard_confirm">Stop night</string>
     <string name="guard_resume_title">Resume night?</string>
     <string name="guard_resume_body">Return control to the saved programme. The current BedJet run will be replaced.</string>
@@ -270,12 +263,12 @@
     <string name="editor_discard">Discard</string>
     <string name="editor_keep_editing">Keep editing</string>
     <string name="editor_update_tonight_title">Update tonight too?</string>
-    <string name="editor_update_tonight_text">%1$s is running now. Your changes can wait for the next night, or replace the rest of tonight on the BedJet.</string>
+    <string name="editor_update_tonight_text">%1$s is linked to the tracked night. Your changes can wait for the next night, or replace the rest of tonight on the BedJet.</string>
     <string name="editor_update_tonight">Update tonight</string>
     <string name="editor_next_night">Next night</string>
     <string name="editor_title">Edit profile</string>
     <string name="editor_save">Save</string>
-    <string name="editor_running_tonight">This profile is running tonight. When you save, you can choose to update tonight or start with the next night.</string>
+    <string name="editor_running_tonight">This profile is linked to the tracked night. When you save, you can choose to update tonight or start with the next night.</string>
     <string name="editor_preview">Tonight at %1$s: %2$d of 32 BedJet steps</string>
     <string name="editor_name">Name</string>
     <string name="editor_timing">Timing</string>

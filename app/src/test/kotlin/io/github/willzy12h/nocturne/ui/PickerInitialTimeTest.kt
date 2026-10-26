@@ -174,13 +174,13 @@ class PickerInitialTimeTest {
 
     @Test fun profileWakePickerUsesTheEditedFieldWhenReopenedAndPreservesItOnSave() {
         compose.onNodeWithText(s(R.string.action_edit)).performScrollTo().performClick()
-        compose.onNode(hasText("06:10") and hasClickAction()).performScrollTo().performClick()
+        compose.onNode(hasTextExactly("06:10") and hasClickAction()).performScrollTo().performClick()
         val (firstDialog, firstPicker) = picker()
         assertTime(firstPicker, 6, 10)
         compose.runOnUiThread { firstPicker.hour = 5; firstPicker.minute = 45 }
         accept(firstDialog)
 
-        compose.onNode(hasText("05:45") and hasClickAction()).performScrollTo().performClick()
+        compose.onNode(hasTextExactly("05:45") and hasClickAction()).performScrollTo().performClick()
         val (reopenedDialog, reopenedPicker) = picker()
         assertTime(reopenedPicker, 5, 45)
         accept(reopenedDialog)

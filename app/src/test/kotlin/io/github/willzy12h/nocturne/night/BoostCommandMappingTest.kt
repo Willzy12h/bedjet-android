@@ -3,7 +3,6 @@ package io.github.willzy12h.nocturne.night
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
-import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.coroutines.runBlocking
@@ -40,7 +39,11 @@ class BoostCommandMappingTest {
             assertEquals(10, steps.first().durationMinutes)
             assertEquals(minutes, steps.sumOf { it.durationMinutes })
             assertTrue(steps.drop(1).all { it.mode == Mode.HEAT })
-            assertEquals("Turbo ${minutes}m", app.getString(R.string.remote_boost, minutes))
+            assertEquals("A static command name cannot imply Turbo lasts for the whole configured run",
+                "Boost", NightActions.commandLabel(app, NightActions.Command.BOOST))
+            val expected = if (minutes == 10) "Turbo heat for 10 minutes"
+                else "Turbo heat for 10 minutes, then Heat for ${minutes - 10} minutes"
+            assertEquals("Confirmation must describe the programme actually written", expected, result.message)
             assertEquals("Confirmation must describe the same segments as accessibility feedback",
                 boostDescription(app, minutes), result.message)
         }

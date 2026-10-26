@@ -146,7 +146,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
                 R.string.mode_turbo, R.string.mode_dry, R.string.mode_off).forEach { ui.control(ui.s(it)) }
             listOf(15, 30).forEach { ui.control(ui.s(R.string.minutes_short, it)) }
             listOf(1, 2, 4, 8).forEach { ui.control(ui.s(R.string.duration_hours, it)) }
-            ui.control(ui.s(R.string.remote_boost, graph.repository.settings.value.boostMinutes))
+            ui.control(expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))
         }
     }
 
@@ -205,7 +205,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     private fun quickButtons() {
-        val labels = listOf(ui.s(R.string.remote_boost, ui.graph.repository.settings.value.boostMinutes),
+        val labels = listOf(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes),
             ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
         labels.forEach { label ->
             ui.checkControl(ui.compose.onNode(hasText(label) and hasClickAction() and

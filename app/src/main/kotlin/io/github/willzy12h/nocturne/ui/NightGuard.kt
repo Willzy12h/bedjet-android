@@ -36,7 +36,7 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
             title = { Text(stringResource(if (resume) R.string.guard_resume_title else R.string.guard_title)) },
             text = {
                 Text(if (resume) stringResource(R.string.guard_resume_body)
-                    else stringResource(R.string.guard_running_waking, name, Format.clock(running.wakeAt), what))
+                    else stringResource(R.string.guard_running_waking, name, what))
             },
             confirmButton = { TextButton(onClick = { pending = null; model.withConfirmedNight(running.identity, action) }) {
                 Text(stringResource(if (resume) R.string.recovery_resume_programme else R.string.guard_confirm)) } },

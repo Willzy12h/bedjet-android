@@ -138,7 +138,7 @@ private class CaptureViews(private val ui: U06Fixture) {
 
     private fun tonight(primaryId: Int, name: String) {
         val primary = button(primaryId).performScrollTo()
-        val quick = listOf(ui.s(R.string.remote_boost, ui.graph.repository.settings.value.boostMinutes),
+        val quick = listOf(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes),
             ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
             .map { label -> compose.onNode(hasText(label) and hasClickAction() and hasAnyAncestor(hasTestTag("quick-controls"))) }
         // U1 moved Quick above the plan: reveal its whole section rather than aligning only the final row.

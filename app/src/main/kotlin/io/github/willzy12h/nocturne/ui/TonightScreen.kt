@@ -327,7 +327,7 @@ private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: Zo
                     onEditPhase = onEditPhase?.let { edit -> { entry -> edit(entry.block, entry.startsAt) } })
             } else {
                 Text(stringResource(R.string.tonight_the_night), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                NightCurve(plan, now = now, legend = !nocturneColors.dark, end = end,
+                NightCurve(plan, now = now, legend = !nocturneColors.dark, end = end, phaseInteraction = true,
                     onEditPhase = onEditPhase?.let { edit -> { step -> edit(step.block, step.startsAt) } })
                 if (end == null) Text(wakeOriginLabel(origin, WakeLabelStyle.TILE),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

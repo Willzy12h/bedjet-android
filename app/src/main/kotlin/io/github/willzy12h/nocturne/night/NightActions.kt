@@ -1463,7 +1463,7 @@ class NightActions(private val graph: Graph) {
         reconcile()
     }
     suspend fun setWakeOverride(wake: ZonedDateTime?, expected: NightIdentity? = repo.activeNight.value?.identity): CommandOutcome =
-        owned(text(R.string.runtime_override_label), repo.settings.value.deviceId(), MIN_BUDGET_MS) {
+        owned(text(R.string.runtime_override_label), repo.settings.value.deviceId(), if (expected != null) MIN_BUDGET_MS else 0) {
         val n = repo.activeNight.value
         if (n?.identity != expected) return@owned stale()
         if (n?.isTestRun == true) return@owned refused(R.string.short_test_fixed_plan)

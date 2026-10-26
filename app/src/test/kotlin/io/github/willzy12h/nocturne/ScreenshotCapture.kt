@@ -232,6 +232,7 @@ class ScreenshotCapture {
         shot("$look-01-tonight")
         compose.onAllNodesWithText("Off")[0].performScrollTo()
         settle()
+        compose.onNodeWithText(compose.activity.getString(R.string.tonight_start_now)).assertIsDisplayed()
         shot("$look-01b-tonight-lower")
         for ((tab, name) in listOf("Profiles" to "02-profiles", "Remote" to "03-remote", "History" to "04-history", "Settings" to "05-settings")) {
             if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription(tab))[0].performClick()

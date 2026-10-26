@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.service
 
 import android.app.AlarmManager
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -138,6 +139,7 @@ class RuntimeServiceTest {
     @Test fun cancelledUiDeliveryCannotExecuteLater() {
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         var invoked = false
         val callerContext = ServiceStartContext(app)
         val caller = graph.scope.launch { BedJetService.runOwned(callerContext) { invoked = true } }
@@ -154,6 +156,7 @@ class RuntimeServiceTest {
     @Test fun deferredUiPinRejectsTargetChangedBeforeDeliveryInsideCoordinator() {
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         var delivered: Intent? = null
         var result: CommandOutcome? = null
         graph.scope.launch { result = BedJetService.runOwned(app) { graph.actions.pin(graph.repository.profiles.value.first().id, 0) } }
@@ -168,6 +171,7 @@ class RuntimeServiceTest {
     @Test fun uiOperationWaitsForForegroundOwnershipAndServiceCancellationReachesUpload() {
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         val reached = CompletableDeferred<Unit>()
         beforeSend = { if (it[0] == 0x40.toByte()) { reached.complete(Unit); awaitCancellation() } }
         var delivered: Intent? = null

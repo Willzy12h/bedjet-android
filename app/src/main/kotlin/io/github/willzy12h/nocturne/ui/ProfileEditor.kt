@@ -70,6 +70,8 @@ import io.github.willzy12h.nocturne.core.plan.ProfileLimits
 import io.github.willzy12h.nocturne.core.plan.Season
 import io.github.willzy12h.nocturne.core.plan.TurboChain
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.night.CommandRequest
+import io.github.willzy12h.nocturne.night.NightActions
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
@@ -94,9 +96,9 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
         if (focusedPhase?.block == Block.MIDDLE) { withFrameNanos { }; middleFocus.bringIntoView() }
     }
     val night by model.activeNight.collectAsState()
-    val runningTonight = night?.profileId == original.id
+    val trackingTonight = night?.profileId == original.id
     var confirmDiscard by remember { mutableStateOf(false) }
-    var askApplyTonight by remember { mutableStateOf(false) }
+    var applyTonightTo by remember { mutableStateOf<CommandRequest?>(null) }
     // Leaving with unsaved edits asks first, so a stray back swipe doesn't lose them.
     val leave = { if (profile != original) confirmDiscard = true else onDone() }
     BackHandler(onBack = leave)
@@ -110,15 +112,15 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
             dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(stringResource(R.string.editor_keep_editing)) } },
         )
     }
-    if (askApplyTonight) {
+    applyTonightTo?.let { request ->
         AlertDialog(
-            onDismissRequest = { askApplyTonight = false },
+            onDismissRequest = { applyTonightTo = null },
             title = { Text(stringResource(R.string.editor_update_tonight_title)) },
             text = { Text(stringResource(R.string.editor_update_tonight_text, original.name)) },
             confirmButton = {
-                TextButton(onClick = { model.saveProfileThenReapply(profile); askApplyTonight = false; onDone() }) { Text(stringResource(R.string.editor_update_tonight)) }
+                TextButton(onClick = { model.saveProfileThenReapply(profile, request); applyTonightTo = null; onDone() }) { Text(stringResource(R.string.editor_update_tonight)) }
             },
-            dismissButton = { TextButton(onClick = { model.saveProfileForNextNight(profile); askApplyTonight = false; onDone() }) { Text(stringResource(R.string.editor_next_night)) } },
+            dismissButton = { TextButton(onClick = { model.saveProfileForNextNight(profile); applyTonightTo = null; onDone() }) { Text(stringResource(R.string.editor_next_night)) } },
         )
     }
 
@@ -128,13 +130,18 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                 IconButton(onClick = leave) { Icon(Icons.Filled.Close, stringResource(R.string.feature_cancel)) }
                 Text(stringResource(R.string.editor_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 val plan = preview
-                Button(onClick = { if (runningTonight && profile != original) askApplyTonight = true else { model.saveProfile(profile); onDone() } }, enabled = plan.isSuccess && profile.name.isNotBlank()) { Text(stringResource(R.string.editor_save)) }
+                Button(onClick = {
+                    if (trackingTonight && profile != original) {
+                        applyTonightTo = model.graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)
+                            .copy(expected = night?.identity)
+                    } else { model.saveProfile(profile); onDone() }
+                }, enabled = plan.isSuccess && profile.name.isNotBlank()) { Text(stringResource(R.string.editor_save)) }
             }
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                if (runningTonight) {
+                if (trackingTonight) {
                     Text(
                         stringResource(R.string.editor_running_tonight),
                         style = MaterialTheme.typography.bodyMedium,
@@ -144,7 +151,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                 preview.fold(
                     onSuccess = { plan ->
                         Text(stringResource(R.string.editor_preview, Format.clock(plan.start), plan.steps.size), style = MaterialTheme.typography.labelLarge)
-                        NightCurve(plan, onEditPhase = { step ->
+                        NightCurve(plan, phaseInteraction = true, onEditPhase = { step ->
                             focusedPhase = editorPhaseSelection(profile, plan, step.block, step.startsAt)
                             focusRequest++
                         })

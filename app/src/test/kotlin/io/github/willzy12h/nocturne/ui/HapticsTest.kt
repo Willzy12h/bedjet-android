@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
 import android.os.Looper
+import android.bluetooth.BluetoothManager
 import android.content.Intent
 import androidx.lifecycle.ViewModelStore
 import io.github.willzy12h.nocturne.App
@@ -223,6 +224,7 @@ class HapticsTest {
     @Test fun theServiceRetainsTheTappedViewsRequestUntilOwnerAdmission() = runBlocking {
         app.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         val pulses = mutableListOf<OutcomeKind>()
         collecting(pulses) {
             var delivered: Intent? = null

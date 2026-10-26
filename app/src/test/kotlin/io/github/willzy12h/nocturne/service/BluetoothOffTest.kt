@@ -69,6 +69,20 @@ class BluetoothOffTest {
         assertNull(graph.repository.runtime.value.endRequested)
     }
 
+    @Test fun anIdleTonightWakeOverrideIsSavedLocallyWithBluetoothOff() = runBlocking {
+        graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
+        val wake = graph.now().plusHours(8)
+        val outcome = graph.actions.setWakeOverride(wake)
+        assertEquals("Choosing tonight's wake without a tracked night is a local settings save", OutcomeKind.LOCAL, outcome.kind)
+        assertEquals(CommandOrigin.SETTINGS, outcome.origin)
+        assertEquals(wake.toString(), graph.repository.settings.value.tonightOverride?.wakeAt)
+        assertNull(graph.repository.activeNight.value)
+        assertNull(graph.repository.runtime.value.retime)
+        assertNull(graph.repository.runtime.value.alarmInbox)
+        assertTrue(context.requests.isEmpty())
+        assertEquals(0, radioReceivers())
+    }
+
     @Test fun aUiHandoffFailsBeforeStartingAServiceOrWaitingForItsTimeout() {
         var invoked = false
         val call = graph.scope.async { runCatching { BedJetService.runOwned(context, notifyFailures = false) { invoked = true } } }

@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.R
 import org.junit.Assert.*
@@ -24,6 +25,19 @@ class ProfileEditorInteractionTest {
     private fun open() {
         tab(R.string.tab_profiles)
         ui.compose.onAllNodes(hasText(ui.s(R.string.action_edit)) and hasClickAction())[0].performClick()
+    }
+
+    @Test fun profilePreviewsStayPassiveUntilTheirEditorIsOpened() {
+        tab(R.string.tab_profiles)
+        val preview = ui.compose.onAllNodesWithTag("night-curve")[0]
+        val semantics = preview.fetchSemanticsNode().config
+        assertFalse("A profile preview must not offer a phase click action", semantics.contains(SemanticsActions.OnClick))
+        assertFalse("A profile preview must not offer phase actions", semantics.contains(SemanticsActions.CustomActions))
+        preview.performTouchInput { click(); longClick() }
+        ui.compose.onNodeWithTag("curve-phase-detail").assertDoesNotExist()
+        ui.compose.onNodeWithTag("editor-phase-START-0").assertDoesNotExist()
+        ui.compose.onAllNodes(hasText(ui.s(R.string.action_edit)) and hasClickAction())[0].performClick()
+        ui.compose.onNodeWithTag("editor-phase-START-0").assertExists()
     }
 
     @Test fun phaseRowsStayCompactUntilExpandedAndCanBeEditedByLongPress() {

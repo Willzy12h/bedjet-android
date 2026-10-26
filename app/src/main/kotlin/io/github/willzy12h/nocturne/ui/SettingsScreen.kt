@@ -205,7 +205,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             PresetEditor(stringResource(R.string.settings_preset_snooze_cool), settings.snoozeCool, f) { p -> model.updateSettings { it.copy(snoozeCool = p) } }
             PresetEditor(stringResource(R.string.settings_preset_extend_warm), settings.extendWarm, f) { p -> model.updateSettings { it.copy(extendWarm = p) } }
             PresetEditor(stringResource(R.string.settings_preset_extend_cool), settings.extendCool, f) { p -> model.updateSettings { it.copy(extendCool = p) } }
-            Text(pluralStringResource(R.plurals.settings_boost, settings.boostMinutes, settings.boostMinutes))
+            Text(io.github.willzy12h.nocturne.night.boostDescription(context, settings.boostMinutes))
             Slider(settings.boostMinutes.toFloat(), { v -> model.updateSettings { it.copy(boostMinutes = v.roundToInt()) } }, valueRange = 10f..30f, steps = 3,
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)))
         }

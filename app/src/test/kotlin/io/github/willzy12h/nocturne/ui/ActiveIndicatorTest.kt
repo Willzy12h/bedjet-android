@@ -91,7 +91,7 @@ class ActiveIndicatorTest {
     }
 
     @Test fun aConfirmedBoostWithMatchingProgrammeProgressGetsTheQuickMarker() {
-        ui.compose.onNode(hasText(ui.s(R.string.remote_boost, ui.graph.repository.settings.value.boostMinutes)) and hasClickAction())
+        ui.compose.onNode(hasText(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes)) and hasClickAction())
             .performScrollTo().performClick()
         ui.waitUntil { ui.graph.repository.runtime.value.slotWrite?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED &&
             ui.graph.link.status.value?.let { it.mode == Mode.TURBO && (it.extra?.programStep ?: 0) > 0 } == true }

@@ -125,11 +125,11 @@ class RetimeNotificationTest {
         }
         assertTrue("Retime delivery did not finish", check())
     }
-    private fun alarm(hours: Long, creator: String = "approved.clock") {
+    private fun alarm(hours: Long, creator: String? = "approved.clock") {
         val fire = PendingIntent.getBroadcast(app, 99, Intent("test.retime.alarm"), PendingIntent.FLAG_IMMUTABLE)
-        shadowOf(fire).setCreatorPackage(creator)
+        if (creator != null) shadowOf(fire).setCreatorPackage(creator)
         app.getSystemService(AlarmManager::class.java).setAlarmClock(
-            AlarmManager.AlarmClockInfo(graph.clock.millis() + hours * 3_600_000, fire), fire)
+            AlarmManager.AlarmClockInfo(graph.clock.millis() + hours * 3_600_000, fire.takeIf { creator != null }), fire)
     }
     private suspend fun start(): ActiveNight {
         alarm(6)
@@ -1158,6 +1158,45 @@ class RetimeNotificationTest {
         assertTrue(detail, detail.contains("Demo BedJet"))
         assertTrue("A terminal warning needs the non-replaying recovery action",
             warning.actions.orEmpty().any { it.title.toString() == "Check BedJet" })
+    }
+
+    @Test fun aQueuedSourcePolicyChangeWarnsAboutTheWakeActuallyPreparedForTheRetry() = runBlocking {
+        val night = start()
+        graph.repository.updateSettings { it.copy(acceptUnknownAlarmSource = true) }
+        alarm(8, null)
+        val unknown = io.github.willzy12h.nocturne.night.AlarmSource.describe(app, graph.repository.settings.value)!!
+        assertNull("No show intent means Android supplied no creator metadata", unknown.creator)
+        assertTrue("The queued null-source alarm must initially be accepted", unknown.counts)
+        unreachable = true
+        assertEquals(OutcomeKind.LOCAL, graph.actions.submitAlarmChange().kind)
+        assertEquals(OutcomeKind.FAILED, retryService().kind)
+        val queued = graph.repository.runtime.value.retime!!
+        assertNotNull("The original accepted alarm has a resolved requested wake", queued.requestedWakeAt)
+        assertEquals(night, graph.repository.activeNight.value)
+
+        assertEquals(OutcomeKind.LOCAL, graph.actions.updateSettings { it.copy(acceptUnknownAlarmSource = false) }.kind)
+        unreachable = false
+        val count = writes
+        beforeSend = { if (it.contentEquals(Codec.startProgram(night.slot))) throw BedJetError.NotConnected() }
+        val outcome = retryService(notifyFailures = true)
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
+        assertTrue("The failure follows an actual retry upload", writes > count)
+        val uncertain = graph.repository.activeNight.value!!
+        assertEquals(night.identity, uncertain.identity)
+        assertEquals(night.applied, uncertain.applied)
+        assertEquals(Confidence.UNKNOWN, uncertain.confidence)
+        val attempted = uncertain.pending!!.intended!!
+        assertEquals(io.github.willzy12h.nocturne.core.night.WakeOrigin.PROFILE_DEFAULT, attempted.wakeOrigin)
+        assertNotEquals("The changed source policy prepares a distinct profile fallback",
+            ZonedDateTime.parse(queued.requestedWakeAt).toInstant(), ZonedDateTime.parse(attempted.wakeAt).toInstant())
+        val expected = app.getString(R.string.runtime_retime_request_context,
+            io.github.willzy12h.nocturne.ui.Format.clock(attempted.wakeAt), app.getString(R.string.settings_demo),
+            app.getString(R.string.runtime_retime_unknown_detail, outcome.message))
+        assertEquals("A warning must name the exact wake whose write became uncertain, not the superseded queued alarm",
+            expected, error()!!.extras.getString("android.text"))
+        assertEquals(expected, graph.repository.runtime.value.reason)
+        assertTrue(terminalErrors(night).single().detail.endsWith(expected))
+        assertOneTerminalNotice(unknown = true)
     }
 
     @Test fun checkBedJetReadsAfreshWithoutWritingOrReplayingThePendingChange() = runBlocking {

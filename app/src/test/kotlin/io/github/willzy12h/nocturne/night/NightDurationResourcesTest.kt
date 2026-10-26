@@ -95,4 +95,20 @@ class NightDurationResourcesTest {
             durationProblem = NightDurationProblem.OUTSIDE_WINDOW)
         assertEquals(app.getString(R.string.night_duration_outside_window), preview.refusalText(app))
     }
+
+    @Test fun reminderPreviewExplainsTheDurationInsteadOfShowingItsDiagnosticCode() = runBlocking {
+        graph.repository.updateSettings { it.setWakeOverride(now.plusMinutes(30), now) }
+        val intent = io.github.willzy12h.nocturne.platform.PlatformActionActivity.intent(app,
+            graph.actions.capture(NightActions.Command.START_NIGHT, requireIdentity = true))
+        val controller = org.robolectric.Robolectric.buildActivity(
+            io.github.willzy12h.nocturne.platform.PlatformActionActivity::class.java, intent).setup()
+        try {
+            val dialog = org.robolectric.shadows.ShadowAlertDialog.getLatestAlertDialog()
+            assertEquals(app.getString(R.string.night_duration_outside_window),
+                org.robolectric.Shadows.shadowOf(dialog).message.toString())
+            val start = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+            assertTrue("An invalid preview cannot start a programme", start == null || start.visibility != android.view.View.VISIBLE)
+            assertEquals(0, writes)
+        } finally { controller.pause().stop().destroy() }
+    }
 }

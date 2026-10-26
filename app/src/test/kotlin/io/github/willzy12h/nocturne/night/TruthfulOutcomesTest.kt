@@ -5,12 +5,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import io.github.willzy12h.nocturne.Graph
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.*
 import io.github.willzy12h.nocturne.core.night.*
 import io.github.willzy12h.nocturne.core.protocol.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.ui.Format
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -150,7 +152,9 @@ class TruthfulOutcomesTest {
         assertFalse("a change that can never apply is not retried", graph.actions.retimePending)
         assertFalse(retryScheduled())
         assertTrue("the refusal is still on the night's record", events(n).any { it.kind == EventKind.ERROR && it.detail == outcome.message })
-        assertEquals(outcome.message, graph.repository.runtime.value.reason)
+        val warning = context.getString(R.string.runtime_retime_request_context,
+            Format.clock(alarm.withZoneSameInstant(ZoneId.systemDefault())), context.getString(R.string.settings_demo), outcome.message)
+        assertEquals(warning, graph.repository.runtime.value.reason)
     }
 
     @Test fun aRetimeWhoseClockOffsetChangesBeforeItsWriteFailsAndIsTriedAgain() = runBlocking {

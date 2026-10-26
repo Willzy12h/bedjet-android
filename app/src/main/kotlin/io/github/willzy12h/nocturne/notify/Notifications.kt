@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.edit
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.night.ActiveNight
@@ -188,7 +189,7 @@ object Notifications {
         val claimed = synchronized(this) {
             val previous = if (prefs.contains("off_at")) prefs.getLong("off_at", 0) else null
             if (previous != null && now >= previous && now - previous < BLUETOOTH_NOTICE_WINDOW_MS) false
-            else { prefs.edit().putLong("off_at", now).apply(); true }
+                else { prefs.edit { putLong("off_at", now) }; true }
         }
         if (claimed) {
             val interrupted = failure is io.github.willzy12h.nocturne.ble.BluetoothInterruptedException

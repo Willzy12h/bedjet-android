@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.night
 
 import android.app.*
+import android.bluetooth.BluetoothManager
 import android.content.*
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.night.*
@@ -282,6 +283,7 @@ class RuntimeDeliveryTest {
         graph.repository.updateSettings { it.copy(demoMode = false) }
         val delivery = io.github.willzy12h.nocturne.service.ServiceStartContext(context)
         shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
+        shadowOf(context.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         assertTrue(BedJetService.start(delivery, NightActions.Command.OFF))
         shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
         val service = Robolectric.buildService(BedJetService::class.java).create().get()

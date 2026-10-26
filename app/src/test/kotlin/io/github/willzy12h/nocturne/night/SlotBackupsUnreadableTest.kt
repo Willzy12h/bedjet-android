@@ -11,6 +11,7 @@ import io.github.willzy12h.nocturne.core.night.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.ui.Format
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -112,6 +113,9 @@ class SlotBackupsUnreadableTest {
         assertTrue(first.actions.perform(NightActions.Command.START_NIGHT).contains("started"))
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
         val at = clock.instant().plus(Duration.ofHours(5))
+        val requestedWakeAt = at.atZone(ZoneId.systemDefault())
+        val warning = context.getString(R.string.runtime_retime_request_context, Format.clock(requestedWakeAt),
+            context.getString(R.string.settings_demo), refusal())
         context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toEpochMilli(), null), fire)
         assertEquals(OutcomeKind.LOCAL, first.actions.submitAlarmChange().kind)
         assertTrue(retryScheduled())
@@ -127,11 +131,11 @@ class SlotBackupsUnreadableTest {
         assertEquals(night, graph.repository.activeNight.value)
         assertFalse(graph.actions.retimePending)
         assertNull(graph.repository.runtime.value.retime)
-        assertEquals(refusal(), graph.repository.runtime.value.reason)
+        assertEquals(warning, graph.repository.runtime.value.reason)
         assertFalse("retry alarm cancelled", retryScheduled())
         // The error notice is shown, so the user isn't left on the old wake time without a word.
         val posted = shadowOf(context.getSystemService(android.app.NotificationManager::class.java)).allNotifications
         assertTrue(posted.any { it.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ==
-            context.getString(R.string.runtime_retime_refused) && it.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() == refusal() })
+            context.getString(R.string.runtime_retime_refused) && it.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() == warning })
     }
 }

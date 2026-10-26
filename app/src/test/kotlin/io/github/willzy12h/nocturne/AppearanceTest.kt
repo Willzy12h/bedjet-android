@@ -68,13 +68,17 @@ class AppearanceTest {
         compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } } }
         waitFor(hasText("Wake time") or hasText("Your alarm"))
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Boost").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(io.github.willzy12h.nocturne.ui.expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))
+            .performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun themeChoiceIsSaved() {
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Light").performScrollTo().performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.ux_light_theme_warning)).assertIsDisplayed()
+        assertEquals(ThemeMode.SYSTEM, graph.repository.settings.value.themeMode)
+        compose.onNodeWithText(compose.activity.getString(R.string.ux_switch)).performClick()
         waitForText("Simple view")
         // Settings are saved off the main thread and show once they are on disk.
         compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.SYSTEM }

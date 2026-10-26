@@ -13,6 +13,7 @@ import io.github.willzy12h.nocturne.BuildConfig
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.ble.FoundBedJet
 import io.github.willzy12h.nocturne.ble.BluetoothAvailability
+import io.github.willzy12h.nocturne.ble.BluetoothAdmission
 import io.github.willzy12h.nocturne.core.link.BedJetController
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.plan.Plan
@@ -43,6 +44,7 @@ import io.github.willzy12h.nocturne.night.refusalText
 import io.github.willzy12h.nocturne.night.planMessage
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.night.CommandOutcome
+import io.github.willzy12h.nocturne.night.CommandRequest
 import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.notify.Notifications
@@ -70,6 +72,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.ZonedDateTime
@@ -400,22 +403,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
         val feedback = if (hardware) tapHaptics.capture() else null
         viewModelScope.launch {
+            var radio: BluetoothAdmission? = null
             try {
-                pending?.join()
                 _busy.value = true
                 val outcome = try {
-                    if (hardware) withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target) +
-                        (feedback?.context ?: kotlin.coroutines.EmptyCoroutineContext)) {
-                        io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false,
-                            deferBluetoothCheck = deferBluetoothCheck) { work() }
-                    } else work()
+                    // The UI submission includes its save wait. Observe radio interruptions from here,
+                    // retain the same marker through service/owner admission, and bound its whole lifetime.
+                    withTimeout(io.github.willzy12h.nocturne.service.BedJetService.RUN_OWNED_MS) {
+                        if (hardware && !repo.settings.value.demoMode) {
+                            radio = BluetoothAdmission(getApplication())
+                            if (!deferBluetoothCheck) radio?.check()
+                        }
+                        pending?.join()
+                        if (hardware) withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target) +
+                            (feedback?.context ?: kotlin.coroutines.EmptyCoroutineContext) +
+                            (radio ?: kotlin.coroutines.EmptyCoroutineContext)) {
+                            io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false,
+                                deferBluetoothCheck = deferBluetoothCheck) { work() }
+                        } else work()
+                    }
                 } catch (_: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
                 } catch (e: CancellationException) { throw e
                 } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.planMessage(getApplication()) ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
                 finally { _busy.value = false }
                 feedback?.complete(outcome)
                 report(outcome)
-            } finally { feedback?.close() }
+            } finally { radio?.close(); feedback?.close() }
         }
     }
 
@@ -445,8 +458,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** "Update tonight": the edited profile is saved before the rest of the night is rewritten from it. */
-    fun saveProfileThenReapply(profile: Profile) {
-        val request = graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)
+    fun saveProfileThenReapply(profile: Profile) =
+        saveProfileThenReapply(profile, graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true))
+
+    /** The save dialog supplies its captured night and target; edits cannot adopt a replacement's consent. */
+    fun saveProfileThenReapply(profile: Profile, request: CommandRequest) {
         act {
             repo.saveProfile(profile)
             graph.actions.execute(request)
