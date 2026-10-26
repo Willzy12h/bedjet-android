@@ -129,6 +129,8 @@ object BackupCodec {
             }
             StructureKind.LIST -> {
                 val elements = value as? JsonArray ?: invalid()
+                if (descriptor.serialName in setOf("kotlin.collections.LinkedHashSet", "kotlin.collections.HashSet") &&
+                    elements.distinct().size != elements.size) throw BackupException("BACKUP_DUPLICATE_VALUE")
                 elements.forEach { requireExactTypes(it, descriptor.getElementDescriptor(0)) }
             }
             StructureKind.MAP -> {

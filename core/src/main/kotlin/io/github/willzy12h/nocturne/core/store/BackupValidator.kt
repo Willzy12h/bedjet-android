@@ -37,9 +37,7 @@ object BackupValidator {
     private val PHASE_MINUTES = 1..MAX_PHASE_MINUTES
     private val RAMP_STEPS = 1..MAX_RAMP_STEPS
     private val SLOTS = 0 until Limits.SLOTS
-    // Accept bounded hexadecimal legacy associations. Selecting or commanding a real unit still requires its
-    // complete Bluetooth address at the owner boundary; a shorter saved identifier cannot select a unit.
-    private val SAVED_DEVICE = Regex("ble:(?:[0-9A-Fa-f]{2}:){0,5}[0-9A-Fa-f]{2}")
+    private val SAVED_DEVICE = Regex("ble:(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")
     private fun validDevice(value: String) = value == DeviceId.DEMO || value == Migrations.UNKNOWN_DEVICE || SAVED_DEVICE.matches(value)
     private val BOOST_MINUTES = 10..30
     private val ACTION_MINUTES = 1..120
@@ -180,14 +178,17 @@ object BackupValidator {
             }
         }
         if (bundle.history.map { it.id }.distinct().size != bundle.history.size) invalid("history.duplicateId")
-        bundle.slotBackups.forEach { bounded(it.deviceId, "slotBackups.deviceId", MAX_ID) }
+        bundle.slotBackups.forEach {
+            bounded(it.deviceId, "slotBackups.deviceId", MAX_ID)
+            it.program?.let { program -> bounded(program.name, "slotBackups.program.name", Limits.NAME_LENGTH, blank = true) }
+        }
         if (bundle.slotBackups.map { it.deviceId.lowercase(java.util.Locale.ROOT) to it.slot }.distinct().size != bundle.slotBackups.size)
             invalid("slotBackups.duplicateIdentity")
         val settings = bundle.settings
         settings.selectedProfileId?.let { bounded(it, "settings.selectedProfileId", MAX_ID) }
         settings.tonightChoice?.let { bounded(it.profileId, "settings.tonightChoice.profileId", MAX_ID) }
-        settings.targetDevice?.let { bounded(it, "settings.targetDevice", MAX_ID); if (!validDevice(it)) invalid("settings.targetDevice") }
-        settings.setupFanCheckedDevice?.let { bounded(it, "settings.setupFanCheckedDevice", MAX_ID); if (!validDevice(it)) invalid("settings.setupFanCheckedDevice") }
+        settings.targetDevice?.let { bounded(it, "settings.targetDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.targetDevice") }
+        settings.setupFanCheckedDevice?.let { bounded(it, "settings.setupFanCheckedDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.setupFanCheckedDevice") }
         count(settings.alarmPackages.size, 128, "settings.alarmPackages")
         settings.alarmPackages.take(129).forEach { bounded(it, "settings.alarmPackages", 255) }
         count(settings.tonightSectionOrder.size, 64, "settings.tonightSectionOrder")
@@ -198,7 +199,12 @@ object BackupValidator {
         val encoded = BackupCodec.json.encodeToJsonElement(BackupBundle.serializer(), bundle).jsonObject
         fun inspect(value: JsonElement, path: String, key: String = "") {
             when (value) {
-                is JsonObject -> value.forEach { (name, child) -> inspect(child, "$path.$name", name) }
+                is JsonObject -> {
+                    val exported = (value["healthExportedVersion"] as? JsonPrimitive)?.longOrNull
+                    val version = (value["healthExportVersion"] as? JsonPrimitive)?.longOrNull
+                    if (exported != null && version != null && exported > version) invalid("$path.healthExportedVersion")
+                    value.forEach { (name, child) -> inspect(child, "$path.$name", name) }
+                }
                 is JsonArray -> {
                     if (key == "rememberedBedJets" && (value.size > 16 || value.any {
                             val id = (it as? JsonPrimitive)?.content.orEmpty()
@@ -210,6 +216,8 @@ object BackupValidator {
                 }
                 is JsonPrimitive -> if (value !is JsonNull) {
                     if (value.isString && value.content.length > MAX_DETAIL) invalid(path)
+                    if (key == "profileId" && value.isString && (value.content.isBlank() || value.content.length > MAX_ID ||
+                            value.content.any { it.isISOControl() })) invalid(path)
                     if (key in setOf("healthExportVersion", "healthExportedVersion") && (value.longOrNull ?: -1) < 0) invalid(path)
                     if (key == "confirmedCompletionAt" && runCatching { ZonedDateTime.parse(value.content) }.isFailure) invalid(path)
                 }

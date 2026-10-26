@@ -83,7 +83,7 @@ class BackupStrictValidationTest {
 
     @Test fun rejectsDuplicateHistoryAndCaseEquivalentOriginalIdentities() {
         rejected(good.copy(history = listOf(night, night.copy(profileName = "Other"))))
-        rejected(good.copy(slotBackups = listOf(SlotBackup("ble:AA:BB", 0, null, at), SlotBackup("ble:aa:bb", 0, null, at))))
+        rejected(good.copy(slotBackups = listOf(SlotBackup("ble:AA:BB:CC:DD:EE:FF", 0, null, at), SlotBackup("ble:aa:bb:cc:dd:ee:ff", 0, null, at))))
     }
 
     @Test fun rejectsMalformedRecordedValuesAndRevisionTimes() {
@@ -96,6 +96,23 @@ class BackupStrictValidationTest {
         rejected(good.copy(slotBackups = listOf(SlotBackup("ble:not-an-address", 0, null, at))))
         rejected(good.copy(history = listOf(night.copy(deviceId = "ble:00:11:22:33:44:ZZ"))))
         rejected(good.copy(settings = Settings(targetDevice = "ble:../other")))
+    }
+
+    @Test fun shortenedBluetoothAddressesAreMalformedRatherThanAnUndocumentedLegacyFormat() {
+        listOf("ble:AA", "ble:AA:BB", "ble:00:11:22:33:44").forEach { id ->
+            rejected(good.copy(settings = Settings(targetDevice = id)))
+            rejected(good.copy(slotBackups = listOf(SlotBackup(id, 0, null, at))))
+            rejected(good.copy(history = listOf(night.copy(deviceId = id))))
+        }
+    }
+
+    @Test fun duplicateSetEntriesAreRejectedBeforeDecodingCanEraseThem() {
+        val duplicateAlarms = encoded().replace("\"settings\":{}", "\"settings\":{\"alarmPackages\":[\"org.clock\",\"org.clock\"]}")
+        assertThrows<BackupException> { BackupCodec.decode(duplicateAlarms) }
+    }
+
+    @Test fun exportedHealthVersionCannotExceedTheLocallyJournalledRecordVersion() {
+        rejected(good.copy(history = listOf(night.copy(healthExportVersion = 1, healthExportedVersion = 2))))
     }
 
     @Test fun rejectsOversizedSettingsFieldsAndCollections() {
