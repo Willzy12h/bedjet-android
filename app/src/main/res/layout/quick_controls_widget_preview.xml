@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="8dp"
+    android:background="@drawable/widget_preview_background" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="56dp" android:gravity="center_vertical">
+        <TextView android:layout_width="56dp" android:layout_height="56dp" android:gravity="center"
+            android:text="@string/widget_previous_glyph" android:textSize="16sp" />
+        <LinearLayout android:layout_width="0dp" android:layout_height="56dp" android:layout_weight="1"
+            android:orientation="vertical" android:gravity="center">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/widget_status_unknown_glyph" android:contentDescription="@string/feature_unknown" android:textSize="20sp" android:maxLines="1" />
+        </LinearLayout>
+        <TextView android:layout_width="56dp" android:layout_height="56dp" android:gravity="center"
+            android:text="@string/widget_next_glyph" android:textSize="16sp" />
+    </LinearLayout>
+    <Button style="@style/Glance.AppWidget.Button"
+        android:layout_width="match_parent" android:layout_height="56dp" android:minHeight="56dp"
+        android:text="@string/feature_start_tonight" android:textSize="16sp" android:padding="0dp" android:maxLines="1" />
+</LinearLayout>

@@ -1,0 +1,37 @@
+// Test-only input export. Applying this init script does not alter Android R8 tasks.
+// Invoke with -I .github/workflows/release-serialization.init.gradle.
+gradle.projectsEvaluated {
+    def app = gradle.rootProject.project(':app')
+    app.tasks.register('exportReleaseSerializationInputs') {
+        dependsOn app.tasks.named('compileReleaseUnitTestKotlin')
+        doLast {
+            def test = app.tasks.named('testReleaseUnitTest').get()
+            def android = app.extensions.getByName('android')
+            def r8 = android.class.classLoader.loadClass('com.android.tools.r8.R8')
+                .protectionDomain.codeSource.location.toURI()
+            // Gradle's plugin classloader may point at an instrumented copy. Export
+            // resolved originals as well, so standalone Java uses the AGP artifact.
+            def buildClasspath = [gradle.rootProject, app].collectMany { project ->
+                project.buildscript.configurations.findByName('classpath')?.files?.toList() ?: []
+            }.unique().findAll { it.isFile() && it.name.endsWith('.jar') }
+            def output = app.layout.buildDirectory.file('reports/release-serialization/inputs.json').get().asFile
+            output.parentFile.mkdirs()
+            output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+                format: 1,
+                javaHome: System.getProperty('java.home'),
+                r8: new File(r8).absolutePath,
+                buildClasspath: buildClasspath.collect { it.absolutePath }.sort(),
+                bootClasspath: android.bootClasspath.collect { it.absolutePath },
+                classpath: test.classpath.files.findAll { it.isFile() && it.name.endsWith('.jar') }
+                    .collect { it.absolutePath }.sort(),
+                productionClasses: [
+                    app.layout.buildDirectory.dir('tmp/kotlin-classes/release').get().asFile.absolutePath,
+                    app.layout.buildDirectory.dir('intermediates/javac/release/compileReleaseJavaWithJavac/classes').get().asFile.absolutePath,
+                    gradle.rootProject.project(':core').layout.buildDirectory.dir('classes/kotlin/main').get().asFile.absolutePath,
+                ],
+                testClasses: test.testClassesDirs.files.collect { it.absolutePath }.sort(),
+            ])) + '\n'
+            logger.lifecycle("Release serialization inputs: ${output}")
+        }
+    }
+}

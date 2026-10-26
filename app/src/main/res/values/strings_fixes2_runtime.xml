@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_restore_preview_changed">The saved original has changed. Review it again before restoring.</string>
+</resources>

@@ -1,0 +1,21 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Nocturne" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    <style name="Theme.Nocturne.WidgetConfirmation" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+    <!-- Intentional override of the pinned Glance 1.1.1 native Button style: its library
+         layouts use this resource. Sentence case and zero letter spacing keep the actual
+         200% widget labels readable. Preview buttons share the same style. -->
+    <style name="Glance.AppWidget.Button" parent="" tools:override="true">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_single_description"
+    android:initialLayout="@layout/single_action_widget_preview"
+    android:previewLayout="@layout/single_action_widget_preview"
+    android:configure="io.github.willzy12h.nocturne.widget.SingleActionConfigActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional"
+    android:minWidth="200dp" android:minHeight="128dp"
+    android:minResizeWidth="200dp" android:minResizeHeight="128dp"
+    android:targetCellWidth="2" android:targetCellHeight="1"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen|keyguard"
+    android:updatePeriodMillis="0" />

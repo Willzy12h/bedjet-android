@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="short_test_title">Test sleep and wake</string>
+    <string name="short_test_name">Five-minute BedJet test</string>
+    <string name="short_test_help">Preview a short equipment test before starting it. Normal nights still need at least one hour. Test runs are kept for diagnostics and excluded from sleep history, sleep exports and Health Connect comparisons.</string>
+    <string name="short_test_preview">Preview five-minute test</string>
+    <string name="short_test_confirm_title">Start five-minute test?</string>
+    <string name="short_test_target">%1$s · BedJet slot %2$d</string>
+    <string name="short_test_phases">Start: 1 minute of %1$s at %2$s, fan 30%%.\nMiddle: 2 minutes of %1$s at %2$s, fan 30%%.\nWake: 2 minutes of %3$s at %4$s, fan 30%%.</string>
+    <string name="short_test_confirm_help">This writes the test to the slot shown and starts the BedJet. The wake phase starts after about 3 minutes; the programme finishes after about 5 minutes. Phone alarms are not used. You can stop it with Off.</string>
+    <string name="short_test_start">Start test</string>
+    <string name="short_test_started">%1$s confirmed — planned finish %2$s.</string>
+    <string name="short_test_active">End the tracked night before starting a test.</string>
+    <string name="short_test_preview_changed">The test preview is no longer current. Preview it again before starting.</string>
+    <string name="short_test_fixed_plan">The five-minute test has fixed timings. End it before planning a normal night.</string>
+    <string name="short_test_saved">BedJet test — planned finish %1$s; phone alarms are not used</string>
+    <string name="short_test_state">Test run · %1$s · phone alarms are not used</string>
+    <string name="short_test_waking">BedJet test — finishes %1$s</string>
+    <string name="short_test_waking_detail">The test wake phase is due. This is an equipment test, excluded from sleep history.</string>
+</resources>

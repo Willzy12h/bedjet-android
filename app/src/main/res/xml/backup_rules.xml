@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy format. Keep slot originals, their integrity barrier and any accepted loss together. -->
+<full-backup-content>
+    <include domain="file" path="profiles.json" />
+    <include domain="file" path="history.json" />
+    <include domain="file" path="slot-backups.json" />
+    <include domain="file" path="slot-backups-integrity.json" />
+        <include domain="file" path="slot-backups-loss-accepted.json" />
+</full-backup-content>

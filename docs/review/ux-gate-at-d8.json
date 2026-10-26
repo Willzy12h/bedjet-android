@@ -1,0 +1,72 @@
+{
+  "command": [
+    "./gradlew",
+    "--no-daemon",
+    "--offline",
+    "--max-workers=2",
+    "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8",
+    "-Pkotlin.compiler.execution.strategy=in-process",
+    ":core:test",
+    ":app:testDebugUnitTest",
+    ":app:assembleDebug",
+    ":app:lintDebug",
+    ":app:assembleRelease"
+  ],
+  "project": "/workspace/scratch/93c42f112bf4/nocturne",
+  "source_commit": "d8b31611291f49be0b3d81ec8b1f2f1d2af34719",
+  "exit_code": 1,
+  "elapsed_seconds": 1147.51,
+  "core": {
+    "tests": 240,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 240,
+    "suites": 31
+  },
+  "app": {
+    "tests": 1342,
+    "failures": 5,
+    "errors": 0,
+    "skipped": 38,
+    "passed": 1299,
+    "suites": 161,
+    "failure_details": [
+      {
+        "class": "io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest",
+        "test": "remoteModeTimerAndBoostControlsAreReachableAboveFeedback[MIDNIGHT]",
+        "message": "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 10000 ms",
+        "type": "androidx.compose.ui.test.ComposeTimeoutException"
+      },
+      {
+        "class": "io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest",
+        "test": "remoteModeTimerAndBoostControlsAreReachableAboveFeedback[DAYLIGHT]",
+        "message": "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 10000 ms",
+        "type": "androidx.compose.ui.test.ComposeTimeoutException"
+      },
+      {
+        "class": "io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest",
+        "test": "remoteModeTimerAndBoostControlsAreReachableAboveFeedback[SIMPLE_MIDNIGHT]",
+        "message": "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 10000 ms",
+        "type": "androidx.compose.ui.test.ComposeTimeoutException"
+      },
+      {
+        "class": "io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest",
+        "test": "remoteModeTimerAndBoostControlsAreReachableAboveFeedback[SIMPLE_DAYLIGHT]",
+        "message": "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 10000 ms",
+        "type": "androidx.compose.ui.test.ComposeTimeoutException"
+      },
+      {
+        "class": "io.github.willzy12h.nocturne.IdleProcessTimersTest",
+        "test": "notificationExpiryDoesNotWakeTheIdleProcessEveryMinute",
+        "message": "java.lang.AssertionError: No night or offer means no clock timer expected:<1> but was:<3>",
+        "type": "java.lang.AssertionError"
+      }
+    ]
+  },
+  "source_files": 632,
+  "source_drift": [],
+  "lint_executed": false,
+  "assemble_debug_executed": false,
+  "assemble_release_executed": false
+}
