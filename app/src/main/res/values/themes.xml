@@ -4,4 +4,16 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
+    <style name="Theme.Nocturne.WidgetConfirmation" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+    <!-- Glance's native Button otherwise inherits the host's all-caps transformation. -->
+    <style name="Glance.AppWidget.Button" parent="">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:letterSpacing">0</item>
+        <item name="android:ellipsize">end</item>
+    </style>
 </resources>

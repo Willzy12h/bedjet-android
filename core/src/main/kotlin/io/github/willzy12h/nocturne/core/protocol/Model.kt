@@ -37,14 +37,16 @@ enum class Mode(val code: Int) {
             WAIT -> null
         }
 
-    /** Target temperature limits in half-degrees Celsius, as the official app enforces them. */
+    /** Planning limits in half-degrees Celsius; live controls also honour the unit's reported limits.
+     * Dry's 31 °C maximum is documented in the BedJet 3 220–240 V manual, rev 2.0, page 20.
+     * See docs/review/ux-control-evidence.md for the source and protocol field. */
     val temperatureRange: IntRange
         get() = when (this) {
             HEAT -> 45..80
             TURBO -> 86..86
             EXTENDED_HEAT -> 38..67
             COOL -> 38..62
-            DRY -> 40..80
+            DRY -> 40..62
             STANDBY, WAIT -> 80..80
         }
 

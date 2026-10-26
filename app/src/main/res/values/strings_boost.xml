@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="boost_description_turbo">Turbo heat for %1$d minutes</string>
+    <string name="boost_description_turbo_then_heat">Turbo heat for %1$d minutes, then Heat for %2$d minutes</string>
+</resources>

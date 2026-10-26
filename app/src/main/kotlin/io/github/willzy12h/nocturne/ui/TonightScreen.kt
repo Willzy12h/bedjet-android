@@ -1,6 +1,21 @@
 package io.github.willzy12h.nocturne.ui
 
 import android.app.TimePickerDialog
+import androidx.compose.foundation.background
+import androidx.compose.foundation.progressSemantics
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.Icon
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
@@ -43,6 +59,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.night.boostDescription
 import io.github.willzy12h.nocturne.core.night.WakeOrigin
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -67,187 +84,188 @@ import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.delay
 import java.time.ZonedDateTime
 
-/**
- * Tonight, in three layouts over the same parts: Midnight Ink (dark) leads with a big wake time; Daylight (light)
- * puts start and wake in two stat tiles and labels the curve; simple view swaps the curve for a list of steps.
- */
+/** Fixed wake and explanation above saved Quick controls and reorderable Tonight sections. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenBackups: () -> Unit = {},
-    onOpenAlarmSettings: () -> Unit = {}) {
+    onOpenAlarmSettings: () -> Unit = {}, onEditPhase: (Profile, EditorPhaseSelection) -> Unit = { p, _ -> onEdit(p) }) {
     val profiles by model.profiles.collectAsState()
     val settings by model.settings.collectAsState()
-    val night by model.activeNight.collectAsState()
+    val running by model.activeNight.collectAsState()
     val alarm by model.nextAlarm.collectAsState()
     val busy by model.busy.collectAsState()
     val release by model.release.collectAsState()
     val nightStatus by model.nightStatus.collectAsState()
+    val runtime by model.runtime.collectAsState()
     var now by remember { mutableStateOf(model.now()) }
-    LaunchedEffect(Unit) { while (true) { delay(30_000); now = model.now(); model.refreshAlarm() } }
+    val foreground = rememberScreenInteractive()
+    LaunchedEffect(model, foreground) {
+        if (foreground) {
+            now = model.now(); model.refreshAlarm()
+            while (true) { delay(30_000); now = model.now(); model.refreshAlarm() }
+        }
+    }
     val guard = rememberNightGuard(model)
     val context = LocalContext.current
-    val dark = nocturneColors.dark
-    val simple = settings.simpleView
+    val choiceId = settings.resolveTonightChoice(now)?.profileId
+    val scheduleWindow = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
+    var chosen by remember(choiceId, scheduleWindow, profiles) { mutableStateOf(settings.resolveProfile(profiles, now)) }
+    val night = running
+    val profile = if (night == null) chosen else profiles.firstOrNull { it.id == night.profileId }
+    val preview = if (night == null) profile?.let { model.startPreview(it, now) } else null
+    val plan = if (night == null) preview?.plan else remember(night, profiles) { model.activePlan() }
+    val plannedWake = night?.wakeAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() } ?: preview?.wake?.time
+    val wakeOverride = settings.resolveWakeOverride(now)
+    val confirmed = night != null && night.confidence == Confidence.CONFIRMED && nightStatus.confidence == Confidence.CONFIRMED
+    val overridable = night == null || (confirmed && !night.trackingManual && !night.isTestRun)
+    val pickWake: () -> Unit = {
+        if (overridable) {
+            val current = model.now()
+            val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse) ?: plannedWake ?: current
+            TimePickerDialog(context, { _, hour, minute ->
+                model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()))
+            }, initial.hour, initial.minute, true).show()
+        }
+    }
+    val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, night, runtime, nightStatus, previewWake = preview?.wake)
+    val openExplanation = {
+        when (explanation.target) {
+            AlarmSettingsTarget.ALARM_SOURCES -> onOpenAlarmSettings()
+            AlarmSettingsTarget.PROFILE_WAKE -> profile?.let(onEdit) ?: onOpenAlarmSettings()
+            AlarmSettingsTarget.TONIGHT_WAKE -> if (overridable) pickWake() else onOpenAlarmSettings()
+        }
+    }
+    val manualLabel = if (night?.trackingManual == true)
+        stringResource(if (confirmed) R.string.tonight_manual_until else R.string.planned_end) else null
+    val wakeLabel = manualLabel ?: stringResource(when {
+        night == null -> R.string.tonight_wakes_at
+        confirmed -> R.string.tonight_waking_at
+        else -> R.string.tonight_planned_wake
+    })
+    val wakeTime = if (manualLabel != null) Format.clock(night!!.endsAt) else plannedWake?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time)
+    val editPhase: (Block, ZonedDateTime) -> Unit = phaseEdit@{ block, at ->
+        val selected = profile ?: return@phaseEdit
+        val displayedPlan = plan ?: return@phaseEdit
+        // A changed profile, manual run, or trimmed Start cannot safely inherit a source index.
+        val trimmedStart = night != null && block == Block.START &&
+            (night.revision != 0 || runCatching { displayedPlan.start.isAfter(ZonedDateTime.parse(night.startedAt)) }.getOrDefault(true))
+        if (night?.trackingManual == true || trimmedStart || (night?.profile != null && night.profile != selected)) onEdit(selected)
+        else onEditPhase(selected, editorPhaseSelection(selected, displayedPlan, block, at))
+    }
 
-    Column(
-        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(stringResource(R.string.tonight_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-        ConnectionLine(model)
-        BusyIndicator(model)
-        val unreadable by model.unreadable.collectAsState()
-        val restoreUnfinished by model.restoreUnfinished.collectAsState()
-        val originalsBlocked by model.originalsBlocked.collectAsState()
-        val bannerState = UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked)
-        UnreadableDataBanner(bannerState, onDismiss = model::dismissUnreadable,
-            onRestore = onOpenBackups.takeIf { bannerState.offersRestore }, onAcceptLoss = model::acceptLostOriginals)
-        val runtime by model.runtime.collectAsState()
-        runtime.unresolvedSlotWrite?.takeIf { DeviceId.same(it.deviceId, settings.deviceId()) }?.let { write ->
-            SlotWriteNotice(write, onChecked = model::acknowledgeSlotWrite)
-        }
-        SetupChecks()
-        if (settings.deviceId() == null) SetupFlow(model, compact = true)
-        release?.let { latest ->
-            val uri = LocalUriHandler.current
-            AlertDialog(
-                onDismissRequest = model::dismissRelease,
-                title = { Text(stringResource(R.string.notify_update_title, latest.tag)) },
-                text = { Text(latest.notes.ifBlank { stringResource(R.string.tonight_release_text) }) },
-                confirmButton = { TextButton(onClick = { uri.openUri(latest.apkUrl ?: latest.pageUrl); model.dismissRelease() }) { Text(stringResource(R.string.tonight_release_download)) } },
-                dismissButton = { TextButton(onClick = model::dismissRelease) { Text(stringResource(R.string.tonight_release_later)) } },
-            )
-        }
-
-        val running = night
-        var plannedWake = running?.wakeAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
-        val wakeOverride = settings.resolveWakeOverride(now)
-        // The command owner refuses a tonight-only wake for a night that isn't confirmed or runs manually.
-        val overridable = running == null || (running.confidence == Confidence.CONFIRMED &&
-            nightStatus.confidence == Confidence.CONFIRMED && !running.trackingManual)
-        val pickWake: () -> Unit = {
-            if (overridable) {
-                val current = model.now()
-                val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse)
-                    ?: plannedWake ?: current
-                TimePickerDialog(context, { _, hour, minute ->
-                    val wake = WakeResolver.nextOccurrence(hour * 60 + minute, model.now())
-                    model.setTonightWake(wake)
-                }, initial.hour, initial.minute, true).show()
+    Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.Top) {
+            Text(stringResource(R.string.tonight_title), style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(.4f).padding(top = 4.dp).semantics { heading() })
+            Column(Modifier.weight(.6f).testTag("tonight-fixed-wake").semantics(mergeDescendants = true) {},
+                horizontalAlignment = Alignment.End) {
+                Text(wakeLabel, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(wakeTime, fontSize = if (LocalConfiguration.current.fontScale >= 1.5f) 24.sp else 32.sp,
+                    fontWeight = FontWeight.Light, textAlign = TextAlign.End)
             }
         }
-        fun openAlarmExplanation(explanation: AlarmExplanation, profile: Profile?) {
-            when (explanation.target) {
-                AlarmSettingsTarget.ALARM_SOURCES -> onOpenAlarmSettings()
-                AlarmSettingsTarget.PROFILE_WAKE -> profile?.let(onEdit) ?: onOpenAlarmSettings()
-                AlarmSettingsTarget.TONIGHT_WAKE -> if (overridable) pickWake() else onOpenAlarmSettings()
-            }
-        }
-        if (running != null) {
-            val plan = remember(running, profiles) { model.activePlan() }
-            val profile = profiles.firstOrNull { it.id == running.profileId }
-            val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, running, runtime, nightStatus)
-            val openExplanation = { openAlarmExplanation(explanation, profile) }
-            val startedAt = runCatching { ZonedDateTime.parse(running.startedAt) }.getOrNull()
-            val confirmed = running.confidence == Confidence.CONFIRMED && nightStatus.confidence == Confidence.CONFIRMED
-            Text(profile?.name ?: stringResource(R.string.tonights_night), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (!confirmed || running.trackingManual) {
-                val state = stringResource(when (nightStatus.confidence ?: running.confidence) {
-                    Confidence.PENDING -> R.string.tonight_state_pending
-                    Confidence.FAILED -> R.string.tonight_state_failed
-                    Confidence.UNKNOWN -> R.string.tonight_state_unknown
-                    Confidence.CONFIRMED -> R.string.tonight_state_manual
-                })
-                Note(state + (nightStatus.reason?.let { " $it" } ?: ""))
-            }
-            // Pending versus confirmed (U10): the headline keeps the wake the BedJet runs; the request is shown beside it.
-            if (nightStatus.confidence == Confidence.PENDING) {
-                val requested = running.pending?.requestedWake ?: runtime.retime?.alarmAt
-                val wakeChange = requested != null || runtime.retime != null || runtime.alarmInbox != null ||
-                    running.pending?.kind == ChangeKind.RETIME || running.pending?.kind == ChangeKind.REAPPLY
-                if (wakeChange) Note(requested?.let { stringResource(R.string.wake_requested, Format.clock(it)) }
-                    ?: stringResource(R.string.wake_requested_unknown))
-            }
-            // "Next night" edits don't touch tonight; say so while the saved profile differs from tonight's snapshot.
-            val live = profiles.firstOrNull { it.id == running.profileId }
-            // Not while "Update tonight" is applying those very edits to tonight.
-            if (running.profile != null && live != null && live != running.profile && running.pending?.kind != ChangeKind.REAPPLY) Note(stringResource(R.string.tonight_edits_next_night, live.name))
-            // A kept manual run has no wake programme: it runs until its own end, so that is what is shown.
-            val manualUntil = if (!running.trackingManual) null
-                else stringResource(if (confirmed) R.string.tonight_manual_until else R.string.planned_end)
-            when {
-                simple -> Unit // The timeline below ends with the wake time.
-                manualUntil != null && dark -> WakeHeadline(manualUntil, Format.clock(running.endsAt), null)
-                manualUntil != null -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", stringResource(if (confirmed) R.string.tonight_started else R.string.tonight_planned_start),
-                    Format.clock(running.endsAt), null, waking = confirmed, planned = !confirmed, wakeLabel = manualUntil)
-                dark -> WakeHeadline(stringResource(if (confirmed) R.string.tonight_waking_at else R.string.tonight_planned_wake), Format.clock(running.wakeAt), running.wakeOrigin)
-                else -> StatTiles(startedAt?.let(Format::clock) ?: "--:--", stringResource(if (confirmed) R.string.tonight_started else R.string.tonight_planned_start), Format.clock(running.wakeAt), running.wakeOrigin, waking = confirmed, planned = !confirmed)
-            }
-            if (!simple || plan == null) AlarmExplanationLine(explanation, openExplanation)
-            if (confirmed) plan?.stepAt(now)?.second?.let { step ->
-                Text(
-                    stringResource(R.string.tonight_now, blockName(step.block), modeName(step.step.mode), (step.step.fanStep + 1) * 5),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-            // Mid-night the controls come before the plan: they're what you reach for, and up here the
-            // "night started" snackbar at the bottom of the screen doesn't cover them.
-            if (confirmed) {
-                val turnOff = stringResource(R.string.guard_turn_off)
-                BigButton(stringResource(R.string.tonight_end_night), onClick = { guard.confirm(turnOff) { model.run(Command.END_NIGHT) } })
-            }
-            val end = manualUntil?.let { label -> runCatching { PlanEnd(label, ZonedDateTime.parse(running.endsAt)) }.getOrNull() }
-            plan?.let { PlanCard(it, settings, running.wakeOrigin, now = now, end = end,
-                sourceExplanation = { AlarmExplanationLine(explanation, openExplanation) }) }
-        } else {
-            val choiceId = settings.resolveTonightChoice(now)?.profileId
-            val scheduleWindow = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
-            var chosen by remember(choiceId, scheduleWindow, profiles) { mutableStateOf(settings.resolveProfile(profiles, now)) }
-            val profile = chosen
-            val preview = profile?.let { model.startPreview(it, now) }
-            val wake = preview?.wake
-            val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, previewWake = wake)
-            val openExplanation = { openAlarmExplanation(explanation, profile) }
-            plannedWake = wake?.time
-            if (wake != null && !simple) {
-                if (dark) WakeHeadline(stringResource(R.string.tonight_wakes_at), Format.clock(wake.time), wake.origin)
-                else StatTiles(Format.clock(now), stringResource(R.string.tonight_starts), Format.clock(wake.time), wake.origin, waking = false)
-            }
-            if (!simple || profile == null) AlarmExplanationLine(explanation, openExplanation)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                profiles.forEach { p ->
-                    FilterChip(
-                        selected = profile?.id == p.id,
-                        onClick = { chosen = p; model.updateSettings { it.chooseTonight(p.id, model.now()) } },
-                        label = { Text(p.name) },
-                    )
-                }
-                profile?.let { TextButton(onClick = { onEdit(it) }) { Text(stringResource(R.string.action_edit)) } }
-            }
-            profile?.let {
-                preview?.plan?.let { plan -> PlanCard(plan, settings, wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null,
-                    sourceExplanation = { AlarmExplanationLine(explanation, openExplanation) }) }
-                    ?: run {
-                        if (simple) AlarmExplanationLine(explanation, openExplanation)
-                        Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.error)
+        AlarmExplanationLine(explanation, openExplanation)
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+            .testTag("tonight-content").padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            BusyIndicator(model)
+            BluetoothBanner(model)
+            QuickControls(model, settings, guard)
+            TonightSections(settings, onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } }) { section ->
+                when (section) {
+                    "connection" -> {
+                        ConnectionLine(model)
+                        val unreadable by model.unreadable.collectAsState()
+                        val restoreUnfinished by model.restoreUnfinished.collectAsState()
+                        val originalsBlocked by model.originalsBlocked.collectAsState()
+                        val banner = UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked)
+                        UnreadableDataBanner(banner, onDismiss = model::dismissUnreadable,
+                            onRestore = onOpenBackups.takeIf { banner.offersRestore }, onAcceptLoss = model::acceptLostOriginals)
+                        runtime.unresolvedSlotWrite?.takeIf { DeviceId.same(it.deviceId, settings.deviceId()) }?.let {
+                            SlotWriteNotice(it, onChecked = model::acknowledgeSlotWrite)
+                        }
+                        SetupChecks()
+                        if (settings.deviceId() == null) SetupFlow(model, compact = true)
                     }
-                BigButton(stringResource(R.string.tonight_start_now), enabled = !busy && preview?.plan != null, onClick = { model.run(Command.START_NIGHT, it.id) })
+                    "wake" -> {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (overridable) OutlinedButton(onClick = pickWake) {
+                                Text(if (wakeOverride == null) stringResource(R.string.tonight_set_wake)
+                                    else stringResource(R.string.tonight_change_wake, Format.clock(wakeOverride.wakeAt)))
+                            }
+                            if (wakeOverride != null && overridable) TextButton(onClick = { model.setTonightWake(null) }) {
+                                Text(stringResource(R.string.tonight_clear_wake))
+                            }
+                            if (settings.resolveTonightChoice(now) != null) TextButton(onClick = { model.updateSettings { it.followSchedule() } }) {
+                                Text(stringResource(R.string.tonight_follow_schedule))
+                            }
+                        }
+                        wakeOverride?.let { override ->
+                            runCatching { ZonedDateTime.parse(override.expiresAt) }.getOrNull()?.let { lapses ->
+                                Note(stringResource(R.string.override_expiry, Format.clock(lapses), lapses.format(DateTimeFormatter.ofPattern("EEE d MMM"))))
+                            }
+                        }
+                        NightRecoveryControls(model, night, guard, now)
+                    }
+                    else -> if (night != null) {
+                        Text(profile?.name ?: night.profile?.name ?: stringResource(R.string.tonights_night), style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (!confirmed || night.trackingManual) {
+                            val state = stringResource(when (nightStatus.confidence ?: night.confidence) {
+                                Confidence.PENDING -> R.string.tonight_state_pending
+                                Confidence.FAILED -> R.string.tonight_state_failed
+                                Confidence.UNKNOWN -> R.string.tonight_state_unknown
+                                Confidence.CONFIRMED -> R.string.tonight_state_manual
+                            })
+                            Note(state + (nightStatus.reason?.let { " $it" } ?: ""))
+                        }
+                        if (nightStatus.confidence == Confidence.PENDING) {
+                            val requested = night.pending?.requestedWake ?: runtime.retime?.requestedWakeAt ?: runtime.retime?.alarmAt
+                            val changing = requested != null || runtime.retime != null || runtime.alarmInbox != null ||
+                                night.pending?.kind == ChangeKind.RETIME || night.pending?.kind == ChangeKind.REAPPLY
+                            if (changing) Note(requested?.let { stringResource(R.string.wake_requested, Format.clock(it)) }
+                                ?: stringResource(R.string.wake_requested_unknown))
+                        }
+                        if (night.profile != null && profile != null && profile != night.profile && night.pending?.kind != ChangeKind.REAPPLY)
+                            Note(stringResource(R.string.tonight_edits_next_night, profile.name))
+                        if (confirmed) {
+                            plan?.stepAt(now)?.second?.let { step ->
+                                Text(stringResource(R.string.tonight_now, blockName(step.block), modeName(step.step.mode), (step.step.fanStep + 1) * 5),
+                                    style = MaterialTheme.typography.bodyLarge)
+                            }
+                        }
+                        val turnOff = stringResource(R.string.guard_turn_off)
+                        BigButton(stringResource(R.string.tonight_end_night), onClick = { guard.confirm(turnOff) { model.run(Command.END_NIGHT) } })
+                        val end = manualLabel?.let { label -> runCatching { PlanEnd(label, ZonedDateTime.parse(night.endsAt)) }.getOrNull() }
+                        plan?.let { PlanCard(it, settings, night.wakeOrigin, now = now.takeIf { confirmed }, end = end,
+                            onEditPhase = if (profile == null) null else editPhase) }
+                    } else {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            profiles.forEach { p ->
+                                FilterChip(selected = profile?.id == p.id, onClick = {
+                                    chosen = p; model.updateSettings { it.chooseTonight(p.id, model.now()) }
+                                }, label = { Text(p.name) })
+                            }
+                            profile?.let { TextButton(onClick = { onEdit(it) }) { Text(stringResource(R.string.action_edit)) } }
+                        }
+                        profile?.let { selected ->
+                            plan?.let { PlanCard(it, settings, preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null, onEditPhase = editPhase) }
+                                ?: Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.error)
+                            BigButton(stringResource(R.string.tonight_start_now), enabled = !busy && plan != null,
+                                onClick = { model.run(Command.START_NIGHT, selected.id) })
+                        }
+                    }
+                }
             }
         }
-
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (overridable) OutlinedButton(onClick = pickWake) { Text(if (wakeOverride == null) stringResource(R.string.tonight_set_wake) else stringResource(R.string.tonight_change_wake, Format.clock(wakeOverride.wakeAt))) }
-            if (wakeOverride != null && overridable) TextButton(onClick = { model.setTonightWake(null) }) { Text(stringResource(R.string.tonight_clear_wake)) }
-            if (settings.resolveTonightChoice(now) != null) TextButton(onClick = { model.updateSettings { it.followSchedule() } }) {
-                Text(stringResource(R.string.tonight_follow_schedule))
-            }
-        }
-        wakeOverride?.let { override ->
-            val lapses = runCatching { ZonedDateTime.parse(override.expiresAt) }.getOrNull()
-            if (lapses != null) Note(stringResource(R.string.override_expiry, Format.clock(lapses), lapses.format(DateTimeFormatter.ofPattern("EEE d MMM"))))
-        }
-        NightRecoveryControls(model, night, guard, now)
-        QuickButtons(model, settings, guard)
+    }
+    release?.let { latest ->
+        val uri = LocalUriHandler.current
+        AlertDialog(onDismissRequest = model::dismissRelease,
+            title = { Text(stringResource(R.string.notify_update_title, latest.tag)) },
+            text = { Text(latest.notes.ifBlank { stringResource(R.string.tonight_release_text) }) },
+            confirmButton = { TextButton(onClick = { uri.openUri(latest.apkUrl ?: latest.pageUrl); model.dismissRelease() }) { Text(stringResource(R.string.tonight_release_download)) } },
+            dismissButton = { TextButton(onClick = model::dismissRelease) { Text(stringResource(R.string.tonight_release_later)) } })
     }
 }
 
@@ -256,13 +274,26 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
 fun BusyIndicator(model: AppViewModel) {
     val local by model.busy.collectAsState()
     val owner by model.commandBusy.collectAsState()
-    if (!local && owner.runningLabel == null && owner.queuedCount == 0) return
-    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        LinearProgressIndicator(Modifier.fillMaxWidth())
-        val running = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
-        val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
-        Text(listOfNotNull(running, queued).joinToString(" · "), style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val active = local || owner.runningLabel != null || owner.queuedCount > 0
+    val reservedHeight = (8 + MaterialTheme.typography.bodySmall.lineHeight.value * LocalDensity.current.fontScale * 3).dp
+    var visible by remember { mutableStateOf(false) }
+    val motion = if (active) rememberMotionAllowed() else false
+    Box(Modifier.fillMaxWidth().height(reservedHeight).onGloballyPositioned {
+        val clipped = it.boundsInWindow()
+        visible = clipped.width > 0f && clipped.height > 0f
+    }) {
+        if (active) Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (motion && visible) LinearProgressIndicator(Modifier.fillMaxWidth())
+            else Box(Modifier.fillMaxWidth().height(4.dp).progressSemantics()
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = .24f), RoundedCornerShape(2.dp))) {
+                Box(Modifier.fillMaxWidth(.35f).height(4.dp).align(Alignment.Center)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
+            }
+            val label = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
+            val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
+            Text(listOfNotNull(label, queued).joinToString(" · "), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -285,50 +316,22 @@ fun wakeOriginLabel(origin: WakeOrigin, style: WakeLabelStyle): String {
     })
 }
 
-/** Midnight Ink's lead: the wake time, large. */
-@Composable
-private fun WakeHeadline(label: String, time: String, origin: WakeOrigin?) {
-    Column(Modifier.semantics(mergeDescendants = true) {}) {
-        Text(label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(time, fontSize = 52.sp, lineHeight = 56.sp, fontWeight = FontWeight.Light, color = MaterialTheme.colorScheme.onSurface)
-        if (origin != null) Text(wakeOriginLabel(origin, WakeLabelStyle.HEADLINE), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-/** Daylight's lead: start and wake side by side. */
-@Composable
-private fun StatTiles(startTime: String, startLabel: String, wakeTime: String, origin: WakeOrigin?, waking: Boolean, planned: Boolean = false,
-    wakeLabel: String? = null) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatTile(startLabel, startTime, null, Modifier.weight(1f))
-        StatTile(wakeLabel ?: stringResource(if (planned) R.string.tonight_planned_wake else if (waking) R.string.tonight_waking_at else R.string.tonight_wakes_at), wakeTime,
-            origin?.let { wakeOriginLabel(it, WakeLabelStyle.TILE) }, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun StatTile(label: String, value: String, note: String?, modifier: Modifier) {
-    Card(modifier.semantics(mergeDescendants = true) {}, colors = surfaceCard(), border = cardBorder()) {
-        Column(Modifier.padding(16.dp)) {
-            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-    }
-}
-
 /** The night itself: the bar curve, or in simple view the step list. */
 @Composable
 private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: ZonedDateTime?, end: PlanEnd? = null,
-    sourceExplanation: @Composable () -> Unit = {}) {
+    onEditPhase: ((Block, ZonedDateTime) -> Unit)? = null) {
     Card(Modifier.fillMaxWidth(), colors = surfaceCard(), border = cardBorder()) {
         Column(Modifier.padding(16.dp)) {
             if (settings.simpleView) {
-                NightTimeline(plan, origin, settings.fahrenheit, now = now, end = end)
-                sourceExplanation()
+                NightTimeline(plan, origin, settings.fahrenheit, now = now, end = end,
+                    onEditPhase = onEditPhase?.let { edit -> { entry -> edit(entry.block, entry.startsAt) } })
             } else {
                 Text(stringResource(R.string.tonight_the_night), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                NightCurve(plan, now = now, legend = !nocturneColors.dark, end = end)
+                NightCurve(plan, now = now, legend = !nocturneColors.dark, end = end,
+                    onEditPhase = onEditPhase?.let { edit -> { step -> edit(step.block, step.startsAt) } })
+                if (end == null) Text(wakeOriginLabel(origin, WakeLabelStyle.TILE),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp))
             }
         }
     }
@@ -345,38 +348,57 @@ private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true
     ) { Text(text, style = MaterialTheme.typography.titleMedium) }
 }
 
-/** Four one-tap actions in a row, each marked with the colour of what it does. */
+@Composable
+private fun QuickControls(model: AppViewModel, settings: Settings, guard: NightGuard) {
+    val collapsed = settings.quickControlsCollapsed
+    val state = stringResource(if (collapsed) R.string.ux_collapsed else R.string.ux_expanded)
+    Column(Modifier.testTag("quick-controls"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = { model.updateSettings { it.copy(quickControlsCollapsed = !it.quickControlsCollapsed) } },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { heading(); stateDescription = state },
+            contentPadding = PaddingValues(0.dp)) {
+            Text(stringResource(R.string.tonight_quick), style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
+            Icon(if (collapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess, null)
+        }
+        if (!collapsed) QuickButtons(model, settings, guard)
+    }
+}
+
+/** Active markers follow a reported mode; a tap never paints an unconfirmed success. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {
     val colors = nocturneColors
-    Text(stringResource(R.string.tonight_quick), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+    val status by model.status.collectAsState()
+    val link by model.linkState.collectAsState()
+    val night by model.activeNight.collectAsState()
+    val runtime by model.runtime.collectAsState()
+    val profiles by model.profiles.collectAsState()
+    val limits = (night?.profile ?: settings.resolveProfile(profiles, model.now()))?.limits
+        ?: io.github.willzy12h.nocturne.core.plan.ProfileLimits()
+    val active = reportedQuickAction(status, link, settings, night, runtime.slotWrite, limits)
     val startBoost = stringResource(R.string.guard_start_boost)
+    val boostDescription = boostDescription(LocalContext.current, settings.boostMinutes)
     val startWarming = stringResource(R.string.guard_start_warming)
     val startCooling = stringResource(R.string.guard_start_cooling)
     val turnOff = stringResource(R.string.guard_turn_off)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 2) {
-        QuickButton(stringResource(R.string.feature_boost), stringResource(R.string.minutes_short, settings.boostMinutes), colors.turbo, Modifier.weight(1f)) { guard.confirm(startBoost) { model.run(Command.BOOST, replacementConfirmed = true) } }
-        QuickButton(stringResource(R.string.feature_warm), null, colors.heat, Modifier.weight(1f)) { guard.confirm(startWarming) { model.run(Command.WARM, replacementConfirmed = true) } }
-        QuickButton(stringResource(R.string.feature_cool), null, colors.cool, Modifier.weight(1f)) { guard.confirm(startCooling) { model.run(Command.COOL, replacementConfirmed = true) } }
-        QuickButton(stringResource(R.string.feature_off), null, colors.idle, Modifier.weight(1f)) { guard.confirm(turnOff) { model.run(Command.OFF) } }
+        QuickButton(stringResource(R.string.remote_boost, settings.boostMinutes), colors.turbo, Mode.TURBO, active == Command.BOOST, Modifier.weight(1f).semantics { contentDescription = boostDescription }) { guard.confirm(startBoost) { model.run(Command.BOOST, replacementConfirmed = true) } }
+        QuickButton(stringResource(R.string.feature_warm), colors.mode(settings.extendWarm.mode), settings.extendWarm.mode, active == Command.WARM, Modifier.weight(1f)) { guard.confirm(startWarming) { model.run(Command.WARM, replacementConfirmed = true) } }
+        QuickButton(stringResource(R.string.feature_cool), colors.mode(settings.extendCool.mode), settings.extendCool.mode, active == Command.COOL, Modifier.weight(1f)) { guard.confirm(startCooling) { model.run(Command.COOL, replacementConfirmed = true) } }
+        QuickButton(stringResource(R.string.feature_off), colors.idle, Mode.STANDBY, active == Command.OFF, Modifier.weight(1f)) { guard.confirm(turnOff) { model.run(Command.OFF) } }
     }
 }
 
 @Composable
-private fun QuickButton(label: String, detail: String?, dot: Color, modifier: Modifier, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier.heightIn(min = 72.dp),
-        shape = RoundedCornerShape(16.dp),
+private fun QuickButton(label: String, dot: Color, mode: Mode, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = modifier.heightIn(min = 72.dp), shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(4.dp),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface),
-        border = quickButtonBorder(MaterialTheme.colorScheme),
-    ) {
+        border = quickButtonBorder(MaterialTheme.colorScheme)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Dot(dot, 10)
+            ActiveIndicator(dot, active, if (active) Modifier.testTag("quick-active-${mode.name}") else Modifier)
             Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
-            detail?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }

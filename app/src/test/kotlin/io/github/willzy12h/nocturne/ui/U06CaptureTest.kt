@@ -138,9 +138,11 @@ private class CaptureViews(private val ui: U06Fixture) {
 
     private fun tonight(primaryId: Int, name: String) {
         val primary = button(primaryId).performScrollTo()
-        val quick = listOf(R.string.feature_boost, R.string.feature_warm, R.string.feature_cool, R.string.feature_off)
-            .map(::button)
-        quick.last().performScrollTo()
+        val quick = listOf(ui.s(R.string.remote_boost, ui.graph.repository.settings.value.boostMinutes),
+            ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
+            .map { label -> compose.onNode(hasText(label) and hasClickAction() and hasAnyAncestor(hasTestTag("quick-controls"))) }
+        // U1 moved Quick above the plan: reveal its whole section rather than aligning only the final row.
+        compose.onNodeWithTag("quick-controls").performScrollTo()
         compose.waitForIdle()
         // A dedicated companion view always records all four Quick actions, even when the primary action
         // and the intervening plan cannot fit together at 320 dp / fontScale 2.0.

@@ -95,9 +95,12 @@ val MidnightInkColors = NocturneColors(
 )
 
 val DaylightColors = NocturneColors(
-    dark = false, cool = DayCool, heat = DayHeat, gentleHeat = Color(0xFF9A6B00), turbo = DayTurbo,
+    dark = false, cool = DayCool, heat = Color(0xFFAD6100), gentleHeat = Color(0xFFA46900), turbo = Color(0xFFD1431B),
     dry = Color(0xFF1E7F72), idle = Color(0xFF6B7489), connected = Color(0xFF1E8A55), accent = DayViolet,
 )
+
+/** Simple view keeps its established mode colours independently of the richer Daylight palette. */
+private val SimpleDaylightColors = DaylightColors.copy(heat = DayHeat, gentleHeat = Color(0xFF9A6B00), turbo = DayTurbo)
 
 // Decorative card borders, dividers and curve/timeline guides keep their original quieter shades.
 val MidnightInkScheme: ColorScheme = darkColorScheme(
@@ -167,13 +170,13 @@ fun NocturneTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () ->
 @Composable
 fun NocturneTheme(settings: Settings, at: ZonedDateTime, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalTemperatureFahrenheit provides settings.fahrenheit) {
-        NocturnePalette(settings.isDarkTheme(at, isSystemInDarkTheme()), content)
+        NocturnePalette(settings.isDarkTheme(at, isSystemInDarkTheme()), content, simple = settings.simpleView)
     }
 }
 
 @Composable
-private fun NocturnePalette(dark: Boolean, content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalNocturneColors provides if (dark) MidnightInkColors else DaylightColors) {
+private fun NocturnePalette(dark: Boolean, content: @Composable () -> Unit, simple: Boolean = false) {
+    CompositionLocalProvider(LocalNocturneColors provides if (dark) MidnightInkColors else if (simple) SimpleDaylightColors else DaylightColors) {
         MaterialTheme(colorScheme = if (dark) MidnightInkScheme else DaylightScheme, content = content)
     }
 }

@@ -33,11 +33,13 @@ class PhoneHandover(private val graph: Graph) {
     @OptIn(ExperimentalCoroutinesApi::class)
     fun watch() {
         graph.scope.launch {
-            combine(graph.repository.settings,graph.bleLink.verifiedNames,graph.sessions.released) {_,_,_->Unit}
+            combine(graph.repository.settings,graph.bleLink.verifiedNames,graph.sessions.released,
+                graph.sessions.statusDemand) {_,_,_,_->Unit}
                 .flatMapLatest {graph.link.state}.collectLatest { state ->
                     val device=graph.repository.settings.value.deviceId() ?: return@collectLatest
                     val name=name() ?: return@collectLatest
-                    if (state != LinkState.READY || graph.sessions.released.value || !permitted(Manifest.permission.BLUETOOTH_SCAN)) return@collectLatest
+                    if (!graph.sessions.hasStatusDemand || state != LinkState.READY || graph.sessions.released.value ||
+                        !permitted(Manifest.permission.BLUETOOTH_SCAN)) return@collectLatest
                     val scanner=graph.context.getSystemService(BluetoothManager::class.java)?.adapter?.bluetoothLeScanner ?: return@collectLatest
                     val uuid=ParcelUuid(PlatformPolicy.handoverUuid(name))
                     coroutineScope {

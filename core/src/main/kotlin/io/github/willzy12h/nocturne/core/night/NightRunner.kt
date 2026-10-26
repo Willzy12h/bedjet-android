@@ -15,6 +15,9 @@ import io.github.willzy12h.nocturne.core.plan.TonightOverride
 import io.github.willzy12h.nocturne.core.plan.TurboChain
 import io.github.willzy12h.nocturne.core.plan.WakeChoice
 import io.github.willzy12h.nocturne.core.plan.WakeResolver
+import io.github.willzy12h.nocturne.core.plan.ShortBedJetTest
+import io.github.willzy12h.nocturne.core.plan.NightDurationException
+import io.github.willzy12h.nocturne.core.plan.NightDurationProblem
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
@@ -36,6 +39,20 @@ import kotlinx.coroutines.withContext
 /** Starts, re-times and interrupts nights on a BedJet. Everything here is what the buttons, widgets and alarms do. */
 class NightRunner(private val controller: BedJetController, private val now: () -> ZonedDateTime) {
 
+    fun prepareShortTest(name: String, slot: Int, deviceId: String, current: ActiveNight?): Preparation {
+        if (current != null) return Preparation.Refused("A night is already active.")
+        if (slot !in 0..2) return Preparation.Refused("Choose BedJet slot 1 to 3.")
+        val time = now()
+        val profile = ShortBedJetTest.profile(name)
+        val plan = ShortBedJetTest.plan(profile, time)
+        val night = ActiveNight("test-${UUID.randomUUID()}", profile.id, time.toString(), plan.wake.toString(),
+            false, slot, plan.wakeUpStart.toString(), plan.end.toString(), deviceId, profile, WakeOrigin.OVERRIDE,
+            applied = AppliedProgram.from(plan), confidence = Confidence.CONFIRMED, isTestRun = true)
+        val request = PendingChange(UUID.randomUUID().toString(), ChangeKind.START, night.wakeAt,
+            time.toString(), time.plusMinutes(1).toString())
+        return Preparation.Ready(PreparedChange(plan, night, null, request))
+    }
+
     fun prepareStart(profile: Profile, alarm: ZonedDateTime?, slot: Int, deviceId: String,
         expected: NightIdentity?, current: ActiveNight?, override: TonightOverride? = null,
         settings: Settings = Settings(),
@@ -43,7 +60,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         if (current?.identity != expected) return Preparation.Stale(expected, current?.identity)
         val time = now()
         val preview = NightPreview.forStartNow(profile, time, alarm, override, settings, alarmOrigin)
-        val plan = preview.plan ?: return Preparation.Refused(preview.refusalReason.orEmpty())
+        val plan = preview.plan ?: return Preparation.Refused(preview.refusalReason.orEmpty(), durationProblem = preview.durationProblem)
         if (slot !in 0..2) return Preparation.Refused("Choose BedJet slot 1 to 3.")
         val wake = preview.wake
         val night = ActiveNight("night-${UUID.randomUUID()}", profile.id, time.toString(), wake.time.toString(),
@@ -84,7 +101,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             Eligibility.Allowed -> Unit
         }
         val length = Duration.between(ZonedDateTime.parse(night.startedAt), wake)
-        if (length < WakeResolver.MIN_NIGHT || length > WakeResolver.MAX_NIGHT || !wake.isAfter(time)) return Preparation.Refused("A night must last 1–16 hours. Set a tonight-only wake time.")
+        if (length < WakeResolver.MIN_NIGHT || length > WakeResolver.MAX_NIGHT || !wake.isAfter(time))
+            return Preparation.Refused(NightDurationProblem.OUTSIDE_WINDOW.name, durationProblem = NightDurationProblem.OUTSIDE_WINDOW)
         return try {
             val original = night.activePlan(profile) ?: return Preparation.Refused("The applied programme is unavailable.")
             val plan = if (kind == ChangeKind.REAPPLY) {
@@ -102,7 +120,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
                 wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(), applied = AppliedProgram.from(plan, revision),
                 confidence = Confidence.CONFIRMED, pending = null)
             Preparation.Ready(PreparedChange(plan, intended, night, request))
-        } catch (e: PlanException) { Preparation.Refused(e.message.orEmpty()) }
+        } catch (e: PlanException) { Preparation.Refused(e.message.orEmpty(), durationProblem = (e as? NightDurationException)?.problem) }
     }
 
     /** Resume is guarded by both no active night and the command version captured at stop/replacement. */

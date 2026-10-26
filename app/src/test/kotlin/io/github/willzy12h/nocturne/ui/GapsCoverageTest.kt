@@ -149,7 +149,7 @@ class GapsCoverageTest {
     @Test fun refusedPreviewExplainsWhyAndDisablesStart() {
         val now = graph.now()
         settings { it.setWakeOverride(now.plusMinutes(30), now) }
-        val reason = "A night must last 1–16 hours. Set a tonight-only wake time."
+        val reason = s(R.string.night_duration_outside_window)
         compose.onNodeWithText(reason).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(s(R.string.tonight_start_now)).assertIsNotEnabled()
         assertNull(graph.repository.activeNight.value)

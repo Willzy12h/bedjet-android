@@ -36,6 +36,9 @@ class LinkSessions(
 
     private val lock = Mutex()
     @Volatile private var holders = 0
+    private val _statusDemand = MutableStateFlow(false)
+    /** Event-driven demand for process work; connection grace alone is not demand. */
+    val statusDemand: StateFlow<Boolean> = _statusDemand.asStateFlow()
     /** Only a visible screen or active connection owner needs routine full-status observations. */
     val hasStatusDemand: Boolean get() = holders > 0
     private var release: Job? = null
@@ -79,6 +82,7 @@ class LinkSessions(
         scope.launch {
             lock.withLock {
                 holders = maxOf(0, holders - 1)
+                _statusDemand.value = holders > 0
                 if (holders > 0) return@withLock
                 // Retain the connection briefly, without idle reads of split-status programme/LED/beep details.
                 held?.setStatusDemand(false)
@@ -160,6 +164,7 @@ class LinkSessions(
 
     private suspend fun hold(): BedJetLink = lock.withLock {
         holders++
+        _statusDemand.value = true
         release?.cancel()
         val current = currentLink()
         // Demo mode was switched; let go of the other link.

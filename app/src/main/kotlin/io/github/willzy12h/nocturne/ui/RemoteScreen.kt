@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
+import io.github.willzy12h.nocturne.night.boostDescription
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -28,6 +30,9 @@ import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlin.math.roundToInt
@@ -39,12 +44,14 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     val status by model.status.collectAsState()
     val state by model.linkState.collectAsState()
     val settings by model.settings.collectAsState()
+    val bluetoothOff by model.bluetoothOff.collectAsState()
     val f = settings.fahrenheit
     val guard = rememberNightGuard(model)
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.remote_title), style = MaterialTheme.typography.headlineMedium)
         ConnectionLine(model)
+        BluetoothBanner(model)
         BusyIndicator(model)
         // No BedJet chosen: the route to choosing one, as on Tonight.
         if (settings.deviceId() == null) {
@@ -53,7 +60,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         }
         val s = status
         if (state != LinkState.READY || s == null) {
-            Text(stringResource(R.string.remote_connect), style = MaterialTheme.typography.bodyLarge)
+            if (!bluetoothOff) Text(stringResource(R.string.remote_connect), style = MaterialTheme.typography.bodyLarge)
             return@Column
         }
         Card(Modifier.fillMaxWidth()) {
@@ -68,7 +75,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.TURBO, Mode.DRY, Mode.STANDBY).forEach { mode ->
                 val name = modeName(mode)
                 val what = if (mode == Mode.STANDBY) stringResource(R.string.guard_turn_off) else stringResource(R.string.guard_switch_to, name)
-                FilterChip(s.mode == mode, { guard.confirm(what) { model.remote(name, endsNight = true, confirms = { it.mode == mode }) { it.setMode(mode) } } }, label = { Text(name) })
+                FilterChip(s.mode == mode, { guard.confirm(what) { model.remote(name, endsNight = true, confirms = { it.mode == mode }) { it.setMode(mode) } } }, label = { ModeLabel(mode, f) })
             }
         }
         if (s.isRunning && s.mode.usesTemperature) {
@@ -89,7 +96,8 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             Slider(
                 fan, { fan = it }, valueRange = 5f..100f, steps = 18,
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(fan.roundToInt())),
-                onValueChangeFinished = { val step = (fan / 5).roundToInt() - 1; model.remote(fanSet, affectsProgramme = true, confirms = { it.fanStep == step }) { it.setFan(step) } },
+                onValueChangeFinished = { val step = (fan / 5).roundToInt() - 1; model.remote(fanSet, affectsProgramme = true,
+                    confirms = { it.fanStep == step }, announceConfirmation = false) { it.setFan(step) } },
             )
         }
         if (s.isRunning) {
@@ -103,7 +111,9 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val startBoost = stringResource(R.string.guard_start_boost)
-            FilledTonalButton({ guard.confirm(startBoost) { model.run(Command.BOOST, replacementConfirmed = true) } }) { Text(stringResource(R.string.remote_boost, settings.boostMinutes)) }
+            val description = boostDescription(LocalContext.current, settings.boostMinutes)
+            FilledTonalButton({ guard.confirm(startBoost) { model.run(Command.BOOST, replacementConfirmed = true) } },
+                modifier = Modifier.semantics { contentDescription = description }) { Text(stringResource(R.string.remote_boost, settings.boostMinutes)) }
         }
         s.extra?.let { extra ->
             val lightsOn = stringResource(R.string.remote_lights_on)

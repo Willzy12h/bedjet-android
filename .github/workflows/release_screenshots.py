@@ -20,10 +20,16 @@ SCREENS = (
     "01-tonight", "01b-tonight-lower", "02-profiles", "03-remote",
     "04-history", "05-settings", "06-tonight-running",
 )
+GAP_LOOKS = LOOKS[:4] + tuple(f"compact-{look}" for look in LOOKS[:4])
+GAP_SCREENS = (
+    "01-slot-pin", "02-wake-expiry", "03-wake-picker", "04-resume",
+    "05-checkin-dialog", "06-checkin-suggestion", "07-setup-chooser", "08-unreadable-banner",
+)
+GAP_DIALOG_SCREENS = ("01-slot-pin", "03-wake-picker", "05-checkin-dialog", "06-checkin-suggestion")
 EXPECTED = {f"{look}-{screen}.png" for look in LOOKS for screen in SCREENS} | {
     "features-01-idle-handover.png", "features-02-platform-settings.png",
     "features-03-history-export.png",
-}
+} | {f"gaps-{look}-{screen}.png" for look in GAP_LOOKS for screen in GAP_SCREENS}
 EXPECTED_BASELINE = {f"{look}-{screen}.png" for look in LOOKS[:4] for screen in SCREENS}
 
 
@@ -41,20 +47,30 @@ def validate_inventory(actual, baseline):
 
 def validate_metadata(path, size):
     data = json.loads(path.read_text())
-    combined = path.name.startswith("combined-320dp-200pct-")
+    gap = path.name.startswith("gaps-")
+    look = path.name.removeprefix("gaps-").removeprefix("compact-")
+    combined = path.name.startswith(("combined-320dp-200pct-", "gaps-compact-"))
+    setup = gap and path.stem.endswith(("07-setup-chooser", "08-unreadable-banner"))
+    dialog = gap and path.stem.endswith(GAP_DIALOG_SCREENS)
     expected = {
         "renderer": "Robolectric native graphics", "sdk": 34, "tag": "after",
         "clockInstant": "2026-10-22T22:30:00Z", "clockZone": "Europe/London",
         "screenWidthDp": 320 if combined else 411, "screenHeightDp": 891,
         "fontScale": 2.0 if combined else 1.0, "densityDpi": 480,
-        "pixelWidth": size[0], "pixelHeight": size[1], "demoMode": True,
-        "theme": "LIGHT" if path.name.startswith(("light-", "simple-light-")) else "DARK",
-        "simpleView": path.name.startswith("simple-"),
+        "pixelWidth": size[0], "pixelHeight": size[1], "demoMode": not setup,
+        "theme": "LIGHT" if look.startswith(("light-", "simple-light-")) else "DARK",
+        "simpleView": look.startswith("simple-"),
     }
     errors = [f"{path.name}: {key} expected {value!r}, found {data.get(key)!r}"
               for key, value in expected.items() if data.get(key) != value]
     expected_size = (expected["screenWidthDp"] * 3, expected["screenHeightDp"] * 3)
-    if size != expected_size:
+    # Gap dialogs capture their own decor view. Its content height can change with text;
+    # configuration, pixel metadata, full screen width and the screen-height bound still apply.
+    # Legacy and gap activity captures retain exact full-screen dimensions.
+    if dialog:
+        if size[0] != expected_size[0] or not 0 < size[1] <= expected_size[1]:
+            errors.append(f"{path.name}: dialog image size expected width {expected_size[0]} and height 1..{expected_size[1]}, found {size}")
+    elif size != expected_size:
         errors.append(f"{path.name}: image size expected {expected_size}, found {size}")
     return data, errors
 

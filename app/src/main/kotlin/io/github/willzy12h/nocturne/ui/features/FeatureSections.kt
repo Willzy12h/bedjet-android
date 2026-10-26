@@ -99,7 +99,8 @@ import kotlinx.coroutines.launch
 }
 
 /** [onOutcome] shows the result in the app's own feedback (once, with the owner's feed); without it, a Toast. */
-@Composable fun PhoneHandoverMenuItems(graph:Graph,onOutcome:((io.github.willzy12h.nocturne.night.CommandOutcome)->Unit)?=null,onDismiss:()->Unit) {
+@Composable fun PhoneHandoverMenuItems(graph:Graph,onOutcome:((io.github.willzy12h.nocturne.night.CommandOutcome)->Unit)?=null,
+    includeRelease:Boolean=true,asSettings:Boolean=false,onDismiss:()->Unit) {
     val released by graph.sessions.released.collectAsState()
     val settings by graph.repository.settings.collectAsState()
     val scope=rememberCoroutineScope()
@@ -123,10 +124,13 @@ import kotlinx.coroutines.launch
             } finally {busy=false;onDismiss()}
         }
     }
-    DropdownMenuItem(text={Text(stringResource(if(released)R.string.feature_take_back else R.string.feature_release))},enabled=!busy,onClick={
-        work {if(released) BedJetService.runOwned(graph.context, notifyFailures=false) {graph.platform.handover.takeBack()} else graph.platform.handover.release()}
-    })
-    if(settings.platform.lullHandover) DropdownMenuItem(text={Text(stringResource(R.string.feature_request))},enabled=!busy,onClick={
+    if(includeRelease) {
+        val label=stringResource(if(released)R.string.feature_take_back else R.string.feature_release)
+        val handover:()->Unit={work {if(released) BedJetService.runOwned(graph.context, notifyFailures=false) {graph.platform.handover.takeBack()} else graph.platform.handover.release()}}
+        if(asSettings) OutlinedButton(onClick=handover,enabled=!busy,modifier=Modifier.heightIn(min=48.dp)) {Text(label)}
+        else DropdownMenuItem(text={Text(label)},enabled=!busy,onClick=handover)
+    }
+    if(!asSettings && settings.platform.lullHandover) DropdownMenuItem(text={Text(stringResource(R.string.feature_request))},enabled=!busy,onClick={
         work {
             val request=graph.platform.handover.request()
             if(request.succeeded) BedJetService.runOwned(graph.context, notifyFailures=false) {graph.platform.handover.takeBack()} else request

@@ -145,7 +145,13 @@
       "quietNightNotification": true,
       "platform": {
         "$ref": "platform"
-      }
+      },
+      "quickControlsCollapsed": true,
+      "tonightSectionOrder": [
+        "connection",
+        "night",
+        "wake"
+      ]
     },
     "slotBackup": {
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
@@ -223,7 +229,8 @@
         {
           "$ref": "applied"
         }
-      ]
+      ],
+      "isTestRun": true
     },
     "activeBase": {
       "recordId": "release-night",
@@ -246,7 +253,8 @@
       "confidence": "CONFIRMED",
       "pending": null,
       "actualEnd": null,
-      "trackingManual": true
+      "trackingManual": true,
+      "isTestRun": true
     },
     "pending": {
       "requestId": "release-change",
@@ -318,7 +326,8 @@
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
       "alarmAt": "2026-10-24T07:00Z",
       "alarmOrigin": "clock.example.one",
-      "deadline": "2026-10-23T22:32Z"
+      "deadline": "2026-10-23T22:32Z",
+      "requestedWakeAt": "2026-10-24T07:20Z"
     },
     "slotWrite": {
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
@@ -346,7 +355,8 @@
       },
       "event": {
         "$ref": "event"
-      }
+      },
+      "isTestRun": true
     },
     "delivery": {
       "id": "release-delivery",
@@ -452,6 +462,21 @@
       },
       "actualEnd": "2026-10-24T07:00Z",
       "trackingManual": true
+    },
+    "editorPhase": {
+      "block": "START",
+      "index": 1
+    },
+    "profileDraft": {
+      "original": {
+        "$ref": "profile"
+      },
+      "edited": {
+        "$ref": "profile"
+      },
+      "selection": {
+        "$ref": "editorPhase"
+      }
     }
   },
   "models": {
@@ -748,6 +773,16 @@
     "io.github.willzy12h.nocturne.platform.DeviceObservation": [
       {
         "$ref": "deviceObservation"
+      }
+    ],
+    "io.github.willzy12h.nocturne.ui.EditorPhaseSelection": [
+      {
+        "$ref": "editorPhase"
+      }
+    ],
+    "io.github.willzy12h.nocturne.ui.ProfileDraft": [
+      {
+        "$ref": "profileDraft"
       }
     ]
   }

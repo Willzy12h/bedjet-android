@@ -18,12 +18,15 @@ import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.night.NightActions
+import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.service.BedJetService
 import io.github.willzy12h.nocturne.ui.MainActivity
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.ZonedDateTime
@@ -38,6 +41,9 @@ object Notifications {
     private const val ERROR_ID = 3
     private const val UPDATE_ID = 4
     private const val INFO_ID = 5
+    private const val BLUETOOTH_OFF_ID = 8
+    /** Repeated background taps or alarm deliveries share one notice during this window. */
+    internal const val BLUETOOTH_NOTICE_WINDOW_MS = 60_000L
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -68,13 +74,15 @@ object Notifications {
     fun showWakeUp(context: Context, night: ActiveNight, settings: Settings, status: String? = null, logNotice: Boolean = true) {
         val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
         // Only a kept, confirmed manual run has a captured end; an uncertain adjustment can retain an old timestamp.
-        val title = when {
+        val ordinaryTitle = when {
             night.hasPlannedManualEnd -> context.getString(R.string.feature_manual_until,
                 ZonedDateTime.parse(night.endsAt).format(DateTimeFormatter.ofPattern("HH:mm")))
             night.trackingManual -> context.getString(R.string.runtime_manual_unconfirmed)
             else -> context.getString(R.string.notify_waking, wake)
         }
-        val text = status ?: context.getString(R.string.notify_waking_text)
+        val title = if (!night.isTestRun) ordinaryTitle else if (night.trackingManual)
+            context.getString(R.string.short_test_state, ordinaryTitle) else context.getString(R.string.short_test_waking, wake)
+        val text = status ?: context.getString(if (night.isTestRun) R.string.short_test_waking_detail else R.string.notify_waking_text)
         if (logNotice) log(context, NoticeKind.WAKE_UP, title, text)
         if (!canPost(context)) return
         val builder = Notification.Builder(context, CHANNEL_WAKE)
@@ -97,23 +105,28 @@ object Notifications {
         val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
         // While a wake-up change is pending, say so, as Tonight does, instead of a plain "Waking at".
         val notification = Notification.Builder(context, CHANNEL_WORKING).setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(if (wakePending) R.string.quiet_pending else R.string.runtime_quiet, wake)).setContentIntent(openApp(context)).setOngoing(true).setOnlyAlertOnce(true)
-            .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_end), BedJetService.pendingIntent(context, NightActions.Command.END_NIGHT)).build())
+            .setContentTitle(context.getString(if (wakePending) R.string.quiet_pending else if (night.isTestRun)
+                R.string.short_test_saved else R.string.runtime_quiet, wake)).setContentIntent(openApp(context)).setOngoing(true).setOnlyAlertOnce(true)
+            .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_end), confirmation(context, NightActions.Command.END_NIGHT)).build())
             .build()
         context.getSystemService(NotificationManager::class.java).notify(6, notification)
     }
     fun cancelQuiet(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(6)
     fun showResume(context: Context) {
         if (!canPost(context)) return
-        val captured = context.graph.actions.capture(NightActions.Command.RESUME, requireIdentity = true)
-        val confirm = PendingIntent.getActivity(context, ("resume:${captured.expected}").hashCode(),
-            io.github.willzy12h.nocturne.ui.ShortcutActivity.confirmationIntent(context, captured),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val confirm = confirmation(context, NightActions.Command.RESUME)
         val notification = Notification.Builder(context, CHANNEL_ALERTS).setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.runtime_resume_title)).setContentIntent(confirm).setAutoCancel(true)
             .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_resume_title), confirm).build())
             .build()
         context.getSystemService(NotificationManager::class.java).notify(7, notification)
+    }
+
+    private fun confirmation(context: Context, command: NightActions.Command): PendingIntent {
+        val captured = context.graph.actions.capture(command, requireIdentity = true)
+        return PendingIntent.getActivity(context, ("$command:${captured.deviceId}:${captured.expected}").hashCode(),
+            io.github.willzy12h.nocturne.ui.ShortcutActivity.confirmationIntent(context, captured),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     fun cancelWakeUp(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(WAKE_ID)
@@ -133,18 +146,30 @@ object Notifications {
         if (!offerCurrent) cancelResume(context)
     }
 
-    /** A clock tick also withdraws notices when no repository state changes at their expiry. */
-    internal suspend fun observeWakeResume(context: Context, ticks: Flow<Unit> = flow {
-        while (true) {
-            emit(Unit)
-            val remaining = context.graph.repository.runtime.value.resumeOffer?.let {
-                Duration.between(context.graph.now(), ZonedDateTime.parse(it.expiresAt)).toMillis()
-            }
-            delay(if (remaining != null && remaining > 0) remaining.coerceAtMost(60_000) else 60_000)
-        }
-    }) {
+    /** Expiring notices need a deadline check; an idle process has no recurring clock job. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    internal suspend fun observeWakeResume(context: Context, ticks: Flow<Unit>? = null) {
         val repo = context.graph.repository
-        combine(repo.activeNight, repo.runtime, ticks) { _, _, _ -> Unit }.collect {
+        val expiryTicks = ticks ?: combine(repo.activeNight, repo.runtime) { night, runtime ->
+            // A resume action ends at the first boundary, not at both independently. A retained expired
+            // offer must not keep the process checking every minute until its original morning wake.
+            listOfNotNull(runtime.resumeOffer?.let {
+                minOf(ZonedDateTime.parse(it.expiresAt), ZonedDateTime.parse(it.night.wakeAt))
+            }, night?.takeIf { runtime.wakeShown == it.identity }?.endsAt?.let(ZonedDateTime::parse)).distinct()
+        }.distinctUntilChanged().flatMapLatest { deadlines ->
+            flow {
+                emit(Unit)
+                while (deadlines.isNotEmpty()) {
+                    val now = context.graph.now()
+                    val remaining = deadlines.map { Duration.between(now, it).toMillis() }
+                        .filter { it > 0 }.minOrNull() ?: break
+                    // A bounded check also accounts for a wall-clock change while a notice exists.
+                    delay(remaining.coerceAtMost(60_000))
+                    emit(Unit)
+                }
+            }
+        }
+        combine(repo.activeNight, repo.runtime, expiryTicks) { _, _, _ -> Unit }.collect {
             // Separate file publications can be conflated; decide from the latest pair at reconciliation time.
             val runtime = repo.runtime.value
             reconcileWakeResume(context, repo.activeNight.value, runtime.resumeOffer, runtime.wakeShown, runtime.manualWakeShown)
@@ -153,21 +178,45 @@ object Notifications {
 
     fun showError(context: Context, title: String, text: String) = showAlert(context, NoticeKind.PROBLEM, title, text, ERROR_ID)
 
+    fun showRetimeError(context: Context, title: String, text: String, target: String?) =
+        showAlert(context, NoticeKind.PROBLEM, title, text, ERROR_ID, BedJetService.checkPendingIntent(context, target))
+
+    fun showBluetoothFailure(context: Context, origin: CommandOrigin, failure: io.github.willzy12h.nocturne.ble.BluetoothCommandException) {
+        if (origin == CommandOrigin.APP || origin == CommandOrigin.SETTINGS) return
+        val now = context.graph.clock.millis()
+        val prefs = context.getSharedPreferences("bluetooth_notices", Context.MODE_PRIVATE)
+        val claimed = synchronized(this) {
+            val previous = if (prefs.contains("off_at")) prefs.getLong("off_at", 0) else null
+            if (previous != null && now >= previous && now - previous < BLUETOOTH_NOTICE_WINDOW_MS) false
+            else { prefs.edit().putLong("off_at", now).apply(); true }
+        }
+        if (claimed) {
+            val interrupted = failure is io.github.willzy12h.nocturne.ble.BluetoothInterruptedException
+            showAlert(context, NoticeKind.PROBLEM,
+                context.getString(if (interrupted) R.string.bluetooth_not_sent else R.string.bluetooth_off),
+                if (interrupted) context.getString(R.string.bluetooth_interrupted)
+                else context.getString(R.string.bluetooth_off) + ". " + context.getString(R.string.bluetooth_off_help), BLUETOOTH_OFF_ID)
+        }
+    }
+
+    fun clearBluetoothOff(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(BLUETOOTH_OFF_ID)
+
     /** Something changed without the person doing it, e.g. the wake-up followed a new alarm. */
     fun showInfo(context: Context, title: String, text: String) = showAlert(context, NoticeKind.INFO, title, text, INFO_ID)
 
-    private fun showAlert(context: Context, kind: NoticeKind, title: String, text: String, id: Int) {
+    private fun showAlert(context: Context, kind: NoticeKind, title: String, text: String, id: Int, check: PendingIntent? = null) {
         log(context, kind, title, text)
         if (!canPost(context)) return
-        val notification = Notification.Builder(context, CHANNEL_ALERTS)
+        val builder = Notification.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText(text))
             .setContentIntent(openApp(context))
             .setAutoCancel(true)
-            .build()
-        context.getSystemService(NotificationManager::class.java).notify(id, notification)
+        if (check != null) builder.addAction(Notification.Action.Builder(null,
+            context.getString(R.string.runtime_command_check_bedjet), check).build())
+        context.getSystemService(NotificationManager::class.java).notify(id, builder.build())
     }
 
     /** Opens the release page: the APK link itself needs signing in when the repository is private. */

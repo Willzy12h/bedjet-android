@@ -1,7 +1,10 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,6 +24,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -27,10 +36,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,6 +53,7 @@ import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.WakeOrigin
 import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
+import io.github.willzy12h.nocturne.core.plan.PlannedStep
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import java.time.Duration
 import java.time.ZonedDateTime
@@ -48,7 +64,8 @@ import java.time.ZonedDateTime
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = null, legend: Boolean = false, end: PlanEnd? = null) {
+fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = null, legend: Boolean = false,
+    end: PlanEnd? = null, onEditPhase: ((PlannedStep) -> Unit)? = null) {
     val total = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1).toFloat()
     val outline = MaterialTheme.colorScheme.outlineVariant
     val nowColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -56,6 +73,15 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
     val fahrenheit = LocalTemperatureFahrenheit.current
+    var selected by remember(plan) { mutableStateOf<Int?>(null) }
+    val currentEdit by rememberUpdatedState(onEditPhase)
+    val details = plan.steps.map { step ->
+        if (step.step.mode.usesTemperature || step.step.mode == Mode.TURBO)
+            stringResource(R.string.ux_curve_phase_target, modeName(step.step.mode), Format.clock(step.startsAt),
+                Format.clock(step.endsAt), tempText(step.step.temperature, fahrenheit))
+        else stringResource(R.string.ux_curve_phase_without_target, modeName(step.step.mode), Format.clock(step.startsAt), Format.clock(step.endsAt))
+    }
+    val showDetails = stringResource(R.string.ux_curve_details)
     // A kept manual run has no wake programme: it is described, labelled and drawn by its own end instead.
     val description = stringResource(R.string.curve_description, Format.clock(plan.start), Format.clock(plan.end),
         end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake_lower, Format.clock(plan.wake)),
@@ -70,7 +96,24 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
             }
         }.joinToString("; "))
     Column(modifier) {
-        Canvas(Modifier.fillMaxWidth().height(110.dp).semantics { contentDescription = description }) {
+        Canvas(Modifier.fillMaxWidth().height(110.dp).testTag("night-curve")
+            .pointerInput(plan) {
+                fun phaseAt(x: Float): Int? {
+                    val minute = (x / size.width.coerceAtLeast(1) * total).coerceIn(0f, total)
+                    return plan.steps.indexOfFirst { Duration.between(plan.start, it.endsAt).toMinutes() > minute }
+                        .takeIf { it >= 0 } ?: plan.steps.lastIndex.takeIf { it >= 0 }
+                }
+                detectTapGestures(onTap = { selected = phaseAt(it.x) }, onLongPress = { point ->
+                    selected = phaseAt(point.x)
+                    selected?.let { currentEdit?.invoke(plan.steps[it]) }
+                })
+            }.semantics {
+                contentDescription = description
+                onClick(label = showDetails) {
+                    if (plan.steps.isEmpty()) false else { selected = ((selected ?: -1) + 1) % plan.steps.size; true }
+                }
+                customActions = details.mapIndexed { index, detail -> CustomAccessibilityAction(detail) { selected = index; true } }
+            }) {
             val mid = size.height / 2
             drawLine(outline, Offset(0f, mid), Offset(size.width, mid), 1.dp.toPx())
             for (step in plan.steps) {
@@ -87,6 +130,16 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
             if (now != null && now.isAfter(plan.start) && now.isBefore(plan.end)) {
                 val nowX = Duration.between(plan.start, now).toMinutes() / total * size.width
                 drawLine(nowColor, Offset(nowX, 0f), Offset(nowX, size.height), 2.dp.toPx())
+            }
+        }
+        selected?.let { index ->
+            Text(details[index], style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.testTag("curve-phase-detail").padding(vertical = 8.dp))
+        }
+        now?.let(plan::stepAt)?.second?.let { step ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActiveIndicator(colors.mode(step.step.mode), true, Modifier.testTag("night-active-phase"))
+                Text(stringResource(R.string.ux_current_phase, blockName(step.block)), style = MaterialTheme.typography.bodySmall)
             }
         }
         Row(Modifier.fillMaxWidth()) {
@@ -191,7 +244,8 @@ fun timelineEntries(plan: Plan): List<TimelineEntry> {
  * the wake time; anything that runs after waking is summarised on that last line.
  */
 @Composable
-fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier: Modifier = Modifier, now: ZonedDateTime? = null, end: PlanEnd? = null) {
+fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier: Modifier = Modifier,
+    now: ZonedDateTime? = null, end: PlanEnd? = null, onEditPhase: ((TimelineEntry) -> Unit)? = null) {
     val entries = timelineEntries(plan)
     val (before, after) = entries.partition { it.block != Block.AFTER_WAKE }
     val colors = nocturneColors
@@ -207,6 +261,8 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 bold = current,
                 last = false,
+                active = current,
+                onEdit = onEditPhase?.let { edit -> { edit(entry) } },
             )
         }
         if (end != null) {
@@ -225,19 +281,27 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
             titleColor = colors.accent,
             bold = true,
             last = true,
+            active = now != null && after.any { !now.isBefore(it.startsAt) && now.isBefore(it.endsAt) },
+            onEdit = after.firstOrNull()?.let { entry -> onEditPhase?.let { edit -> { edit(entry) } } },
         )
     }
 }
 
 @Composable
-private fun TimelineRow(time: String, dot: Color, title: String, detail: String?, titleColor: Color, bold: Boolean, last: Boolean) {
+@OptIn(ExperimentalFoundationApi::class)
+private fun TimelineRow(time: String, dot: Color, title: String, detail: String?, titleColor: Color, bold: Boolean,
+    last: Boolean, active: Boolean = false, onEdit: (() -> Unit)? = null) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val editLabel = stringResource(R.string.ux_edit_phase)
     // One node for TalkBack: "23:10, Cool, easing off, 7 h · fan 75% → 40%".
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).semantics(mergeDescendants = true) {}) {
+    Row(Modifier.fillMaxWidth().heightIn(min = if (onEdit == null) 0.dp else 48.dp).height(IntrinsicSize.Min)
+        .then(if (onEdit == null) Modifier else Modifier.combinedClickable(role = Role.Button,
+            onClickLabel = editLabel, onLongClickLabel = editLabel, onClick = onEdit, onLongClick = onEdit))
+        .semantics(mergeDescendants = true) {}) {
         Text(time, style = MaterialTheme.typography.labelLarge, color = muted, softWrap = false, maxLines = 1,
             modifier = Modifier.widthIn(min = 52.dp).width(IntrinsicSize.Max).padding(top = 2.dp))
         Column(Modifier.width(24.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Dot(dot, 12, Modifier.padding(top = 4.dp))
+            ActiveIndicator(dot, active, Modifier.padding(top = 4.dp).then(if (active) Modifier.testTag("night-active-phase") else Modifier), sizeDp = 12)
             if (!last) Box(Modifier.width(2.dp).weight(1f).background(MaterialTheme.colorScheme.outlineVariant))
         }
         Column(Modifier.weight(1f).padding(start = 8.dp, bottom = if (last) 0.dp else 16.dp)) {

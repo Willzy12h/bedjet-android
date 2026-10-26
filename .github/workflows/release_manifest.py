@@ -24,6 +24,7 @@ POLICY_ROWS = [
     ("activity-alias", ".platform.HealthPermissionUsageActivity", True, "android.permission.START_VIEW_PERMISSION_USAGE", "Android 14+ Health permission-usage UI; platform-protected alias to the rationale activity."),
     ("activity", ".ui.ShortcutActivity", True, None, "Launcher/Samsung routines entry; enum validation and visible confirmation precede commands, with device/night checks downstream."),
     ("activity", ".widget.SingleActionConfigActivity", True, None, "Widget host opens visible configuration; invalid sentinel ID exits and a user choice is needed before preferences change."),
+    ("activity", ".widget.WidgetConfirmationActivity", False, None, "Private direct widget PendingIntent opens only the translucent confirmation; captured target/night are checked again by the command owner."),
     ("service", ".platform.ChargerJobService", True, "android.permission.BIND_JOB_SERVICE", "System JobScheduler must bind; platform bind permission excludes ordinary callers."),
     ("service", ".platform.NightTileService", True, "android.permission.BIND_QUICK_SETTINGS_TILE", "System Quick Settings must bind; platform tile bind permission excludes ordinary callers."),
     ("service", ".service.BedJetService", False, None, "Internal owner of hardware operations; external apps cannot start or bind it directly."),

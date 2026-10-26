@@ -58,6 +58,7 @@ import java.time.format.DateTimeFormatter
 }
 
 @Composable fun HealthSleepOverlay(graph:Graph,record:NightRecord) {
+    if (record.isTestRun) return
     val settings by graph.repository.settings.collectAsState()
     if(!settings.platform.healthSleepOverlay)return
     val lifecycle=LocalLifecycleOwner.current.lifecycle

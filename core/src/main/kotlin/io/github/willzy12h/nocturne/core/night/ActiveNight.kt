@@ -51,6 +51,8 @@ import java.time.ZonedDateTime
     val pending: PendingChange? = null,
     val actualEnd: String? = null,
     val trackingManual: Boolean = false,
+    /** Explicit short equipment test; never a real sleep session. */
+    val isTestRun: Boolean = false,
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)
     val usesLiveProfileFallback: Boolean get() = profile == null

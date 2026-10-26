@@ -11,6 +11,7 @@ import io.github.willzy12h.nocturne.core.night.ResumeOffer
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -149,6 +150,28 @@ class U06PrimaryLayoutTest(look: U06Look) {
         }
     }
 
+    @PrimarySeed(PrimaryScenario.IDLE)
+    @Test fun longOwnerAndQueueDescriptionStaysWholeAtTwoHundredPercent() {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val label = ui.s(R.string.runtime_override_label)
+        val quick = ui.compose.onNodeWithText(ui.s(R.string.tonight_quick)).performScrollTo()
+        val before = quick.getUnclippedBoundsInRoot()
+        ui.compose.runOnUiThread {
+            ui.graph.scope.launch { ui.graph.actions.remote(label) { gate.await() } }
+            ui.graph.scope.launch { ui.graph.actions.remote("Second") { } }
+            ui.graph.scope.launch { ui.graph.actions.remote("Third") { } }
+        }
+        try {
+            ui.waitUntil { ui.graph.actions.busy.value.runningLabel == label && ui.graph.actions.busy.value.queuedCount == 2 }
+            assertEquals("Owner progress must not move Quick controls at 200%", before, quick.getUnclippedBoundsInRoot())
+            val full = ui.s(R.string.busy_running, label) + " · " +
+                ui.compose.activity.resources.getQuantityString(R.plurals.busy_queued, 2, 2)
+            // Actual owner label and queued count, complete text semantics and no visually ellipsised line.
+            ui.checkLayout(ui.compose.onNodeWithText(full), "Long owner and queue description")
+        } finally { gate.complete(Unit) }
+        ui.waitUntil { ui.graph.actions.busy.value.runningLabel == null }
+    }
+
     @PrimarySeed(PrimaryScenario.SETUP)
     @Test fun tonightSetupDemoChoiceStaysReachable() = checkDemoChoice(R.string.tab_tonight)
     @PrimarySeed(PrimaryScenario.SETUP)
@@ -182,8 +205,12 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     private fun quickButtons() {
-        listOf(R.string.feature_boost, R.string.feature_warm, R.string.feature_cool, R.string.feature_off)
-            .forEach { ui.control(ui.s(it)) }
+        val labels = listOf(ui.s(R.string.remote_boost, ui.graph.repository.settings.value.boostMinutes),
+            ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
+        labels.forEach { label ->
+            ui.checkControl(ui.compose.onNode(hasText(label) and hasClickAction() and
+                hasAnyAncestor(hasTestTag("quick-controls"))), label).assertHasClickAction()
+        }
     }
 
     private fun withAndWithoutFeedback(check: () -> Unit) {

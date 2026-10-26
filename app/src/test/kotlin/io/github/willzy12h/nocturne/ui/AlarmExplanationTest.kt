@@ -49,10 +49,10 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         NULL_DENIED("Alarm 06:30 ignored: source unknown — tap to change"),
         NULL_ALLOWED("Next alarm 06:30 · Unknown app — used", "06:30"),
         APP_DENIED("Alarm 06:30 ignored: app not allowed — tap to change"),
-        TOO_SOON("Alarm 23:00 ignored: outside tonight’s 1–16 hour window — tap to change"),
-        TOO_LATE("Alarm 14:31 ignored: outside tonight’s 1–16 hour window — tap to change"),
+        TOO_SOON("Alarm 23:00 ignored: too soon — normal nights need at least 1 hour — tap to change"),
+        TOO_LATE("Alarm 16:31 ignored: too late — beyond tonight’s 18 hours — tap to change"),
         MINIMUM_BOUNDARY("Next alarm 23:30 · Samsung Clock — used", "23:30"),
-        MAXIMUM_BOUNDARY("Next alarm 14:30 · Samsung Clock — used", "14:30"),
+        MAXIMUM_BOUNDARY("Next alarm 16:30 · Samsung Clock — used", "16:30"),
         NO_ALARM("No alarm set — profile wake 07:00"),
         PROFILE_ONLY("Alarm 06:30 ignored: alarms off for this profile — tap to change"),
         PROFILE_ONLY_NO_ALARM("Profile wake 07:00 — alarms off for this profile"),
@@ -111,9 +111,9 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             shadowOf(pending).setCreatorPackage(if (scenario == Scenario.APP_DENIED) "unapproved.clock" else SAMSUNG_PACKAGE)
             val time = when (scenario) {
                 Scenario.TOO_SOON -> "2026-10-22T23:00:00Z"
-                Scenario.TOO_LATE -> "2026-10-23T14:31:00Z"
+                Scenario.TOO_LATE -> "2026-10-23T16:31:00Z"
                 Scenario.MINIMUM_BOUNDARY -> "2026-10-22T23:30:00Z"
-                Scenario.MAXIMUM_BOUNDARY -> "2026-10-23T14:30:00Z"
+                Scenario.MAXIMUM_BOUNDARY -> "2026-10-23T16:30:00Z"
                 else -> "2026-10-23T06:30:00Z"
             }
             // A missing show intent is one route to creator == null; do not fabricate Samsung provenance.

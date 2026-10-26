@@ -56,9 +56,18 @@ data class Settings(
     val scheduledLightMinute: Int = 7 * 60,
     /** Tonight shows the night as a list of steps instead of the bar curve. */
     val simpleView: Boolean = false,
+    val quickControlsCollapsed: Boolean = false,
+    /** Stable section IDs; unknown, repeated and missing IDs are normalised when displayed. */
+    val tonightSectionOrder: List<String> = listOf("night", "wake", "connection"),
     val quietNightNotification: Boolean = false,
     val platform: PlatformSettings = PlatformSettings(),
 ) {
+    fun normalisedTonightOrder(): List<String> {
+        val known = listOf("night", "wake", "connection")
+        val saved = tonightSectionOrder.filter { it in known }.distinct()
+        return saved + known.filterNot { it in saved }
+    }
+
     fun isDarkTheme(at: ZonedDateTime, systemDark: Boolean): Boolean = when (themeMode) {
         ThemeMode.SYSTEM -> systemDark
         ThemeMode.DARK -> true

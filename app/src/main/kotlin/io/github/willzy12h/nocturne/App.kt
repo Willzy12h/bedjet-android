@@ -51,7 +51,21 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     val repository = repositoryFactory?.invoke(scope) { now() } ?: Repository(context, scope) { now() }
     val bleLink by lazy { AndroidBedJetLink(context) { repository.settings.value.deviceId() } }
     private val demoLink by lazy {
-        DemoBedJet(now = { now() }).also { demo -> scope.launch { while (true) { delay(1_000); demo.tick() } } }
+        DemoBedJet(now = { now() }).also { demo ->
+            scope.launch {
+                combine(sessions.statusDemand, repository.settings.map { it.demoMode }.distinctUntilChanged(),
+                    repository.activeNight.map { it != null }.distinctUntilChanged(),
+                    demo.status.map { it?.let { status -> status.isRunning || (status.extra?.programStep ?: 0) > 0 } == true }
+                        .distinctUntilChanged()) { shownOrOwned, enabled, night, programme ->
+                    enabled && (shownOrOwned || night || programme)
+                }.distinctUntilChanged().collectLatest { needed ->
+                    if (needed) {
+                        demo.tick()
+                        while (true) { delay(1_000); demo.tick() }
+                    }
+                }
+            }
+        }
     }
 
     /** The real BedJet, or the simulated one when demo mode is on. */

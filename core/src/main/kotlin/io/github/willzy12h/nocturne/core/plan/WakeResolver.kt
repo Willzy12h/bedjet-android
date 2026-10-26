@@ -12,7 +12,7 @@ object WakeResolver {
     /** An alarm sooner than this isn't a night's sleep, so the default wake time is used instead. */
     val MIN_NIGHT: Duration = Duration.ofHours(1)
     /** An alarm later than this belongs to another night. */
-    val MAX_NIGHT: Duration = Duration.ofHours(16)
+    val MAX_NIGHT: Duration = Duration.ofHours(18)
 
     /** Shortly after bedtime the night is starting now; later than this, previews look at tomorrow's bedtime. */
     private val BEDTIME_GRACE: Duration = Duration.ofHours(3)

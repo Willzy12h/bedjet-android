@@ -207,7 +207,7 @@
     <string name="tonight_starts">Starts</string>
     <!-- The step running now: block, mode and fan. -->
     <string name="tonight_now">Now: %1$s · %2$s · fan %3$d%%</string>
-    <string name="tonight_end_night">End night</string>
+    <string name="tonight_end_night">Stop night</string>
     <string name="tonight_start_now">Start night now</string>
     <string name="tonight_set_wake">Set tonight-only wake</string>
     <string name="tonight_change_wake">Change tonight-only wake · %1$s</string>
@@ -225,20 +225,22 @@
     <string name="connection_demo">Demo · %1$s</string>
     <!-- Night guard: "This will …" completions, and the dialog itself. -->
     <string name="guard_turn_off">turn the BedJet off</string>
-    <string name="guard_start_boost">start Boost</string>
+    <string name="guard_start_boost">start the Turbo boost</string>
     <string name="guard_start_warming">start warming</string>
     <string name="guard_start_cooling">start cooling</string>
     <string name="guard_resume_saved">resume the saved programme</string>
     <string name="guard_resume_previous">resume the previous night</string>
     <string name="guard_switch_to">switch to %1$s</string>
-    <string name="guard_title">Stop tonight\'s night?</string>
+    <string name="guard_title">Stop night?</string>
     <string name="guard_running_waking">%1$s is running, waking you at %2$s. This will %3$s, and the night won\'t continue.</string>
-    <string name="guard_confirm">Stop night and continue</string>
+    <string name="guard_confirm">Stop night</string>
+    <string name="guard_resume_title">Resume night?</string>
+    <string name="guard_resume_body">Return control to the saved programme. The current BedJet run will be replaced.</string>
     <string name="guard_keep">Keep tonight</string>
     <!-- Night recovery controls (P6) -->
     <string name="recovery_more">More</string>
-    <string name="recovery_resume_programme">Resume programme</string>
-    <string name="recovery_resume_previous">Resume previous night</string>
+    <string name="recovery_resume_programme">Resume night</string>
+    <string name="recovery_resume_previous">Resume night</string>
     <string name="recovery_recheck_alarm">Re-check alarm</string>
     <string name="recovery_stop_tracking_title">Stop tracking this night?</string>
     <!-- Remote (P6). The "… set" and "… on/off" labels also name the command while it waits for the BedJet. -->
@@ -253,7 +255,7 @@
     <string name="remote_fan_set">Fan set</string>
     <string name="remote_run_for">Run for</string>
     <string name="remote_timer_set">Timer set</string>
-    <string name="remote_boost">Boost %1$dm</string>
+    <string name="remote_boost">Turbo %1$dm</string>
     <string name="remote_lights">Lights</string>
     <string name="remote_lights_on">Lights on</string>
     <string name="remote_lights_off">Lights off</string>

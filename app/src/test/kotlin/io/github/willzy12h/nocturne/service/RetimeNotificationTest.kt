@@ -1026,6 +1026,8 @@ class RetimeNotificationTest {
         assertEquals("Cleanup belongs to the same failed hardware request", BedJetError.NotConnected().message, outcome.message)
         assertNull(graph.repository.runtime.value.retime)
         assertOneTerminalNotice(unknown = true)
+        assertEquals("Cleanup retains the original contextual warning without recomputing it",
+            error()!!.extras.getString("android.text"), graph.repository.runtime.value.reason)
         assertDurableTerminalHistory(night, outcome.kind, outcome.message, previousTerminalErrors)
     }
 
@@ -1045,6 +1047,8 @@ class RetimeNotificationTest {
         val previousTerminalErrors = terminalErrors(night).size
         val previousNotices = graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM }
         alarm(4)
+        val requested = io.github.willzy12h.nocturne.night.AlarmSource.describe(app, graph.repository.settings.value)!!.time
+            .format(DateTimeFormatter.ofPattern("HH:mm"))
         graph.actions.submitAlarmChange()
         val observation = graph.repository.runtime.value.alarmInbox!!
         assertNotEquals(pending.id, observation.id)
@@ -1060,6 +1064,10 @@ class RetimeNotificationTest {
         until { graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM } > previousNotices }
         assertEquals("The new observation must retain its own notice", previousNotices + 1,
             graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM })
+        assertEquals("The new observation saves its own contextual warning",
+            error()!!.extras.getString("android.text"), graph.repository.runtime.value.reason)
+        assertTrue("The new observation must name its own requested wake, not the older uncleared retry",
+            error()!!.extras.getString("android.text")!!.contains(requested))
         assertDurableTerminalHistory(night, outcome.kind, outcome.message, previousTerminalErrors)
     }
     private suspend fun unchangedAlarm(creator: String) {
@@ -1136,6 +1144,64 @@ class RetimeNotificationTest {
         assertEquals(1, graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM })
         assertFalse(graph.actions.retimePending)
         assertFalse(retryScheduled())
+    }
+
+    @Test fun terminalWarningNamesRequestedWakeAndTargetAndOffersReadOnlyCheck() = runBlocking {
+        val night = pendingAfterConnectionFailure()
+        val requested = ZonedDateTime.parse(graph.repository.runtime.value.retime!!.alarmAt)
+            .format(DateTimeFormatter.ofPattern("HH:mm"))
+        atBoundary(night)
+        retryService(notifyFailures = true)
+        val warning = error()!!
+        val detail = warning.extras.getString("android.text").orEmpty()
+        assertTrue(detail, detail.contains(requested))
+        assertTrue(detail, detail.contains("Demo BedJet"))
+        assertTrue("A terminal warning needs the non-replaying recovery action",
+            warning.actions.orEmpty().any { it.title.toString() == "Check BedJet" })
+    }
+
+    @Test fun checkBedJetReadsAfreshWithoutWritingOrReplayingThePendingChange() = runBlocking {
+        val night = pendingAfterConnectionFailure()
+        unreachable = false
+        val pending = graph.repository.runtime.value.retime
+        val beforeWrites = writes
+        val beforeConnects = connects
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.CHECK_BEDJET))
+        assertEquals(OutcomeKind.LOCAL, outcome.kind)
+        assertTrue(outcome.message.contains("Fresh report from Demo BedJet"))
+        assertTrue(connects > beforeConnects)
+        assertEquals(beforeWrites, writes)
+        assertEquals(pending, graph.repository.runtime.value.retime)
+        assertEquals(night, graph.repository.activeNight.value)
+    }
+
+    @Test fun aFailedCheckDoesNotCreditTheCachedReportOrPromoteAnUnknownProgramme() = runBlocking {
+        val night = start().copy(confidence = Confidence.UNKNOWN)
+        graph.repository.setActiveNight(night)
+        val beforeWrites = writes
+        unreachable = true
+        val outcome = graph.actions.execute(graph.actions.capture(NightActions.Command.CHECK_BEDJET))
+        assertFalse(outcome.succeeded)
+        assertFalse(outcome.message.contains("Fresh report"))
+        assertEquals(beforeWrites, writes)
+        assertEquals(night, graph.repository.activeNight.value)
+    }
+
+    @Test fun anEarlyUncertainRefusalNamesThisAlarmRatherThanAnOlderUncertainIntention() = runBlocking {
+        val previous = start()
+        val oldWake = graph.now().plusHours(8).withZoneSameInstant(java.time.ZoneId.systemDefault()).toString()
+        graph.repository.setActiveNight(previous.copy(confidence = Confidence.UNKNOWN,
+            pending = io.github.willzy12h.nocturne.core.night.PendingChange("older-change",
+                io.github.willzy12h.nocturne.core.night.ChangeKind.RETIME, oldWake,
+                graph.now().toString(), graph.now().plusMinutes(1).toString(), previous.identity)))
+        alarm(5)
+        val requested = io.github.willzy12h.nocturne.night.AlarmSource.describe(app, graph.repository.settings.value)!!.time
+            .format(DateTimeFormatter.ofPattern("HH:mm"))
+        graph.actions.submitAlarmChange()
+        graph.actions.execute(graph.actions.capture(NightActions.Command.RETRY_RETIME))
+        val detail = error()!!.extras.getString("android.text").orEmpty()
+        assertTrue(detail, detail.contains(requested))
+        assertFalse(detail, detail.contains(ZonedDateTime.parse(oldWake).format(DateTimeFormatter.ofPattern("HH:mm"))))
     }
 
     @Test fun finalRetimeExpiryPostsOneNoticeWithoutAServiceFailure() = runBlocking {

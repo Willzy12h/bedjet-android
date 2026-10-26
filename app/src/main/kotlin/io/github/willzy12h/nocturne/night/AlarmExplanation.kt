@@ -9,13 +9,14 @@ import io.github.willzy12h.nocturne.core.plan.AlarmPolicy
 import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.WakeChoice
+import io.github.willzy12h.nocturne.core.plan.WakeResolver
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.deviceId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /** ELIGIBLE describes the current candidate, never proof that a running BedJet has applied it. */
-enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED, OUTSIDE_WINDOW, PROFILE_ALARMS_OFF, OVERRIDE, NO_PROFILE }
+enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED, OUTSIDE_WINDOW, PROFILE_ALARMS_OFF, OVERRIDE, NO_PROFILE, TEST_RUN }
 enum class WakeExplanationState { PREVIEW, SAVED, PENDING, FAILED, UNKNOWN, MANUAL }
 enum class AlarmSettingsTarget { ALARM_SOURCES, PROFILE_WAKE, TONIGHT_WAKE }
 
@@ -45,6 +46,7 @@ data class AlarmExplanation(
             val origin = night?.wakeOrigin ?: preview?.origin
             val sourceAccepted = alarm?.let { policy.acceptsSource(it.creator) }
             val reason = when {
+                night?.isTestRun == true -> AlarmReason.TEST_RUN
                 origin == WakeOrigin.OVERRIDE -> AlarmReason.OVERRIDE
                 effectiveProfile == null -> AlarmReason.NO_PROFILE
                 !effectiveProfile.wakeSource.useAlarm -> AlarmReason.PROFILE_ALARMS_OFF
@@ -82,7 +84,7 @@ data class AlarmExplanation(
                 else -> AlarmSettingsTarget.ALARM_SOURCES
             }
             return AlarmExplanation(reason, state, wake, origin, alarm, start,
-                (night?.pending?.requestedWake ?: pendingRetime?.alarmAt)?.parseTime(), sourceAccepted,
+                (night?.pending?.requestedWake ?: pendingRetime?.requestedWakeAt ?: pendingRetime?.alarmAt)?.parseTime(), sourceAccepted,
                 state == WakeExplanationState.SAVED && origin == WakeOrigin.ALARM && alarm != null && wake != null &&
                     wake?.toInstant() == alarm?.time?.toInstant(), target)
         }
@@ -108,7 +110,8 @@ fun AlarmExplanation.description(context: Context): String {
     fun ignored(): String = text(R.string.alarm_source_ignored, next, text(when (reason) {
         AlarmReason.UNKNOWN_SOURCE -> R.string.alarm_source_reason_unknown
         AlarmReason.SOURCE_NOT_ALLOWED -> R.string.alarm_source_reason_not_allowed
-        AlarmReason.OUTSIDE_WINDOW -> R.string.alarm_source_reason_outside_window
+        AlarmReason.OUTSIDE_WINDOW -> if (alarm!!.time.isBefore(nightStart.plus(WakeResolver.MIN_NIGHT)))
+            R.string.alarm_source_reason_too_soon else R.string.alarm_source_reason_too_late
         AlarmReason.PROFILE_ALARMS_OFF -> R.string.alarm_source_reason_profile_off
         AlarmReason.OVERRIDE -> R.string.alarm_source_reason_override
         else -> error("Only a rejected candidate has an ignored-alarm description")
@@ -132,6 +135,8 @@ fun AlarmExplanation.description(context: Context): String {
             else -> R.string.alarm_source_saved_profile
         }
     }, wake)
+    if (reason == AlarmReason.TEST_RUN) return if (state == WakeExplanationState.SAVED)
+        text(R.string.short_test_saved, wake) else text(R.string.short_test_state, saved)
     // An override needs no current alarm; keep the saved state's confidence wording.
     if (reason == AlarmReason.OVERRIDE && alarm == null) return saved
     val current = when {
@@ -146,4 +151,14 @@ fun AlarmExplanation.description(context: Context): String {
         else -> ignored()
     }
     return text(R.string.alarm_source_saved_and_current, saved, current)
+}
+
+/** An explicit check always reports Android's current answer, even when the selected wake did not change. */
+fun AlarmExplanation.recheckDescription(context: Context): String {
+    var result = description(context)
+    if (state == WakeExplanationState.PREVIEW && wakeOrigin == WakeOrigin.PROFILE_DEFAULT && alarm != null)
+        result = context.getString(R.string.alarm_recheck_fallback, result, wakeAt.clock())
+    val found = alarm ?: return context.getString(R.string.alarm_recheck_none, result)
+    return context.getString(R.string.alarm_recheck_found, found.time.clock(), alarmSourceName(context, found.creator),
+        result)
 }

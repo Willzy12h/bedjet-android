@@ -1,15 +1,24 @@
 package io.github.willzy12h.nocturne.ui
 
 import android.app.Application
+import android.bluetooth.BluetoothAdapter
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.willzy12h.nocturne.BuildConfig
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.ble.FoundBedJet
+import io.github.willzy12h.nocturne.ble.BluetoothAvailability
 import io.github.willzy12h.nocturne.core.link.BedJetController
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
+import io.github.willzy12h.nocturne.core.plan.PlanException
+import io.github.willzy12h.nocturne.core.plan.NightDurationException
 import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.plan.Preview
 import io.github.willzy12h.nocturne.core.plan.Profile
@@ -27,6 +36,11 @@ import io.github.willzy12h.nocturne.data.MorningCheckIn
 import io.github.willzy12h.nocturne.core.store.UpdateChecker
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.AlarmSource
+import io.github.willzy12h.nocturne.night.AlarmExplanation
+import io.github.willzy12h.nocturne.night.ShortTestPreview
+import io.github.willzy12h.nocturne.night.recheckDescription
+import io.github.willzy12h.nocturne.night.refusalText
+import io.github.willzy12h.nocturne.night.planMessage
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.night.CommandOutcome
 import io.github.willzy12h.nocturne.night.CommandOrigin
@@ -68,7 +82,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val profiles = repo.profiles
     val settings = repo.settings
-    val history = repo.history
+    val history = repo.history.map { records -> records.filterNot { it.isTestRun } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, repo.history.value.filterNot { it.isTestRun })
     fun morningCheckIn(nightId: String): MorningCheckIn? = repo.morningCheckIn(nightId)
 
     fun recordMorningCheckIn(nightId: String, comfort: MorningComfort, onResult: (MorningCheckIn?) -> Unit) {
@@ -141,6 +156,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Outcomes already shown, by identity: the screen's own request and the owner's feed report the same object. */
     private val shownOutcomes = ArrayDeque<CommandOutcome>()
     private var screenVisible = false
+    private val _bluetoothOff = MutableStateFlow(false)
+    val bluetoothOff: StateFlow<Boolean> = _bluetoothOff.asStateFlow()
+    private var bluetoothReceiverRegistered = false
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == BluetoothAdapter.ACTION_STATE_CHANGED && screenVisible) refreshBluetooth()
+        }
+    }
 
     init {
         // The one in-app outcome collector (U08): widget, shortcut, alarm and charger outcomes are shown while the
@@ -148,6 +171,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             graph.actions.outcomes.collect { outcome ->
                 if (screenVisible) report(outcome)
+            }
+        }
+        viewModelScope.launch {
+            repo.settings.map { it.demoMode }.distinctUntilChanged().collect {
+                if (screenVisible) refreshBluetooth()
             }
         }
     }
@@ -158,10 +186,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         shownOutcomes.addLast(outcome)
         while (shownOutcomes.size > 32) shownOutcomes.removeFirst()
         if (outcome.kind == OutcomeKind.LOCAL && outcome.origin == CommandOrigin.SETTINGS) return
+        if (!outcome.announceInApp && outcome.kind == OutcomeKind.CONFIRMED) return
         _messages.tryEmit(outcome.message)
     }
     private val _nextAlarm = MutableStateFlow<AlarmSource.NextAlarm?>(null)
     val nextAlarm: StateFlow<AlarmSource.NextAlarm?> = _nextAlarm.asStateFlow()
+    private val _alarmCheck = MutableStateFlow<String?>(null)
+    val alarmCheck: StateFlow<String?> = _alarmCheck.asStateFlow()
     private val _release = MutableStateFlow<Release?>(null)
     val release: StateFlow<Release?> = _release.asStateFlow()
 
@@ -179,6 +210,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         screenVisible = true
         visible.value = true
         tapHaptics.setVisible(true)
+        if (!bluetoothReceiverRegistered) {
+            ContextCompat.registerReceiver(getApplication(), bluetoothReceiver,
+                IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED), ContextCompat.RECEIVER_EXPORTED)
+            bluetoothReceiverRegistered = true
+        }
+        refreshBluetooth()
         refreshAlarm()
         graph.sessions.holdForScreen(true)
         // An alarm change that couldn't reach the BedJet earlier.
@@ -193,7 +230,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         screenVisible = false
         visible.value = false
         tapHaptics.setVisible(false)
+        if (bluetoothReceiverRegistered) {
+            getApplication<Application>().unregisterReceiver(bluetoothReceiver)
+            bluetoothReceiverRegistered = false
+        }
         graph.sessions.holdForScreen(false)
+    }
+
+    /** Reconnect after the adapter returns, without re-submitting any refused command. */
+    fun refreshBluetooth() {
+        val state = BluetoothAvailability.read(getApplication())
+        val wasOff = _bluetoothOff.value
+        _bluetoothOff.value = !repo.settings.value.demoMode && state == BluetoothAvailability.State.OFF
+        if (wasOff && state == BluetoothAvailability.State.ENABLED) {
+            Notifications.clearBluetoothOff(getApplication())
+            if (screenVisible && !repo.settings.value.demoMode) graph.sessions.reconnect()
+        }
+    }
+
+    override fun onCleared() {
+        onScreenHidden()
+        super.onCleared()
     }
 
     /** The connection chip: try the BedJet again. */
@@ -204,6 +261,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshAlarm() {
         _nextAlarm.value = AlarmSource.describe(getApplication(), repo.settings.value)
     }
+
+    /** Every explicit tap reads Android again, including a repeated or absent alarm. */
+    fun recheckAlarm() {
+        refreshAlarm()
+        fun currentExplanation() = AlarmExplanation.resolve(repo.settings.value, repo.tonightsProfile(), graph.now(),
+            nextAlarm.value, activeNight.value, runtime.value, nightStatus.value).recheckDescription(getApplication())
+        val message = currentExplanation()
+        // Reading Android is complete even when the subsequent BedJet operation waits or times out.
+        _alarmCheck.value = text(R.string.alarm_recheck_last, Format.clock(now()), message)
+        if (activeNight.value == null) {
+            _messages.tryEmit(message)
+        } else {
+            val request = graph.actions.capture(NightActions.Command.RETIME).copy(origin = CommandOrigin.APP)
+            act(deferBluetoothCheck = true) {
+                val outcome = graph.actions.execute(request)
+                withContext(Dispatchers.Main) {
+                    refreshAlarm()
+                    _alarmCheck.value = text(R.string.alarm_recheck_last, Format.clock(now()), currentExplanation())
+                }
+                outcome
+            }
+        }
+    }
+
+    fun shortTestPreview(): ShortTestPreview? = graph.actions.shortTestPreview()
+    fun startShortTest(preview: ShortTestPreview) = act { graph.actions.startShortTest(preview) }
 
     // Previews
 
@@ -224,13 +307,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         val start = if (startNow) now else WakeResolver.nextBedtime(profile, now)
         PlanCompiler.compile(profile, start, WakeResolver.resolve(profile, start, nextAlarm.value?.takeIf { it.counts }?.time).time)
+    }.recoverCatching { cause ->
+        if (cause is NightDurationException)
+            throw PlanException(cause.planMessage(getApplication()).orEmpty()).also { it.initCause(cause) }
+        throw cause
     }
 
     /** One preview supplies the wake headline, curve and actual Start policy. */
     fun startPreview(profile: Profile, now: ZonedDateTime = graph.now()): Preview = NightPreview.forStartNow(
         profile, now, nextAlarm.value?.time, repo.settings.value.resolveWakeOverride(now),
         repo.settings.value, nextAlarm.value?.creator,
-    )
+    ).let { it.copy(refusalReason = it.refusalText(getApplication())) }
 
     /** The running night's plan, rebuilt from what was stored when it started. */
     fun activePlan(): Plan? {
@@ -258,17 +345,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val request = graph.actions.capture(command, profileId, requireIdentity = replacementConfirmed || confirmedNight != null)
             .let { it.copy(expected = confirmedNight ?: it.expected, replacementConfirmed = replacementConfirmed || confirmedNight != null,
                 origin = CommandOrigin.APP) }
-        act(hardware = command != NightActions.Command.STOP_TRACKING) { graph.actions.execute(request) }
+        act(hardware = command != NightActions.Command.STOP_TRACKING,
+            deferBluetoothCheck = command == NightActions.Command.RETIME || command == NightActions.Command.RETRY_RETIME) {
+            graph.actions.execute(request)
+        }
     }
 
     /** A Remote control: sent straight to the BedJet. */
     fun remote(label: String, endsNight: Boolean = false, affectsProgramme: Boolean = false,
         confirms: ((io.github.willzy12h.nocturne.core.protocol.DeviceStatus) -> Boolean)? = null,
+        announceConfirmation: Boolean = true,
         work: suspend (BedJetController) -> Unit) {
         val captured = graph.actions.capture(NightActions.Command.OFF)
         val expected = confirmedNight ?: captured.expected
         act { graph.actions.remote(label, endsNight = endsNight, affectsProgramme = affectsProgramme,
-            target = captured.deviceId, expected = expected, confirms = confirms, work = work) }
+            target = captured.deviceId, expected = expected, confirms = confirms,
+            announceConfirmation = announceConfirmation, work = work) }
     }
 
     fun restoreSlot(backup: SlotBackup) = act {
@@ -303,7 +395,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** A message from resources, for outcomes and snackbars. */
     private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
 
-    private fun act(hardware: Boolean = true, work: suspend () -> CommandOutcome) {
+    private fun act(hardware: Boolean = true, deferBluetoothCheck: Boolean = false, work: suspend () -> CommandOutcome) {
         val pending = lastSave
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
         val feedback = if (hardware) tapHaptics.capture() else null
@@ -314,11 +406,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val outcome = try {
                     if (hardware) withContext(io.github.willzy12h.nocturne.night.SubmissionTarget(target) +
                         (feedback?.context ?: kotlin.coroutines.EmptyCoroutineContext)) {
-                        io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false) { work() }
+                        io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false,
+                            deferBluetoothCheck = deferBluetoothCheck) { work() }
                     } else work()
                 } catch (_: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
                 } catch (e: CancellationException) { throw e
-                } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.message ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
+                } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.planMessage(getApplication()) ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
                 finally { _busy.value = false }
                 feedback?.complete(outcome)
                 report(outcome)

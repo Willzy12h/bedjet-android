@@ -31,7 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -44,6 +48,7 @@ import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.Season
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
+import io.github.willzy12h.nocturne.night.refusalText
 import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.ZonedDateTime
@@ -55,6 +60,7 @@ private data class PinRequest(val profile: Profile, val target: String?, val wor
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit) {
+    val context = LocalContext.current
     val profiles by model.profiles.collectAsState()
     val settings by model.settings.collectAsState()
     model.nextAlarm.collectAsState().value
@@ -139,7 +145,12 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     }
     pinning?.let { request ->
         var previewNow by remember(request) { mutableStateOf(model.now()) }
-        LaunchedEffect(request) { while (true) { delay(5_000); previewNow = model.now() } }
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+        LaunchedEffect(request, lifecycle) {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) { previewNow = model.now(); delay(5_000) }
+            }
+        }
         val plan = request.preview.plan
         val program = plan?.let { StoredProgram(request.profile.name, it.steps.map { step ->
             step.step.copy(hours = step.minutes / 60, minutes = step.minutes % 60, endsAtClockTime = false)
@@ -166,7 +177,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                         stale -> Text(stringResource(R.string.pin_stale))
                         expired -> Text(stringResource(R.string.pin_preview_expired))
                         activeNight != null -> Text(stringResource(R.string.pin_active))
-                        plan == null -> Text(request.preview.refusalReason ?: stringResource(R.string.pin_no_preview))
+                        plan == null -> Text(request.preview.refusalText(context) ?: stringResource(R.string.pin_no_preview))
                         else -> {
                             Text(stringResource(R.string.pin_preview_window, Format.clock(plan.start), Format.clock(plan.end),
                                 pluralStringResource(R.plurals.pin_step_count, plan.steps.size, plan.steps.size)))

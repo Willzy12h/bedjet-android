@@ -35,7 +35,9 @@ import kotlinx.serialization.Serializable
     val unresolvedSlotWrite: SlotWrite? get() = slotWrite?.takeIf { it.confidence == Confidence.PENDING || it.confidence == Confidence.UNKNOWN }
 }
 @Serializable data class PendingRetime(val id: String, val expected: NightIdentity, val deviceId: String,
-    val alarmAt: String?, val alarmOrigin: String?, val deadline: String)
+    val alarmAt: String?, val alarmOrigin: String?, val deadline: String,
+    /** The resolved intention, including a profile fallback when Android removed its alarm. */
+    val requestedWakeAt: String? = null)
 @Serializable data class SlotWrite(val deviceId: String, val slot: Int, val intended: StoredProgram?,
     val confidence: Confidence = Confidence.PENDING, val label: String,
     val startRequested: Boolean = false, val displaced: NightIdentity? = null,
@@ -62,7 +64,9 @@ data class CommandOutcome(val kind: OutcomeKind, val message: String,
     /** The outcome already has its own notice; service delivery must not post another one. */
     val notificationHandled: Boolean = false,
     /** The known entry point or command owner supplies attribution before delivery. */
-    val origin: CommandOrigin = CommandOrigin.UNSPECIFIED) {
+    val origin: CommandOrigin = CommandOrigin.UNSPECIFIED,
+    /** Controls may already show a confirmed value. Failure and uncertainty remain separately reportable. */
+    val announceInApp: Boolean = true) {
     val succeeded: Boolean get() = kind in setOf(OutcomeKind.CONFIRMED, OutcomeKind.ACCEPTED, OutcomeKind.LOCAL)
 }
 data class BusyState(val runningLabel: String? = null, val queuedCount: Int = 0)
@@ -83,7 +87,8 @@ object ReplacementPolicy {
 
 @Serializable data class AlarmObservation(val id: String, val nightId: String, val deviceId: String, val observedAt: String)
 
-@Serializable data class PendingEnd(val identity: NightIdentity, val event: io.github.willzy12h.nocturne.core.store.HistoryEvent)
+@Serializable data class PendingEnd(val identity: NightIdentity, val event: io.github.willzy12h.nocturne.core.store.HistoryEvent,
+    val isTestRun: Boolean = false)
 
 /** Submission target carried across the service handoff and checked under command ownership. */
 internal class SubmissionTarget(val deviceId: String?) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
@@ -105,6 +110,7 @@ internal class CommandFeedback(val requestId: String, private val onAdmitted: (S
 /** A queued retry may admit newer work. Cancellation belongs to the identity and notice it actually handled. */
 internal class RetimeExecution : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
     var identity: NightIdentity? = null
+    var requestedWakeAt: String? = null
     var reportedNotice: String? = null
     companion object Key : kotlin.coroutines.CoroutineContext.Key<RetimeExecution>
 }

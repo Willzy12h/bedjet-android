@@ -245,9 +245,15 @@ class ScreenshotCapture {
         compose.onAllNodesWithText("Start night now")[0].performScrollTo().performClick()
         compose.waitUntil(15_000) {
             settle(250)
-            compose.onAllNodes(hasText("End night")).fetchSemanticsNodes().isNotEmpty()
+            // Stop remains available while a request is pending; its label alone does not prove a running night.
+            graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED &&
+                graph.actions.status.value.confidence == Confidence.CONFIRMED && graph.actions.busy.value.runningLabel == null &&
+                compose.onAllNodes(hasText(compose.activity.getString(R.string.tonight_end_night))).fetchSemanticsNodes().isNotEmpty()
         }
         settle(6_000) // let the confirmation message bar time out
+        assertEquals("Running capture needs a confirmed night", Confidence.CONFIRMED, graph.repository.activeNight.value?.confidence)
+        assertEquals("Running capture must not show a pending adjustment", Confidence.CONFIRMED, graph.actions.status.value.confidence)
+        assertEquals("Running capture waits for its command owner", null, graph.actions.busy.value.runningLabel)
         shot("$look-06-tonight-running")
     }
 

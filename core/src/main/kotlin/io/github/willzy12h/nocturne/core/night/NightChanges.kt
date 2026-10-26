@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.core.night
 
 import io.github.willzy12h.nocturne.core.plan.Plan
+import io.github.willzy12h.nocturne.core.plan.NightDurationProblem
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.*
 import kotlinx.serialization.Serializable
@@ -11,7 +12,8 @@ sealed interface Preparation {
     data class Ready(val change: PreparedChange): Preparation
     data class Stale(val expected: NightIdentity?, val actual: NightIdentity?): Preparation
     /** [unchanged] identifies a harmless re-time no-op without comparing user-facing reason text. */
-    data class Refused(val reason: String, val unchanged: Boolean = false): Preparation
+    data class Refused(val reason: String, val unchanged: Boolean = false,
+        val durationProblem: NightDurationProblem? = null): Preparation
 }
 /** No hardware work has happened. Persist [pendingNight] before executing this change. */
 data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previous: ActiveNight?, val request: PendingChange,
@@ -58,7 +60,7 @@ object Eligibility {
 @Serializable data class ResumeOffer(val night: ActiveNight, val remaining: List<RecordedStep>, val stoppedAt: String,
     val expiresAt: String, val commandVersion: Long)
 data class LocalTransition(val night: ActiveNight, val event: HistoryEvent, val resumeOffer: ResumeOffer?) {
-    fun settingsAfter(settings: Settings): Settings = settings.clearWakeOverride()
+    fun settingsAfter(settings: Settings): Settings = if (night.isTestRun) settings else settings.clearWakeOverride()
 }
 /** Local only: callers persist this transition and the offer under the same command lock. */
 fun stopTracking(night: ActiveNight, reason: String, at: ZonedDateTime, commandVersion: Long = 0): LocalTransition {
@@ -72,7 +74,7 @@ fun stopTracking(night: ActiveNight, reason: String, at: ZonedDateTime, commandV
             else -> s
         }
     }.filter { it.minutes > 0 }
-    val offer = if (night.profile != null && at.isBefore(ZonedDateTime.parse(night.wakeAt))) {
+    val offer = if (!night.isTestRun && night.profile != null && at.isBefore(ZonedDateTime.parse(night.wakeAt))) {
         ResumeOffer(night, remaining, at.toString(), at.plusMinutes(15).toString(), commandVersion)
     } else null
     return LocalTransition(night.copy(actualEnd = at.toString(), pending = null), HistoryEvent(at.toString(), EventKind.STOPPED, reason), offer)

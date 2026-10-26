@@ -38,6 +38,8 @@ data class NightRecord(
     /** The BedJet the night ran on, as a [DeviceId]; [Migrations.UNKNOWN_DEVICE] for nights saved before this was recorded. */
     val deviceId: String = Migrations.UNKNOWN_DEVICE,
     val revisions: List<AppliedProgram> = emptyList(),
+    /** Kept for equipment diagnostics, excluded from real sleep views and integrations. */
+    val isTestRun: Boolean = false,
 )
 
 object History {

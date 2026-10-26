@@ -74,6 +74,10 @@
             android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true"
             android:noHistory="true" />
 
+        <activity android:name=".widget.WidgetConfirmationActivity" android:exported="false"
+            android:theme="@style/Theme.Nocturne.WidgetConfirmation" android:excludeFromRecents="true"
+            android:taskAffinity="" />
+
         <activity android:name=".widget.SingleActionConfigActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />

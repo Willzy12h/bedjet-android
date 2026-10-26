@@ -2,6 +2,7 @@ package io.github.willzy12h.nocturne.service
 
 import android.Manifest
 import android.app.NotificationManager
+import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.os.Looper
 import io.github.willzy12h.nocturne.App
@@ -28,6 +29,7 @@ class OriginFeedbackTest : io.github.willzy12h.nocturne.platform.PlatformGraphFi
     private fun prepare()=runBlocking {
         app.graph.repository.updateSettings {it.copy(demoMode=false,targetDevice="ble:AA:BB:CC:DD:EE:FF")}
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         BedJetService.lastResult=null
     }
     private fun noDuplicate() {

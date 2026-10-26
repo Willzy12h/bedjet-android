@@ -10,12 +10,12 @@ import java.time.ZonedDateTime
 
 class WakePolicyHardeningTest {
     private val now = ZonedDateTime.parse("2026-10-21T22:30:00Z")
-    @Test fun `alarm policy includes one and sixteen hours but nothing beyond`() {
+    @Test fun `alarm policy includes one and eighteen hours but nothing beyond`() {
         val p = AlarmPolicy(Settings())
         assertFalse(p.accept(now.plusMinutes(59), "com.google.android.deskclock", now))
         assertTrue(p.accept(now.plusHours(1), "com.google.android.deskclock", now))
-        assertTrue(p.accept(now.plusHours(16), "com.sec.android.app.clockpackage", now))
-        assertFalse(p.accept(now.plusHours(16).plusMinutes(1), "com.google.android.deskclock", now))
+        assertTrue(p.accept(now.plusHours(18), "com.sec.android.app.clockpackage", now))
+        assertFalse(p.accept(now.plusHours(18).plusMinutes(1), "com.google.android.deskclock", now))
         assertFalse(p.accept(now.plusHours(8), "calendar", now))
     }
     @Test fun `unknown attribution obeys preference`() {
@@ -34,7 +34,7 @@ class WakePolicyHardeningTest {
     @Test fun `six thirty four default wake refuses a twenty four hour night`() {
         val preview = NightPreview.forStartNow(Presets.springAutumn, now.withHour(6).withMinute(34), null, null)
         assertNull(preview.plan)
-        assertTrue(preview.refusalReason!!.contains("tonight-only"))
+        assertEquals(NightDurationProblem.OUTSIDE_WINDOW, preview.durationProblem)
     }
     @Test fun `temporary choice expires to schedule and follow schedule clears it`() {
         val scheduled = Presets.springAutumn.copy(days = setOf(4))
@@ -51,7 +51,7 @@ class WakePolicyHardeningTest {
         assertNull(migrated.selectedProfileId)
         assertNull(migrated.resolveTonightChoice(now.plusDays(1).withHour(12)))
     }
-    @Test fun `validation accounts for turbo chaining at sixteen hour extreme`() {
+    @Test fun `validation accounts for turbo chaining at eighteen hour extreme`() {
         val p = Presets.springAutumn.copy(start = emptyList(), wake = emptyList(), middle = Middle(io.github.willzy12h.nocturne.core.protocol.Mode.TURBO,100,100,86,86), turboChain = TurboChain.REPEAT_TURBO)
         assertTrue(ProfileValidation.validate(p).any { it.contains("32") })
     }

@@ -249,6 +249,10 @@ internal class U06ControlSemanticsTest(look: U06Look) {
 
     @Test fun editorSlidersAndBothRangeThumbsExposeTheirValuesInBothUnits() {
         openEditor()
+        // Compact phase rows reveal the same complete controls on demand.
+        listOf("START", "WAKE", "AFTER_WAKE").forEach { block ->
+            compose.onNodeWithTag("editor-phase-$block-0").performScrollTo().performClick()
+        }
         for (useFahrenheit in listOf(false, true)) {
             fahrenheit(useFahrenheit)
             range(s(R.string.slider_fan_limits), 5f, 100f,

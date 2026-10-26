@@ -20,7 +20,7 @@ object PlanCompiler {
      */
     fun compile(profile: Profile, startAt: ZonedDateTime, wake: ZonedDateTime): Plan {
         if (Duration.between(startAt, wake) > WakeResolver.MAX_NIGHT) {
-            throw PlanException("A night can last at most 16 hours. Set a tonight-only wake time.")
+            throw NightDurationException(NightDurationProblem.TOO_LONG)
         }
         (profile.start + profile.wake + profile.afterWake).forEach { temperatureFor(it.mode, it.temperature, profile.limits) }
         temperatureFor(profile.middle.mode, profile.middle.tempStart, profile.limits)

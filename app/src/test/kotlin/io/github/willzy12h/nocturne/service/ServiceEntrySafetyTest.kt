@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.Service
+import android.bluetooth.BluetoothManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
@@ -74,6 +75,7 @@ class ServiceEntrySafetyTest {
         graph.actions.confirmMs = 1
         graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
         context = ServiceStartContext(app)
     }
 

@@ -3,6 +3,7 @@ package io.github.willzy12h.nocturne.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -48,6 +49,7 @@ import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.annotation.StringRes
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
@@ -57,6 +59,7 @@ import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.notify.Notifications
 import io.github.willzy12h.nocturne.ui.features.PlatformSettingsSection
+import io.github.willzy12h.nocturne.ui.features.PhoneHandoverMenuItems
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -75,14 +78,27 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val alarms = remember { BringIntoViewRequester() }
     LaunchedEffect(alarmsRequest) { if (alarmsRequest > 0) { delay(100); alarms.bringIntoView() } }
     val alarm by model.nextAlarm.collectAsState()
+    val alarmCheck by model.alarmCheck.collectAsState()
     val f = settings.fahrenheit
     val context = LocalContext.current
+    val systemDark = isSystemInDarkTheme()
+    var pendingTheme by remember { mutableStateOf<ThemeMode?>(null) }
     var restoring by remember { mutableStateOf<SnapshotInfo?>(null) }
     var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
     var snapshotLabel by remember { mutableStateOf("") }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
     val diagnostics = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::exportDiagnostics) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
+
+    pendingTheme?.let { requested ->
+        AlertDialog(onDismissRequest = { pendingTheme = null },
+            text = { Text(stringResource(R.string.ux_light_theme_warning)) },
+            confirmButton = { TextButton(onClick = {
+                pendingTheme = null
+                model.updateSettings { it.copy(themeMode = requested) }
+            }) { Text(stringResource(R.string.ux_switch)) } },
+            dismissButton = { TextButton(onClick = { pendingTheme = null }) { Text(stringResource(R.string.feature_cancel)) } })
+    }
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
@@ -91,7 +107,11 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeMode.entries.forEach { mode ->
-                    FilterChip(settings.themeMode == mode, { model.updateSettings { it.copy(themeMode = mode) } }, label = { Text(stringResource(themeName(mode))) })
+                    FilterChip(settings.themeMode == mode, {
+                        if (settings.themeMode != mode && (mode == ThemeMode.LIGHT || (mode == ThemeMode.SYSTEM && !systemDark)))
+                            pendingTheme = mode
+                        else model.updateSettings { it.copy(themeMode = mode) }
+                    }, label = { Text(stringResource(themeName(mode))) })
                 }
             }
             if (settings.themeMode == ThemeMode.SCHEDULED) {
@@ -130,6 +150,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 }
             }
             SwitchRow(stringResource(R.string.settings_show_f), null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
+            Text(stringResource(R.string.ux_release_help), style = MaterialTheme.typography.bodySmall)
+            PhoneHandoverMenuItems(model.graph, onOutcome = model::report, asSettings = true) { }
             OutlinedButton(onClick = model::forgetBedJet) { Text(stringResource(R.string.settings_forget)) }
         }
 
@@ -206,6 +228,15 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 model.updateSettings { it.copy(acceptUnknownAlarmSource = on) }
             }
             Text(stringResource(R.string.settings_used_from, settings.alarmPackages.joinToString()), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.alarm_next_only), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.alarm_normal_window), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = model::recheckAlarm) { Text(stringResource(R.string.recovery_recheck_alarm)) }
+            alarmCheck?.let { result -> Text(result, style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.testTag("alarm-check-result")) }
+        }
+
+        Group(stringResource(R.string.short_test_title)) {
+            ShortTestControls(model)
         }
 
         Group(stringResource(R.string.settings_phone_setup)) {
@@ -350,7 +381,7 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, onChan
                 else stringResource(R.string.settings_preset_summary, title, modeName(preset.mode), preset.fanPercent, preset.minutes), style = MaterialTheme.typography.bodyMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY).forEach { mode ->
-                    FilterChip(preset.mode == mode, { onChange(preset.copy(mode = mode, temperature = preset.temperature.coerceIn(mode.temperatureRange))) }, label = { Text(modeName(mode)) })
+                    FilterChip(preset.mode == mode, { onChange(preset.copy(mode = mode, temperature = preset.temperature.coerceIn(mode.temperatureRange))) }, label = { ModeLabel(mode, f) })
                 }
             }
             if (preset.mode.usesTemperature) {

@@ -29,7 +29,7 @@ object HistoryCsv {
         head += listOf("fan %", "duration min", "detail")
         if (identifiers) head += "device identifier"
         row(head)
-        records.forEach { n ->
+        records.filterNot { it.isTestRun }.forEach { n ->
             fun emit(kind: String, at: String, end: String = "", revision: String = "", mode: String = "", temp: Int? = null,
                 fan: String = "", minutes: String = "", detail: String = "") {
                 val c = temp?.div(2.0)

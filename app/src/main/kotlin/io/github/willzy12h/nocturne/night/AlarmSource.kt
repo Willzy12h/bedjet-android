@@ -38,6 +38,7 @@ object AlarmSource {
         return buildJsonObject {
             put("reason", JsonPrimitive(explanation.reason.name))
             put("wakeState", JsonPrimitive(explanation.state.name))
+            put("isTestRun", JsonPrimitive(night?.isTestRun == true))
             put("explanation", JsonPrimitive(explanation.description(context)))
             put("wakeAt", JsonPrimitive(explanation.wakeAt?.toString()))
             put("wakeOrigin", JsonPrimitive(explanation.wakeOrigin?.name))

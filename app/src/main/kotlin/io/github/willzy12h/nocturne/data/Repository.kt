@@ -260,6 +260,7 @@ class Repository(
     /** Feedback is linked to a completed record. Rating alone never edits a reusable profile. */
     suspend fun recordMorningCheckIn(nightId: String, comfort: MorningComfort): MorningCheckIn? = serially {
         val night = _history.value.firstOrNull { it.id == nightId } ?: return@serially null
+        if (night.isTestRun) return@serially null
         if (_activeNight.value?.recordId == nightId || night.events.any { it.kind == EventKind.MORNING_FEEDBACK }) return@serially null
         val end = night.events.lastOrNull { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED } ?: return@serially null
         val detail = context.getString(when (comfort) {
@@ -276,6 +277,7 @@ class Repository(
     /** Rebuilds the preview after screen recreation; an applied suggestion is no longer offered. */
     fun morningCheckIn(nightId: String): MorningCheckIn? {
         val night = _history.value.firstOrNull { it.id == nightId } ?: return null
+        if (night.isTestRun) return null
         if (_activeNight.value?.recordId == nightId) return null
         val end = night.events.lastOrNull { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED } ?: return null
         val comfort = night.events.lastOrNull { it.kind == EventKind.MORNING_FEEDBACK }?.comfort ?: return null
@@ -293,6 +295,7 @@ class Repository(
     /** Accept only the exact Middle edit the person previewed, with a matching live profile and feedback. */
     suspend fun acceptMorningSuggestion(suggestion: MiddleSuggestion): Boolean = serially {
         val night = _history.value.firstOrNull { it.id == suggestion.nightId } ?: return@serially false
+        if (night.isTestRun) return@serially false
         if (_activeNight.value?.recordId == night.id || night.profileId != suggestion.profileId ||
             night.events.none { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED } ||
             night.events.none { it.kind == EventKind.MORNING_FEEDBACK && it.comfort == suggestion.comfort } ||

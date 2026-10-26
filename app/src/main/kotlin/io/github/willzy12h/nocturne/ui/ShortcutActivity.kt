@@ -31,10 +31,19 @@ class ShortcutActivity : Activity() {
         // Notification requests retain render-time identity. External extras never waive confirmation.
         val captured = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) current.copy(
             deviceId = intent.getStringExtra(EXTRA_TARGET), expected = NightAlarms.identity(intent)) else current
+        val recovery = command == NightActions.Command.END_NIGHT || command == NightActions.Command.RESUME
         AlertDialog.Builder(this)
-            .setTitle(R.string.runtime_confirm_title)
-            .setMessage(getString(R.string.runtime_confirm_command, NightActions.commandLabel(this, command)))
-            .setPositiveButton(R.string.runtime_confirm) { _, _ ->
+            .setTitle(when (command) {
+                NightActions.Command.END_NIGHT -> R.string.guard_title
+                NightActions.Command.RESUME -> R.string.guard_resume_title
+                else -> R.string.runtime_confirm_title
+            })
+            .setMessage(when (command) {
+                NightActions.Command.END_NIGHT -> getString(R.string.runtime_confirm_stop)
+                NightActions.Command.RESUME -> getString(R.string.guard_resume_body)
+                else -> getString(R.string.runtime_confirm_command, NightActions.commandLabel(this, command))
+            })
+            .setPositiveButton(if (recovery) NightActions.commandLabel(this, command) else getString(R.string.runtime_confirm)) { _, _ ->
                 BedJetService.start(this, captured.copy(replacementConfirmed = true)); finish()
             }
             .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }

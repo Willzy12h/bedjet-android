@@ -8,9 +8,9 @@ import java.time.ZonedDateTime
 
 class PlanningHardeningTest {
     private val start = ZonedDateTime.parse("2026-10-21T22:30:00Z")
-    @Test fun `over sixteen hours is refused before producing a programme`() {
-        val error = assertThrows<PlanException> { PlanCompiler.compile(Presets.springAutumn, start, start.plusHours(17)) }
-        assertTrue(error.message!!.contains("tonight-only"))
+    @Test fun `over eighteen hours is refused before producing a programme`() {
+        val error = assertThrows<NightDurationException> { PlanCompiler.compile(Presets.springAutumn, start, start.plusHours(19)) }
+        assertEquals(NightDurationProblem.TOO_LONG, error.problem)
     }
     @Test fun `turbo then heat cannot silently exceed the cap`() {
         val p = Presets.winterWarm.copy(limits = ProfileLimits(maxTemp = 76))

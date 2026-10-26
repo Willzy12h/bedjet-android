@@ -53,20 +53,20 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
             }
             // The offer is for this night's own programme, which a manual run left (P3b).
             if (night?.trackingManual == true && offer?.night?.recordId == night.recordId) {
-                OutlinedButton(onClick = { guard.confirm(resumeSaved) { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text(stringResource(R.string.recovery_resume_programme)) }
+                OutlinedButton(onClick = { guard.resume(resumeSaved) { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text(stringResource(R.string.recovery_resume_programme)) }
             }
             if (night == null && offer != null) {
                 OutlinedButton(onClick = { model.run(Command.RESUME) }) { Text(stringResource(R.string.recovery_resume_previous)) }
             }
             // A night replaced by this one can still be resumed while its offer lasts.
             if (night != null && offer != null && offer.night.recordId != night.recordId) {
-                OutlinedButton(onClick = { guard.confirm(resumePrevious) { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text(stringResource(R.string.recovery_resume_previous)) }
+                OutlinedButton(onClick = { guard.resume(resumePrevious) { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text(stringResource(R.string.recovery_resume_previous)) }
             }
         }
         DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
             if (night != null) DropdownMenuItem(text = { Text(stringResource(R.string.recovery_recheck_alarm)) }, onClick = {
                 more = false
-                model.run(Command.RETIME)
+                model.recheckAlarm()
             })
             PhoneHandoverMenuItems(model.graph, onOutcome = model::report) { more = false }
         }

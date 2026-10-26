@@ -41,7 +41,6 @@
     <string name="runtime_extend_warm">Extend warm</string>
     <string name="runtime_extend_cool">Extend cool</string>
     <string name="runtime_timed">%1$s %2$d min.</string>
-    <string name="runtime_boost">Boost: Turbo, then Heat, for %1$d min.</string>
     <string name="runtime_stop_tracking">Stopped tracking. This does not turn the BedJet off.</string>
     <string name="runtime_ended">Night ended.</string>
     <string name="runtime_stopped">Night stopped.</string>
@@ -87,15 +86,16 @@
     <string name="runtime_confirm_title">Send this command to your BedJet?</string>
     <string name="runtime_confirm_command">Run %1$s? This can replace the programme currently running on the BedJet.</string>
     <string name="runtime_confirm">Send command</string>
+    <string name="runtime_confirm_stop">Stop the tracked night and turn the BedJet off?</string>
     <string name="runtime_quiet">Waking at %1$s</string>
-    <string name="runtime_end">End</string>
-    <string name="runtime_resume_title">Resume the rest of the night</string>
+    <string name="runtime_end">Stop night</string>
+    <string name="runtime_resume_title">Resume night</string>
     <string name="runtime_adopted">Selected the BedJet remembered by the previous version.</string>
     <string name="runtime_settings_saved">Settings saved.</string>
     <string name="runtime_replace_confirmation">Open Nocturne to confirm replacing the running night.</string>
     <string name="runtime_override_label">Change tonight’s wake time</string>
     <string name="runtime_command_start_night">Start night</string>
-    <string name="runtime_command_end_night">End night</string>
+    <string name="runtime_command_end_night">Stop night</string>
     <string name="runtime_command_off">Off</string>
     <string name="runtime_command_turbo">Turbo</string>
     <string name="runtime_command_boost">Boost</string>
@@ -108,7 +108,7 @@
     <string name="runtime_command_snooze_cool">Snooze cool</string>
     <string name="runtime_command_extend_warm">Extend warm</string>
     <string name="runtime_command_extend_cool">Extend cool</string>
-    <string name="runtime_command_resume">Resume</string>
+    <string name="runtime_command_resume">Resume night</string>
     <string name="runtime_command_stop_tracking">Stop tracking</string>
     <string name="runtime_command_keep_tracking">Keep tracking</string>
     <string name="runtime_export_failed">Could not open the diagnostics file.</string>

@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 object WidgetUpdater {
     private val started = AtomicBoolean(false)
 
-    private data class Shown(val profiles: List<Profile>, val settings: Settings, val name: String, val runtime: Any?, val minute: Long, val dark: Boolean)
+    private data class Shown(val profiles: List<Profile>, val settings: Settings, val name: String, val runtime: Any?, val dark: Boolean)
 
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
     fun start(context: Context) {
@@ -48,11 +48,28 @@ object WidgetUpdater {
         val graph = app.graph
         val repo = graph.repository
         val linkState = repo.settings.map { graph.link }.distinctUntilChanged().flatMapLatest { it.state }
-        val time = flow { while (true) { emit(graph.now()); delay(60_000) } }
-        val shownState = combine(repo.activeNight, repo.automation, repo.runtime, time) { active, observation, runtime, at ->
-            Triple(Triple(active,observation,runtime),at.toEpochSecond()/60,at)
+        // These are the finite deadlines of the tracked plan, not an unconditional minute poll.
+        // Ending/changing the night cancels its old deadlines through flatMapLatest.
+        val boundaries = combine(repo.activeNight, repo.profiles) { active, profiles -> active to profiles }
+            .flatMapLatest { (active, profiles) -> flow {
+                emit(Unit)
+                if (active?.confidence != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED || active.pending != null) return@flow
+                val times = buildList {
+                    active.activePlan(profiles.firstOrNull { it.id == active.profileId })?.steps?.forEach { add(it.startsAt); add(it.endsAt) }
+                    add(java.time.ZonedDateTime.parse(active.wakeAt))
+                    add(java.time.ZonedDateTime.parse(active.endsAt))
+                }.distinct().filter { it.isAfter(graph.now()) }.sorted()
+                for (at in times) {
+                    delay(java.time.Duration.between(graph.now(), at).toMillis().coerceAtLeast(0))
+                    emit(Unit)
+                }
+            } }
+        val shownState = combine(repo.activeNight, repo.automation, repo.runtime, boundaries) { active, observation, runtime, _ ->
+            listOf(active, observation, runtime, widgetPhase(app, active), widgetWake(app, active, runtime))
         }
-        combine(repo.profiles, repo.settings, linkState, shownState) { profiles, settings, _, shown -> Shown(profiles, settings, widgetBedJetName(app, settings), shown.first, shown.second, settings.isDarkTheme(shown.third,false)) }
+        combine(repo.profiles, repo.settings, linkState, shownState) { profiles, settings, _, shown ->
+            Shown(profiles, settings, widgetBedJetName(app, settings), shown, settings.isDarkTheme(graph.now(), false))
+        }
             .distinctUntilChanged()
             // A slider drag writes settings many times a second; widgets only need the result.
             .debounce(500)

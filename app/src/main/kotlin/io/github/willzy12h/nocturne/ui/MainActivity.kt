@@ -108,7 +108,7 @@ private enum class Tab(@androidx.annotation.StringRes val label: Int, val icon: 
 }
 
 @Serializable
-private data class ProfileDraft(val original: Profile, val edited: Profile)
+private data class ProfileDraft(val original: Profile, val edited: Profile, val selection: EditorPhaseSelection? = null)
 
 @androidx.compose.runtime.Composable
 private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
@@ -136,6 +136,14 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         draftJson = parked ?: Json.encodeToString(ProfileDraft(profile, profile))
         if (parked != null) parkedDrafts = parkedDrafts - parked
     }
+    val editPhase: (Profile, EditorPhaseSelection) -> Unit = { profile, selection ->
+        edit(profile)
+        draftJson = draftJson?.let { encoded ->
+            val saved = Json.decodeFromString<ProfileDraft>(encoded)
+            // A parked draft can have different phase indices from the curve the person just selected.
+            Json.encodeToString(saved.copy(selection = selection.takeIf { saved.edited == profile }))
+        }
+    }
     val snackbar = remember { SnackbarHostState() }
     // The snackbar floats over the content, so while one shows the content ends above it and nothing (Off) sits underneath.
     var snackbarHeight by remember { mutableIntStateOf(0) }
@@ -154,7 +162,7 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
     draftJson?.let { json ->
         val draft = Json.decodeFromString<ProfileDraft>(json)
         ProfileEditor(model, draft.original, onDone = { draftJson = null },
-            initialDraft = draft.edited, onDraftChange = { edited ->
+            initialDraft = draft.edited, initialPhase = draft.selection, onDraftChange = { edited ->
                 val updated = Json.encodeToString(draft.copy(edited = edited))
                 if (draftJson?.let { Json.decodeFromString<ProfileDraft>(it).original.id } == draft.original.id) {
                     draftJson = updated
@@ -196,7 +204,7 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         val snackbarInset = with(density) { snackbarHeight.toDp() }
         val modifier = Modifier.padding(padding).padding(bottom = snackbarInset)
         when (tab) {
-            Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit,
+            Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onEditPhase = editPhase,
                 onOpenBackups = { tab = Tab.SETTINGS; alarmsRequest = 0; backupsRequest++ },
                 onOpenAlarmSettings = { tab = Tab.SETTINGS; backupsRequest = 0; alarmsRequest++ })
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
