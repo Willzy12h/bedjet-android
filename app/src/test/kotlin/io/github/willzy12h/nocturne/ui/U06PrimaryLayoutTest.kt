@@ -131,9 +131,11 @@ class U06PrimaryLayoutTest(look: U06Look) {
     @PrimarySeed(PrimaryScenario.IDLE)
     @Test fun remoteModeTimerAndBoostControlsAreReachableAboveFeedback() {
         val graph = ui.graph
+        val warmPreset = graph.repository.settings.value.extendWarm
+        val warmFeedback = ui.compose.activity.resources.getQuantityString(
+            R.plurals.runtime_captured_action_duration, warmPreset.minutes, ui.s(R.string.mode_heat), warmPreset.minutes)
         ui.control(ui.s(R.string.feature_warm)).performClick()
         ui.waitUntil { graph.link.status.value?.mode == Mode.HEAT && graph.actions.busy.value.runningLabel == null }
-        val warmFeedback = ui.s(R.string.runtime_warming)
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isNotEmpty() }
         // Dismiss the command's real feedback so the first pass has no snackbar and the controlled one can follow.
         ui.compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Dismiss))
@@ -141,11 +143,13 @@ class U06PrimaryLayoutTest(look: U06Look) {
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isEmpty() }
         ui.tab(ui.s(R.string.tab_remote))
         ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_lights)).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("The Heat fixture must report its four-hour runtime ceiling", 240, graph.link.status.value?.maxRuntimeMinutes)
         withAndWithoutFeedback {
             listOf(R.string.mode_cool, R.string.mode_heat, R.string.mode_gentle_heat,
                 R.string.mode_turbo, R.string.mode_dry, R.string.mode_off).forEach { ui.control(ui.s(it)) }
             listOf(15, 30).forEach { ui.control(ui.s(R.string.minutes_short, it)) }
-            listOf(1, 2, 4, 8).forEach { ui.control(ui.s(R.string.duration_hours, it)) }
+            listOf(1, 2, 4).forEach { ui.control(ui.s(R.string.duration_hours, it)) }
+            ui.compose.onAllNodes(hasText(ui.s(R.string.duration_hours, 8)) and hasClickAction()).assertCountEquals(0)
             ui.control(expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))
         }
     }

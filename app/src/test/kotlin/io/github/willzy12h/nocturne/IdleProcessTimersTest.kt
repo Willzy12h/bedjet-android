@@ -8,6 +8,7 @@ import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.ResumeOffer
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.notify.Notifications
+import io.github.willzy12h.nocturne.data.Repository
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -36,7 +37,13 @@ class IdleProcessTimersTest {
     private lateinit var clock: CountingClock
 
     @Before fun setup() = runBlocking {
-        graph = graphs.fresh { Graph(app) }
+        val repositoryTime = Instant.parse("2026-10-26T22:30:00Z").atZone(ZoneOffset.UTC)
+        graph = graphs.fresh {
+            Graph(app, repositoryFactory = { scope, _ ->
+                // Snapshot timestamps must not contaminate the notification/demo clock measurement.
+                Repository(app, scope, now = { repositoryTime })
+            })
+        }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false) }
         idle()
@@ -45,9 +52,18 @@ class IdleProcessTimersTest {
     }
     private fun idle(ms: Long = 0) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
 
+    private fun awaitInitialReconciliation() {
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (clock.reads == 0 && System.nanoTime() < deadline) {
+            idle()
+            Thread.yield()
+        }
+        assertEquals("The real observer must reconcile once before measuring idle time", 1, clock.reads)
+    }
+
     @Test fun notificationExpiryDoesNotWakeTheIdleProcessEveryMinute() {
         graph.scope.launch { Notifications.observeWakeResume(app) }
-        idle()
+        awaitInitialReconciliation()
         val before = clock.reads
         idle(180_001)
         assertEquals("No night or offer means no clock timer", before, clock.reads)
