@@ -40,6 +40,13 @@ data class NightRecord(
     val revisions: List<AppliedProgram> = emptyList(),
     /** Kept for equipment diagnostics, excluded from real sleep views and integrations. */
     val isTestRun: Boolean = false,
+    /** Set only after this app receives confirmation of the real BedJet's programme. Legacy/imported data has no proof. */
+    val bedJetRunConfirmed: Boolean = false,
+    /** Natural completion of that confirmed programme, persisted through the local ending journal. */
+    val confirmedCompletionAt: String? = null,
+    /** Monotonic provider version; a successful upsert is acknowledged separately. */
+    val healthExportVersion: Long = 0,
+    val healthExportedVersion: Long = 0,
 )
 
 object History {

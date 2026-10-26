@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="health_data_rationale">Nocturne reads sleep stages only when you enable the History overlay. If you separately enable programme export and grant write permission, it writes completed, receipt-confirmed BedJet programmes as sleep sessions labelled “BedJet programme ran”. This is not verified sleep. Equipment tests, demo, incomplete and uncertain nights are never exported. You can revoke either permission in Health Connect.</string>
+</resources>

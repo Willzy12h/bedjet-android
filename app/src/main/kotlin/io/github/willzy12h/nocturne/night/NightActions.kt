@@ -412,7 +412,9 @@ class NightActions(private val graph: Graph) {
         val events = if (night.applied in record.revisions) record.events else record.events +
             event(if (started) EventKind.STARTED else if (change.request.kind == ChangeKind.TEMPORARY) EventKind.TEMPORARY else EventKind.RETIMED,
                 programmeDetail(change, night, message))
-        repo.addRecord(revised.copy(events = events))
+        repo.addRecord(revised.copy(events = events, bedJetRunConfirmed =
+            !repo.settings.value.demoMode && !night.isTestRun && !io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(night.deviceId) &&
+                night.deviceId.startsWith("ble:") && night.confidence == Confidence.CONFIRMED && night.pending == null))
     }
     private fun temporaryShortened(change: PreparedChange): Boolean {
         if (change.request.kind != ChangeKind.RETIME) return false
@@ -702,7 +704,8 @@ class NightActions(private val graph: Graph) {
         if (repo.activeNight.value?.identity == night.identity) finishLocked(night, kind, detail)
     }
     private suspend fun finishLocked(night: ActiveNight, kind: EventKind, detail: String,
-        end: PendingEnd = PendingEnd(night.identity, event(kind, detail), isTestRun = night.isTestRun)) {
+        end: PendingEnd = PendingEnd(night.identity, event(kind, detail), isTestRun = night.isTestRun,
+            confirmedCompletionAt = confirmedCompletion(night, kind))) {
         val transition = io.github.willzy12h.nocturne.core.night.stopTracking(night, detail, graph.now(), repo.runtime.value.generation)
         // IR-06: a slot write made in this night, or one that displaced it, ends with it.
         repo.updateRuntime { it.copy(ending = end,
@@ -717,13 +720,21 @@ class NightActions(private val graph: Graph) {
         completeLocalEnd()
         repo.runtime.value.resumeOffer?.let { Notifications.showResume(context) }
     }
+    /** A clock or an ENDED label alone cannot turn uncertain tracking into a confirmed completed programme. */
+    private fun confirmedCompletion(night: ActiveNight, kind: EventKind): String? = night.endsAt.takeIf {
+        kind == EventKind.ENDED && night.confidence == Confidence.CONFIRMED && night.pending == null &&
+            !night.trackingManual && !night.isTestRun && !repo.settings.value.demoMode &&
+            !io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(night.deviceId) &&
+            repo.runtime.value.retime == null && repo.runtime.value.alarmInbox == null &&
+            !graph.now().isBefore(ZonedDateTime.parse(night.endsAt)) &&
+            repo.history.value.any { it.id == night.recordId && it.bedJetRunConfirmed }
+    }
     /** Complete an idempotent local journal after a crash between the separate durable files. */
     private suspend fun completeLocalEnd() {
         val end = repo.runtime.value.ending ?: return
         val active = repo.activeNight.value
         if (active == null || active.identity == end.identity) {
-            val events = repo.history.value.firstOrNull { it.id == end.identity.nightId }?.events.orEmpty()
-            if (end.event !in events) repo.addEvent(end.identity.nightId, end.event)
+            repo.completeHistoryRecord(end.identity.nightId, end.event, end.confirmedCompletionAt)
             publishNight(null)
             if (!end.isTestRun && active?.isTestRun != true &&
                 repo.history.value.none { it.id == end.identity.nightId && it.isTestRun })

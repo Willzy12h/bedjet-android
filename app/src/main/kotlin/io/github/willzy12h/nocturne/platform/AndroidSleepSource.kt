@@ -37,7 +37,7 @@ class AndroidSleepSource(context: Context) : SleepSource {
 class HealthRationaleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AlertDialog.Builder(this).setTitle(R.string.feature_health_title).setMessage(R.string.feature_health_privacy)
+        AlertDialog.Builder(this).setTitle(R.string.feature_health_title).setMessage(R.string.health_data_rationale)
             .setPositiveButton(android.R.string.ok){_,_->finish()}.setOnCancelListener{finish()}.show()
     }
 }
