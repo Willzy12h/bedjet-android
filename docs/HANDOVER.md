@@ -1,10 +1,12 @@
-# Nocturne — current handover
+# Nocturne — source handover
 
-## GPT-11 UX continuation — verification in progress
+## GPT-11 UX source handover
 
-The current branch is `gpt/nocturne-ux`, created from the pushed Step A tip **`367968bddc390e5b2bb12876fc1662ffa07e47c3`**. It also incorporates the later fixes2 Temporary feature through **`655993d2ea3d5021a2fab75ecf7db5f77d699f7e`**. The current self-review, phone cross-check and evidence are in [UX integration review](review/ux-self-review-pass1-integration.md), [phone cross-check](review/ux-phone-cross-check.md) and [next phone checks](review/ux-phone-test-guide.md). The final combined UX gate, test APK and merge are still pending; the earlier gate below does not verify this source.
+The `gpt/nocturne-ux` continuation starts from the pushed Step A tip **`367968bddc390e5b2bb12876fc1662ffa07e47c3`** and incorporates the later fixes2 Temporary feature through **`655993d2ea3d5021a2fab75ecf7db5f77d699f7e`**. The [final source self-review](review/ux-final-source-review.md), [integration history](review/ux-self-review-pass1-integration.md), [phone cross-check](review/ux-phone-cross-check.md) and [next phone checks](review/ux-phone-test-guide.md) describe the implementation, evidence and limits.
 
-The user's later instructions authorise a merge after completion and require the existing test certificate for the APK. No production release is authorised. Normal alarm selection now explains its **1–18-hour** window; the explicitly confirmed five-minute Settings equipment test changes no phone alarm. Longer Boost labels describe **Turbo for at most 10 minutes, then Heat**. Temporary return is part of the uploaded BedJet programme and requires physical phone-away testing. The current stopping choice is **Stop night**. Reviewed Off/Stop requests retain the reviewed night identity; only unconfirmed emergency Off retains its existing same-target identity exemption.
+Normal alarm selection explains its **1–18-hour** window; the explicitly confirmed five-minute Settings equipment test changes no phone alarm. A configured Boost longer than ten minutes uses **Turbo 10 minutes, then Heat for the remainder**. Temporary return is part of the uploaded BedJet programme and requires physical phone-away testing. The stopping choice is **Stop night**. Reviewed Off/Stop requests retain their captured night identity; only unconfirmed emergency Off keeps its existing same-target identity exemption. R4 Health Connect writing and R5 import preview/blanket queued-restore exclusion remain Missing.
+
+For final execution JSON, tested-source and merge identifiers, the installable test APK, its hash/certificate and the complete 0–12 delivery handover, consult [PR #3](https://github.com/Willzy12h/bedjet-android/pull/3) and the metadata accompanying the APK. The user's instructions require the existing test certificate and authorise merge after completion; no production release is authorised. Historical source-pinned results below apply only to their recorded checkpoints. Host evidence does not establish physical phone or BedJet acceptance.
 
 ## Historical incoming fixes2 Temporary handover
 

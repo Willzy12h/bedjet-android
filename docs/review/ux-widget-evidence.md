@@ -6,7 +6,7 @@ Scope: approved `2026-10-26-nocturne-ux` design and plan, P4 only. Base: `367968
 
 ## Current integrated verification
 
-The responsive widget route, its Temporary/Stop night overlay, captured-preset transport and native presentation repairs have focused passing evidence. The shared idle capture repair is also verified: the native approval shows Turbo 10 minutes plus Heat 5 minutes, Settings changes to 30 minutes while it is open, and the actual owner-confirmed stored programme still contains exactly the reviewed 10+5 minutes. Cancellation sends nothing, the confirmed outcome retains SHORTCUT origin, and the route does not launch MainActivity. Full integration/release gates remain root-owned and pending.
+The responsive widget route, its Temporary/Stop night overlay, captured-preset transport and native presentation repairs have focused passing evidence. The shared idle capture repair is also verified: the native approval shows Turbo 10 minutes plus Heat 5 minutes, Settings changes to 30 minutes while it is open, and the actual owner-confirmed stored programme still contains exactly the reviewed 10+5 minutes. Cancellation sends nothing, the confirmed outcome retains SHORTCUT origin, and the route does not launch MainActivity. For complete integration/release results and final source, APK and merge identifiers, consult [PR #3](https://github.com/Willzy12h/bedjet-android/pull/3) and the accompanying delivery metadata. The focused results here retain their named scope.
 
 | Focused evidence | Fresh requested result | What it establishes |
 | --- | --- | --- |

@@ -6,7 +6,10 @@
     <string name="runtime_temporary_ended">This night has ended. Review Tonight before choosing another action.</string>
     <string name="runtime_temporary_snapshot_missing">The saved night programme is unavailable. A temporary return cannot be prepared.</string>
     <string name="runtime_temporary_invalid">Choose a valid mode and duration for this action.</string>
-    <string name="runtime_turbo_duration_limit">Turbo can run for at most %1$d minutes. Choose a shorter duration.</string>
+    <plurals name="runtime_turbo_duration_limit">
+        <item quantity="one">Turbo can run for at most %1$d minute. Choose a shorter duration.</item>
+        <item quantity="other">Turbo can run for at most %1$d minutes. Choose a shorter duration.</item>
+    </plurals>
     <string name="runtime_temporary_profile_limits">This action cannot fit the running night’s temperature or fan limits. Choose another mode or setting.</string>
     <string name="runtime_temporary_too_close">There is not enough time to run this action and safely return before wake-up. Choose a shorter duration or stop the night.</string>
     <string name="runtime_temporary_too_many_steps">This action and the remaining night need more than the BedJet’s 32 steps. Choose another duration or stop the night.</string>

@@ -27,7 +27,8 @@ internal fun NightActions.Command.usesCapturedPreset(): Boolean = this in setOf(
 /** Snooze/Extend send one manual run; they do not append Boost's Heat continuation. */
 internal fun timedPresetRefusal(context: Context, preset: ActionPreset): String? =
     if (preset.mode == Mode.TURBO && preset.minutes > Limits.TURBO_MINUTES)
-        context.getString(R.string.runtime_turbo_duration_limit, Limits.TURBO_MINUTES)
+        context.resources.getQuantityString(R.plurals.runtime_turbo_duration_limit,
+            Limits.TURBO_MINUTES, Limits.TURBO_MINUTES)
     else null
 
 /** A saved Warm label may hold another mode, and a one-action duration need not be the legacy default. */
