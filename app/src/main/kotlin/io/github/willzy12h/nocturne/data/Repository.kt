@@ -30,6 +30,7 @@ import io.github.willzy12h.nocturne.core.store.Migrations
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.core.store.NotificationLog
 import io.github.willzy12h.nocturne.core.store.Settings
+import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
 import io.github.willzy12h.nocturne.core.store.SnapshotStore
@@ -192,6 +193,13 @@ class Repository(
     val automation: StateFlow<io.github.willzy12h.nocturne.platform.AutomationState> = _automation.asStateFlow()
     suspend fun updateAutomation(change: (io.github.willzy12h.nocturne.platform.AutomationState) -> io.github.willzy12h.nocturne.platform.AutomationState) =
         update(_automation, AUTOMATION, io.github.willzy12h.nocturne.platform.AutomationState.serializer(), change)
+    /** A queued report may outlive its target or demo session; reject it before any durable write. */
+    suspend fun recordDeviceObservation(observation: io.github.willzy12h.nocturne.platform.DeviceObservation) = serially {
+        if (_settings.value.deviceId() != observation.device) return@serially
+        val state = _automation.value.copy(observed = observation)
+        writeValue(AUTOMATION, io.github.willzy12h.nocturne.platform.AutomationState.serializer(), state)
+        _automation.value = state
+    }
     suspend fun claimAutomation(key: String): Boolean = serially {
         val current = _automation.value
         if (key in current.claims) false else {

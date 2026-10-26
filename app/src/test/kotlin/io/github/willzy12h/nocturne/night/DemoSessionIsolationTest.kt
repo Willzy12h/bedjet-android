@@ -13,6 +13,11 @@ import io.github.willzy12h.nocturne.core.store.NoticeKind
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.data.Repository
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
@@ -27,6 +32,8 @@ import java.io.IOException
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.coroutines.CoroutineContext
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -106,6 +113,34 @@ class DemoSessionIsolationTest {
         graph.actions.setDemoMode(false)
         assertEquals("Demo must not consume or rewrite real recovery state", recovery, graph.repository.runtime.value)
         assertEquals(before, userFiles())
+    }
+
+    @Test fun aLateDemoObservationCannotWriteIntoTheRestoredRealSession() = runBlocking {
+        val writer = PausingWriter()
+        val writes = CopyOnWriteArrayList<String>()
+        graph = graphs.fresh { Graph(context, repositoryFactory = { scope, now ->
+            Repository(context, scope, writer = writer, writeFile = { file, bytes ->
+                writes += file.name
+                Repository.writeDurably(file, bytes)
+            }, now = now)
+        }).also { it.clock = clock } }
+        ReflectionHelpers.setField(context as App, "graph", graph)
+        graph.repository.updateAutomation { it.copy(claims = listOf("real-recovery")) }
+        val realAutomation = graph.repository.automation.value
+        graph.actions.setDemoMode(true)
+        graph.sessions.acquire()
+        try {
+            val status = graph.link.status.value!!
+            writer.pauseNext = true
+            val pending = async(Dispatchers.Default) { graph.platform.observe(status, "demo") }
+            withTimeout(2_000) { while (!writer.hasPaused) delay(1) }
+            assertEquals(OutcomeKind.LOCAL, graph.actions.setDemoMode(false).kind)
+            writes.clear()
+            writer.resume()
+            pending.await()
+            assertEquals("An old demo receipt cannot become a real device observation", realAutomation, graph.repository.automation.value)
+            assertTrue("A discarded observation must not write a real file", writes.isEmpty())
+        } finally { writer.resume(); graph.sessions.releaseLater() }
     }
 
     @Test fun demoCannotCreateOrDeleteRealSnapshots() = runBlocking {
@@ -223,6 +258,22 @@ class DemoSessionIsolationTest {
     private fun restartGraph() {
         graph = graphs.fresh { Graph(context).also { it.clock = clock } }
         ReflectionHelpers.setField(context as App, "graph", graph)
+    }
+
+    private class PausingWriter : CoroutineDispatcher() {
+        @Volatile var pauseNext = false
+        @Volatile private var paused: Pair<CoroutineContext, Runnable>? = null
+        val hasPaused: Boolean get() = paused != null
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            synchronized(this) {
+                if (pauseNext) { pauseNext = false; paused = context to block; return }
+            }
+            Dispatchers.IO.dispatch(context, block)
+        }
+        fun resume() {
+            val task = synchronized(this) { paused.also { paused = null } } ?: return
+            Dispatchers.IO.dispatch(task.first, task.second)
+        }
     }
 
     companion object { private const val REAL = "ble:AA:BB:CC:DD:EE:01" }

@@ -21,6 +21,6 @@ class PlatformRuntime(private val graph: Graph) {
     suspend fun observe(status: io.github.willzy12h.nocturne.core.protocol.DeviceStatus,target:String?) {
         if (!graph.sessions.hasStatusDemand || target == null || graph.link.state.value != LinkState.READY) return
         val name=if (graph.repository.settings.value.demoMode) "BEDJET-DEMO" else graph.bleLink.deviceName
-        graph.repository.updateAutomation { it.copy(observed=DeviceObservation(target,name,status.mode.name,status.isRunning,graph.now().toString())) }
+        graph.repository.recordDeviceObservation(DeviceObservation(target,name,status.mode.name,status.isRunning,graph.now().toString()))
     }
 }
