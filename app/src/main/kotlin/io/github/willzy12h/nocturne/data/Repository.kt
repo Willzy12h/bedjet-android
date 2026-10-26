@@ -978,7 +978,7 @@ class Repository(
         } catch (_: FileNotFoundException) {
             return JournalState.NONE
         } catch (e: IOException) {
-            Log.e(TAG, "Couldn't use $RESTORE_JOURNAL; it will be moved aside", e)
+            Log.e(TAG, "Couldn't use $RESTORE_JOURNAL; it will be moved aside (${e.javaClass.simpleName})")
             toSetAside += file.baseFile
             return JournalState.DAMAGED
         }
@@ -1025,7 +1025,7 @@ class Repository(
      */
     private fun <T> load(name: String, decode: (String) -> T): T? {
         pendingJournal?.get(name)?.let { bytes ->
-            runCatching { decode(bytes.decodeToString()) }.onSuccess { return it }.onFailure { Log.e(TAG, "Couldn't read $name from the journal", it) }
+            runCatching { decode(bytes.decodeToString()) }.onSuccess { return it }.onFailure { Log.e(TAG, "Couldn't read $name from the journal (${it.javaClass.simpleName})") }
         }
         val file = AtomicFile(File(dir, name))
         return try {
@@ -1042,7 +1042,7 @@ class Repository(
 
     /** Notes [file] as unreadable; [setAsidePending] moves it aside on the writer. */
     private fun <T> setAside(file: File, cause: Exception): T? {
-        Log.w(TAG, "Couldn't read ${file.name}; it will be moved aside", cause)
+        Log.w(TAG, "Couldn't read ${file.name}; it will be moved aside (${cause.javaClass.simpleName})")
         toSetAside += file
         _unreadable.value = (_unreadable.value + file.name).distinct()
         if (file.name == SLOT_BACKUPS) originalsIntegrityBlocked = true
