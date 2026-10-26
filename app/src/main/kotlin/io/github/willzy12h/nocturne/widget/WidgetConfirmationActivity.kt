@@ -17,6 +17,8 @@ import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.CommandRequest
 import io.github.willzy12h.nocturne.night.NightActions.Command
+import io.github.willzy12h.nocturne.ui.captureQuickAction
+import io.github.willzy12h.nocturne.ui.showTemporaryActionDialog
 import kotlinx.coroutines.launch
 
 /** A direct widget PendingIntent opens only this translucent, excluded confirmation overlay. */
@@ -30,6 +32,7 @@ class WidgetConfirmationActivity : ComponentActivity() {
             WidgetActionCallback.TARGET to supplied.getString(WidgetActionCallback.TARGET.name).orEmpty(),
             WidgetActionCallback.NIGHT to supplied.getString(WidgetActionCallback.NIGHT.name).orEmpty(),
             WidgetActionCallback.REVISION to supplied.getString(WidgetActionCallback.REVISION.name).orEmpty(),
+            WidgetActionCallback.PRESET to supplied.getString(WidgetActionCallback.PRESET.name).orEmpty(),
         )
         val original = widgetRequest(parameters) ?: run { finish(); return }
         val kind = supplied.getString(WidgetActionCallback.KIND.name) ?: WidgetActionCallback.QUICK
@@ -44,6 +47,16 @@ class WidgetConfirmationActivity : ComponentActivity() {
         val dark = settings.isDarkTheme(graph.now(), resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES)
         val dialogContext = ContextThemeWrapper(this, if (dark) android.R.style.Theme_Material_Dialog_Alert
             else android.R.style.Theme_Material_Light_Dialog_Alert)
+        val quick = captureQuickAction(graph, request)
+        if (quick != null) {
+            showTemporaryActionDialog(this, graph, quick, R.string.feature_cancel, dialogContext = dialogContext) { selected ->
+                lifecycleScope.launch {
+                    try { WidgetDelivery.submit(applicationContext, id, kind, selected) }
+                    finally { finish() }
+                }
+            }
+            return
+        }
         val title = when (request.command) {
             Command.OFF, Command.END_NIGHT -> R.string.widget_confirm_off
             Command.STOP_TRACKING -> R.string.recovery_stop_tracking_title
@@ -75,14 +88,16 @@ class WidgetConfirmationActivity : ComponentActivity() {
         private const val EXTRA_WIDGET = "widgetId"
         fun intent(context: Context, request: CommandRequest, id: GlanceId, kind: String): Intent {
             val widget = GlanceAppWidgetManager(context).getAppWidgetId(id)
-            val extras = Bundle().apply { widgetParameters(request, kind).asMap().forEach { (key, value) -> putString(key.name, value as String) } }
+            val parameters = widgetParameters(request, kind)
+            val extras = Bundle().apply { parameters.asMap().forEach { (key, value) -> putString(key.name, value as String) } }
             return Intent(context, WidgetConfirmationActivity::class.java)
                 .putExtra(EXTRA_REQUEST, extras).putExtra(EXTRA_WIDGET, widget)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
                 .setData(Uri.Builder().scheme("nocturne").authority("widget-confirm")
                     .appendPath(widget.toString()).appendPath(request.command.name).appendPath(request.profileId.orEmpty())
                     .appendPath(request.deviceId.orEmpty()).appendPath(request.expected?.nightId.orEmpty())
-                    .appendPath(request.expected?.revision?.toString().orEmpty()).build())
+                    .appendPath(request.expected?.revision?.toString().orEmpty())
+                    .appendPath(parameters[WidgetActionCallback.PRESET].orEmpty()).build())
         }
     }
 }

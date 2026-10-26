@@ -218,7 +218,7 @@
     <string name="connection_demo">Demo · %1$s</string>
     <!-- Night guard: "This will …" completions, and the dialog itself. -->
     <string name="guard_turn_off">turn the BedJet off</string>
-    <string name="guard_start_boost">start the Turbo boost</string>
+    <string name="guard_start_boost">start the boost</string>
     <string name="guard_start_warming">start warming</string>
     <string name="guard_start_cooling">start cooling</string>
     <string name="guard_resume_saved">resume the saved programme</string>

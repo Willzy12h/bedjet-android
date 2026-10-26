@@ -15,6 +15,8 @@ import io.github.willzy12h.nocturne.ble.BluetoothAdmission
 import io.github.willzy12h.nocturne.ble.BluetoothCommandException
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.night.Confidence
+import io.github.willzy12h.nocturne.core.store.ActionPreset
+import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.*
 import io.github.willzy12h.nocturne.notify.Notifications
@@ -186,6 +188,7 @@ class BedJetService : Service() {
         private const val EXTRA_CONFIRMED = "replacementConfirmed"
         private const val EXTRA_STRICT = "strictIdentity"
         private const val EXTRA_ORIGIN = "commandOrigin"
+        private const val EXTRA_PRESET = "actionPreset"
         @Volatile var lastResult: String? = null
         fun intent(context: Context, command: NightActions.Command, profileId: String? = null, requireIdentity: Boolean = false, replacementConfirmed: Boolean = false): Intent {
             val captured = context.graph.actions.capture(command, profileId, requireIdentity)
@@ -196,14 +199,25 @@ class BedJetService : Service() {
                 .putExtra(EXTRA_PROFILE, captured.profileId).putExtra(EXTRA_TARGET, captured.deviceId)
                 .putExtra(EXTRA_CONFIRMED, captured.replacementConfirmed).putExtra(EXTRA_STRICT, captured.requireIdentity)
                 .putExtra(EXTRA_ORIGIN, captured.origin.name)
+                .putExtra(EXTRA_PRESET, captured.actionPreset?.let { BackupCodec.json.encodeToString(ActionPreset.serializer(), it) })
                 .putExtra(NightAlarms.EXTRA_NIGHT, captured.expected?.nightId)
                 .putExtra(NightAlarms.EXTRA_REVISION, captured.expected?.revision ?: -1)
         private fun request(intent: Intent): CommandRequest? {
             val command = intent.getStringExtra(EXTRA_COMMAND)?.let { runCatching { NightActions.Command.valueOf(it) }.getOrNull() } ?: return null
             val origin = intent.getStringExtra(EXTRA_ORIGIN)?.let { runCatching { CommandOrigin.valueOf(it) }.getOrNull() }
                 ?: defaultCommandOrigin(command)
+            val encoded = intent.getStringExtra(EXTRA_PRESET)?.takeIf { command.usesCapturedPreset() }
+            val preset = if (encoded == null) null else {
+                if (encoded.length > 1_024) return null
+                runCatching { BackupCodec.json.decodeFromString(ActionPreset.serializer(), encoded) }.getOrNull() ?: return null
+            }
+            if (preset != null && !validCapturedPreset(command, preset)) return null
+            val identity = NightAlarms.identity(intent)
+            if (command == NightActions.Command.TEMPORARY && (preset == null || identity == null ||
+                    identity.nightId.isBlank() || identity.revision < 0 || intent.getStringExtra(EXTRA_TARGET).isNullOrBlank())) return null
             return CommandRequest(command, intent.getStringExtra(EXTRA_PROFILE), intent.getStringExtra(EXTRA_TARGET),
-                NightAlarms.identity(intent), intent.getBooleanExtra(EXTRA_STRICT, false), intent.getBooleanExtra(EXTRA_CONFIRMED, false), origin)
+                identity, command == NightActions.Command.TEMPORARY || intent.getBooleanExtra(EXTRA_STRICT, false),
+                intent.getBooleanExtra(EXTRA_CONFIRMED, false), origin, preset)
         }
         /** False means no service owns the work. Receivers may only record/schedule a pending retry. */
         fun start(context: Context, command: NightActions.Command, profileId: String? = null,

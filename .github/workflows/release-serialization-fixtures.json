@@ -461,7 +461,26 @@
         "$ref": "pending"
       },
       "actualEnd": "2026-10-24T07:00Z",
-      "trackingManual": true
+      "trackingManual": true,
+      "temporary": {
+        "$ref": "temporary"
+      }
+    },
+    "temporary": {
+      "base": {
+        "$ref": "applied"
+      },
+      "steps": [
+        {
+          "block": "TEMPORARY",
+          "mode": "TURBO",
+          "temperature": 86,
+          "fanPercent": 100,
+          "startsAt": "2026-10-23T22:40Z",
+          "minutes": 10
+        }
+      ],
+      "until": "2026-10-23T22:50Z"
     },
     "editorPhase": {
       "block": "START",
@@ -500,7 +519,8 @@
       "REAPPLY",
       "RESUME",
       "STOP",
-      "MANUAL"
+      "MANUAL",
+      "TEMPORARY"
     ],
     "io.github.willzy12h.nocturne.core.night.Confidence": [
       "CONFIRMED",
@@ -523,6 +543,11 @@
         "$ref": "resume"
       }
     ],
+    "io.github.willzy12h.nocturne.core.night.TemporaryOverride": [
+      {
+        "$ref": "temporary"
+      }
+    ],
     "io.github.willzy12h.nocturne.core.night.WakeOrigin": [
       "ALARM",
       "PROFILE_DEFAULT",
@@ -532,7 +557,8 @@
       "START",
       "MIDDLE",
       "WAKE",
-      "AFTER_WAKE"
+      "AFTER_WAKE",
+      "TEMPORARY"
     ],
     "io.github.willzy12h.nocturne.core.plan.Middle": [
       {
@@ -622,7 +648,8 @@
       "REMOTE_CHANGE",
       "RECOVERED",
       "MORNING_FEEDBACK",
-      "MORNING_SUGGESTION_APPLIED"
+      "MORNING_SUGGESTION_APPLIED",
+      "TEMPORARY"
     ],
     "io.github.willzy12h.nocturne.core.store.HistoryEvent": [
       {

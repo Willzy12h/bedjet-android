@@ -48,6 +48,7 @@ import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.NightActions.Command
+import io.github.willzy12h.nocturne.night.compactBoostLabel
 import io.github.willzy12h.nocturne.ui.DaylightScheme
 import io.github.willzy12h.nocturne.ui.MainActivity
 import io.github.willzy12h.nocturne.ui.MidnightInkScheme
@@ -59,7 +60,7 @@ fun widgetActions(context: Context): List<WidgetAction> {
     val repo = context.graph.repository
     return listOf(
         WidgetAction(context.getString(R.string.feature_start_tonight), Command.START_NIGHT),
-        WidgetAction(context.getString(R.string.widget_turbo_duration, repo.settings.value.boostMinutes), Command.BOOST),
+        WidgetAction(compactBoostLabel(context, repo.settings.value.boostMinutes), Command.BOOST),
         WidgetAction(context.getString(R.string.widget_turbo_duration, 10), Command.TURBO),
         WidgetAction(context.getString(R.string.feature_cool), Command.COOL),
         WidgetAction(context.getString(R.string.feature_warm), Command.WARM),
@@ -107,7 +108,7 @@ private fun ActionButton(context: Context, action: WidgetAction, kind: String, i
         else actionRunCallback<WidgetActionCallback>(widgetParameters(request, kind))
     Button(text = action.label,
         onClick = click,
-        modifier = modifier.height(56.dp).padding(horizontal = 0.dp, vertical = 0.dp).semantics { contentDescription = widgetActionDescription(context, action) },
+        modifier = modifier.height(56.dp).padding(horizontal = 0.dp, vertical = 0.dp).semantics { contentDescription = widgetActionDescription(context, action, request) },
         style = TextStyle(fontSize = 16.sp), maxLines = if (context.resources.configuration.fontScale > 1.3f) 1 else 2,
         colors = if (action.command == Command.OFF) ButtonDefaults.buttonColors(
             backgroundColor = GlanceTheme.colors.secondaryContainer, contentColor = GlanceTheme.colors.onSecondaryContainer,

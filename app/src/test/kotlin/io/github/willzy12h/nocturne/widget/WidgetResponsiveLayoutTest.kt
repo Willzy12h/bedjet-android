@@ -139,7 +139,13 @@ class WidgetResponsiveLayoutTest : io.github.willzy12h.nocturne.platform.Platfor
                         val density = context.resources.displayMetrics.density
                         assertTrue("${button.text} needs a 56dp-wide touch target", button.width / density >= 56f)
                         assertTrue("${button.text} needs a 56dp-high touch target", button.height / density >= 56f)
-                        assertTrue("${button.text} must retain 16sp type", button.textSize / context.resources.displayMetrics.scaledDensity >= 16f)
+                        // API 34 applies a nonlinear font curve; dividing pixels by scaledDensity is not an SP conversion.
+                        val minimumPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
+                            16f, button.resources.displayMetrics)
+                        if (minutes == 10 && !single) println("Widget 200% type: ${button.text}, actualPx=${button.textSize}, " +
+                            "required16spPx=$minimumPx, scaledDensity=${button.resources.displayMetrics.scaledDensity}")
+                        assertTrue("${button.text} must retain 16sp type: actualPx=${button.textSize}, requiredPx=$minimumPx",
+                            button.textSize + .01f >= minimumPx)
                         val rect = android.graphics.Rect()
                         button.getDrawingRect(rect)
                         root.offsetDescendantRectToMyCoords(button, rect)

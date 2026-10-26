@@ -57,8 +57,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -67,6 +67,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transform
@@ -127,21 +128,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val linkState: StateFlow<LinkState> = repo.settings.map { graph.link }.flatMapLatest { it.state }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LinkState.SEARCHING)
     private val visible = MutableStateFlow(false)
-    /** Visible controls stay live; only actual/ambient sensor temperatures are sampled at most once a second. */
-    val status: StateFlow<DeviceStatus?> = combine(repo.settings.map { it.deviceId() }.distinctUntilChanged(), visible) { target, shown ->
-        target to shown
-    }.flatMapLatest { (target, shown) ->
-        if (!shown) flowOf<DeviceStatus?>(null)
-        else {
-            val live = graph.link.sourcedStatus.map { displayedStatus(it, target) }
-            val temperatures = live.filterNotNull().map { it.actualTemperature to it.ambientTemperature }
-                .distinctUntilChanged().conflate().transform<Pair<Int, Int>, Pair<Int, Int>> {
-                    emit(it)
-                    delay(1_000)
+    private val _hasLiveStatus = MutableStateFlow(false)
+    /** Whether the displayed value came from the selected target's current visible connection. */
+    val hasLiveStatus: StateFlow<Boolean> = _hasLiveStatus.asStateFlow()
+    /** Retain the selected target's last display while hidden/reconnecting; only visible screens collect live data.
+     * Control fields stay live; actual/ambient sensor readings update at most once a second. */
+    val status: StateFlow<DeviceStatus?> = repo.settings.map { it.deviceId() }.distinctUntilChanged().flatMapLatest { target ->
+        visible.flatMapLatest { shown ->
+            if (!shown) {
+                _hasLiveStatus.value = false
+                emptyFlow<DeviceStatus?>()
+            } else {
+                val live = graph.link.sourcedStatus.map { displayedStatus(it, target) }
+                    .onEach { if (it == null) _hasLiveStatus.value = false }
+                val temperatures = live.filterNotNull().map { it.actualTemperature to it.ambientTemperature }
+                    .distinctUntilChanged().conflate().transform<Pair<Int, Int>, Pair<Int, Int>> {
+                        emit(it)
+                        delay(1_000)
+                    }
+                combine(live, temperatures) { current, (actual, ambient) ->
+                    current?.copy(actualTemperature = actual, ambientTemperature = ambient)
+                }.transform<DeviceStatus?, DeviceStatus?> {
+                    if (it == null) _hasLiveStatus.value = false
+                    else {
+                        emit(it)
+                        _hasLiveStatus.value = true
+                    }
                 }
-            combine(live, temperatures) { current, (actual, ambient) ->
-                current?.copy(actualTemperature = actual, ambientTemperature = ambient)
-            }.onStart { emit(null) }.distinctUntilChanged()
+            }
+        }.onStart {
+            _hasLiveStatus.value = false
+            emit(null) // A different selected target must never inherit the previous unit's display.
         }
     }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -231,6 +248,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onScreenHidden() {
         screenVisible = false
+        _hasLiveStatus.value = false
         visible.value = false
         tapHaptics.setVisible(false)
         if (bluetoothReceiverRegistered) {
@@ -352,6 +370,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             deferBluetoothCheck = command == NightActions.Command.RETIME || command == NightActions.Command.RETRY_RETIME) {
             graph.actions.execute(request)
         }
+    }
+
+    /** The reviewed target, night and one-action preset remain captured across the dialogue. */
+    internal fun runCaptured(request: io.github.willzy12h.nocturne.night.CommandRequest) {
+        act { graph.actions.execute(request.copy(origin = CommandOrigin.APP)) }
+    }
+
+    internal fun quickAction(command: NightActions.Command): CapturedQuickAction =
+        requireNotNull(captureQuickAction(graph, graph.actions.capture(command, requireIdentity = true)))
+
+    internal fun remoteCaptured(label: String, request: io.github.willzy12h.nocturne.night.CommandRequest,
+        mode: io.github.willzy12h.nocturne.core.protocol.Mode) {
+        act { graph.actions.remote(label, endsNight = true, target = request.deviceId, expected = request.expected,
+            confirms = { it.mode == mode && (request.expected == null || it.extra?.programStep == 0) }) { it.setMode(mode) } }
     }
 
     /** A Remote control: sent straight to the BedJet. */

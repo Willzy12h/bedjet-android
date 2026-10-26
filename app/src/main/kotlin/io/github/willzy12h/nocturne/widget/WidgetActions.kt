@@ -14,6 +14,8 @@ import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.NightIdentity
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.ActionPreset
+import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.CommandOrigin
@@ -24,6 +26,9 @@ import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.night.ReplacementPolicy
 import io.github.willzy12h.nocturne.night.SubmissionTarget
+import io.github.willzy12h.nocturne.night.compactBoostLabel
+import io.github.willzy12h.nocturne.night.usesCapturedPreset
+import io.github.willzy12h.nocturne.night.validCapturedPreset
 import io.github.willzy12h.nocturne.service.BedJetService
 import kotlinx.coroutines.*
 import java.util.UUID
@@ -34,6 +39,7 @@ internal fun widgetParameters(request: CommandRequest, kind: String) = actionPar
     WidgetActionCallback.TARGET to request.deviceId.orEmpty(),
     WidgetActionCallback.NIGHT to request.expected?.nightId.orEmpty(),
     WidgetActionCallback.REVISION to request.expected?.revision?.toString().orEmpty(),
+    WidgetActionCallback.PRESET to request.actionPreset?.let { BackupCodec.json.encodeToString(ActionPreset.serializer(), it) }.orEmpty(),
     WidgetActionCallback.KIND to kind,
 )
 
@@ -42,9 +48,18 @@ internal fun widgetRequest(parameters: ActionParameters): CommandRequest? {
     val nightId = parameters[WidgetActionCallback.NIGHT]?.takeIf { it.isNotEmpty() }
     val expected = if (nightId != null) NightIdentity(nightId,
         parameters[WidgetActionCallback.REVISION]?.toIntOrNull() ?: return null) else null
+    val target = parameters[WidgetActionCallback.TARGET]?.takeIf { it.isNotEmpty() }
+    val encoded = parameters[WidgetActionCallback.PRESET]?.takeIf { it.isNotEmpty() && command.usesCapturedPreset() }
+    val preset = if (encoded == null) null else {
+        if (encoded.length > 1_024) return null
+        runCatching { BackupCodec.json.decodeFromString(ActionPreset.serializer(), encoded) }.getOrNull() ?: return null
+    }
+    // Quick entries may preview a capped Temporary choice from an imported preset. The owner validates
+    // the selected command before writing; a direct Temporary callback must also have a complete capture.
+    if (command == Command.TEMPORARY && (preset == null || !validCapturedPreset(command, preset) ||
+            expected == null || expected.nightId.isBlank() || expected.revision < 0 || target.isNullOrBlank())) return null
     return CommandRequest(command, parameters[WidgetActionCallback.PROFILE]?.takeIf { it.isNotEmpty() },
-        parameters[WidgetActionCallback.TARGET]?.takeIf { it.isNotEmpty() }, expected, requireIdentity = true,
-        origin = CommandOrigin.WIDGET)
+        target, expected, requireIdentity = true, origin = CommandOrigin.WIDGET, actionPreset = preset)
 }
 
 internal fun widgetNeedsConfirmation(request: CommandRequest, active: ActiveNight?): Boolean =
@@ -86,6 +101,7 @@ class WidgetActionCallback : ActionCallback {
         val TARGET = ActionParameters.Key<String>("widget_target")
         val NIGHT = ActionParameters.Key<String>("widget_night")
         val REVISION = ActionParameters.Key<String>("widget_revision")
+        val PRESET = ActionParameters.Key<String>("widget_preset")
         val KIND = ActionParameters.Key<String>("widget_kind")
     }
 }
@@ -161,10 +177,19 @@ internal object WidgetFeedback {
     }
 }
 
-internal fun widgetActionLabel(context: Context, request: CommandRequest): String =
-    widgetActions(context).firstOrNull { it.command == request.command && it.profileId == request.profileId }?.label
+internal fun widgetActionLabel(context: Context, request: CommandRequest): String {
+    // Feedback for an approved programme describes the rendered request, not a later Settings edit.
+    request.actionPreset?.let { preset ->
+        when (request.command) {
+            Command.BOOST -> return compactBoostLabel(context, preset.minutes)
+            Command.TURBO -> return context.getString(R.string.widget_turbo_duration, preset.minutes)
+            else -> Unit
+        }
+    }
+    return widgetActions(context).firstOrNull { it.command == request.command && it.profileId == request.profileId }?.label
         ?: configuredWidgetAction(context, request.command,
             io.github.willzy12h.nocturne.night.NightActions.commandLabel(context, request.command), request.profileId).label
+}
 
 /** The application job waits for feedback; real hardware work is handed to the existing bounded service. */
 internal object WidgetDelivery {

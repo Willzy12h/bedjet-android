@@ -11,9 +11,12 @@ import kotlinx.coroutines.launch
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.NightIdentity
 import io.github.willzy12h.nocturne.core.plan.NightPreview
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.*
 import io.github.willzy12h.nocturne.service.BedJetService
+import io.github.willzy12h.nocturne.ui.captureQuickAction
+import io.github.willzy12h.nocturne.ui.showTemporaryActionDialog
 import java.time.format.DateTimeFormatter
 
 /** Private, explicit widget/reminder preview. Existing-night identity comes from the rendered widget intent. */
@@ -34,9 +37,25 @@ class PlatformActionActivity : ComponentActivity() {
         val now=graph.now(); val settings=repo.settings.value
         val alarm=AlarmSource.describe(this,settings)
         val preview=profile?.let { NightPreview.forStartNow(it,now,alarm?.time,settings.resolveWakeOverride(now),settings,alarm?.creator) }
+        if (command in setOf(NightActions.Command.OFF, NightActions.Command.END_NIGHT) && repo.activeNight.value != null) {
+            // Retained widget PendingIntents still enter this activity after the P4 widget upgrade.
+            AlertDialog.Builder(this).setTitle(R.string.widget_confirm_off).setMessage(R.string.runtime_confirm_stop)
+                .setNegativeButton(R.string.feature_cancel) { _, _ -> finish() }
+                .setNeutralButton(R.string.feature_open_tonight) { _, _ -> startActivity(NightTileService.openIntent(this)); finish() }
+                .setPositiveButton(NightActions.commandLabel(this, command)) { _, _ -> runRequest(request, true) }
+                .setOnCancelListener { finish() }.show()
+            return
+        }
         val replacement=ReplacementPolicy.decide(command,repo.activeNight.value).needsConfirmation
         if (command != NightActions.Command.START_NIGHT && !replacement) {
             runRequest(request, false)
+            return
+        }
+        if (replacement) captureQuickAction(graph, request.copy(origin = CommandOrigin.WIDGET))?.let { captured ->
+            showTemporaryActionDialog(this, graph, captured, R.string.feature_cancel,
+                openTonight = { startActivity(NightTileService.openIntent(this)); finish() }) { selected ->
+                runRequest(selected, selected.replacementConfirmed)
+            }
             return
         }
         val description=if (command == NightActions.Command.START_NIGHT) {
@@ -64,7 +83,12 @@ class PlatformActionActivity : ComponentActivity() {
             lifecycleScope.launch {
                 val message = try {
                     BedJetService.runOwned(this@PlatformActionActivity, notifyFailures=false) {
-                        graph.actions.execute(request.copy(replacementConfirmed=replacement))
+                        if (request.command in setOf(NightActions.Command.OFF, NightActions.Command.END_NIGHT)) {
+                            // A widget approval belongs to its captured night; generic emergency Off remains separate.
+                            graph.actions.remote(getString(R.string.runtime_off), endsNight = true,
+                                target = request.deviceId, expected = request.expected,
+                                confirms = { it.mode == Mode.STANDBY }) { it.stop() }
+                        } else graph.actions.execute(request.copy(replacementConfirmed=replacement))
                     }.message
                 } catch (_: kotlinx.coroutines.TimeoutCancellationException) { getString(R.string.feature_operation_timeout)
                 } catch (e: kotlinx.coroutines.CancellationException) { throw e

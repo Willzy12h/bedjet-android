@@ -2,6 +2,8 @@
 
 Scope: approved `2026-10-26-nocturne-ux` design and plan, P4 only. Base: `367968bddc390e5b2bb12876fc1662ffa07e47c3`. The command owner, receipts, R38 and 90/100/115-second budgets remain the shared runtime contract. Root owns integrated gates and merge.
 
+**Later P1 correction:** historical RED examples below retain the exact text used by those earlier tests. Their “Turbo 15m” expectation is superseded: the app now names Turbo and Heat separately for split Boosts; the compact widget uses “Turbo→Heat” with the complete segment durations in its description. The latest correction and actual responsive-widget Temporary integration have separate review regressions; the old examples are not the final product labels.
+
 ## Rulings and interface checks
 
 - Ruling: use the cached Glance 1.1.1 `GlanceAppWidget.compose` API and inflate its real RemoteViews in Robolectric SDK 34, with GraphLifecycle. No test dependency is added — the offline cache already provides the production translation API — tests do not prove launcher-specific rendering on physical Samsung hardware.

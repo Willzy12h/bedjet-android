@@ -1,5 +1,11 @@
 # fixes2 — responsive controls with bounded sensor updates
 
+## Historical provenance
+
+This document is preserved from remote commit `367968bddc390e5b2bb12876fc1662ffa07e47c3` (tree `f1d7b8638693d1d161891ae331c8e68d868f0dff`). Its runs and source hashes describe the separate continuation in `/workspace/scratch/93c42f112bf4`; they do not verify the local `e114cc25481731e052a0abc564e74775666ec47e` tree or the later union.
+
+The historical hidden/status-loss behaviour below predates the user's retained-card amendment. The current local implementation retains the selected target's last reported card while hidden or disconnected, invalidates live control status, and clears the cache when the selected target changes. The union preserves that behaviour and adapts the old-target sensor test accordingly. The recorded RED/GREEN results below remain historical evidence, including their original expectations.
+
 ## Regression and root cause
 
 The Step A integration gate exposed eight presentation regressions: all four look variants of `U06ControlSemanticsTest.remoteRowsAreSingleToggleableTargets` retained an old Lights switch state, and all four variants of `U06PrimaryLayoutTest.remoteModeTimerAndBoostControlsAreReachableAboveFeedback` could not find the timer controls after the unit reported Heat.

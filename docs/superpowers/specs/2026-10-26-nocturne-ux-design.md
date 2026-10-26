@@ -4,6 +4,10 @@ Authority: the owner's GPT-11 specification and follow-up allowing the normal sh
 
 Base: final pushed fixes2 `367968bddc390e5b2bb12876fc1662ffa07e47c3`. Work branch: `gpt/nocturne-ux`.
 
+The owner's later P1 correction takes precedence over the original examples: Turbo is capped at ten minutes. A longer Boost names both actual parts (for example, **Turbo 10m + Heat 5m**), with a complete spoken description. Compact widgets use **Turbo→Heat** with the exact segment durations in their description. No longer run is labelled “Turbo 15m”. The actual 320 dp / 200% layouts are regression-tested.
+
+The later fixes2 tip `655993d2ea3d5021a2fab75ecf7db5f77d699f7e` adds **Temporarily, then resume** and is being integrated without changing this branch's original base. Its implementation commit is `a4411b1cb7fc2769d2e11d84685e3748b3f371d8`. The owner's cross-check and self-review explicitly include the real responsive-widget and shortcut entry paths, the Turbo cap and Boost split, captured presets/identities, return while the phone is away, and guarded Off/Stop night. The BedJet receives one composite programme; there is no later phone resume command. Physical autonomous return remains a device check.
+
 ## Intent and approach
 
 Keep the existing Kotlin/Compose/Glance application, themes, five tabs, night curve, journal and one command owner. Improve reachability and state explanations without replacing the working runtime. The chosen implementation uses existing settings persistence and owner/service APIs. A separate UI runtime or widget command owner would duplicate the most sensitive state and is unnecessary. A launcher swipe interaction would not meet the specified Samsung fallback; widget chevrons instead change Glance state in place.
@@ -27,4 +31,4 @@ UK English; app-visible text in resources. No change to production signing ident
 
 All commands keep NightActions mutex through BedJetService.runOwned. Owner90s < service100s < UI115s. Confirmation requires a later SourcedStatus receipt. Haptics remain APP-only, admission CLOCK_TICK and same-request CONFIRM. R38 guards stay. Graphics/control identification>=3:1, text>=4.5:1, touch>=48dp, 200% text support. Animations stop offscreen/background and obey remove animations.
 
-Each behaviour change requires an observed assertion RED and GREEN. Full offline gate plus assembleRelease after integrated implementation, after review remediation, and at final completion. Lint compared by finding identity to the base: 0errors, no new warnings. Self-review repeats over the whole base diff and touched files until no defects; no release-ready or hardware verification claim. Final debug APK uses the surviving existing debug test key and reports both SHA256 hashes.
+Each behaviour change requires an observed assertion RED and GREEN. Full offline gate plus assembleRelease after integrated implementation, after review remediation, and at final completion. Lint compared by finding identity to the base: 0errors, no new warnings. Self-review repeats over the whole base diff and touched files until no defects; no release-ready or hardware verification claim. The final APK uses the surviving existing debug test key and reports both SHA256 hashes; a minified release variant signed with that same test key is permitted. Production signing inputs and the environment-variable mechanism remain unchanged.

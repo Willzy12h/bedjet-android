@@ -38,6 +38,14 @@ class MoreReleasePlacementTest {
 
     @Test fun trackedMoreKeepsRecheckAndRequestButNoLongerContainsRelease() = checkMore(tracked = true)
 
+    @Test fun idleWithoutHandoverDoesNotOfferAnEmptyMoreMenu() {
+        assertNull(ui.graph.repository.activeNight.value)
+        assertFalse(ui.graph.repository.settings.value.platform.lullHandover)
+        ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).assertDoesNotExist()
+        ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun settingsStillReleasesAndTakesBackTheConnectionThroughTheOwner() {
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().performClick()

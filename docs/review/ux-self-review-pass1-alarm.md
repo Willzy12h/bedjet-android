@@ -135,3 +135,43 @@ This is a source and host-regression review. It establishes no BedJet hardware r
 Finding B produced the intended RED in `BluetoothOffTest.anIdleTonightWakeOverrideIsSavedLocallyWithBluetoothOff`: **“Choosing tonight's wake without a tracked night is a local settings save expected:<LOCAL> but was:<FAILED>”**, at line 76. The class had 14 tests, 1 failure and no errors/skips. After observing that assertion, the only production fix changes `setWakeOverride` to require the hardware admission budget only when the captured `expected` night is non-null. Its existing exact-identity check still precedes the local settings save. GREEN is pending.
 
 Finding A did **not** produce its intended RED in that batch: the one selected test failed during initial setup at line 1169, **“expected:<FAILED> but was:<LOCAL>”**. Inspection of the cached Robolectric 4.14.1 `ShadowPendingIntent.getCreatorPackage` bytecode proves that `setCreatorPackage(null)` falls back to the application package. The fixture now supplies `AlarmClockInfo(..., showIntent = null)`, as the existing null-source tests do, and explicitly asserts absent creator metadata plus initial source acceptance. No warning-context production change has been made; this corrected regression must run again before its fix.
+
+
+## Merged runtime/core verification update
+
+The corrected Finding A fixture produced its intended RED in `ux-review-pass1-green-sequence-red`:
+
+> A warning must name the exact wake whose write became uncertain, not the superseded queued alarm expected:<Requested wake 0[7:0]0 on Demo BedJet. Th...> but was:<Requested wake 0[8:3]0 on Demo BedJet. Th...>
+
+The actual attempted fallback wake was 07:00; the queued, subsequently disallowed unknown-source alarm was 08:30. Only after that failure, the runtime was changed to carry the actual prepared intention through `RetimeExecution`, the exact matching durable `PendingRetime`, and result/error/timeout warning branches (`NightActions.kt:998,1011,1041,1073,1109`). The originally queued wake remains the context when preparation has not happened.
+
+`ux-temporary-merge-behaviour-red` completed 295 app tests: 274 passed and 21 failed in the combined UI/widget/runtime scope. The following selected, fresh archived XML suites are all GREEN:
+
+| Selected suite | Passed | Failures/errors/skips |
+| --- | ---: | --- |
+| `ManualCancellationSettlementTest` | 13 | 0/0/0 |
+| `RestoreOriginalCaptureTest` | 7 | 0/0/0 |
+| `UnchangedAlarmObservationTest` | 18 | 0/0/0 |
+| `RetimeNotificationTest` | 64 | 0/0/0 |
+| `RuntimeFixRoundTest` | 35 | 0/0/0 |
+| `BluetoothOffTest` | 14 | 0/0/0 |
+| `TemporaryActionOwnerTest` | 9 | 0/0/0 |
+| `TemporaryActionBoundariesTest` | 24 | 0/0/0 |
+| `TemporaryActionServiceTest` | 5 | 0/0/0 |
+| `TemporaryNativeActionTest` | 6 | 0/0/0 |
+| **Selected total** | **195** | **0/0/0** |
+
+Finding A's exact policy-toggle regression passed (1.607 s), within the complete 64-test P7 class. Finding B's idle override regression is GREEN within BluetoothOffTest 14/14; its conditional hardware budget retains the captured-identity check. The five existing legacy fixture corrections were already separately recorded GREEN above and are not added again to this selected total.
+
+The earlier merged core run `ux-temporary-merge-red` passed 240/240. `TemporaryNightTest` passed 34/34, including both new `alarmRetimeCannotRestartExpiredTemporaryTurboAfterAShortUploadDelay` and `alarmRetimeCannotRestartExpiredTemporaryTurboAfterAShortClockSyncDelay` cases; `PreparedPublicationCancellationTest` passed 5/5. The incoming first-temporary-step expiry guard already prevents that restart, so no speculative timing production change was made.
+
+The merged positive shortcut test now invokes actual `BedJetService.onStartCommand` and passed with CONFIRMED, SHORTCUT origin, the original wake and captured temporary preset. It is stronger than the immutable service class's positive intent-only assertions. All of this remains host/simulator evidence, with no hardware or Samsung acceptance claim.
+
+The current P4 widget integration separately recorded its intended eight temporary-action failures (`WidgetConfirmationTest`: 17 tests, 8 failures; the nine existing guard tests passed). UI/widget owners are correcting their observed cases. The full integration gate is still pending. Six new legacy PlatformActionActivity Off/Stop confirmation/identity regressions have been added for the next RED batch; production for that entry-point finding is unchanged.
+
+
+## Legacy retained widget stop guard — subsequent R38 RED
+
+The `ux-temporary-ui-native-red` run reproduced both retained-entry defects in `LegacyPlatformStopConfirmationTest`: 6 tests, 5 failures, zero errors/skips. The tracked OFF and END_NIGHT cancellation/positive cases each failed the pre-approval connection assertion (`expected:<0> but was:<1>`). `legacyOffApprovalQueuedBehindANewerNightIsRefused` failed `expected:<STALE> but was:<CONFIRMED>`; the corresponding END_NIGHT queued-identity case passed.
+
+Only after those failures, `PlatformActionActivity.kt:40` gained explicit tracked OFF/END_NIGHT confirmation using existing resources. Its approved command at `:86` now calls the existing strict `NightActions.remote` owner with the captured target and night plus a Standby receipt matcher. The owner and replacement policy were not changed, so generic emergency Off retains its existing behavior. Tests were not weakened or edited. Focused GREEN is pending; root also includes the existing untracked-Off positive control.

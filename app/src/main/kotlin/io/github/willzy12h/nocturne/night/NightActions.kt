@@ -51,7 +51,7 @@ class NightActions(private val graph: Graph) {
             else slot?.confidence ?: n?.confidence, r.reason) }
         .stateIn(graph.scope, SharingStarted.Eagerly, NightStatus(repo.activeNight.value?.confidence, repo.runtime.value.reason))
 
-    enum class Command { START_NIGHT, END_NIGHT, OFF, TURBO, BOOST, COOL, WARM, RETIME, RETRY_RETIME, REAPPLY, SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL, RESUME, STOP_TRACKING, KEEP_TRACKING, CHECK_BEDJET }
+    enum class Command { START_NIGHT, END_NIGHT, OFF, TURBO, BOOST, COOL, WARM, RETIME, RETRY_RETIME, REAPPLY, SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL, RESUME, STOP_TRACKING, KEEP_TRACKING, CHECK_BEDJET, TEMPORARY }
     fun capture(command: Command, profileId: String? = null, requireIdentity: Boolean = false) =
         CommandRequest(command, profileId, repo.settings.value.deviceId(), repo.activeNight.value?.identity, requireIdentity,
             origin = defaultCommandOrigin(command))
@@ -72,6 +72,28 @@ class NightActions(private val graph: Graph) {
             }
         }
 
+    fun captureTemporary(preset: ActionPreset): CommandRequest =
+        capture(Command.TEMPORARY, requireIdentity = true).copy(actionPreset = preset)
+
+    /** Pure preview of the captured target, identity and preset. Execution prepares again under ownership. */
+    fun previewTemporary(request: CommandRequest): TemporaryActionPreview = when (val preparation = prepareTemporary(request)) {
+        is Preparation.Ready -> TemporaryActionPreview(preparation.change.plan, null)
+        is Preparation.Refused -> TemporaryActionPreview(null, preparation.refusalText(context))
+        is Preparation.Stale -> TemporaryActionPreview(null, text(R.string.runtime_stale))
+    }
+
+    private fun prepareTemporary(request: CommandRequest): Preparation {
+        val preset = request.actionPreset
+        if (request.command != Command.TEMPORARY || preset == null || !validCapturedPreset(request.command, preset))
+            return Preparation.Refused(text(R.string.runtime_temporary_invalid))
+        val night = repo.activeNight.value ?: return Preparation.Refused(text(R.string.runtime_no_night))
+        if (request.expected != night.identity || request.deviceId != repo.settings.value.deviceId() || request.deviceId != night.deviceId)
+            return Preparation.Stale(request.expected, night.identity)
+        if (repo.runtime.value.unresolvedSlotWrite?.let { it.deviceId == night.deviceId && it.displaced == night.identity } == true)
+            return Preparation.Refused(text(R.string.runtime_temporary_not_confirmed))
+        return graph.runner().prepareTemporary(night, night.identity, preset)
+    }
+
     /** Off resolves the captured target even when a notification/widget carries an older night identity. */
     suspend fun perform(command: Command, profileId: String? = null, replacementConfirmed: Boolean = false): String =
         execute(capture(command, profileId, requireIdentity = replacementConfirmed).copy(replacementConfirmed = replacementConfirmed)).message
@@ -80,7 +102,10 @@ class NightActions(private val graph: Graph) {
         minimumRemainingMs = if (request.command != Command.STOP_TRACKING) MIN_BUDGET_MS else 0,
         retimeWork = request.command == Command.RETIME || request.command == Command.RETRY_RETIME,
         origin = currentCoroutineContext()[CommandOriginContext]?.origin?.takeUnless { it == CommandOrigin.APP } ?: request.origin) {
-        if (request.command !in setOf(Command.OFF, Command.CHECK_BEDJET) && request.requireIdentity && request.expected != repo.activeNight.value?.identity) return@owned stale()
+        if (request.command !in setOf(Command.OFF, Command.CHECK_BEDJET) && (request.requireIdentity || request.command == Command.TEMPORARY) &&
+            request.expected != repo.activeNight.value?.identity) return@owned stale()
+        if (request.command.usesCapturedPreset() && request.actionPreset?.let { !validCapturedPreset(request.command, it) } == true)
+            return@owned refused(R.string.runtime_temporary_invalid)
         if (ReplacementPolicy.decide(request.command, repo.activeNight.value).needsConfirmation && !request.replacementConfirmed)
             return@owned CommandOutcome(OutcomeKind.CONFIRMATION_REQUIRED, text(R.string.runtime_replace_confirmation))
         when (request.command) {
@@ -95,6 +120,7 @@ class NightActions(private val graph: Graph) {
             }
             Command.STOP_TRACKING -> stopTrackingLocked()
             Command.KEEP_TRACKING -> keepTrackingLocked()
+            Command.TEMPORARY -> temporaryLocked(request)
             Command.RETRY_RETIME -> consumeAlarmObservation() ?: retryRetimeLocked()
             Command.RETIME -> {
                 val result = consumeAlarmObservation() ?: kotlin.run {
@@ -206,7 +232,7 @@ class NightActions(private val graph: Graph) {
     /** [slotBackupsRefusal] for the commands that write a slot, checked before connecting. */
     private fun slotWriteRefusal(command: Command): CommandOutcome? = slotBackupsRefusal(when (command) {
         Command.START_NIGHT, Command.BOOST -> repo.settings.value.workingSlot
-        Command.REAPPLY -> repo.activeNight.value?.slot
+        Command.REAPPLY, Command.TEMPORARY -> repo.activeNight.value?.slot
         Command.RESUME -> repo.runtime.value.resumeOffer?.night?.slot
         else -> null
     })
@@ -237,6 +263,30 @@ class NightActions(private val graph: Graph) {
         // The newest programme actually displaced wins; its own 15-minute window starts at this adjustment.
         repo.updateRuntime { it.copy(resumeOffer = offer) }
     }
+    /** One stored programme owns the return. There is no later phone timer or detached resume command. */
+    private suspend fun temporaryLocked(request: CommandRequest): CommandOutcome {
+        val preview = prepareTemporary(request)
+        if (preview !is Preparation.Ready) return apply(preview, R.string.runtime_temporary_confirmed)
+        slotWriteRefusal(Command.TEMPORARY)?.let { return it }
+        return connected {
+            val night = repo.activeNight.value ?: return@connected refused(R.string.runtime_no_night)
+            if (request.expected != night.identity) return@connected stale()
+            takeoverBeforeRewrite(night)?.let { return@connected it }
+            // The fresh read may have used the remaining safe interval; never apply the earlier preview.
+            val preparation = prepareTemporary(request)
+            if (preparation !is Preparation.Ready) return@connected apply(preparation, R.string.runtime_temporary_confirmed)
+            // Journal the observation before a possible write. A crash after the new CONFIRMED
+            // revision must not strand an alarm request whose identity still names the old one.
+            repo.updateRuntime { it.withTemporaryAlarmHandoff(preparation.change) }
+            if (repo.runtime.value.alarmInbox?.let { it.nightId == night.recordId && it.deviceId == night.deviceId } == true)
+                NightAlarms.scheduleObservation(context, graph.now())
+            advanceGeneration()
+            apply(preparation, R.string.runtime_temporary_confirmed, afterWrite = {
+                // A physical Off while uploading must not be undone by this programme start.
+                if (!matchesCurrentProgramme(night, freshStatus(), graph.now())) throw RetimeTakeover()
+            })
+        }
+    }
     private suspend fun run(request: CommandRequest): CommandOutcome {
         if (request.deviceId != repo.settings.value.deviceId()) return stale(R.string.runtime_target_changed)
         val command = request.command
@@ -264,10 +314,13 @@ class NightActions(private val graph: Graph) {
         return when (command) {
             Command.OFF, Command.END_NIGHT -> manualChange(text(R.string.runtime_off), endsNight = true, confirms = { it.mode == Mode.STANDBY },
                 allowCurrentStatus = true, unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
-            Command.TURBO -> quick(ActionPreset(Mode.TURBO, 86, 100, 10), text(R.string.runtime_turbo))
-            Command.COOL -> quick(repo.settings.value.extendCool, text(R.string.runtime_cooling))
-            Command.WARM -> quick(repo.settings.value.extendWarm, text(R.string.runtime_warming))
-            Command.BOOST -> boostLocked()
+            Command.TURBO -> quick(request.actionPreset ?: ActionPreset(Mode.TURBO, 86, 100, 10),
+                request.actionPreset?.let { capturedPresetMessage(context, it) } ?: text(R.string.runtime_turbo))
+            Command.COOL -> quick(request.actionPreset ?: repo.settings.value.extendCool,
+                request.actionPreset?.let { capturedPresetMessage(context, it) } ?: text(R.string.runtime_cooling))
+            Command.WARM -> quick(request.actionPreset ?: repo.settings.value.extendWarm,
+                request.actionPreset?.let { capturedPresetMessage(context, it) } ?: text(R.string.runtime_warming))
+            Command.BOOST -> boostLocked(request.actionPreset)
             Command.SNOOZE_WARM -> timedManual(repo.settings.value.snoozeWarm, EventKind.SNOOZED, text(R.string.runtime_snooze_warm))
             Command.SNOOZE_COOL -> timedManual(repo.settings.value.snoozeCool, EventKind.SNOOZED, text(R.string.runtime_snooze_cool))
             Command.EXTEND_WARM -> timedManual(repo.settings.value.extendWarm, EventKind.EXTENDED, text(R.string.runtime_extend_warm))
@@ -296,7 +349,7 @@ class NightActions(private val graph: Graph) {
                                 recordConfirmedProgramme(change, confirmed, message)
                             } finally {
                                 settleConfirmedProgramme(pendingRetimeId, confirmed, reason = null,
-                                    resumeGeneration = change.expectedCommand.takeIf { change.request.kind == ChangeKind.RESUME })
+                                    resumeGeneration = change.expectedCommand.takeIf { change.request.kind == ChangeKind.RESUME }, change = change)
                             }
                         }
                     } catch (cleanup: Exception) { e.addSuppressed(cleanup) }
@@ -308,13 +361,13 @@ class NightActions(private val graph: Graph) {
             // The exact prepared programme is durably confirmed. A later local save failure cannot undo that proof.
             val detail = text(R.string.runtime_programme_record_incomplete, e.message ?: text(R.string.runtime_failed))
             settleConfirmedProgramme(pendingRetimeId, confirmed, detail,
-                resumeGeneration = change.expectedCommand.takeIf { change.request.kind == ChangeKind.RESUME })
+                resumeGeneration = change.expectedCommand.takeIf { change.request.kind == ChangeKind.RESUME }, change = change)
             Notifications.showInfo(context, text(message, confirmed.profile!!.name, clock(confirmed.wakeAt)), detail)
             CommandOutcome(OutcomeKind.CONFIRMED, detail, notificationHandled = true)
         }
     }
     private fun confirmedPreparedProgramme(change: PreparedChange): ActiveNight? = repo.activeNight.value?.takeIf {
-        change.request.kind in setOf(ChangeKind.START, ChangeKind.REAPPLY, ChangeKind.RESUME) &&
+        change.request.kind in setOf(ChangeKind.START, ChangeKind.REAPPLY, ChangeKind.RESUME, ChangeKind.TEMPORARY) &&
             it == change.intended && it.confidence == Confidence.CONFIRMED && !it.trackingManual
     }
     /** A revision and its event share one durable history write, so interrupted settlement can repeat safely. */
@@ -336,8 +389,27 @@ class NightActions(private val graph: Graph) {
         val revised = NightMutation.Applied(change.plan, night).recordRevision(record)
         val started = existing == null || change.request.kind == ChangeKind.START
         val events = if (night.applied in record.revisions) record.events else record.events +
-            event(if (started) EventKind.STARTED else EventKind.RETIMED, text(message, night.profile!!.name, clock(night.wakeAt)))
+            event(if (started) EventKind.STARTED else if (change.request.kind == ChangeKind.TEMPORARY) EventKind.TEMPORARY else EventKind.RETIMED,
+                programmeDetail(change, night, message))
         repo.addRecord(revised.copy(events = events))
+    }
+    private fun temporaryShortened(change: PreparedChange): Boolean {
+        if (change.request.kind != ChangeKind.RETIME) return false
+        val old = change.previous?.temporary?.until?.let(ZonedDateTime::parse) ?: return false
+        val new = change.intended.temporary?.until?.let(ZonedDateTime::parse)
+        return if (new == null) old.isAfter(change.plan.start) else new.isBefore(old)
+    }
+    private fun programmeDetail(change: PreparedChange, night: ActiveNight, message: Int): String =
+        text(message, night.profile!!.name, clock(night.wakeAt)) +
+            if (temporaryShortened(change)) " " + text(R.string.runtime_temporary_shortened) else ""
+
+    /** A pending alarm belongs to the old revision. Retain its observation for the newly confirmed programme. */
+    private fun RuntimeState.withTemporaryAlarmHandoff(change: PreparedChange?): RuntimeState {
+        if (change?.request?.kind != ChangeKind.TEMPORARY) return this
+        val pending = retime?.takeIf { it.expected == change.previous?.identity && it.deviceId == change.intended.deviceId } ?: return this
+        val matchingInbox = alarmInbox?.takeIf { it.nightId == change.intended.recordId && it.deviceId == pending.deviceId }
+        return copy(alarmInbox = matchingInbox ?: AlarmObservation(UUID.randomUUID().toString(),
+            change.intended.recordId, pending.deviceId, graph.now().toString()))
     }
     private suspend fun applyPrepared(change: PreparedChange, message: Int, afterWrite: suspend () -> Unit): CommandOutcome {
         var confirmedPublicationFailure: Exception? = null
@@ -366,7 +438,7 @@ class NightActions(private val graph: Graph) {
                 val n = result.night
                 recordConfirmedProgramme(change, n, message)
                 // IR-06: a confirmed write of this BedJet slot settles an earlier write of it still in question.
-                repo.updateRuntime { it.copy(retime = null, reason = null, wakeShown = null, manualWakeShown = false,
+                repo.updateRuntime { it.withTemporaryAlarmHandoff(change).copy(retime = null, reason = null, wakeShown = null, manualWakeShown = false,
                     generation = if (change.request.kind == ChangeKind.RESUME) it.generation + 1 else it.generation,
                     resumeOffer = if (change.request.kind == ChangeKind.RESUME) null else it.resumeOffer,
                     slotWrite = it.slotWrite?.takeUnless { w -> w.deviceId == n.deviceId && w.slot == n.slot }) }
@@ -374,12 +446,14 @@ class NightActions(private val graph: Graph) {
                 NightAlarms.cancelRetry(context)
                 if (repo.runtime.value.alarmInbox != null) NightAlarms.scheduleObservation(context, graph.now())
                 Notifications.cancelWakeUp(context)
-                Notifications.showQuiet(context, n, repo.settings.value)
+                val settings = repo.settings.value
+                Notifications.showQuiet(context, n, settings, wakeChangePending(n, repo.runtime.value, settings))
                 if (message != R.string.runtime_resumed && change.previous?.recordId != n.recordId &&
                     repo.runtime.value.resumeOffer != null) Notifications.showResume(context)
                 if (message == R.string.runtime_retimed) Notifications.showInfo(context, text(R.string.runtime_moved_title, clock(n.wakeAt)),
-                    text(R.string.runtime_moved_body, clock(n.wakeAt), clock(change.previous!!.wakeAt)))
-                CommandOutcome(OutcomeKind.CONFIRMED, text(message, n.profile!!.name, clock(n.wakeAt)))
+                    text(R.string.runtime_moved_body, clock(n.wakeAt), clock(change.previous!!.wakeAt)) +
+                        if (temporaryShortened(change)) " " + text(R.string.runtime_temporary_shortened) else "")
+                CommandOutcome(OutcomeKind.CONFIRMED, programmeDetail(change, n, message))
             }
             is NightMutation.Failed -> {
                 if (result.nothingWritten && retimeExpired(change)) {
@@ -595,10 +669,11 @@ class NightActions(private val graph: Graph) {
         }
         return result
     }
-    private suspend fun boostLocked(): CommandOutcome {
+    private suspend fun boostLocked(captured: ActionPreset? = null): CommandOutcome {
         val s = repo.settings.value
-        val steps = PlanCompiler.phaseSteps(Phase(Mode.TURBO, 86, 100, s.boostMinutes), limits(), TurboChain.TURBO_THEN_HEAT)
-        val result = writeSlotLocked(s.workingSlot, StoredProgram("Boost", steps), boostDescription(context, s.boostMinutes), start = true)
+        val preset = captured ?: ActionPreset(Mode.TURBO, 86, 100, s.boostMinutes)
+        val steps = PlanCompiler.phaseSteps(Phase(preset.mode, preset.temperature, preset.fanPercent, preset.minutes), limits(), TurboChain.TURBO_THEN_HEAT)
+        val result = writeSlotLocked(s.workingSlot, StoredProgram("Boost", steps), boostDescription(context, preset.minutes), start = true)
         if (result.succeeded) repo.activeNight.value?.let { finishLocked(it, EventKind.STOPPED, result.message) }
         return result
     }
@@ -734,13 +809,6 @@ class NightActions(private val graph: Graph) {
         return CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_retime_pending))
     }
     suspend fun recordPendingRetime(): CommandOutcome = submitAlarmChange()
-    private fun unchangedAlarmObservation(night: ActiveNight): Boolean {
-        if (night.wakeOrigin == WakeOrigin.OVERRIDE) return true
-        val alarm = AlarmSource.describe(context, repo.settings.value)
-        return alarm?.counts == false || (graph.runner().prepareRetime(night, night.identity, alarm?.time,
-            ZonedDateTime.parse(night.wakeUpStart), repo.profile(night.profileId), repo.settings.value,
-            alarm?.creator) as? Preparation.Refused)?.unchanged == true
-    }
     private suspend fun consumeAlarmObservation(): CommandOutcome? {
         val observed = repo.runtime.value.alarmInbox ?: return null
         val night = repo.activeNight.value
@@ -748,12 +816,9 @@ class NightActions(private val graph: Graph) {
         var expiry: RetimeExpiry? = null
         val outcome = if (night?.recordId == observed.nightId && repo.settings.value.deviceId() == observed.deviceId) {
             if (!graph.now().isBefore(ZonedDateTime.parse(night.wakeUpStart))) {
-                val unchanged = previousPendingId == null && unchangedAlarmObservation(night)
-                // An observation that never requested a new wake cannot acquire an expiry reason while queued.
-                if (unchanged) local(R.string.runtime_unchanged) else {
-                    expiry = expireRetimeFor(night.recordId)
-                    expiry?.let { local(R.string.runtime_retime_expired) }
-                }
+                expiry = expireRetimeFor(night.recordId)
+                expiry?.let { local(R.string.runtime_retime_expired) }
+                    ?: if (previousPendingId == null) local(R.string.runtime_unchanged) else null
             } else queueRetimeLocked(observed.id)
         } else null
         val preparedNewRequest = repo.runtime.value.retime?.id?.let { it != previousPendingId } == true
@@ -762,6 +827,14 @@ class NightActions(private val graph: Graph) {
         // A quiet observation must not fall through to an unsafe-night refusal or execute an older pending change.
         // Keep terminal outcomes too, so an explicit service retry cannot report the same refusal twice.
         return outcome?.takeIf { it.notificationHandled || expiry != null || (it.kind == OutcomeKind.LOCAL && !preparedNewRequest) }
+    }
+    private fun unchangedAlarmObservation(night: ActiveNight): Boolean {
+        if (night.wakeOrigin == WakeOrigin.OVERRIDE) return true
+        val alarm = AlarmSource.describe(context, repo.settings.value)
+        if (alarm?.counts == false) return true
+        val prepared = graph.runner().prepareRetime(night, night.identity, alarm?.time,
+            ZonedDateTime.parse(night.wakeUpStart), repo.profile(night.profileId), repo.settings.value, alarm?.creator)
+        return prepared is Preparation.Refused && prepared.unchanged
     }
     /** Atomically consume the real pending change; repeated observations/retries cannot post duplicate expiry notices. */
     private suspend fun expireRetimeFor(nightId: String): RetimeExpiry? {
@@ -790,6 +863,7 @@ class NightActions(private val graph: Graph) {
                         requestedRetimeWake(pending), pending!!.deviceId)
                 }
                 val observed = runtime.alarmInbox?.nightId == nightId
+                // An unchanged observation never requested a rewrite, so crossing wake-up cannot give it an expiry.
                 if (expired || (pending == null && observed && active?.confidence == Confidence.CONFIRMED &&
                         !unchangedAlarmObservation(active)))
                     disposition = RetimeExpiry(active!!.identity, active.deviceId, runtime.generation)
@@ -921,6 +995,7 @@ class NightActions(private val graph: Graph) {
         execution?.identity = pending.expected
         execution?.requestedWakeAt = requestedRetimeWake(pending)
         var preparedChange: PreparedChange? = null
+        fun requestedWake() = preparedChange?.intended?.wakeAt ?: requestedRetimeWake(pending)
         return try {
             connected {
                 // A remote Off or manual change may have happened while disconnected. A local
@@ -932,6 +1007,16 @@ class NightActions(private val graph: Graph) {
                 val preparation = graph.runner().prepareRetime(n, pending.expected, pending.alarmAt?.let(ZonedDateTime::parse),
                     ZonedDateTime.parse(pending.deadline), repo.profile(n.profileId), repo.settings.value, pending.alarmOrigin)
                 preparedChange = (preparation as? Preparation.Ready)?.change
+                preparedChange?.let { change ->
+                    // Source settings may have changed while the request waited. Every later warning must name
+                    // the wake in this actual upload, including service timeout and process-recovery paths.
+                    execution?.requestedWakeAt = change.intended.wakeAt
+                    if (pending.requestedWakeAt != change.intended.wakeAt) repo.updateRuntime { runtime ->
+                        runtime.retime?.takeIf { it.id == pending.id }?.let { current ->
+                            runtime.copy(retime = current.copy(requestedWakeAt = change.intended.wakeAt))
+                        } ?: runtime
+                    }
+                }
                 if (!graph.now().isBefore(ZonedDateTime.parse(pending.deadline))) {
                     expireRetimeFor(pending.expected.nightId)
                     return@connected local(R.string.runtime_retime_expired)
@@ -953,7 +1038,7 @@ class NightActions(private val graph: Graph) {
                     repo.updateRuntime { if (it.retime?.id == pending.id) it.copy(retime = null, reason = null) else it }
                     if (!retimePending) NightAlarms.cancelRetry(context)
                 } else if (!result.succeeded) {
-                    return@connected notifyRetimeFailure(result, pending.expected.nightId, pending.id) { detail ->
+                    return@connected notifyRetimeFailure(result, pending.expected.nightId, pending.id, requestedWake()) { detail ->
                         repo.updateRuntime { it.copy(retime = null, reason = detail) }
                         NightAlarms.cancelRetry(context)
                     }
@@ -985,7 +1070,7 @@ class NightActions(private val graph: Graph) {
                             if (execution?.reportedNotice == null && lastTerminalRetime?.requestId != pending.id) recordRetimeFailure(pending.expected.nightId,
                                 OutcomeKind.UNKNOWN, R.string.runtime_retime_timeout,
                                 retimeWarningDetail(text(R.string.runtime_retime_unknown_detail, text(R.string.runtime_retime_timeout_detail)),
-                                    requestedRetimeWake(pending), pending.deviceId))
+                                    requestedWake(), pending.deviceId))
                             repo.updateRuntime { if (it.retime?.id == pending.id)
                                 it.copy(retime = null, reason = execution?.reportedNotice ?: text(R.string.runtime_retime_timeout_detail)) else it }
                         }
@@ -1021,7 +1106,7 @@ class NightActions(private val graph: Graph) {
             }
             if (current?.identity != pending.expected || current.confidence in setOf(Confidence.UNKNOWN, Confidence.FAILED)) {
                 return notifyRetimeFailure(CommandOutcome(if (current?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
-                    e.message ?: text(R.string.runtime_failed)), pending.expected.nightId, pending.id) { detail ->
+                    e.message ?: text(R.string.runtime_failed)), pending.expected.nightId, pending.id, requestedWake()) { detail ->
                     repo.updateRuntime { it.copy(retime = null, reason = detail) }
                     NightAlarms.cancelRetry(context)
                 }
@@ -1038,9 +1123,9 @@ class NightActions(private val graph: Graph) {
         settleConfirmedProgramme(pending.id, confirmed, reason)
     }
     private suspend fun settleConfirmedProgramme(pendingId: String?, confirmed: ActiveNight, reason: String?,
-        resumeGeneration: Long? = null) {
+        resumeGeneration: Long? = null, change: PreparedChange? = null) {
         try {
-            repo.updateRuntime { it.copy(retime = it.retime?.takeUnless { request -> request.id == pendingId },
+            repo.updateRuntime { it.withTemporaryAlarmHandoff(change).copy(retime = it.retime?.takeUnless { request -> request.id == pendingId },
                 generation = if (it.generation == resumeGeneration) it.generation + 1 else it.generation,
                 resumeOffer = if (it.generation == resumeGeneration) null else it.resumeOffer,
                 reason = reason, wakeShown = null, manualWakeShown = false,
@@ -1201,8 +1286,25 @@ class NightActions(private val graph: Graph) {
         if (repo.runtime.value.localDeliveries.isEmpty()) NightAlarms.cancelLocalRetry(context)
         else NightAlarms.scheduleLocalRetry(context)
     }
+    /** Confirmation may reach disk before History. Retain that proof without inferring a new command event. */
+    private suspend fun recoverConfirmedRevision() {
+        val night = repo.activeNight.value ?: return
+        if (night.confidence != Confidence.CONFIRMED || night.trackingManual || night.pending != null ||
+            hasUnfinishedReplacement(night) || night.applied.revision != night.revision) return
+        val record = repo.history.value.firstOrNull { it.id == night.recordId && DeviceId.same(it.deviceId, night.deviceId) } ?: return
+        // A recorded or newer revision is already authoritative; an absent record stays absent.
+        if (record.revisions.any { it.revision >= night.applied.revision }) return
+        val plan = runCatching { night.applied.plan() }.getOrNull() ?: return
+        try { repo.addRecord(NightMutation.Applied(plan, night).recordRevision(record)) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) {
+            // Retry the missing revision on a later reconcile. History storage cannot prevent
+            // restoration of the confirmed programme's wake/end alarms and alarm observation.
+        }
+    }
     suspend fun reconcile() {
         lock.withLock {
+            recoverConfirmedRevision()
             completeLocalEnd()
             completeWakeSourceChange()
             // Only an interrupted replacement: under way (PENDING) or written but not yet finished (CONFIRMED). A write
@@ -1402,10 +1504,12 @@ class NightActions(private val graph: Graph) {
         var writing = false
         try {
             backup(target, slot)
+            // Import uses the repository writer independently of command ownership. Recheck after its final
+            // preparation suspension; the upload payload always remains the captured, reviewed programme.
             if (expectedOriginal != null && repo.originalSlot(target, slot) != expectedOriginal) {
                 val outcome = refused(R.string.runtime_restore_preview_changed)
-                repo.updateRuntime { it.copy(slotWrite = earlier?.takeIf { w ->
-                    w.confidence == Confidence.PENDING || w.confidence == Confidence.UNKNOWN }, reason = outcome.message) }
+                repo.updateRuntime { if (it.slotWrite == intent) it.copy(slotWrite = earlier?.takeIf { write ->
+                    write.confidence == Confidence.PENDING || write.confidence == Confidence.UNKNOWN }, reason = outcome.message) else it }
                 return outcome
             }
             writing = true
@@ -1695,6 +1799,7 @@ class NightActions(private val graph: Graph) {
             Command.STOP_TRACKING -> R.string.runtime_command_stop_tracking
             Command.KEEP_TRACKING -> R.string.runtime_command_keep_tracking
             Command.CHECK_BEDJET -> R.string.runtime_command_check_bedjet
+            Command.TEMPORARY -> R.string.runtime_command_temporary
         })
     }
 }

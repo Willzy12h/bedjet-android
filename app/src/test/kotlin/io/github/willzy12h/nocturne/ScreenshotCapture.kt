@@ -103,7 +103,9 @@ class ScreenshotCapture {
 
     @Test fun featureViews() {
         compose.runOnUiThread { runBlocking {
-            graph.repository.updateSettings { it.copy(demoMode = true, themeMode = ThemeMode.DARK) }
+            graph.repository.updateSettings {
+                it.copy(demoMode = true, themeMode = ThemeMode.DARK, lullHandover = true)
+            }
             graph.repository.setActiveNight(null)
         } }
         settle()
@@ -230,7 +232,7 @@ class ScreenshotCapture {
         }
         settle()
         shot("$look-01-tonight")
-        compose.onAllNodesWithText("Off")[0].performScrollTo()
+        compose.onNodeWithText(compose.activity.getString(R.string.tonight_start_now)).performScrollTo()
         settle()
         compose.onNodeWithText(compose.activity.getString(R.string.tonight_start_now)).assertIsDisplayed()
         shot("$look-01b-tonight-lower")

@@ -4,10 +4,16 @@ import android.content.Context
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.CommandRequest
+import io.github.willzy12h.nocturne.night.compactBoostLabel
+import io.github.willzy12h.nocturne.ui.captureQuickAction
 
-fun widgetRequest(context: Context, action: WidgetAction): CommandRequest =
-    context.graph.actions.capture(action.command, action.profileId, requireIdentity = true)
+fun widgetRequest(context: Context, action: WidgetAction): CommandRequest {
+    val request = context.graph.actions.capture(action.command, action.profileId, requireIdentity = true)
         .copy(origin = io.github.willzy12h.nocturne.night.CommandOrigin.WIDGET)
+    // Preserve the original End preset. The shared dialog derives its separately capped Temporary copy.
+    // Idle actions retain the same behaviour as the other quick entries, which do not show this choice.
+    return request.copy(actionPreset = captureQuickAction(context.graph, request)?.end?.actionPreset)
+}
 fun configuredWidgetAction(context: Context, command: io.github.willzy12h.nocturne.night.NightActions.Command,
     label: String, profile: String?): WidgetAction {
     val saved = profile?.let { context.graph.repository.profile(it) }
@@ -15,7 +21,7 @@ fun configuredWidgetAction(context: Context, command: io.github.willzy12h.noctur
         profile != null && saved == null -> context.getString(io.github.willzy12h.nocturne.R.string.feature_deleted_profile)
         saved != null -> context.getString(io.github.willzy12h.nocturne.R.string.feature_start_profile, saved.name)
         command == io.github.willzy12h.nocturne.night.NightActions.Command.BOOST ->
-            context.getString(io.github.willzy12h.nocturne.R.string.widget_turbo_duration, context.graph.repository.settings.value.boostMinutes)
+            compactBoostLabel(context, context.graph.repository.settings.value.boostMinutes)
         command == io.github.willzy12h.nocturne.night.NightActions.Command.TURBO ->
             context.getString(io.github.willzy12h.nocturne.R.string.widget_turbo_duration, 10)
         else -> label
@@ -142,6 +148,7 @@ internal fun widgetPhaseText(context: Context, night: io.github.willzy12h.noctur
         io.github.willzy12h.nocturne.core.plan.Block.MIDDLE -> io.github.willzy12h.nocturne.R.string.block_middle
         io.github.willzy12h.nocturne.core.plan.Block.WAKE -> io.github.willzy12h.nocturne.R.string.block_wake
         io.github.willzy12h.nocturne.core.plan.Block.AFTER_WAKE -> io.github.willzy12h.nocturne.R.string.block_after_wake
+        io.github.willzy12h.nocturne.core.plan.Block.TEMPORARY -> io.github.willzy12h.nocturne.R.string.temporary_block
     }
     val end = current.startsAt.plusMinutes(current.minutes.toLong())
     val span = context.getString(io.github.willzy12h.nocturne.R.string.widget_phase_span,
@@ -152,10 +159,10 @@ internal fun widgetPhaseText(context: Context, night: io.github.willzy12h.noctur
 }
 
 
-internal fun widgetActionDescription(context: Context, action: WidgetAction): String = when (action.command) {
+internal fun widgetActionDescription(context: Context, action: WidgetAction, request: CommandRequest? = null): String = when (action.command) {
     io.github.willzy12h.nocturne.night.NightActions.Command.BOOST ->
-        io.github.willzy12h.nocturne.night.boostDescription(context, context.graph.repository.settings.value.boostMinutes)
-    io.github.willzy12h.nocturne.night.NightActions.Command.TURBO -> io.github.willzy12h.nocturne.night.boostDescription(context, 10)
+        io.github.willzy12h.nocturne.night.boostDescription(context, request?.actionPreset?.minutes ?: context.graph.repository.settings.value.boostMinutes)
+    io.github.willzy12h.nocturne.night.NightActions.Command.TURBO -> io.github.willzy12h.nocturne.night.boostDescription(context, request?.actionPreset?.minutes ?: 10)
     else -> action.label
 }
 

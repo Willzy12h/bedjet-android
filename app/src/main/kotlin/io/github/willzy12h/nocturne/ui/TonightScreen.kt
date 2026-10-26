@@ -60,6 +60,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.night.boostDescription
+import io.github.willzy12h.nocturne.night.boostLabel
 import io.github.willzy12h.nocturne.core.night.WakeOrigin
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -149,8 +150,10 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         // A changed profile, manual run, or trimmed Start cannot safely inherit a source index.
         val trimmedStart = night != null && block == Block.START &&
             (night.revision != 0 || runCatching { displayedPlan.start.isAfter(ZonedDateTime.parse(night.startedAt)) }.getOrDefault(true))
-        if (night?.trackingManual == true || trimmedStart || (night?.profile != null && night.profile != selected)) onEdit(selected)
-        else onEditPhase(selected, editorPhaseSelection(selected, displayedPlan, block, at))
+        val selection = if (night?.trackingManual == true || trimmedStart ||
+            (night?.profile != null && night.profile != selected)) null
+            else editorPhaseSelection(selected, displayedPlan, block, at)
+        if (selection == null) onEdit(selected) else onEditPhase(selected, selection)
     }
 
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -220,7 +223,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                             Note(state + (nightStatus.reason?.let { " $it" } ?: ""))
                         }
                         if (nightStatus.confidence == Confidence.PENDING) {
-                            val requested = night.pending?.requestedWake ?: runtime.retime?.requestedWakeAt ?: runtime.retime?.alarmAt
+                            val requested = night.pending?.takeUnless { it.kind == ChangeKind.TEMPORARY }?.requestedWake
+                                ?: runtime.retime?.requestedWakeAt ?: runtime.retime?.alarmAt
                             val changing = requested != null || runtime.retime != null || runtime.alarmInbox != null ||
                                 night.pending?.kind == ChangeKind.RETIME || night.pending?.kind == ChangeKind.REAPPLY
                             if (changing) Note(requested?.let { stringResource(R.string.wake_requested, Format.clock(it)) }
@@ -233,6 +237,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                                 Text(stringResource(R.string.tonight_now, blockName(step.block), modeName(step.step.mode), (step.step.fanStep + 1) * 5),
                                     style = MaterialTheme.typography.bodyLarge)
                             }
+                        }
+                        night.temporary?.takeIf { confirmed && !night.trackingManual && now.isBefore(ZonedDateTime.parse(it.until)) }?.let {
+                            Note(stringResource(R.string.temporary_planned, Format.clock(it.until)))
                         }
                         val turnOff = stringResource(R.string.guard_turn_off)
                         BigButton(stringResource(R.string.tonight_end_night), onClick = { guard.confirm(turnOff) { model.run(Command.END_NIGHT) } })
@@ -368,6 +375,7 @@ private fun QuickControls(model: AppViewModel, settings: Settings, guard: NightG
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {
+    val context = LocalContext.current
     val colors = nocturneColors
     val status by model.status.collectAsState()
     val link by model.linkState.collectAsState()
@@ -376,16 +384,30 @@ private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGu
     val profiles by model.profiles.collectAsState()
     val limits = (night?.profile ?: settings.resolveProfile(profiles, model.now()))?.limits
         ?: io.github.willzy12h.nocturne.core.plan.ProfileLimits()
-    val active = reportedQuickAction(status, link, settings, night, runtime.slotWrite, limits)
+    val hasLiveStatus by model.hasLiveStatus.collectAsState()
+    val active = reportedQuickAction(status.takeIf { hasLiveStatus }, link, settings, night, runtime.slotWrite, limits)
     val startBoost = stringResource(R.string.guard_start_boost)
     val boostDescription = boostDescription(LocalContext.current, settings.boostMinutes)
     val startWarming = stringResource(R.string.guard_start_warming)
     val startCooling = stringResource(R.string.guard_start_cooling)
     val turnOff = stringResource(R.string.guard_turn_off)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 2) {
-        QuickButton(stringResource(R.string.remote_boost, settings.boostMinutes), colors.turbo, Mode.TURBO, active == Command.BOOST, Modifier.weight(1f).semantics { contentDescription = boostDescription }) { guard.confirm(startBoost) { model.run(Command.BOOST, replacementConfirmed = true) } }
-        QuickButton(stringResource(R.string.feature_warm), colors.mode(settings.extendWarm.mode), settings.extendWarm.mode, active == Command.WARM, Modifier.weight(1f)) { guard.confirm(startWarming) { model.run(Command.WARM, replacementConfirmed = true) } }
-        QuickButton(stringResource(R.string.feature_cool), colors.mode(settings.extendCool.mode), settings.extendCool.mode, active == Command.COOL, Modifier.weight(1f)) { guard.confirm(startCooling) { model.run(Command.COOL, replacementConfirmed = true) } }
+        QuickButton(boostLabel(context, settings.boostMinutes), colors.turbo, Mode.TURBO, active == Command.BOOST, Modifier.weight(1f).semantics { contentDescription = boostDescription }) {
+            val captured = model.quickAction(Command.BOOST)
+            guard.confirm(startBoost, captured.temporary) { model.runCaptured(captured.end) }
+        }
+        QuickButton(stringResource(R.string.feature_warm), colors.mode(settings.extendWarm.mode), settings.extendWarm.mode, active == Command.WARM, Modifier.weight(1f)) {
+            val captured = model.quickAction(Command.WARM)
+            val what = if (captured.temporary.preset.mode == Mode.HEAT) startWarming
+                else context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(captured.temporary.preset.mode)))
+            guard.confirm(what, captured.temporary) { model.runCaptured(captured.end) }
+        }
+        QuickButton(stringResource(R.string.feature_cool), colors.mode(settings.extendCool.mode), settings.extendCool.mode, active == Command.COOL, Modifier.weight(1f)) {
+            val captured = model.quickAction(Command.COOL)
+            val what = if (captured.temporary.preset.mode == Mode.COOL) startCooling
+                else context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(captured.temporary.preset.mode)))
+            guard.confirm(what, captured.temporary) { model.runCaptured(captured.end) }
+        }
         QuickButton(stringResource(R.string.feature_off), colors.idle, Mode.STANDBY, active == Command.OFF, Modifier.weight(1f)) { guard.confirm(turnOff) { model.run(Command.OFF) } }
     }
 }
@@ -416,10 +438,11 @@ private fun cardBorder() = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineV
 fun ConnectionLine(model: AppViewModel) {
     val state by model.linkState.collectAsState()
     val status by model.status.collectAsState()
+    val hasLiveStatus by model.hasLiveStatus.collectAsState()
     val settings by model.settings.collectAsState()
     val colors = nocturneColors
     val text = when (state) {
-        LinkState.READY -> status?.let { stringResource(R.string.connection_status, modeName(it.mode), tempText(it.ambientTemperature, settings.fahrenheit),
+        LinkState.READY -> status?.takeIf { hasLiveStatus }?.let { stringResource(R.string.connection_status, modeName(it.mode), tempText(it.ambientTemperature, settings.fahrenheit),
             tempText(it.actualTemperature, settings.fahrenheit)) } ?: stringResource(R.string.connection_ready)
         LinkState.CONNECTING -> stringResource(R.string.connection_connecting)
         LinkState.SEARCHING -> stringResource(R.string.connection_searching)
@@ -441,6 +464,7 @@ fun ConnectionLine(model: AppViewModel) {
 
 @Composable
 fun blockName(block: Block): String = stringResource(when (block) {
+    Block.TEMPORARY -> R.string.temporary_block
     Block.START -> R.string.block_start
     Block.MIDDLE -> R.string.block_middle
     Block.WAKE -> R.string.block_wake

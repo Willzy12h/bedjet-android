@@ -70,7 +70,6 @@ data class AlarmExplanation(
             }
             val state = when {
                 night == null -> WakeExplanationState.PREVIEW
-                // Manual tracking describes a confirmed run; it must never conceal uncertainty.
                 confidence == Confidence.PENDING -> WakeExplanationState.PENDING
                 confidence == Confidence.FAILED -> WakeExplanationState.FAILED
                 confidence != Confidence.CONFIRMED -> WakeExplanationState.UNKNOWN

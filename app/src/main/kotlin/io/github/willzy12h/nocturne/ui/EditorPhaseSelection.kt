@@ -11,13 +11,14 @@ import java.time.ZonedDateTime
 @Serializable
 data class EditorPhaseSelection(val block: Block, val index: Int)
 
-internal fun editorPhaseSelection(profile: Profile, plan: Plan, block: Block, at: ZonedDateTime): EditorPhaseSelection {
+internal fun editorPhaseSelection(profile: Profile, plan: Plan, block: Block, at: ZonedDateTime): EditorPhaseSelection? {
+    if (block == Block.TEMPORARY) return null
     if (block == Block.MIDDLE) return EditorPhaseSelection(block, 0)
     val phases = when (block) {
         Block.START -> profile.start
         Block.WAKE -> profile.wake
         Block.AFTER_WAKE -> profile.afterWake
-        Block.MIDDLE -> emptyList()
+        Block.MIDDLE, Block.TEMPORARY -> emptyList()
     }
     val steps = plan.steps.filter { it.block == block }
     var offset = Duration.between(steps.firstOrNull()?.startsAt ?: at, at).toMinutes().toInt().coerceAtLeast(0)

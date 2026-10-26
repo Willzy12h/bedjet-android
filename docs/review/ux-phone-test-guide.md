@@ -18,17 +18,23 @@ During a short supervised tracked run, check that **Stop night** asks for confir
 
 ## 3. Widgets on the actual launcher
 
-Add and resize both widgets. Check compact, medium and large layouts, then use ‹ and › to reach each page. Start tonight, the configured Turbo Boost and Turbo 10m should remain reachable. Ordinary controls should act in place; only **Open app** opens the full app. A tracked-night Off/Stop request should show the small confirmation activity.
+Add and resize both widgets. Check compact, medium and large layouts, then use ‹ and › to reach each page. Start tonight, the configured Boost and Turbo 10m should remain reachable. Longer Boosts must name Turbo followed by Heat; the accessibility description gives the exact durations. A 15-minute Boost means Turbo 10 minutes plus Heat 5 minutes. Ordinary controls should act in place; only **Open app** opens the full app. A tracked-night Off/Stop request should show the small confirmation activity.
 
 Watch one successful and one unavailable-device action: pending must settle to receipt-confirmed, failed or unknown. A cached matching display is not enough to confirm a new command. Repeat at maximum font size and inspect all primary labels and touch areas. Samsung launcher cell dimensions and force-stop delivery still need phone observation.
 
-## 4. Tonight, editor and themes
+## 4. Temporarily, then resume
+
+During a supervised tracked night, open Warm, Cool, Turbo or Boost in the app, a shortcut and each relevant widget page. Check **Temporarily, then resume** against the alternative **Stop night**. The duration control changes only the temporary action: the stopping alternative retains the originally reviewed preset. Inspect the original wake time, temporary target/fan/time, planned return and any refusal before approving. Standalone Turbo cannot exceed ten minutes; a longer Boost uses Turbo for at most ten minutes and Heat for the remainder.
+
+The return is compiled into the same BedJet programme; there is no later phone command scheduled to restart it. Test one return with the phone out of range, then separately turn the BedJet physically off during the temporary period and confirm it stays off at the planned return. Those firmware behaviours require physical observation. Ordinary Off and Stop night must still ask for confirmation during a tracked night; cancelling must do nothing. **Stop tracking** is a separate local action and leaves the stored BedJet programme running, including its return. Do not treat local tracking cancellation as physical Off.
+
+## 5. Tonight, editor and themes
 
 Collapse Quick, reorder the lower sections by dragging and by Move up/down, leave the app and return. Check that the order and collapse choice persist and the wake header stays visible while scrolling. While a command is working, watch for content movement. Tap a curve phase for its interval/target and long-press to edit that phase; inspect existing unsaved drafts after tab changes.
 
 Choose Daylight, cancel by tapping outside, then repeat and use Switch. Test System while the phone is light and dark. At maximum font scale, inspect the native wake-time picker separately, all five tabs and both normal/Simple looks. With system animations removed, active markers should be static. TalkBack traversal is a separate check.
 
-## 5. Longer acceptance after the short checks
+## 6. Longer acceptance after the short checks
 
 Run one ordinary night, then inspect History/check-in and repeat a controlled alarm change. Afterwards test screen-off/Doze, reboot/unlock and force-stop/widget recovery as separate scenarios. Compare the actual BedJet state with app, notification and widget claims and export diagnostics for any mismatch.
 

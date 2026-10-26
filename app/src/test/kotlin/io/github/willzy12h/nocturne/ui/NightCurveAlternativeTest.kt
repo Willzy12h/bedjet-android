@@ -18,6 +18,24 @@ import java.time.ZonedDateTime
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class NightCurveAlternativeTest : ComposeActivityFixture() {
+    @Test fun temporaryPrefixIsNamedInTheCurveAlternative() {
+        val start = ZonedDateTime.parse("2026-10-22T22:30Z")
+        val plan = Plan(start, start.plusMinutes(20), listOf(
+            PlannedStep(Block.TEMPORARY, ProgramStep(Mode.HEAT, 5, 64, 0, 5), start, 5),
+            PlannedStep(Block.MIDDLE, ProgramStep(Mode.COOL, 7, 44, 0, 15), start.plusMinutes(5), 15)))
+        setContent { NocturneTheme { NightCurve(plan) } }
+        compose.onNode(hasContentDescription("22:30 Temporary Heat, 32°C", substring = true)).assertExists()
+    }
+
+    @Test fun simpleViewNamesTemporaryStepsWithoutRenamingTheUnderlyingSchedule() {
+        val start = ZonedDateTime.parse("2026-10-22T22:30Z")
+        val plan = Plan(start, start.plusMinutes(20), listOf(
+            PlannedStep(Block.TEMPORARY, ProgramStep(Mode.HEAT, 5, 64, 0, 5), start, 5),
+            PlannedStep(Block.MIDDLE, ProgramStep(Mode.COOL, 7, 44, 0, 15), start.plusMinutes(5), 15)))
+        setContent { NocturneTheme { NightTimeline(plan, io.github.willzy12h.nocturne.core.night.WakeOrigin.PROFILE_DEFAULT, false) } }
+        compose.onNodeWithText("Temporary · Heat").assertExists()
+        compose.onNodeWithText("Cool").assertExists()
+    }
     @Test fun everyStepAnnouncesItsTimeModeAndTemperatureWithUnits() {
         val start = ZonedDateTime.parse("2026-10-22T22:30Z")
         val steps = listOf(

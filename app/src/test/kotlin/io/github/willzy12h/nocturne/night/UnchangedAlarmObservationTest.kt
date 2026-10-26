@@ -9,6 +9,7 @@ import android.os.Looper
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.BedJetLink
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.core.night.ActiveNight
@@ -185,6 +186,11 @@ class UnchangedAlarmObservationTest {
         assertEquals("A queued unchanged observation must remain quiet across wake-up start", OutcomeKind.LOCAL, outcome.kind)
         assertEquals(night, graph.repository.activeNight.value)
         assertEquals(reason, graph.repository.runtime.value.reason)
+        assertEquals(app.getString(R.string.runtime_unchanged), outcome.message)
+        if (night.confidence == Confidence.CONFIRMED && !night.trackingManual) {
+            assertEquals("A later no-work timeout must not remember an invented expiry", app.getString(R.string.runtime_unchanged),
+                graph.actions.quietRetimeTimeout(night.identity, night.deviceId, admitted = true))
+        }
         assertEquals(history, graph.repository.history.value)
         assertEquals(beforeWrites, writes)
         assertEquals(beforeConnects, connects)

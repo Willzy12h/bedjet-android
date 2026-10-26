@@ -9,7 +9,7 @@ import java.time.ZonedDateTime
 
 @Serializable enum class WakeOrigin { ALARM, PROFILE_DEFAULT, OVERRIDE }
 @Serializable enum class Confidence { CONFIRMED, PENDING, FAILED, UNKNOWN }
-@Serializable enum class ChangeKind { START, RETIME, REAPPLY, RESUME, STOP, MANUAL }
+@Serializable enum class ChangeKind { START, RETIME, REAPPLY, RESUME, STOP, MANUAL, TEMPORARY }
 @Serializable data class NightIdentity(val nightId: String, val revision: Int)
 @Serializable data class PendingChange(
     val requestId: String, val kind: ChangeKind, val requestedWake: String?,
@@ -38,6 +38,13 @@ import java.time.ZonedDateTime
     }
 }
 
+/** The underlying night and the absolute temporary interval, independent of any later profile edits. */
+@Serializable data class TemporaryOverride(
+    val base: AppliedProgram,
+    val steps: List<RecordedStep>,
+    val until: String,
+)
+
 /** v1 JSON remains readable. Missing snapshots are explicitly marked as a live-profile fallback. */
 @Serializable data class ActiveNight(
     val recordId: String, val profileId: String, val startedAt: String, val wakeAt: String,
@@ -53,6 +60,7 @@ import java.time.ZonedDateTime
     val trackingManual: Boolean = false,
     /** Explicit short equipment test; never a real sleep session. */
     val isTestRun: Boolean = false,
+    val temporary: TemporaryOverride? = null,
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)
     val usesLiveProfileFallback: Boolean get() = profile == null

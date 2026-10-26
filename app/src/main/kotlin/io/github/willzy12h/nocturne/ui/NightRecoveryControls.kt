@@ -40,11 +40,12 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
     }
     val resumeSaved = stringResource(R.string.guard_resume_saved)
     val resumePrevious = stringResource(R.string.guard_resume_previous)
-    var more by remember { mutableStateOf(false) }
+    val hasMore = night != null || settings.platform.lullHandover
+    var more by remember(hasMore) { mutableStateOf(false) }
     var stopTracking by remember { mutableStateOf(false) }
     Column {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { more = true }) { Text(stringResource(R.string.recovery_more)) }
+            if (hasMore) OutlinedButton(onClick = { more = true }) { Text(stringResource(R.string.recovery_more)) }
             if (night?.confidence == Confidence.UNKNOWN) {
                 OutlinedButton(onClick = { model.run(Command.KEEP_TRACKING) }) { Text(stringResource(R.string.runtime_command_keep_tracking)) }
             }

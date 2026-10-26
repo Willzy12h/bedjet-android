@@ -6,6 +6,7 @@ import io.github.willzy12h.nocturne.core.plan.PlanCompiler
 import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.ZonedDateTime
 
@@ -13,12 +14,21 @@ import java.time.ZonedDateTime
 class EditorPhaseSelectionTest {
     private val start = ZonedDateTime.parse("2026-10-26T22:30Z")
 
+    @Test fun aTemporaryIntervalHasNoReusableProfilePhaseToEdit() {
+        val profile = Presets.summerCool
+        val original = PlanCompiler.compile(profile, start, start.plusHours(8))
+        val temporary = original.steps.first().copy(block = Block.TEMPORARY)
+        val plan = original.copy(steps = listOf(temporary) + original.steps.drop(1))
+        assertNull("An on-device temporary interval is not a source phase in the reusable profile",
+            editorPhaseSelection(profile, plan, Block.TEMPORARY, temporary.startsAt))
+    }
+
     @Test fun turboAndItsHeatContinuationBothOpenTheSameSourcePhase() {
         val profile = Presets.summerCool.copy(start = listOf(Phase(Mode.TURBO, 86, 100, 20), Phase(Mode.COOL, 44, 40, 30)))
         val plan = PlanCompiler.compile(profile, start, start.plusHours(8))
         assertEquals(listOf(Mode.TURBO, Mode.HEAT, Mode.COOL), plan.steps.filter { it.block == Block.START }.map { it.step.mode })
         assertEquals(listOf(0, 0, 1), plan.steps.filter { it.block == Block.START }.map {
-            editorPhaseSelection(profile, plan, it.block, it.startsAt).index
+            requireNotNull(editorPhaseSelection(profile, plan, it.block, it.startsAt)).index
         })
     }
 
@@ -28,7 +38,7 @@ class EditorPhaseSelectionTest {
         val plan = PlanCompiler.compile(profile, start, start.plusMinutes(25))
         assertEquals(listOf(5, 20), plan.steps.filter { it.block == Block.WAKE }.map { it.minutes })
         assertEquals(listOf(1, 2), plan.steps.filter { it.block == Block.WAKE }.map {
-            editorPhaseSelection(profile, plan, it.block, it.startsAt).index
+            requireNotNull(editorPhaseSelection(profile, plan, it.block, it.startsAt)).index
         })
     }
 
@@ -37,7 +47,7 @@ class EditorPhaseSelectionTest {
         val plan = PlanCompiler.compile(profile, start, start.plusMinutes(40))
         assertEquals(listOf(20, 20), plan.steps.filter { it.block == Block.START }.map { it.minutes })
         assertEquals(listOf(0, 1), plan.steps.filter { it.block == Block.START }.map {
-            editorPhaseSelection(profile, plan, it.block, it.startsAt).index
+            requireNotNull(editorPhaseSelection(profile, plan, it.block, it.startsAt)).index
         })
     }
 
@@ -45,7 +55,7 @@ class EditorPhaseSelectionTest {
         val profile = Presets.summerCool.copy(afterWake = listOf(Phase(Mode.TURBO, 86, 100, 20), Phase(Mode.COOL, 44, 40, 10)))
         val plan = PlanCompiler.compile(profile, start, start.plusHours(8))
         assertEquals(listOf(0, 0, 1), plan.steps.filter { it.block == Block.AFTER_WAKE }.map {
-            editorPhaseSelection(profile, plan, it.block, it.startsAt).index
+            requireNotNull(editorPhaseSelection(profile, plan, it.block, it.startsAt)).index
         })
     }
 }

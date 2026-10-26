@@ -259,7 +259,7 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
             TimelineRow(
                 time = Format.clock(entry.startsAt),
                 dot = colors.mode(entry.mode),
-                title = entry.title(words),
+                title = if (entry.block == Block.TEMPORARY) stringResource(R.string.temporary_timeline_title, entry.title(words)) else entry.title(words),
                 detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words)) else entry.detail(fahrenheit, words),
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 bold = current,
