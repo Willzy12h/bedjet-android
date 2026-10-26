@@ -147,3 +147,14 @@ The idle clock measurement included independent Repository timestamps; the corre
 The minimal correction makes the existing Turbo limit a proper plural and uses `getQuantityString` with the same shared ten-minute limit. No predicate, transport, owner policy, stored value or test assertion changes. **`ux-turbo-plurals-green`** then passed **12/12** unchanged selected tests in **175.10 seconds**: `TimedPresetLimitTest` 5, `ImportedTemporaryDurationTest` 3 and `ImportedPresetRoleSettingsTest` 4. Fresh lint returned **0 errors / 14 warnings / 1 hint**, with an exact baseline finding multiset and no new findings; all **634 tracked hashes** stayed unchanged.
 
 The [final source review](ux-final-source-review.md) records the 216-file pass, the supplemental plural and documentation review, retained physical limitations and the final delivery-record location. The complete gate and artifact results for the final source checkpoint are reported with their actual tested SHA in [PR #3](https://github.com/Willzy12h/bedjet-android/pull/3) and the APK delivery metadata.
+
+
+### Late visual truth-copy finding after the passing 14e gate
+
+The complete gate at **`14e373a0552b0642ba54a6d5541a9d755e8daef5`** passed **240/240 core**, **1,304/1,342 app with 38 expected skips**, zero failures/errors, and exact lint baseline **0 errors / 14 warnings / 1 hint**, in **1,224.72 seconds**. Both assemblies succeeded; **636 inputs** were unchanged. [Its archived JSON](ux-gate-at-14e.json) remains historical evidence.
+
+The following host image review found that Settings called a remembered name **“Connected unit”** without connection evidence. The first one-case RED reproduced this in 103.27 seconds. Review rejected the initial “Selected BedJet” replacement because an already selected address can still have no remembered name. The final resource-only correction is **“BedJet name: %1$s”**, preserving the truthful “none yet” name fallback.
+
+Before production changed, `MoreReleasePlacementTest.rememberedNameDoesNotClaimConnection` and `aSelectedUnnamedBedJetShowsTheNameFallbackWithoutLosingItsSelection` produced their intended text-mismatch REDs: **2/2 failed**, zero errors/skips, **63.37 seconds**. Their selected-target, non-READY and absent-receipt assertions were retained. After the one-string change, the complete class passed **6/6**, including actual Release/Take back, with zero failures/errors/skips in **75.23 seconds**; lint exactly matches **0/14/1**. No command or connection behaviour changed. See [the supplemental review](ux-final-source-review.md#subsequent-visual-review-remembered-name-is-not-connection-evidence).
+
+The 14e test APK is not the delivered candidate. Full-gate, fresh-capture, final APK and merge results for the corrected source belong to the continuing delivery record, not to the earlier passing gate. This is a subsequent defect-only review pass, not new feature scope or independent sign-off.

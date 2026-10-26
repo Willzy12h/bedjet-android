@@ -119,7 +119,7 @@
     <string name="settings_simple_view">Simple view</string>
     <string name="settings_simple_view_help">Show tonight as a list of steps instead of the curve.</string>
     <string name="settings_bedjet">BedJet</string>
-    <string name="settings_connected_unit">Connected unit: %1$s</string>
+    <string name="settings_connected_unit">BedJet name: %1$s</string>
     <string name="settings_none_yet">none yet</string>
     <string name="settings_demo">Demo BedJet</string>
     <string name="settings_demo_help">Try everything with a simulated BedJet instead of the real one.</string>

@@ -2,6 +2,8 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.ble.DeviceNames
+import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.night.NightActions
 import io.github.willzy12h.nocturne.night.OutcomeKind
 import kotlinx.coroutines.runBlocking
@@ -54,5 +56,53 @@ class MoreReleasePlacementTest {
         ui.waitUntil { !ui.graph.sessions.released.value && ui.graph.actions.busy.value.runningLabel == null }
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).assertExists()
         assertNull(ui.graph.repository.activeNight.value)
+    }
+
+    @Test fun rememberedNameDoesNotClaimConnection() {
+        val target = "ble:AA:BB:CC:DD:EE:FF"
+        val rememberedName = "BEDJET-BEDROOM"
+        ui.compose.runOnUiThread {
+            ui.graph.sessions.suspendAutoConnect(untilMs = null)
+            runBlocking {
+                ui.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target) }
+            }
+            DeviceNames(ui.graph.context) { target }.display(target, rememberedName)
+        }
+        ui.waitUntil {
+            !ui.model.settings.value.demoMode && ui.model.bedJetName() == rememberedName &&
+                ui.graph.link.state.value != LinkState.READY
+        }
+        assertNull("A remembered selection is not a current device report", ui.graph.link.latestSourcedStatus())
+        ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.onNodeWithText(ui.s(R.string.settings_connected_unit, rememberedName))
+            .performScrollTo().assertIsDisplayed().assertTextEquals("BedJet name: BEDJET-BEDROOM")
+        ui.compose.onNodeWithText("Connected unit: BEDJET-BEDROOM").assertDoesNotExist()
+        assertEquals(target, ui.graph.repository.settings.value.targetDevice)
+        assertNotEquals("Viewing Settings must not establish a connection", LinkState.READY, ui.graph.link.state.value)
+        assertNull(ui.graph.link.latestSourcedStatus())
+    }
+
+    @Test fun aSelectedUnnamedBedJetShowsTheNameFallbackWithoutLosingItsSelection() {
+        val target = "ble:AA:BB:CC:DD:EE:01"
+        ui.compose.runOnUiThread {
+            ui.graph.sessions.suspendAutoConnect(untilMs = null)
+            runBlocking {
+                ui.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target) }
+            }
+        }
+        ui.waitUntil {
+            !ui.model.settings.value.demoMode && ui.model.settings.value.targetDevice == target &&
+                ui.model.bedJetName() == null && ui.graph.link.state.value != LinkState.READY
+        }
+        assertNull("The selected target has no stored name", DeviceNames(ui.graph.context) { target }.displayName())
+        assertNull("An unnamed selection is not a current device report", ui.graph.link.latestSourcedStatus())
+        ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.onNodeWithText(ui.s(R.string.settings_connected_unit, ui.s(R.string.settings_none_yet)))
+            .performScrollTo().assertIsDisplayed().assertTextEquals("BedJet name: none yet")
+        ui.compose.onNodeWithText("Connected unit: none yet").assertDoesNotExist()
+        assertEquals(target, ui.graph.repository.settings.value.targetDevice)
+        assertNotEquals("Viewing Settings must not establish a connection", LinkState.READY, ui.graph.link.state.value)
+        assertNull(ui.model.bedJetName())
+        assertNull(ui.graph.link.latestSourcedStatus())
     }
 }
