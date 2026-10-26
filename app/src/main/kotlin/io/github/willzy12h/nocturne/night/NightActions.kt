@@ -172,7 +172,7 @@ class NightActions(private val graph: Graph) {
     }
 
     private suspend fun owned(label: String, target: String?, minimumRemainingMs: Long = 0, retimeWork: Boolean = false,
-        origin: CommandOrigin? = null,
+        origin: CommandOrigin? = null, declineIfBusy: Boolean = false,
         work: suspend () -> CommandOutcome): CommandOutcome {
         val source = origin ?: currentCoroutineContext()[CommandOriginContext]?.origin ?: CommandOrigin.APP
         fun tagged(outcome: CommandOutcome): CommandOutcome =
@@ -192,7 +192,9 @@ class NightActions(private val graph: Graph) {
                 if (!retimeWork) radio.check()
             }
             return withTimeout(OPERATION_MS) {
-                lock.lock(owner)
+                if (declineIfBusy) {
+                    if (!lock.tryLock(owner)) return@withTimeout tagged(refused(R.string.runtime_busy)).also { _outcomes.emit(it) }
+                } else lock.lock(owner)
                 acquired = true
                 _busy.update { it.copy(runningLabel = label, queuedCount = it.queuedCount - 1) }
                 val submitted = currentCoroutineContext()[SubmissionTarget]
@@ -1586,7 +1588,8 @@ class NightActions(private val graph: Graph) {
     }
     suspend fun initialise() {
         lock.withLock {
-            if (repo.settings.value.targetDevice == null) graph.bleLink.rememberedAddress()?.let { address ->
+            if (repo.settings.value.targetDevice == null && !repo.settings.value.demoMode &&
+                !repo.settings.value.demoTargetMigrated && !repo.startupMigrationBlocked) graph.bleLink.rememberedAddress()?.let { address ->
                 repo.updateSettings { it.copy(targetDevice = DeviceId.ble(address)) }
                 repo.addNotice(LoggedNotice(graph.now().toString(), NoticeKind.INFO, text(R.string.runtime_target_saved), text(R.string.runtime_adopted)))
             }
@@ -1657,7 +1660,9 @@ class NightActions(private val graph: Graph) {
         origin = CommandOrigin.SETTINGS) {
         val old = repo.settings.value
         val updated = change(old)
+        if (updated.demoMode != old.demoMode) return@owned changeDemoModeLocked(updated.demoMode)
         if (updated.deviceId() != old.deviceId() || updated.targetDevice != old.targetDevice) {
+            if (repo.startupMigrationBlocked) return@owned refused(R.string.gpt12_demo_migration_failed)
             if (repo.activeNight.value != null) return@owned refused(R.string.runtime_active_target)
             advanceGeneration(); graph.link.disconnect()
         }
@@ -1666,22 +1671,59 @@ class NightActions(private val graph: Graph) {
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_settings_saved))
     }
     suspend fun selectTarget(deviceId: String?, useRealDevice: Boolean = false): CommandOutcome = owned(text(R.string.runtime_target_label), repo.settings.value.deviceId()) {
-        if (repo.activeNight.value != null) return@owned refused(R.string.runtime_active_target)
+        if (repo.startupMigrationBlocked) return@owned refused(R.string.gpt12_demo_migration_failed)
         if (deviceId != null && DeviceId.address(deviceId)?.matches(Regex("[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}")) != true) return@owned refused(R.string.runtime_invalid_target)
+        if (repo.isDemoSession) {
+            if (!useRealDevice) return@owned refused(R.string.gpt12_demo_pair_help)
+            val exit = changeDemoModeLocked(false)
+            if (!exit.succeeded) return@owned exit
+        }
+        if (repo.activeNight.value != null) return@owned refused(R.string.runtime_active_target)
+        val selected = deviceId?.let { DeviceId.ble(DeviceId.address(it)!!) }
         advanceGeneration()
         graph.link.disconnect()
         // Setup must not expose a real target while Demo is still selected, or vice versa.
-        repo.updateSettings { it.copy(targetDevice = deviceId, demoMode = if (useRealDevice) false else it.demoMode,
-            setupFanCheckedDevice = it.setupFanCheckedDevice.takeIf { checked -> deviceId != null && checked == deviceId }) }
-        if (deviceId == null) graph.bleLink.forget()
-        CommandOutcome(OutcomeKind.LOCAL, text(if (deviceId == null) R.string.runtime_target_forgotten else R.string.runtime_target_saved))
+        repo.updateSettings { current ->
+            val remembered = current.normalisedRememberedBedJets()
+            current.copy(targetDevice = selected, demoMode = if (useRealDevice) false else current.demoMode,
+                rememberedBedJets = if (selected == null) remembered.filterNot { it == current.targetDevice }
+                    else (listOf(selected) + remembered).distinct().take(16), demoTargetMigrated = false,
+                setupFanCheckedDevice = current.setupFanCheckedDevice.takeIf { checked -> selected != null && checked == selected })
+        }
+        if (selected == null) graph.bleLink.forget()
+        CommandOutcome(OutcomeKind.LOCAL, text(if (selected == null) R.string.runtime_target_forgotten else R.string.runtime_target_saved))
     }
-    suspend fun setDemoMode(enabled: Boolean): CommandOutcome = owned(text(R.string.runtime_demo_label), repo.settings.value.deviceId()) {
-        if (repo.activeNight.value != null && enabled != repo.settings.value.demoMode) return@owned refused(R.string.runtime_active_target)
-        advanceGeneration()
-        graph.link.disconnect()
-        repo.updateSettings { it.copy(demoMode = enabled) }
-        CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_demo_saved))
+    suspend fun setDemoMode(enabled: Boolean): CommandOutcome = owned(text(R.string.runtime_demo_label),
+        repo.settings.value.deviceId(), declineIfBusy = enabled) { changeDemoModeLocked(enabled) }
+
+    private suspend fun changeDemoModeLocked(enabled: Boolean): CommandOutcome {
+        if (repo.startupMigrationBlocked) return refused(R.string.gpt12_demo_migration_failed)
+        if (enabled == repo.settings.value.demoMode) return local(if (enabled) R.string.gpt12_demo_started else R.string.gpt12_demo_ended)
+        if (enabled) {
+            if (repo.activeNight.value != null) return refused(R.string.runtime_active_target)
+            graph.link.disconnect()
+            graph.resetDemoSession()
+            repo.enterDemoSession()
+        } else if (repo.isDemoSession) {
+            // The owner has finished any simulated command. No simulated ending reaches real History or originals.
+            graph.link.disconnect()
+            NightAlarms.cancel(context)
+            NightAlarms.cancelLocalRetry(context)
+            NightAlarms.cancelReconcileRetry(context)
+            Notifications.cancelWakeUp(context)
+            Notifications.cancelResume(context)
+            repo.exitDemoSession()
+            graph.resetDemoSession()
+        } else {
+            // Compatibility for a pre-upgrade repository used before application startup normalisation.
+            if (repo.activeNight.value != null) return refused(R.string.runtime_active_target)
+            advanceGeneration()
+            graph.link.disconnect()
+            repo.updateSettings { it.copy(demoMode = false) }
+            graph.resetDemoSession()
+        }
+        refreshQuietNotification()
+        return local(if (enabled) R.string.gpt12_demo_started else R.string.gpt12_demo_ended)
     }
     suspend fun forgetTarget(): CommandOutcome = selectTarget(null)
     suspend fun setupFanCheck(): CommandOutcome = owned(text(R.string.runtime_fan_check), repo.settings.value.deviceId(), MIN_BUDGET_MS) {

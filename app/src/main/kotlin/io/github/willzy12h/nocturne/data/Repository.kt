@@ -66,6 +66,7 @@ import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.security.MessageDigest
 import java.time.ZonedDateTime
 import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 
 /** A proposed edit to the reusable profile; the expected values make an old preview safe to refuse. */
 data class MiddleSuggestion(
@@ -201,6 +202,151 @@ class Repository(
         }
     }
 
+    /** The same flows serve a disposable demo; their durable real values are restored verbatim on exit. */
+    private data class SessionState(
+        val settings: Settings,
+        val profiles: List<Profile>,
+        val history: List<NightRecord>,
+        val originals: List<SlotBackup>,
+        val activeNight: ActiveNight?,
+        val runtime: RuntimeState,
+        val automation: io.github.willzy12h.nocturne.platform.AutomationState,
+        val notices: List<LoggedNotice>,
+        val snapshots: List<SnapshotInfo>,
+        val unreadable: List<String>,
+        val originalsBlocked: Boolean,
+        val originalsLossAcceptedAt: String?,
+        val restoreUnfinished: Boolean,
+    )
+    @Volatile private var realSession: SessionState? = null
+    /** Explicit demo is transient; a legacy persisted demo flag is migrated at actual application startup. */
+    val isDemoSession: Boolean get() = realSession != null
+    private val demoOriginals = ConcurrentHashMap<Int, SlotBackup>()
+    @Volatile var startupMigrationBlocked: Boolean = false
+        private set
+
+    private fun captureSession() = SessionState(_settings.value, _profiles.value, _history.value, _slotBackups.value,
+        _activeNight.value, _runtime.value, _automation.value, _notices.value, _snapshotList.value, _unreadable.value,
+        originalsIntegrityBlocked, originalsLossAcceptedAt, _restoreUnfinished.value)
+
+    private fun publishSession(state: SessionState) {
+        _profiles.value = state.profiles
+        _history.value = state.history
+        _slotBackups.value = state.originals
+        _activeNight.value = state.activeNight
+        _runtime.value = state.runtime
+        _automation.value = state.automation
+        _notices.value = state.notices
+        _snapshotList.value = state.snapshots
+        _unreadable.value = state.unreadable
+        originalsIntegrityBlocked = state.originalsBlocked
+        originalsLossAcceptedAt = state.originalsLossAcceptedAt
+        _restoreUnfinished.value = state.restoreUnfinished
+        // Switch the transport only after every flow belongs to the incoming session.
+        _settings.value = state.settings
+        _settingsPublication.value += 1
+    }
+
+    internal suspend fun enterDemoSession() = serially {
+        if (isDemoSession) return@serially
+        check(!startupMigrationBlocked) { context.getString(R.string.gpt12_demo_migration_failed) }
+        check(_activeNight.value == null) { context.getString(R.string.runtime_active_target) }
+        val real = captureSession()
+        val appearance = real.settings
+        realSession = real
+        demoOriginals.clear()
+        publishSession(real.copy(
+            settings = Settings(demoMode = true, fahrenheit = appearance.fahrenheit, simpleView = appearance.simpleView,
+                themeMode = appearance.themeMode, scheduledDarkMinute = appearance.scheduledDarkMinute,
+                scheduledLightMinute = appearance.scheduledLightMinute, alarmPackages = appearance.alarmPackages,
+                acceptUnknownAlarmSource = appearance.acceptUnknownAlarmSource,
+                quickControlsCollapsed = appearance.quickControlsCollapsed, collapsedTonightSections = appearance.collapsedTonightSections,
+                tonightSectionOrder = appearance.tonightSectionOrder),
+            profiles = Presets.all, history = emptyList(), originals = emptyList(), activeNight = null,
+            runtime = RuntimeState(generation = real.runtime.generation + 1),
+            automation = io.github.willzy12h.nocturne.platform.AutomationState(), notices = emptyList(),
+            snapshots = emptyList(), unreadable = emptyList(), originalsBlocked = false,
+            originalsLossAcceptedAt = null, restoreUnfinished = false,
+        ))
+    }
+
+    internal suspend fun exitDemoSession() = serially {
+        val real = realSession ?: return@serially
+        publishSession(real)
+        realSession = null
+        demoOriginals.clear()
+    }
+
+    /** Must finish before Graph starts observers, schedulers, widgets or a first-screen connection. */
+    internal suspend fun migrateLegacyDemoSelection(): Boolean = serially {
+        if (isDemoSession) return@serially true
+        if (startupMigrationBlocked) return@serially false
+        val previous = _settings.value
+        val demoNight = _activeNight.value?.takeIf { it.deviceId == DeviceId.DEMO }
+        if (!previous.demoMode && previous.targetDevice != DeviceId.DEMO && demoNight == null) return@serially true
+        val settings = previous.copy(demoMode = false, targetDevice = null, setupFanCheckedDevice = null, demoTargetMigrated = true)
+        val active = _activeNight.value.takeUnless { it?.deviceId == DeviceId.DEMO }
+        val oldRuntime = _runtime.value
+        val demoNights = setOfNotNull(demoNight?.recordId,
+            oldRuntime.retime?.takeIf { it.deviceId == DeviceId.DEMO }?.expected?.nightId,
+            oldRuntime.alarmInbox?.takeIf { it.deviceId == DeviceId.DEMO }?.nightId,
+            oldRuntime.resumeOffer?.night?.takeIf { it.deviceId == DeviceId.DEMO }?.recordId,
+            oldRuntime.slotWrite?.takeIf { it.deviceId == DeviceId.DEMO }?.nightId)
+        val clearEnd = oldRuntime.endRequested?.nightId in demoNights
+        val runtime = oldRuntime.copy(
+            localDeliveries = oldRuntime.localDeliveries.filterNot { it.expected.nightId in demoNights },
+            alarmInbox = oldRuntime.alarmInbox?.takeUnless { it.deviceId == DeviceId.DEMO },
+            ending = oldRuntime.ending?.takeUnless { it.identity.nightId in demoNights },
+            endRequested = oldRuntime.endRequested.takeUnless { clearEnd },
+            endRequestedLabel = oldRuntime.endRequestedLabel.takeUnless { clearEnd },
+            endRequestedAt = oldRuntime.endRequestedAt.takeUnless { clearEnd },
+            endRequestedEpoch = oldRuntime.endRequestedEpoch.takeUnless { clearEnd },
+            endRequestedSequence = oldRuntime.endRequestedSequence.takeUnless { clearEnd },
+            wakeSourceChange = oldRuntime.wakeSourceChange?.takeUnless { it.expected.nightId in demoNights },
+            resumeOffer = oldRuntime.resumeOffer?.takeUnless { it.night.deviceId == DeviceId.DEMO },
+            retime = oldRuntime.retime?.takeUnless { it.deviceId == DeviceId.DEMO },
+            slotWrite = oldRuntime.slotWrite?.takeUnless { it.deviceId == DeviceId.DEMO },
+            reason = oldRuntime.reason.takeUnless { demoNight != null },
+            wakeShown = oldRuntime.wakeShown?.takeUnless { it.nightId in demoNights },
+            manualWakeShown = oldRuntime.manualWakeShown && oldRuntime.wakeShown?.nightId !in demoNights,
+        )
+        try {
+            writeAllOrNone(listOf(
+                Write(SETTINGS, encode(Settings.serializer(), previous), encode(Settings.serializer(), settings)) {
+                    _settings.value = settings; _settingsPublication.value += 1
+                },
+                Write(ACTIVE_NIGHT, encode(ActiveNight.serializer().nullable, _activeNight.value), encode(ActiveNight.serializer().nullable, active)) {
+                    _activeNight.value = active
+                },
+                Write(RUNTIME, encode(RuntimeState.serializer(), oldRuntime), encode(RuntimeState.serializer(), runtime)) {
+                    _runtime.value = runtime
+                },
+            ))
+            true
+        } catch (e: Exception) {
+            // A readable file whose migration could not be saved is not described as corrupt.
+            // The old journal and every existing preservation marker remain available for the next startup.
+            _activeNight.value = active
+            _runtime.value = runtime
+            _settings.value = settings
+            _settingsPublication.value += 1
+            startupMigrationBlocked = true
+            if (pendingJournal != null) {
+                journalStuck = true
+                _unreadable.value = (_unreadable.value + RESTORE_JOURNAL).distinct()
+            }
+            val notice = LoggedNotice(now().toString(), NoticeKind.PROBLEM,
+                context.getString(R.string.gpt12_demo_migration_title), context.getString(R.string.gpt12_demo_migration_failed))
+            _notices.value = NotificationLog.add(_notices.value, notice)
+            runCatching { writeValue(NOTICES, ListSerializer(LoggedNotice.serializer()), _notices.value) }
+            false
+        }
+    }
+
+    private fun requireRealSession() {
+        if (isDemoSession) throw IOException(context.getString(R.string.gpt12_demo_backup_unavailable))
+    }
+
     // Excluded from cloud backup and device transfer by res/xml/data_extraction_rules.xml and backup_rules.xml.
     private val secrets = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
     /** GitHub token for checking a private repository. Kept out of backups, exports and snapshots. */
@@ -245,7 +391,10 @@ class Repository(
     suspend fun deleteProfile(id: String) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list -> list.filterNot { it.id == id } }
 
     suspend fun updateSettings(change: (Settings) -> Settings) = update(_settings, SETTINGS, Settings.serializer()) {
-        change(it).migrateTonightChoice(now())
+        change(it).migrateTonightChoice(now()).let { changed ->
+            if (isDemoSession) changed.copy(demoMode = true, targetDevice = null, rememberedBedJets = emptyList(),
+                setupFanCheckedDevice = null) else changed
+        }
     }
 
     // Night state
@@ -380,6 +529,10 @@ class Repository(
      * the slot may hold the app's own program. Throws when it can't be saved, and then the slot must not be written.
      */
     suspend fun recordOriginalSlot(deviceId: String, slot: Int, program: StoredProgram?): SlotBackup = serially {
+        if (isDemoSession) {
+            check(deviceId == DeviceId.DEMO) { context.getString(R.string.gpt12_demo_backup_unavailable) }
+            return@serially demoOriginals.getOrPut(slot) { SlotBackup(DeviceId.DEMO, slot, program, now().toString()) }
+        }
         if (originalsIntegrityBlocked && _slotBackups.value.none { it.deviceId == deviceId && it.slot == slot }) {
             throw SlotBackupsUnreadable()
         }
@@ -398,7 +551,8 @@ class Repository(
 
     /** What [deviceId]'s [slot] held before the app first wrote to it, or null when that wasn't recorded. */
     fun originalSlot(deviceId: String, slot: Int): SlotBackup? =
-        _slotBackups.value.firstOrNull { it.deviceId == deviceId && it.slot == slot }
+        if (isDemoSession) demoOriginals[slot].takeIf { deviceId == DeviceId.DEMO }
+        else _slotBackups.value.firstOrNull { it.deviceId == deviceId && it.slot == slot }
             ?: _slotBackups.value.firstOrNull { it.slot == slot && !it.imported && adopts(deviceId, it.deviceId) }
 
     /**
@@ -409,6 +563,7 @@ class Repository(
      * demo unit never adopts them.
      */
     suspend fun originalsFor(deviceId: String?): List<SlotBackup> {
+        if (isDemoSession) return if (deviceId == DeviceId.DEMO) demoOriginals.values.sortedBy { it.slot } else emptyList()
         if (deviceId == null) return _slotBackups.value.filter { it.deviceId == Migrations.UNKNOWN_DEVICE }
         serially { adoptMigrated(deviceId) }
         return _slotBackups.value.filter { it.deviceId == deviceId }
@@ -431,12 +586,14 @@ class Repository(
      * readable.
      */
     suspend fun dismissUnreadable(acceptLostOriginals: Boolean = false) = serially {
+        requireRealSession()
         if (acceptLostOriginals && originalsIntegrityBlocked) acceptOriginalsLoss()
         clearUnreadable()
     }
 
     /** Records the accepted loss, then lifts the barrier. Call on the writer. */
     private fun acceptOriginalsLoss() {
+        requireRealSession()
         // With no barrier file the unreadable file couldn't be set aside yet; the next start tries again first.
         if (!File(dir, SLOT_BACKUPS_BLOCK).exists()) {
             throw IOException(context.getString(R.string.runtime_originals_not_set_aside))
@@ -452,20 +609,25 @@ class Repository(
     // Backups
 
     /** Everything a backup holds. The update token is never part of it. */
-    fun bundle(): BackupBundle = BackupBundle(
+    fun bundle(): BackupBundle {
+        requireRealSession()
+        return BackupBundle(
         createdAt = now().toString(),
         profiles = _profiles.value,
         settings = _settings.value,
         slotBackups = _slotBackups.value,
         history = _history.value,
-    )
+        )
+    }
 
     suspend fun snapshotNow(label: String) = serially {
+        requireRealSession()
         snapshots.save(bundle(), label.ifBlank { context.getString(R.string.snapshot_label_manual) }, manual = true)
         _snapshotList.value = snapshots.list()
     }
 
     suspend fun deleteSnapshot(id: String) = serially {
+        requireRealSession()
         snapshots.delete(id)
         _snapshotList.value = snapshots.list()
     }
@@ -481,6 +643,7 @@ class Repository(
      * If that fails too the restore stays committed and is finished later: see [writeAllOrNone] and [RestoreUnfinished].
      */
     suspend fun restore(bundle: BackupBundle, label: String = context.getString(R.string.snapshot_label_before_import)) {
+        requireRealSession()
         val errors = BackupValidator.validate(bundle)
         if (errors.isNotEmpty()) throw BackupException(errors)
         val admission = operationAdmission.tryImport() ?: throw importBusy()
@@ -513,6 +676,7 @@ class Repository(
 
     /** Called only with exclusive import admission and the repository writer held. */
     private fun restoreLocked(bundle: BackupBundle, label: String) {
+        requireRealSession()
             snapshots.save(bundle(), label, manual = true)
             _snapshotList.value = snapshots.list()
             val restoreAt = now()
@@ -523,6 +687,7 @@ class Repository(
             val importedSettings = bundle.settings.copy(tonightChoice = current.tonightChoice, tonightOverride = current.tonightOverride)
                 .migrateTonightChoice(restoreAt)
             val settings = importedSettings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
+                rememberedBedJets = current.rememberedBedJets, demoTargetMigrated = current.demoTargetMigrated,
                 setupFanCheckedDevice = current.setupFanCheckedDevice,
                 platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null))
             // Tonight's record, and that of a night being ended (its end is still to be added), are kept as they are.
@@ -556,13 +721,14 @@ class Repository(
 
     /** Restores a snapshot; false when it couldn't be read. */
     suspend fun restoreSnapshot(id: String): Boolean {
-        val bundle = withContext(writer) { snapshots.load(id) } ?: return false
+        val bundle = serially { requireRealSession(); snapshots.load(id) } ?: return false
         restore(bundle, context.getString(R.string.snapshot_label_before_restore))
         return true
     }
 
-    suspend fun exportTo(uri: Uri) {
-        val bytes = serially { BackupCodec.encode(bundle()).toByteArray() }
+    suspend fun exportTo(uri: Uri) = serially {
+        requireRealSession()
+        val bytes = BackupCodec.encode(bundle()).toByteArray()
         withContext(Dispatchers.IO) {
             openOutput(uri)?.use { it.write(bytes) } ?: throw IOException(context.getString(R.string.runtime_export_open_failed))
         }
@@ -572,14 +738,21 @@ class Repository(
      * Reads a backup file; throws [BackupException] when it isn't one or is over [BackupValidator.MAX_BYTES]. Check it
      * with [restore], which validates it before changing anything.
      */
-    suspend fun importFrom(uri: Uri): BackupBundle = withContext(Dispatchers.IO) {
-        openInput(uri)?.use { importFrom(it) } ?: throw IOException(context.getString(R.string.runtime_import_open_failed))
+    suspend fun importFrom(uri: Uri): BackupBundle = serially {
+        requireRealSession()
+        withContext(Dispatchers.IO) {
+            openInput(uri)?.use { importFrom(it) } ?: throw IOException(context.getString(R.string.runtime_import_open_failed))
+        }
     }
 
     /** As [importFrom], from a stream. The size is checked before any decoding. */
-    fun importFrom(input: InputStream): BackupBundle = BackupCodec.decode(BackupValidator.readWithinLimit(input))
+    fun importFrom(input: InputStream): BackupBundle {
+        requireRealSession()
+        return BackupCodec.decode(BackupValidator.readWithinLimit(input))
+    }
 
     private suspend fun autoSnapshot() = serially {
+        if (isDemoSession || startupMigrationBlocked) return@serially
         // Snapshots of the defaults standing in for an unreadable file would push the good ones out.
         if (_unreadable.value.isNotEmpty()) return@serially
         if (snapshots.saveIfChanged(bundle())) _snapshotList.value = snapshots.list()
@@ -591,6 +764,7 @@ class Repository(
     private suspend fun <T> serially(work: suspend () -> T): T = withContext(writer) { lock.withLock { work() } }
 
     private suspend fun <T> update(flow: MutableStateFlow<T>, name: String, serializer: KSerializer<T>, change: (T) -> T): Unit = serially {
+        if (isDemoSession && name == HISTORY) return@serially
         val value = change(flow.value)
         writeValue(name, serializer, value)
         flow.value = value
@@ -598,6 +772,7 @@ class Repository(
     }
 
     private fun <T> writeValue(name: String, serializer: KSerializer<T>, value: T) {
+        if (isDemoSession) return
         finishJournalBefore(name)
         writeFile(File(dir, name), encode(serializer, value))
     }
@@ -620,6 +795,7 @@ class Repository(
      *   roll-forward, as every later write of these files finishes the journal first or is refused.
      */
     private fun writeAllOrNone(writes: List<Write>) {
+        if (isDemoSession) { writes.forEach { it.publish() }; return }
         // A journal still pending is finished first: the new one replaces it.
         finishJournalBefore(*writes.map { it.name }.toTypedArray())
         val entries = writes.associate { it.name to it.new }
@@ -697,7 +873,7 @@ class Repository(
             return JournalState.DAMAGED
         }
         // A restore clears the unreadable report; a morning check-in, the other multi-file change, does not.
-        if (SETTINGS in entries) AtomicFile(File(dir, UNREADABLE)).delete()
+        if (entries.keys == setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS)) AtomicFile(File(dir, UNREADABLE)).delete()
         pendingJournal = entries
         return try {
             finishJournal()
@@ -715,7 +891,8 @@ class Repository(
         val journal = try { decode(RestoreJournal.serializer(), bytes.decodeToString()) }
             catch (e: IllegalArgumentException) { throw IOException("The restore journal is unreadable.", e) }
         val names = journal.writes.map { it.name }
-        if (names.size != names.toSet().size || names.toSet() !in setOf(setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS), setOf(PROFILES, HISTORY))) {
+        if (names.size != names.toSet().size || names.toSet() !in setOf(setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS),
+                setOf(PROFILES, HISTORY), setOf(SETTINGS, ACTIVE_NIGHT, RUNTIME))) {
             throw IOException("The restore journal does not name the expected files.")
         }
         return journal.writes.associate { entry ->

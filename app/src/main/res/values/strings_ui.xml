@@ -50,8 +50,8 @@
     <string name="mode_dry">Dry</string>
     <string name="mode_pause">Pause</string>
     <!-- Setup (F08) -->
-    <string name="setup_use_demo">Use demo instead</string>
-    <string name="setup_use_demo_help">Try Nocturne with a simulated BedJet. It never sends anything to a real one, and you can choose a real BedJet later.</string>
+    <string name="setup_use_demo">Try demo</string>
+    <string name="setup_use_demo_help">Try a simulated BedJet. Changes stay in this demo session; your real BedJets, profiles, History and backups are kept separately.</string>
     <string name="setup_samsung_title">Samsung battery tips</string>
     <string name="setup_samsung_help">Some Samsung phones put apps to sleep to save battery, even with unrestricted battery use. If overnight changes don\'t reach your BedJet, open Settings › Battery › Background usage limits and check that Nocturne isn\'t listed under Sleeping apps or Deep sleeping apps; you can add it to Never sleeping apps. Menu names vary between One UI versions, and Nocturne can\'t check these settings for you.</string>
     <!-- Slider names and spoken values (U05) -->

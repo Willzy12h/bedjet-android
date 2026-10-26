@@ -153,6 +153,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     }
 
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        DemoModePanel(model, showTryDemo = false)
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.Top) {
             Text(stringResource(R.string.tonight_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(.4f).padding(top = 4.dp).semantics { heading() })
@@ -181,7 +182,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             ) { section ->
                 when (section) {
                     "connection" -> {
-                        ConnectionLine(model)
                         val unreadable by model.unreadable.collectAsState()
                         val restoreUnfinished by model.restoreUnfinished.collectAsState()
                         val originalsBlocked by model.originalsBlocked.collectAsState()
@@ -192,7 +192,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                             SlotWriteNotice(it, onChecked = model::acknowledgeSlotWrite)
                         }
                         SetupChecks()
-                        if (settings.deviceId() == null) SetupFlow(model, compact = true)
+                        BedJetPicker(model, compact = true)
                     }
                     "wake" -> {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

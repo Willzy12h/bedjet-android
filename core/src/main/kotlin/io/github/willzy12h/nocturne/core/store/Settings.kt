@@ -42,6 +42,10 @@ data class Settings(
     val demoMode: Boolean = false,
     /** The real BedJet chosen by the person, as a [DeviceId] (`ble:<MAC>`). Null until one is chosen. */
     val targetDevice: String? = null,
+    /** Real units explicitly chosen on this phone, newest first. Never includes the simulator. */
+    val rememberedBedJets: List<String> = emptyList(),
+    /** A discarded legacy demo choice must not silently adopt an old Bluetooth preference. */
+    val demoTargetMigrated: Boolean = false,
     /** Local supervised fan check for this exact real BedJet; never inferred from a backup. */
     val setupFanCheckedDevice: String? = null,
     /** GitHub `owner/repo` whose latest release is checked for updates. The token is kept outside backups. */
@@ -64,6 +68,10 @@ data class Settings(
     val quietNightNotification: Boolean = false,
     val platform: PlatformSettings = PlatformSettings(),
 ) {
+    fun normalisedRememberedBedJets(): List<String> = (listOfNotNull(targetDevice) + rememberedBedJets)
+        .mapNotNull { id -> DeviceId.address(id)?.takeIf { it.matches(Regex("[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}")) }?.let(DeviceId::ble) }
+        .distinct().take(16)
+
     fun normalisedTonightOrder(): List<String> {
         val known = listOf("night", "wake", "connection")
         val saved = tonightSectionOrder.filter { it in known }.distinct()

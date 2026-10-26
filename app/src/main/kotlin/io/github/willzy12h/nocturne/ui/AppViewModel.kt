@@ -53,6 +53,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
@@ -560,8 +561,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun forgetBedJet() = act(hardware = false) { graph.actions.forgetTarget() }
 
+    private var discoveryJob: Job? = null
+
     fun discoverBedJets() {
-        viewModelScope.launch {
+        if (repo.settings.value.demoMode) {
+            _messages.tryEmit(text(R.string.gpt12_demo_pair_help))
+            return
+        }
+        if (discoveryJob?.isActive == true) return
+        discoveryJob = viewModelScope.launch {
             _discovering.value = true
             _foundBedJets.value = emptyList()
             try { _foundBedJets.value = graph.bleLink.discover(10_000) }
@@ -572,11 +580,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectBedJet(address: String) = act(hardware = false) {
-        graph.actions.selectTarget("ble:$address", useRealDevice = true)
+        graph.actions.selectTarget("ble:$address", useRealDevice = true).also {
+            if (it.succeeded && screenVisible) graph.sessions.reconnect()
+        }
     }
 
-    /** Setup's separate "Use demo instead": Demo on, the real target left as it is (null stays null). */
-    fun useDemo() = act(hardware = false) { graph.actions.setDemoMode(true) }
+    /** A separate in-memory session, entered only after any real discovery has closed. */
+    fun useDemo() = act(hardware = false) {
+        discoveryJob?.cancelAndJoin()
+        graph.actions.setDemoMode(true).also {
+            if (it.succeeded && screenVisible) graph.sessions.reconnect()
+        }
+    }
+
+    fun exitDemo() = act(hardware = false) {
+        graph.actions.setDemoMode(false).also {
+            if (it.succeeded && screenVisible) graph.sessions.reconnect()
+        }
+    }
 
     fun runSetupFanCheck() = act { graph.actions.setupFanCheck() }
 

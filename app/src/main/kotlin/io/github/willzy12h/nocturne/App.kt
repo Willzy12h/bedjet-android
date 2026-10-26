@@ -16,6 +16,8 @@ import io.github.willzy12h.nocturne.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.*
@@ -50,9 +52,12 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val repository = repositoryFactory?.invoke(scope) { now() } ?: Repository(context, scope) { now() }
     val bleLink by lazy { AndroidBedJetLink(context) { repository.settings.value.deviceId() } }
-    private val demoLink by lazy {
+    private var demoTicker: Job? = null
+    @Volatile private var demoLinkHolder = newDemoLink()
+    private val demoLink: DemoBedJet get() = demoLinkHolder.value
+    private fun newDemoLink(): Lazy<DemoBedJet> = lazy {
         DemoBedJet(now = { now() }).also { demo ->
-            scope.launch {
+            demoTicker = scope.launch {
                 combine(sessions.statusDemand, repository.settings.map { it.demoMode }.distinctUntilChanged(),
                     repository.activeNight.map { it != null }.distinctUntilChanged(),
                     demo.status.map { it?.let { status -> status.isRunning || (status.extra?.programStep ?: 0) > 0 } == true }
@@ -68,6 +73,13 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
         }
     }
 
+    /** Called under command ownership after disconnecting the outgoing simulator. */
+    internal fun resetDemoSession() {
+        demoTicker?.cancel()
+        demoTicker = null
+        demoLinkHolder = newDemoLink()
+    }
+
     /** The real BedJet, or the simulated one when demo mode is on. */
     val link: BedJetLink get() = linkOverride ?: if (repository.settings.value.demoMode) demoLink else bleLink
     val sessions = LinkSessions(this)
@@ -76,6 +88,8 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun startRuntime() {
+        // The application does not expose a first screen or start side effects until this durable boundary passes.
+        if (!runBlocking(Dispatchers.IO) { repository.migrateLegacyDemoSelection() }) return
         platform.start()
         WidgetUpdater.start(context)
         scope.launch { actions.initialise() }
