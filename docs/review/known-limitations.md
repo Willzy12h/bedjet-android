@@ -1,8 +1,8 @@
 # Known limitations
 
-**Final-fixes reconciliation — 25 October 2026.** The current branch starts from integrated base `c9befe66f0b78fff4fe9da15d217895ca4b48eee`. IR-31's uncertainty warning and U-B4's narrow wake title are fixed; **KL-01's missing v1 provenance and U-B5's native picker phone check remain open**. [Final-fixes verification](final-fixes-verification.md) records the current host/gate/release evidence, and the [phone-test guide](phone-test-guide.md) covers delivery and supervised checks.
+**Current fixes2 acceptance — 26 October 2026.** The combined code at `a4411b1cb7fc2769d2e11d84685e3748b3f371d8` extends the requested `1c67c0a28084238377c7675e6dc25d0444fe2c22` base with F1–F5, alarm/BLE/reconnect fixes and temporary night actions. [Temporary-action verification](temporary-actions-verification.md) records the combined host/gate/release evidence, and the [phone-test guide](phone-test-guide.md) covers supervised checks. The earlier [final-fixes verification](final-fixes-verification.md) remains historical evidence for the base descended from `c9befe66f0b78fff4fe9da15d217895ca4b48eee`. IR-31's uncertainty warning and U-B4's narrow wake title are fixed; **KL-01's missing v1 provenance and U-B5's native picker phone check remain open**.
 
-The table below preserves the source pins inspected independently during the earlier docs2 documentation pass, based on `ab6f1e1f83a587f24f258ebb2e753b6c86e15354`. They had not been merged into that documentation branch at that checkpoint; the later integrated base includes the workstreams. See the [re-pin evidence](docs2-repin.md) for that historical cross-reference map. Current final-fixes entries use repository-relative source and test links.
+The table below preserves the source pins inspected independently during the earlier docs2 documentation pass, based on `ab6f1e1f83a587f24f258ebb2e753b6c86e15354`. They had not been merged into that documentation branch at that checkpoint; the later integrated base includes the workstreams. See the [re-pin evidence](docs2-repin.md) for that historical cross-reference map. The final-fixes entries below use repository-relative source and test links.
 
 | Reference | Exact source commit | Scope used here |
 |---|---|---|
@@ -20,6 +20,12 @@ Use the [release instructions](release-instructions.md) to identify the APK, the
 Android exposes only the next upcoming alarm-clock event through [`AlarmManager.getNextAlarmClock()`](https://developer.android.com/reference/android/app/AlarmManager#getNextAlarmClock()), not a list of alarms. Rejecting that event cannot reveal a later Samsung alarm through this API. The new Tonight source line and exported alarm reason distinguish unknown/disallowed source, tonight’s one-to-sixteen-hour window, profile opt-out, override and no exposed alarm. A null creator is rejected only if the saved unknown-source option is off; its existing default remains true. These are code-supported explanations, not a diagnosis of a particular phone. See [fixes2 alarm evidence](fixes2-alarm-evidence.md).
 
 The 30-second idle disconnect and foreground status limit are host-tested policy. Actual battery savings, reconnect delay, notification rate, Samsung background scheduling and TalkBack output remain **NOT RUN**. During app-switch reconnect the same target’s last reported Remote data stays visible; it cannot confirm a command or enable controls before a current report. See [BLE before/after](fixes2-ble-behaviour.md) and the [phone-test guide](phone-test-guide.md).
+
+## Temporary-action acceptance boundary
+
+Temporary actions upload one composite programme containing the interruption and remaining immutable night schedule. Host tests verify that the wake stays fixed, elapsed phases are skipped, and there is no later phone START at the planned return. The return remains planned; the phone clock reaching it is not a new confirmation.
+
+Off keeps its existing tracked-night confirmation and never offers temporary return. Physical Off or a replacement programme can stop the stored continuation; a physical fan or temperature change may leave it running. Stop tracking remains local and does not stop the stored programme. Actual firmware continuation, timing, phone-away return and physical control interactions remain **NOT RUN**; the [temporary-action phone checks](phone-test-guide.md) must establish those results on the selected BedJet.
 
 ## Data, background work and presentation
 

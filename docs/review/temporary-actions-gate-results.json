@@ -1,0 +1,142 @@
+{
+  "tested_tree_sha": "7e52367f6df981fa6d904b3d027ad9832412ff5b",
+  "gate": {
+    "command": [
+      "./gradlew",
+      "--no-daemon",
+      "--offline",
+      "--max-workers=2",
+      "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8",
+      "-Pkotlin.compiler.execution.strategy=in-process",
+      ":core:test",
+      ":app:testDebugUnitTest",
+      ":app:assembleDebug",
+      ":app:lintDebug"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 1034.75,
+    "completion_evidence": "gradle.log",
+    "evidence_label": "temporary-clean-full-gate",
+    "log_sha256": "13364009c0ae13614a1bab2ec65825216599a0232d1a0f4562b94d72928fa900",
+    "actionable_tasks": {
+      "total": 59,
+      "executed": 59,
+      "up_to_date": 0
+    }
+  },
+  "release": {
+    "command": [
+      "./gradlew",
+      "--no-daemon",
+      "--offline",
+      "--max-workers=2",
+      "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8",
+      "-Pkotlin.compiler.execution.strategy=in-process",
+      ":app:assembleRelease"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 144.22,
+    "completion_evidence": "daemon-completion.txt (captured wrapper log is partial)",
+    "evidence_label": "temporary-clean-release",
+    "log_sha256": "9c467955468cc1aad515803b2220d0d4893b46365614c0ffa9939eb180e7e05b",
+    "actionable_tasks": {
+      "total": 51,
+      "executed": 48,
+      "up_to_date": 3
+    },
+    "wrapper_log_complete": false,
+    "completion_note": "The wrapper returned exit 0 and produced a fresh APK. Its captured gradle.log is partial. The matching Gradle daemon 204494 identifies the clean build directory and independently records BUILD SUCCESSFUL in 2m 23s and 51 actionable tasks: 48 executed, 3 up-to-date; this excerpt is retained as daemon-completion.txt.",
+    "completion_excerpt_sha256": "0a6409482bf60bd62d671b215ecd7174e9d9b418915c6a09f922aad39301f3d8",
+    "signing": {
+      "production_signing_changed": false,
+      "configured": false,
+      "artifact": "unsigned",
+      "apksigner_exit_code": 1,
+      "apksigner_output": "DOES NOT VERIFY\nERROR: Missing META-INF/MANIFEST.MF",
+      "zip_crc_check": "passed",
+      "android_manifest_and_dex_present": true
+    }
+  },
+  "core": {
+    "tests": 224,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 224,
+    "suites": 27,
+    "first_timestamp": "2026-10-26T01:40:13.893Z",
+    "last_timestamp": "2026-10-26T01:40:15.732Z"
+  },
+  "app": {
+    "tests": 1069,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 38,
+    "passed": 1031,
+    "suites": 110,
+    "first_timestamp": "2026-10-26T01:41:45.465Z",
+    "last_timestamp": "2026-10-26T01:55:59.750Z"
+  },
+  "lint": {
+    "Error": 0,
+    "Warning": 14,
+    "Hint": 1
+  },
+  "new_lint": [],
+  "removed_lint": [],
+  "lint_identity_fields": [
+    "id",
+    "severity",
+    "message",
+    "normalised paths"
+  ],
+  "input_checks": {
+    "working_checkout": {
+      "checked": 273,
+      "changed": []
+    },
+    "clean_build_export": {
+      "checked": 273,
+      "changed": []
+    }
+  },
+  "apks": {
+    "debug": {
+      "path": "app/build/outputs/apk/debug/app-debug.apk",
+      "bytes": 66649374,
+      "sha256": "2d90c1ba0c4e1a05fdc66919fc7263b10f906fe30d7f3b9777f25a72d3c4d7b2"
+    },
+    "release": {
+      "path": "app/build/outputs/apk/release/app-release-unsigned.apk",
+      "bytes": 4568127,
+      "sha256": "fffd4034e629b4dfaf981e6ac38f040570ae14c7197a452f98c00148aab20a23"
+    }
+  },
+  "physical_checks": "NOT RUN",
+  "repository": "Willzy12h/bedjet-android",
+  "branch": "gpt/nocturne-fixes2",
+  "requested_base_sha": "1c67c0a28084238377c7675e6dc25d0444fe2c22",
+  "tested_code_commit_sha": "a4411b1cb7fc2769d2e11d84685e3748b3f371d8",
+  "equivalent_local_code_commit_sha": "4d2f2dcf0c72999299997f129d47a536c054b45f",
+  "local_code_parent_sha": "4613d9c91795afe5e98091209ad702156f4e89b9",
+  "github_code_parent_sha": "367968bddc390e5b2bb12876fc1662ffa07e47c3",
+  "source_export": "Clean git archive of tested_tree_sha; no pre-existing app/core build outputs.",
+  "lint_baseline_source_sha": "1c67c0a28084238377c7675e6dc25d0444fe2c22",
+  "lint_baseline_xml_sha256": "3952b15528352f5168a1be86d8da87e43e0f7776ee00f0eb5e2e1da2303fcc70",
+  "prior_gate_attempts": [
+    {
+      "label": "temporary-final-full-gate",
+      "exit_code": 1,
+      "elapsed_seconds": 106.23,
+      "result": "Generated project DEX collision at mergeProjectDexDebug. Core224 passed; app tests and lint not reached."
+    },
+    {
+      "label": "temporary-final-full-gate-2",
+      "exit_code": 1,
+      "elapsed_seconds": 916.42,
+      "result": "Same generated project DEX collision. App1069 total/1031 passed/38 skipped/0 failures-errors; core224 reused UP-TO-DATE from attempt1; lint report incomplete."
+    }
+  ],
+  "device_checks": "BedJet, Samsung, TalkBack, installation, battery measurement and minified-APK runtime: NOT RUN.",
+  "verdict": "READY FOR DEVICE TEST"
+}

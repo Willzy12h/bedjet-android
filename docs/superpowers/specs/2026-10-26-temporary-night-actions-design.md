@@ -4,7 +4,7 @@
 
 The owner asked for Quick actions and related controls to offer a temporary Turbo or Heat action followed by the running night, while retaining the existing choice to end the night. This extends the fixes2 work; the earlier fixes/reconnect gate does not verify this feature.
 
-The implementation keeps the current appearance and navigation. The choice is available for Tonight's Boost/Warm/Cool actions, Remote mode actions and Boost, and the corresponding widget and shortcut actions. Off always remains an immediate target-bound ending command. Wake notification Snooze/Extend actions keep their existing manual behaviour: they operate at or after wake-up, when there is no pre-wake programme to return to. Sliders, Run for, Lights and Beeps keep their existing meanings.
+The implementation keeps the current appearance and navigation. The choice is available for Tonight's Boost/Warm/Cool actions, Remote mode actions and Boost, and the corresponding widget and shortcut actions. Off keeps its existing target-bound ending action and tracked-night confirmation; it never offers temporary return. Wake notification Snooze/Extend actions keep their existing manual behaviour: they operate at or after wake-up, when there is no pre-wake programme to return to. Sliders, Run for, Lights and Beeps keep their existing meanings.
 
 ## Behaviour and wording
 
@@ -20,7 +20,7 @@ Use one composite BedJet programme: temporary steps followed by the remaining or
 
 Two alternatives were considered: a phone alarm that issues Resume at the end, and a manual temporary command with an explicit later Resume tap. The former cannot safely distinguish physical Off from normal expiry while disconnected; the latter does not meet the requested automatic return.
 
-The composite programme has the same night identity, with a new revision. `ActiveNight` gains optional serialisable temporary metadata containing the immutable base programme and the expanded temporary timeline. The applied snapshot remains the exact composite sent to the unit. A new `ChangeKind.TEMPORARY` and `Block.TEMPORARY` distinguish the action from starting or ending a night. Optional fields retain old journal readability.
+The composite programme has the same night record ID, with a new revision and therefore a new `NightIdentity`. `ActiveNight` gains optional serialisable temporary metadata containing the immutable base programme and the expanded temporary timeline. The applied snapshot remains the exact composite sent to the unit. A new `ChangeKind.TEMPORARY` and `Block.TEMPORARY` distinguish the action from starting or ending a night. Optional fields retain old journal readability.
 
 The immutable base is retained so another temporary action can replace the first without losing the underlying schedule. Repeated actions never reconstruct a night from subsequently edited live settings. Ending the night keeps the current bounded explicit Resume offer, based on the underlying night rather than restarting a temporary action.
 
@@ -36,7 +36,7 @@ An unchanged alarm observation remains quiet and local. A genuinely changed acce
 
 ## Durable state and cancellation
 
-The full intended composite and metadata are saved in PENDING before any possible write. A failure/cancellation before a write restores the previous state for that exact request. A possible write settles UNKNOWN durably; confirmed publication stays confirmed even if later bookkeeping is interrupted. Cleanup is bounded and NonCancellable, then cancellation is rethrown. A regression must cover cancellation from the first durable PENDING writer itself, which currently sits outside the core apply guard.
+The full intended composite and metadata are saved in PENDING before any possible write. A failure/cancellation before a write restores the previous state for that exact request. A possible write settles UNKNOWN durably; confirmed publication stays confirmed even if later bookkeeping is interrupted. Cleanup is bounded and NonCancellable, then cancellation is rethrown. Regression coverage must include cancellation from the first durable PENDING writer itself, including when that write publishes state before being cancelled.
 
 There is no later automatic phone START. Physical Off or another programme can stop/replace the stored continuation. A physical fan/temperature adjustment may leave the unit's programme running, so documentation must not promise that every physical control cancels the return. Stop tracking remains local and does not stop the stored programme.
 

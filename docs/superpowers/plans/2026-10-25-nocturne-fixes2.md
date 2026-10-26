@@ -33,10 +33,12 @@
 - [x] **Lights/beeps:** Verify commands and status bits against a public BedJet 3 protocol implementation. Add independent packet/bit and switch tests; correct reversals after observed RED if found. Record sources and supervised phone checklist rows.
 - [x] **Alarm explanation:** Verify nextAlarmClock semantics, trace source/window policy, add reason-bearing diagnosis and an always-present Tonight source line with targeted settings navigation. Test accepted Samsung, null/disallowed source, window rejection, no alarm and override/profile-only cases before implementation. Include the reason in diagnostics.
 - [x] **BLE before/after:** Document baseline connection holders, grace, status notifications/remainder reads and wake triggers before changes. Test foreground/hidden presentation, <=1 Hz actual/ambient sensor-temperature updates with immediate control fields, 30-second idle release, foreground return and background owner protection. Implement lifecycle demand without throttling command receipts or fresh reads. Capture RED/GREEN.
-- [ ] **Integration:** Review each patch, run relevant cross-component tests, then the exact four-task gate and unsigned `:app:assembleRelease`. Check fresh JUnit/lint counts, no new lint findings, clean diff/signing scope and independent final review.
-- [ ] **Handover/publish:** Update current handover, disposition caveats, phone checklist, protocol references, RED/GREEN evidence and BLE before/after. Commit and push only the authorised branch; verify the remote SHA.
+- [x] **Integration:** Review each patch, run relevant cross-component tests, then the exact four-task gate and unsigned `:app:assembleRelease`. Check fresh JUnit/lint counts, no new lint findings, clean diff/signing scope and independent final review.
+- [x] **Handover/publish:** Update current handover, disposition caveats, phone checklist, protocol references, RED/GREEN evidence and BLE before/after. Commit and push only the authorised branch; verify the remote SHA.
 
 The later app-switch amendment keeps the same target’s Remote content visible while reconnecting, labels retained readings **Last reported**, and enables controls only after READY and a current report. It does not resume hidden live collection or feed the presentation cache into raw confirmation.
+
+The subsequent temporary-action feature and final combined evidence are recorded in [temporary-action verification](../../review/temporary-actions-verification.md). Tested code `a4411b1cb7fc2769d2e11d84685e3748b3f371d8`, tree `7e52367f6df981fa6d904b3d027ad9832412ff5b`, passed 224 core tests and 1,069 app tests (1,031 passed, 38 skipped), with no failures/errors, debug assembly, unchanged lint findings and unsigned release assembly. Physical acceptance remains NOT RUN.
 
 ## Implementation decisions
 
