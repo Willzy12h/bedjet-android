@@ -92,13 +92,25 @@
       "fanPercent": 35,
       "minutes": 17
     },
+    "autoStart": {
+      "enabled": true,
+      "mode": "BEFORE_WAKE",
+      "fixedMinute": 1335,
+      "minutesBeforeWake": 510,
+      "profileId": "release-profile",
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "onlyIfCharging": true
+    },
     "platform": {
       "bedtimeReminder": true,
       "reminderMinutes": 45,
       "chargerAutoStart": true,
       "chargerDevice": "ble:AA:BB:CC:DD:EE:FF",
       "healthSleepOverlay": true,
-      "lullHandover": true
+      "healthSleepExport": true,
+      "autoStart": {
+        "$ref": "autoStart"
+      }
     },
     "settings": {
       "workingSlot": 1,
@@ -131,9 +143,12 @@
       "fahrenheit": true,
       "demoMode": true,
       "targetDevice": "ble:AA:BB:CC:DD:EE:FF",
+      "rememberedBedJets": [
+        "ble:AA:BB:CC:DD:EE:FF",
+        "ble:11:22:33:44:55:66"
+      ],
+      "demoTargetMigrated": true,
       "setupFanCheckedDevice": "ble:AA:BB:CC:DD:EE:FF",
-      "updateRepo": "example/release-check",
-      "autoUpdateCheck": true,
       "alarmPackages": [
         "clock.example.one",
         "clock.example.two"
@@ -141,12 +156,16 @@
       "themeMode": "SCHEDULED",
       "scheduledDarkMinute": 1260,
       "scheduledLightMinute": 465,
-      "simpleView": true,
+      "simpleView": false,
       "quietNightNotification": true,
       "platform": {
         "$ref": "platform"
       },
       "quickControlsCollapsed": true,
+      "collapsedTonightSections": [
+        "wake",
+        "connection"
+      ],
       "tonightSectionOrder": [
         "connection",
         "night",
@@ -230,7 +249,11 @@
           "$ref": "applied"
         }
       ],
-      "isTestRun": true
+      "isTestRun": true,
+      "bedJetRunConfirmed": true,
+      "confirmedCompletionAt": "2026-10-24T07:12Z",
+      "healthExportVersion": 4294967298,
+      "healthExportedVersion": 4294967297
     },
     "activeBase": {
       "recordId": "release-night",
@@ -356,7 +379,8 @@
       "event": {
         "$ref": "event"
       },
-      "isTestRun": true
+      "isTestRun": true,
+      "confirmedCompletionAt": "2026-10-24T07:12Z"
     },
     "delivery": {
       "id": "release-delivery",
@@ -551,7 +575,8 @@
     "io.github.willzy12h.nocturne.core.night.WakeOrigin": [
       "ALARM",
       "PROFILE_DEFAULT",
-      "OVERRIDE"
+      "OVERRIDE",
+      "AUTO_START"
     ],
     "io.github.willzy12h.nocturne.core.plan.Block": [
       "START",
@@ -630,6 +655,16 @@
       {
         "$ref": "action"
       }
+    ],
+    "io.github.willzy12h.nocturne.core.store.AutoStartMode": [
+      "FIXED",
+      "BEFORE_WAKE"
+    ],
+    "io.github.willzy12h.nocturne.core.store.AutoStartSettings": [
+      {
+        "$ref": "autoStart"
+      },
+      {}
     ],
     "io.github.willzy12h.nocturne.core.store.BackupBundle": [
       {

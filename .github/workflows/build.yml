@@ -97,6 +97,7 @@ jobs:
         run: |
           python3 -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r .github/workflows/requirements-release.txt
           python3 -B .github/workflows/test_release_artifacts.py
+          python3 -B .github/workflows/test_release_manifest.py
           python3 -B .github/workflows/test_release_screenshots.py
           python3 -B .github/workflows/release-serialization-test.py
 
