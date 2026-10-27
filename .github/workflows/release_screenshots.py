@@ -27,7 +27,7 @@ GAP_SCREENS = (
 )
 GAP_DIALOG_SCREENS = ("01-slot-pin", "03-wake-picker", "05-checkin-dialog", "06-checkin-suggestion")
 EXPECTED = {f"{look}-{screen}.png" for look in LOOKS for screen in SCREENS} | {
-    "features-01-idle-handover.png", "features-02-platform-settings.png",
+    "features-01-manual-connection-release.png", "features-02-platform-settings.png",
     "features-03-history-export.png",
 } | {f"gaps-{look}-{screen}.png" for look in GAP_LOOKS for screen in GAP_SCREENS}
 EXPECTED_BASELINE = {f"{look}-{screen}.png" for look in LOOKS[:4] for screen in SCREENS}

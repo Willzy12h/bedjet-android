@@ -212,5 +212,32 @@ class ReleaseGateTest(unittest.TestCase):
             self.assertEqual(release.junit_counts(directory), {"status": "not-produced", "suites": 0})
 
 
+class TestVersionGateTest(unittest.TestCase):
+    def version(self, run_number, production=False):
+        # Exercise the actual workflow shell without inheriting credentials or changing signing.
+        import os
+        import subprocess
+        text = Path(__file__).with_name("build.yml").read_text()
+        block = text.split("      - name: Version\n", 1)[1].split("      - uses:", 1)[0]
+        body = block.split("        run: |\n", 1)[1]
+        body = "\n".join(line[10:] for line in body.splitlines())
+        with tempfile.TemporaryDirectory() as directory:
+            envfile, outputs = Path(directory) / "env", Path(directory) / "outputs"
+            env = {"PATH": os.defpath, "GITHUB_RUN_NUMBER": str(run_number),
+                   "GITHUB_REF": "refs/tags/v1.2.3" if production else "refs/pull/4/merge",
+                   "GITHUB_REF_NAME": "v1.2.3", "RELEASE_VERSION_CODE": "42",
+                   "GITHUB_ENV": str(envfile), "GITHUB_OUTPUT": str(outputs)}
+            subprocess.run(["/bin/bash", "-e", "-c", body], env=env, check=True, capture_output=True)
+            return dict(line.split("=", 1) for line in envfile.read_text().splitlines())
+
+    def test_test_apk_version_exceeds_original_security_candidate_and_increases(self):
+        first, later = self.version(1), self.version(40)
+        self.assertGreater(int(first["VERSION_CODE"]), 20261027)
+        self.assertGreater(int(later["VERSION_CODE"]), int(first["VERSION_CODE"]))
+
+    def test_production_version_remains_explicit_and_independent(self):
+        self.assertEqual({"VERSION_NAME": "1.2.3", "VERSION_CODE": "42"}, self.version(40, True))
+
+
 if __name__ == "__main__":
     unittest.main()

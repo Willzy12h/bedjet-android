@@ -7,7 +7,7 @@ jobs:
   verify:
     if: github.head_ref == 'gpt/nocturne-final' && github.event.pull_request.number == 4 && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -27,11 +27,21 @@ jobs:
           python3 .github/uat2-integrate.py
           python3 .github/uat2-followup.py
           python3 .github/uat2-complete.py
-      - name: Full core and app behavioural verification
+          python3 .github/uat2-final-regressions.py
+      # Full run40499339517:292 core passed;1597 app cases,6 failures,38 unchanged skips.
+      # Recheck those exact failures and all UAT/security before publication. The normal
+      # unfiltered Build workflow remains mandatory for the final delivery; this is not its replacement.
+      - name: UAT, security and recorded full-suite regressions
         run: |
           set -o pipefail
           ./gradlew --no-daemon --continue --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
-            :core:test :app:testDebugUnitTest 2>&1 | tee uat2-integration.log
+            :core:test :app:testDebugUnitTest --tests '*Uat*' --tests '*SecurityTest' \
+            --tests '*AlarmExplanationTest' --tests '*AlarmSettingsNavigationTest' \
+            --tests '*U06PrimaryLayoutTest' --tests '*ActiveIndicatorTest' \
+            --tests '*TonightLayoutTest' --tests '*TemporaryActionDialogTest' \
+            --tests '*TemporaryTrackingTruthTest' --tests '*ImportedTemporaryDurationTest' \
+            --tests '*IdleQuickCaptureTest' --tests '*BoostSequenceLayoutTest' \
+            2>&1 | tee uat2-integration.log
       - name: Record tests
         if: always()
         run: |

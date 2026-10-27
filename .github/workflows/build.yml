@@ -69,8 +69,9 @@ jobs:
             VERSION_NAME="${GITHUB_REF_NAME#v}"
             VERSION_CODE="$RELEASE_VERSION_CODE"
           else
-            VERSION_NAME="0.2.0-hardening-test.${GITHUB_RUN_NUMBER}"
-            VERSION_CODE="$((GITHUB_RUN_NUMBER + 1))"
+            VERSION_NAME="0.2.0-uat2-test.${GITHUB_RUN_NUMBER}"
+            # Upgrade floor for existing permanent TEST installations; production stays explicit.
+            VERSION_CODE="$((20261027 + GITHUB_RUN_NUMBER))"
           fi
           printf 'VERSION_NAME=%s\nVERSION_CODE=%s\n' "$VERSION_NAME" "$VERSION_CODE" >> "$GITHUB_ENV"
           printf 'name=%s\ncode=%s\n' "$VERSION_NAME" "$VERSION_CODE" >> "$GITHUB_OUTPUT"
