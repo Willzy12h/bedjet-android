@@ -190,6 +190,9 @@ class ScreenshotCapture {
                 events = listOf(HistoryEvent("2026-10-22T07:30Z", EventKind.ENDED, "Night ended"))))
         }
         tab("History")
+        // At 320 dp / 200% text the older card is not composed until the lazy list scrolls.
+        // Scroll its container first; keep the same button/dialog assertions and all captures.
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(s(R.string.checkin_button)))
         tap(s(R.string.checkin_button))
         compose.onNodeWithText(s(R.string.checkin_title)).assertIsDisplayed()
         shot("gaps-$look-05-checkin-dialog")
