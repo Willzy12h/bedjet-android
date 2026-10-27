@@ -30,6 +30,7 @@
     <string name="auto_start_skip_charging">The phone is not charging.</string>
     <string name="auto_start_skip_permission">Bluetooth or notification access is unavailable.</string>
     <string name="auto_start_skip_import">A backup import was in progress. Nothing was sent to the BedJet.</string>
+    <string name="auto_start_schedule_failed">Android could not schedule this automatic attempt. Nothing was sent to the BedJet.</string>
     <string name="auto_start_skip_changed">The plan, alarm, selected BedJet or Auto-start settings changed, or this night was already attempted or cancelled.</string>
     <string name="auto_start_skip_unreadable">Auto-start skipped: saved data could not be read.</string>
     <string name="auto_start_saved_wake">Auto-start saved this programme’s wake at %1$s.</string>

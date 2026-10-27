@@ -72,7 +72,7 @@ object ChargerJobs {
     const val ID=-6100
     // The existing delivery lock also covers the local refusal claim, so a replay cannot pass it while it saves.
     private val delivery = Mutex()
-    private enum class Admission { ENQUEUED, IMPORT_BUSY, IGNORED }
+    private enum class Admission { ENQUEUED, IMPORT_BUSY, SCHEDULE_FAILED, IGNORED }
     fun sync(graph: Graph) {
         val scheduler = graph.context.getSystemService(JobScheduler::class.java)
         val pending = scheduler.getPendingJob(ID)
@@ -88,11 +88,13 @@ object ChargerJobs {
     /** Longer hardware work stays in JobService; this delivery only schedules or records a local refusal. */
     suspend fun deliver(graph: Graph, ticket: AutoStartTicket) = delivery.withLock {
         try {
-            if (enqueueLocked(graph, ticket) == Admission.IMPORT_BUSY &&
+            val admission = enqueueLocked(graph, ticket)
+            if ((admission == Admission.IMPORT_BUSY || admission == Admission.SCHEDULE_FAILED) &&
                 !graph.repository.settings.value.demoMode && !AutoStartSchedule.claimed(graph, ticket.key)) {
                 val title = graph.context.getString(R.string.auto_start_outcome)
-                val message = graph.context.getString(R.string.auto_start_result_skipped,
-                    graph.context.getString(R.string.auto_start_skip_import))
+                val importing = admission == Admission.IMPORT_BUSY
+                val message = graph.context.getString(if (importing) R.string.auto_start_result_skipped else R.string.auto_start_result_failed,
+                    graph.context.getString(if (importing) R.string.auto_start_skip_import else R.string.auto_start_schedule_failed))
                 var announce = false
                 try {
                     if (!graph.repository.claimAutomation("auto-skip:${ticket.key}") ||
@@ -126,7 +128,7 @@ object ChargerJobs {
             val result = scheduler.schedule(JobInfo.Builder(ID, ComponentName(graph.context, ChargerJobService::class.java))
                 .setMinimumLatency(0).setOverrideDeadline(AutoStartSchedule.WINDOW_MS)
                 .setExtras(ticket.extras()).build())
-            return if (result == JobScheduler.RESULT_SUCCESS) Admission.ENQUEUED else Admission.IGNORED
+            return if (result == JobScheduler.RESULT_SUCCESS) Admission.ENQUEUED else Admission.SCHEDULE_FAILED
         } finally { lease.close() }
     }
     fun charging(context: Context): Boolean {

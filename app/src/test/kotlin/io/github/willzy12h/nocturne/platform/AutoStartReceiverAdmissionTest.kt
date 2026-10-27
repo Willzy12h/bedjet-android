@@ -238,4 +238,30 @@ class AutoStartReceiverAdmissionTest : PlatformGraphFixture() {
         assertNull(pendingJob())
         assertEquals(0, starts)
     }
+
+    @Test fun androidSchedulerRefusalReportsOneFailedResultAndNeverReplaysThatNight() = runBlocking {
+        val graph = setup(); val ticket = ticket(graph)
+        assertNotNull(AutoStartSchedule.due(graph, ticket))
+        val scheduler = shadowOf(app.getSystemService(JobScheduler::class.java))
+        scheduler.failOnJob(ChargerJobs.ID)
+        try {
+            deliver(ticket)
+            assertEquals("Android's RESULT_FAILURE must not silently discard a valid due attempt", 1, outcomes(graph).size)
+            val initial = outcomes(graph); val notice = initial.single(); val notification = shown()
+            assertEquals(NoticeKind.PROBLEM, notice.kind)
+            assertTrue(notice.text, notice.text.contains("failed", ignoreCase = true))
+            assertTrue(notice.text, notice.text.contains("Android"))
+            assertFalse(notice.text, notice.text.contains("confirmed", ignoreCase = true))
+            assertEquals(notice.text, notification?.extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+            assertNull(pendingJob())
+            assertEquals(0, starts)
+            // Let Android accept subsequent jobs: replay suppression must come from Nocturne's durable claim.
+            ReflectionHelpers.getField<MutableSet<Int>>(scheduler, "jobsToFail").clear()
+            deliver(ticket)
+            assertEquals(initial, outcomes(graph))
+            assertSame(notification, shown())
+            assertNull("The failed night is terminal even after native scheduling becomes available", pendingJob())
+            assertEquals(0, starts)
+        } finally { ReflectionHelpers.getField<MutableSet<Int>>(scheduler, "jobsToFail").clear() }
+    }
 }
