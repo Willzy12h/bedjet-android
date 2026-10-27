@@ -79,12 +79,39 @@ object PlanCompiler {
             else Phase(s.step.mode, s.step.temperature, (s.step.fanStep + 1) * 5,
                 Duration.between(if (s.startsAt.isAfter(now)) s.startsAt else now, s.endsAt).toMinutes().toInt())
         }
-        return compile(profile.copy(start = remainingStart), now, newWake)
+        // A Quiet middle settles once: a Middle already under way goes on from the asleep speed.
+        val middleBegun = plan.steps.any { it.block == Block.MIDDLE && !it.startsAt.isAfter(now) }
+        val middle = profile.middle.quietFan?.takeIf { middleBegun }?.let { profile.middle.copy(quietFan = it.copy(settleMinutes = 0)) }
+            ?: profile.middle
+        return compile(profile.copy(start = remainingStart, middle = middle), now, newWake)
     }
 
     // Phase shaping
 
+    /** The Middle's temperature steps, cut again wherever a Quiet middle's fan changes speed. */
     private fun ramp(middle: Middle, minutes: Int): List<Phase> {
+        val temperatures = temperatureSteps(middle, minutes)
+        val quiet = middle.quietFan ?: return temperatures
+        val rise = minOf(quiet.riseMinutes, minutes)
+        val settle = minOf(quiet.settleMinutes, minutes - rise)
+        val fans = listOf(settle to quiet.settle, minutes - settle - rise to quiet.asleep, rise to quiet.rise).filter { it.first > 0 }
+        val out = mutableListOf<Phase>()
+        var t = 0
+        var f = 0
+        var tLeft = temperatures.firstOrNull()?.minutes ?: 0
+        var fLeft = fans.firstOrNull()?.first ?: 0
+        while (t < temperatures.size && f < fans.size) {
+            val take = minOf(tLeft, fLeft)
+            out += temperatures[t].copy(fanPercent = fans[f].second, minutes = take)
+            tLeft -= take
+            fLeft -= take
+            if (tLeft == 0 && ++t < temperatures.size) tLeft = temperatures[t].minutes
+            if (fLeft == 0 && ++f < fans.size) fLeft = fans[f].first
+        }
+        return out
+    }
+
+    private fun temperatureSteps(middle: Middle, minutes: Int): List<Phase> {
         if (minutes <= 0) return emptyList()
         val count = middle.rampSteps.coerceIn(1, 8).coerceAtMost(minutes)
         return (0 until count).map { i ->

@@ -81,7 +81,7 @@ data class MiddleSuggestion(
     val proposedMiddle: Middle,
 ) {
     /** A fan change (Cool or Dry Middle) rather than a temperature change. */
-    val changesFan: Boolean get() = proposedMiddle.fanStart != expectedMiddle.fanStart || proposedMiddle.fanEnd != expectedMiddle.fanEnd
+    val changesFan: Boolean get() = proposedMiddle.fanSpeeds != expectedMiddle.fanSpeeds
 }
 
 /** Middles whose comfort is adjusted by fan speed, not temperature (P5). */
@@ -536,7 +536,7 @@ class Repository(
         val modeRange = profile.middle.mode.temperatureRange
         fun validTemperature(value: Int) = value in limits.minTemp..limits.maxTemp && value in modeRange
         if (limits.minFan !in 5..100 || limits.maxFan !in 5..100 || limits.minFan > limits.maxFan ||
-            profile.middle.fanStart !in limits.minFan..limits.maxFan || profile.middle.fanEnd !in limits.minFan..limits.maxFan ||
+            profile.middle.fanSpeeds.any { it !in limits.minFan..limits.maxFan } ||
             middle.rampSteps !in 1..8 || limits.minTemp !in 38..86 || limits.maxTemp !in 38..86 ||
             limits.minTemp > limits.maxTemp || !validTemperature(profile.middle.tempStart) ||
             !validTemperature(profile.middle.tempEnd) || !validTemperature(middle.tempStart) ||
@@ -546,11 +546,11 @@ class Repository(
 
     private fun proposedFan(profile: Profile, comfort: MorningComfort): Middle? {
         val delta = if (comfort == MorningComfort.TOO_HOT) 10 else -10
-        val middle = profile.middle.copy(fanStart = profile.middle.fanStart + delta, fanEnd = profile.middle.fanEnd + delta)
+        val middle = profile.middle.shiftFan(delta)
         val limits = profile.limits
         fun valid(fan: Int) = fan in 5..100 && fan % 5 == 0 && fan in limits.minFan..limits.maxFan
-        if (limits.minFan > limits.maxFan || middle.rampSteps !in 1..8 || !valid(profile.middle.fanStart) || !valid(profile.middle.fanEnd) ||
-            !valid(middle.fanStart) || !valid(middle.fanEnd)) return null
+        if (limits.minFan > limits.maxFan || middle.rampSteps !in 1..8 || !profile.middle.fanSpeeds.all(::valid) ||
+            !middle.fanSpeeds.all(::valid)) return null
         return middle
     }
 

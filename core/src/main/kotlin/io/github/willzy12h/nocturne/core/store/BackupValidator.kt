@@ -238,6 +238,13 @@ object BackupValidator {
         fan("$name: the middle's ending fan", middle.fanEnd)
         temperature("$name: the middle's starting temperature", middle.mode, middle.tempStart)
         temperature("$name: the middle's ending temperature", middle.mode, middle.tempEnd)
+        middle.quietFan?.let { q ->
+            fan("$name: the quiet middle's settling fan", q.settle)
+            fan("$name: the quiet middle's asleep fan", q.asleep)
+            fan("$name: the quiet middle's rising fan", q.rise)
+            if (q.settleMinutes !in 0..MAX_PHASE_MINUTES) add("$name: the quiet middle settles for ${q.settleMinutes} minutes; it must be 0 to $MAX_PHASE_MINUTES.")
+            if (q.riseMinutes !in 0..MAX_PHASE_MINUTES) add("$name: the quiet middle rises for ${q.riseMinutes} minutes; it must be 0 to $MAX_PHASE_MINUTES.")
+        }
         if (middle.rampSteps !in RAMP_STEPS) add("$name: the middle has ${middle.rampSteps} ramp steps; it must be 1 to $MAX_RAMP_STEPS.")
         val limits = profile.limits
         if (limits.minFan !in FAN || limits.maxFan !in FAN || limits.minFan > limits.maxFan) {

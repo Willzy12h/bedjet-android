@@ -621,6 +621,23 @@ class RepositoryTest {
         assertEquals(Mode.DRY, cold.proposedMiddle.mode)
     }
 
+    /** R1: a Quiet middle's settle, asleep and rise speeds all move together; an asleep speed at the limit blocks it. */
+    @Test
+    fun aQuietMiddleFanSuggestionMovesEverySpeed() = runBlocking {
+        val repo = repository()
+        val quiet = io.github.willzy12h.nocturne.core.plan.QuietFan(settle = 50, settleMinutes = 30, asleep = 25, rise = 45, riseMinutes = 40)
+        repo.saveProfile(Presets.winterWarm.copy(middle = Middle(Mode.COOL, fanStart = 50, fanEnd = 45, tempStart = 44, tempEnd = 44, quietFan = quiet)))
+        repo.addRecord(completedNight("hot"))
+        val hot = repo.recordMorningCheckIn("hot", MorningComfort.TOO_HOT)!!.suggestion!!
+        assertTrue(hot.changesFan)
+        assertEquals(quiet.copy(settle = 60, asleep = 35, rise = 55), hot.proposedMiddle.quietFan)
+
+        repo.saveProfile(Presets.winterWarm.copy(middle = Middle(Mode.COOL, fanStart = 50, fanEnd = 45, tempStart = 44, tempEnd = 44,
+            quietFan = quiet.copy(asleep = 10)), limits = ProfileLimits(minFan = 5)))
+        repo.addRecord(completedNight("cold"))
+        assertNull(repo.recordMorningCheckIn("cold", MorningComfort.TOO_COLD)!!.suggestion)
+    }
+
     @Test
     fun aFanSuggestionOutsideTheLimitsIsNotOffered() = runBlocking {
         val repo = repository()

@@ -20,6 +20,12 @@ data class ActionPreset(val mode: Mode, val temperature: Int, val fanPercent: In
 @Serializable
 enum class ThemeMode { SYSTEM, DARK, LIGHT, SCHEDULED }
 
+/** The redesign's seven palettes. Any of them can be chosen for night or day; only Overcast is light. */
+@Serializable
+enum class Palette(val dark: Boolean) {
+    MIDNIGHT_INK(true), FOREST(true), GRAPHITE(true), PLUM(true), AUTUMN_RUST(true), WINTER_STORM(true), OVERCAST(false)
+}
+
 @Serializable
 data class Settings(
     /** BedJet slot (0-based) that tonight's plan is written into. */
@@ -52,6 +58,9 @@ data class Settings(
     val alarmPackages: Set<String> = setOf("com.google.android.deskclock", "com.sec.android.app.clockpackage"),
     // Appearance. Defaults keep older saved settings and backups loading unchanged.
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** The palette used while [themeMode] means dark, and while it means light. */
+    val nightPalette: Palette = Palette.MIDNIGHT_INK,
+    val dayPalette: Palette = Palette.OVERCAST,
     /** Local clock times. Equal boundaries mean always dark. */
     val scheduledDarkMinute: Int = 22 * 60,
     val scheduledLightMinute: Int = 7 * 60,
@@ -78,6 +87,9 @@ data class Settings(
         val saved = tonightSectionOrder.filter { it in known }.distinct()
         return saved + known.filterNot { it in saved }
     }
+
+    /** The palette to draw with at [at]: [nightPalette] while the theme means dark, otherwise [dayPalette]. */
+    fun palette(at: ZonedDateTime, systemDark: Boolean): Palette = if (isDarkTheme(at, systemDark)) nightPalette else dayPalette
 
     fun isDarkTheme(at: ZonedDateTime, systemDark: Boolean): Boolean = when (themeMode) {
         ThemeMode.SYSTEM -> systemDark

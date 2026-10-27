@@ -68,6 +68,16 @@ class BackupValidatorTest {
     }
 
     @Test
+    fun quietMiddle() {
+        val quiet = io.github.willzy12h.nocturne.core.plan.QuietFan(settle = 50, settleMinutes = 30, asleep = 25, rise = 45, riseMinutes = 40)
+        val ok = summer.copy(middle = summer.middle.copy(quietFan = quiet))
+        assertEquals(emptyList<String>(), errors(good.copy(profiles = listOf(ok))))
+        assertRejected(good.copy(profiles = listOf(ok.copy(middle = ok.middle.copy(quietFan = quiet.copy(asleep = 3))))), "asleep fan")
+        assertRejected(good.copy(profiles = listOf(ok.copy(middle = ok.middle.copy(quietFan = quiet.copy(riseMinutes = 721))))), "rises")
+        assertRejected(good.copy(profiles = listOf(ok.copy(middle = ok.middle.copy(quietFan = quiet.copy(settleMinutes = -1))))), "settles")
+    }
+
+    @Test
     fun temperatureOutsideTheModeRange() {
         // Cool goes no warmer than 31 °C (62 half-degrees).
         assertRejected(good.copy(profiles = listOf(summer.copy(start = listOf(Phase(Mode.COOL, 70, 50, 30))))), "temperature")

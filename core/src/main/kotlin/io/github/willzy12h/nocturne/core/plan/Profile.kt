@@ -18,7 +18,40 @@ data class Middle(
     val tempStart: Int,
     val tempEnd: Int,
     val rampSteps: Int = 1,
-)
+    /** The Quiet middle fan shape; null for Steady or Ease, which [fanStart] and [fanEnd] describe. When set,
+     * [fanStart] and [fanEnd] are kept at its settle and rise speeds, so an older app reads it as an Ease. */
+    val quietFan: QuietFan? = null,
+) {
+    val fanShape: FanShape get() = when {
+        quietFan != null -> FanShape.QUIET_MIDDLE
+        fanStart == fanEnd -> FanShape.STEADY
+        else -> FanShape.EASE
+    }
+
+    /** Every fan speed this Middle sets. */
+    val fanSpeeds: List<Int> get() = listOf(fanStart, fanEnd) + listOfNotNull(quietFan).flatMap { listOf(it.settle, it.asleep, it.rise) }
+
+    /** This Middle with every fan speed moved by [delta] per cent; timings are left alone. */
+    fun shiftFan(delta: Int): Middle = copy(
+        fanStart = fanStart + delta,
+        fanEnd = fanEnd + delta,
+        quietFan = quietFan?.let { it.copy(settle = it.settle + delta, asleep = it.asleep + delta, rise = it.rise + delta) },
+    )
+}
+
+/** How the fan moves through the Middle, chosen apart from the temperature. */
+enum class FanShape {
+    /** One speed all night. */
+    STEADY,
+    /** Moves from [Middle.fanStart] to [Middle.fanEnd] across the temperature steps. */
+    EASE,
+    /** [QuietFan.settle] while falling asleep, [QuietFan.asleep] through the night, [QuietFan.rise] before the wake-up. */
+    QUIET_MIDDLE,
+}
+
+/** Fan speeds (per cent) for the Quiet middle shape. The rise keeps its minutes first when the Middle is short. */
+@Serializable
+data class QuietFan(val settle: Int, val settleMinutes: Int, val asleep: Int, val rise: Int, val riseMinutes: Int)
 
 /** Bounds every phase, ramp step, snooze and extend is held to, on top of each mode's own range. */
 @Serializable
