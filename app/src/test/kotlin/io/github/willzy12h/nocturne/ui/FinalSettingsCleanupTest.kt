@@ -1,11 +1,13 @@
 package io.github.willzy12h.nocturne.ui
 
 import android.Manifest
+import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.BackupCodec
+import io.github.willzy12h.nocturne.notify.Notifications
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -21,6 +23,15 @@ class FinalSettingsCleanupTest {
     @get:Rule val rules = ui.rules
 
     private fun settings() = ui.tab("Settings")
+
+    @Test fun theAlertsChannelDescribesOnlyTheRemainingNotificationFeatures() {
+        val context = ui.compose.activity
+        Notifications.createChannels(context)
+        val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel("alerts")
+        assertNotNull(channel)
+        assertEquals("Changes and problems", channel.name.toString())
+        assertEquals("When your wake-up moves with your alarm or something did not work.", channel.description)
+    }
 
     @Test fun updatesOpenTheFixedGitHubReleasesPageInTheBrowser() {
         settings()

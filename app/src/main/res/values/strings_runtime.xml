@@ -119,8 +119,8 @@
     <string name="notify_channel_wake_help">Shown while your BedJet is waking you, with snooze and extend buttons.</string>
     <string name="notify_channel_working">Talking to BedJet</string>
     <string name="notify_channel_working_help">Shown briefly while a command is sent.</string>
-    <string name="notify_channel_alerts">Changes, problems and updates</string>
-    <string name="notify_channel_alerts_help">When your wake-up moves with your alarm, when something didn\'t work, and new versions.</string>
+    <string name="notify_channel_alerts">Changes and problems</string>
+    <string name="notify_channel_alerts_help">When your wake-up moves with your alarm or something did not work.</string>
     <string name="notify_working">Talking to your BedJet…</string>
     <string name="notify_waking">Waking you at %1$s</string>
     <string name="notify_waking_text">Your BedJet is getting you ready to wake up.</string>

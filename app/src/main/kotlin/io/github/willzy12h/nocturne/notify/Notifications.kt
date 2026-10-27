@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.core.content.edit
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.graph
