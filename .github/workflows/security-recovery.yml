@@ -23,7 +23,7 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
       - name: Apply exact security edits in throwaway checkout
-        run: python3 .github/security-fix.py
+        run: python3 .github/security-recovery-adjust.py
       - name: Focused behavioural GREEN
         run: |
           set -o pipefail
@@ -51,6 +51,20 @@ jobs:
             core/build/test-results/test/
             app/build/test-results/testDebugUnitTest/
           retention-days: 14
+      - name: Report focused assertions
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as E
+          for root in (Path('core/build/test-results/test'),Path('app/build/test-results/testDebugUnitTest')):
+              for file in sorted(root.glob('TEST-*.xml')):
+                  suite=E.parse(file).getroot()
+                  print(suite.attrib)
+                  for case in suite.findall('testcase'):
+                      for error in list(case.findall('failure'))+list(case.findall('error')):
+                          print('FAILED',case.attrib, error.attrib, (error.text or '')[:3500])
+          PY
   publish:
     needs: verify
     if: github.head_ref == 'gpt/nocturne-final' && github.event.pull_request.number == 4 && github.event.pull_request.head.repo.full_name == github.repository
@@ -78,8 +92,8 @@ jobs:
           python3 - <<'PY'
           import subprocess
           paths = subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
-          allowed_helpers = {'.github/workflows/release_manifest.py','.github/workflows/test_release_manifest.py','.github/workflows/fixtures/release-manifest-reviewed.xml'}
-          assert paths and all(p.startswith(('app/src/','core/src/')) or p in allowed_helpers for p in paths), paths
+          helpers={'.github/workflows/release_manifest.py','.github/workflows/test_release_manifest.py','.github/workflows/fixtures/release-manifest-reviewed.xml'}
+          assert paths and all(p.startswith(('app/src/','core/src/')) or p in helpers for p in paths), paths
           PY
           git config user.name 'Nocturne security verifier'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
