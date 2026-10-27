@@ -1,13 +1,13 @@
-"""Complete the remaining UAT regressions after the preserved 4c9a86a follow-up."""
+"""Complete the remaining UAT regressions after the preserved follow-up."""
 from pathlib import Path
 A='app/src/main/kotlin/io/github/willzy12h/nocturne/'
 T='app/src/test/kotlin/io/github/willzy12h/nocturne/'
 def edit(path, old, new, count=1):
     p=Path(path);s=p.read_text();assert s.count(old)==count,(path,s.count(old),old[:100]);p.write_text(s.replace(old,new))
 
-# Behavioural RED in40497223789 and40498611732: permission revocation fails to restore the card.
-edit(A+'ui/SetupChecklistCard.kt','        if (Notifications.canPost(context)) add(SetupItem.NOTIFICATIONS)', '''        if (Notifications.canPost(context) && (Build.VERSION.SDK_INT < 33 ||
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)) add(SetupItem.NOTIFICATIONS)''')
+# The preceding follow-up already applies the notification runtime-permission guard.
+setup=Path(A+'ui/SetupChecklistCard.kt').read_text()
+assert 'Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)' in setup
 
 # Preserve the existing bounded Temporary path for unsupported imported legacy presets.
 # The unchanged owner and final command boundary still refuse an unsafe End/idle request.
@@ -32,7 +32,7 @@ for name,count in [('TemporaryActionDialogTest.kt',1),('TemporaryTrackingTruthTe
          'ui.quick(ui.graph.repository.settings.value.extendWarm)',count)
 edit(T+'ui/U06ControlSemanticsTest.kt','fixture.control(s(R.string.feature_warm))',
      'fixture.quick(fixture.graph.repository.settings.value.extendWarm)')
-edit(T+'AppearanceTest.kt','compose.onNodeWithText(io.github.willzy12h.nocturne.ui.expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))',
+edit(T+'AppearanceTest.kt','compose.onNodeWithText(io.github.willzy12h/nocturne/ui.expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))',
      'compose.onNodeWithText("Turbo 10m")')
 edit(T+'ui/U06PrimaryLayoutTest.kt', '''        val labels = listOf(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes),
             ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
