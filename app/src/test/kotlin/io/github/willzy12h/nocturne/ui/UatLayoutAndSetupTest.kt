@@ -65,7 +65,7 @@ class UatLayoutAndSetupTest {
             Manifest.permission.POST_NOTIFICATIONS)
         @Suppress("DEPRECATION")
         shadowOf(BluetoothAdapter.getDefaultAdapter()).setEnabled(true)
-        shadowOf(app.getSystemService(AlarmManager::class.java)).setCanScheduleExactAlarms(true)
+        org.robolectric.shadows.ShadowAlarmManager.setCanScheduleExactAlarms(true)
         shadowOf(app.getSystemService(PowerManager::class.java)).setIgnoringBatteryOptimizations(app.packageName, true)
         val link = object : BedJetLink {
             override val state = MutableStateFlow(LinkState.READY)
@@ -160,7 +160,7 @@ class UatLayoutAndSetupTest {
         val left = compose.onNodeWithTag("quick-mode-TURBO").getUnclippedBoundsInRoot()
         val right = compose.onNodeWithTag("quick-mode-HEAT").getUnclippedBoundsInRoot()
         assertEquals(left.top.value, right.top.value, .5f)
-        assertEquals(left.width.value, right.width.value, .5f)
+        assertEquals((left.right - left.left).value, (right.right - right.left).value, .5f)
         assertTrue(left.right < right.left)
     }
 
