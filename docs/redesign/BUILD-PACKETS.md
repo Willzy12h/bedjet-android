@@ -22,15 +22,30 @@ Work the packets **in order**, one branch and one commit series per packet. Clau
 
 ## P2 — Theme wiring and Appearance
 
-> Wire the seven palettes into the app. `ui/Palettes.kt` already has `PaletteTokens` for every palette and
-> `Settings.palette(at, systemDark)` picks one. In `ui/Theme.kt`, build `NocturneColors` and the Material
-> `ColorScheme` (background = ground, surface = surface, onSurface = ink, onSurfaceVariant = ink2, outline = hairline,
-> primary = primary, onPrimary = onPrimary, error = bad) from the chosen tokens, in place of the fixed Midnight Ink /
-> Daylight pair. Heat colours come from `tokens.stepColor(mode, temperature)`; where only a mode is known, use Ember
-> level 2 for Heat, 1 for Long heat, 4 for Turbo. Keep `ThemeMode` and the scheduled light/dark logic as they are.
-> In Settings › Appearance add "Night palette" and "Day palette" pickers: a row of seven swatch dots each, the
-> current one ringed, with the palette name as the content description. Defaults: Midnight Ink and Overcast.
-> Tests: theme picks the right tokens for dark/light/scheduled; palette choice survives a backup round trip.
+Branch: `gpt/redesign-p2-theme`.
+
+1. In `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/Theme.kt`, replace the fixed Midnight Ink / Daylight pair
+   with colours built from the chosen palette:
+   - `palette = settings.palette(at, systemDark).tokens` (see `ui/Palettes.kt` and core `store/Settings.kt`).
+   - Material `ColorScheme`: background = ground, surface = surface, onBackground/onSurface = ink,
+     onSurfaceVariant = ink2, outline = hairline, primary = primary, onPrimary = onPrimary, error = bad.
+     `darkColorScheme` for dark palettes, `lightColorScheme` for Overcast.
+   - `NocturneColors` from the same tokens: cool = cool, dry = dry, idle = off, accent = accent,
+     heat = ember[1], gentleHeat = ember[0], turbo = ember[3], connected = keep the current green.
+   - Where a step's temperature is known (night curve bars, step list), colour it with
+     `tokens.stepColor(mode, temperature)` so heat reads by warmth (Ember scale).
+   - Keep `ThemeMode` (System / Dark / Light / Scheduled) and the scheduled logic exactly as they are.
+     `NocturneTheme(mode: ThemeMode)` with no settings uses the defaults (Midnight Ink / Overcast).
+   - Remove `DaylightColors`, `SimpleDaylightColors` and the old fixed schemes only once nothing references them.
+2. Settings › Appearance (`ui/SettingsScreen.kt`): add "Night palette" and "Day palette" rows. Each is a row of seven
+   round swatch dots (the palette's ground with an accent ring); the current one is marked with a ring and a tick.
+   Each dot's content description is the palette name: Midnight Ink, Forest, Graphite OLED, Plum, Autumn · Rust,
+   Winter · Storm, Overcast. Tapping saves `Settings.nightPalette` / `dayPalette` through the existing settings save
+   path. Defaults: Midnight Ink (night), Overcast (day).
+3. Tests (JUnit4 in app, JUnit5 in core, matching the files around them):
+   - the theme resolves the right tokens for Dark, Light, System and Scheduled modes with custom night/day palettes;
+   - `nightPalette` / `dayPalette` survive a backup export → import round trip;
+   - the Appearance pickers save the tapped palette (ViewModel/state level is fine).
 
 ## P3 — Side-stripe tiles, Home and Profiles
 
