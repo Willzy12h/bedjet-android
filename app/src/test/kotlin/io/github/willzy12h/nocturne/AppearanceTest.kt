@@ -68,7 +68,7 @@ class AppearanceTest {
         compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } } }
         waitFor(hasText("Wake time") or hasText("Your alarm"))
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(io.github.willzy12h.nocturne.ui.expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))
+        compose.onNodeWithText("Turbo 10m")
             .performScrollTo().assertIsDisplayed()
     }
 

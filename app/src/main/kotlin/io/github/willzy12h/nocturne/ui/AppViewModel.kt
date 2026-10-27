@@ -87,6 +87,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val profiles = repo.profiles
     val settings = repo.settings
+    private val _setupChecklistOpen = MutableStateFlow(false)
+    val setupChecklistOpen = _setupChecklistOpen.asStateFlow()
+    private val _setupChecklistRequest = MutableStateFlow(0)
+    val setupChecklistRequest = _setupChecklistRequest.asStateFlow()
+    fun openSetupChecklist() {
+        updateSettings { it.copy(setupDismissedOptional = emptySet()) }
+        _setupChecklistOpen.value = true
+        _setupChecklistRequest.value += 1
+    }
+    fun closeSetupChecklist() { _setupChecklistOpen.value = false }
     /** Name replies are independent of status receipts; both sources remain bound to their own device. */
     val selectedBedJetName = combine(settings, graph.bleLink.verifiedNames, graph.bleLink.displayNames) { s, verified, displayed ->
         if (s.demoMode) null else s.targetDevice?.let { target ->

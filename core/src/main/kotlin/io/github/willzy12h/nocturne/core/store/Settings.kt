@@ -58,6 +58,10 @@ data class Settings(
     /** Tonight shows the night as a list of steps instead of the bar curve. */
     val simpleView: Boolean = true,
     val quickControlsCollapsed: Boolean = false,
+    /** Explicit mode overrides; absent entries retain legacy Warm/Cool values losslessly. */
+    val quickDefaults: List<ActionPreset> = emptyList(),
+    val setupChecklistCompleted: Boolean = false,
+    val setupDismissedOptional: Set<String> = emptySet(),
     /** Collapsing content never removes the section's accessible header. */
     val collapsedTonightSections: Set<String> = emptySet(),
     /** Stable section IDs; unknown, repeated and missing IDs are normalised when displayed. */

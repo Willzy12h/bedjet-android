@@ -185,6 +185,8 @@ object BackupValidator {
         if (bundle.slotBackups.map { it.deviceId.lowercase(java.util.Locale.ROOT) to it.slot }.distinct().size != bundle.slotBackups.size)
             invalid("slotBackups.duplicateIdentity")
         val settings = bundle.settings
+        if (!QuickDefaults.validOverrides(settings.quickDefaults)) invalid("settings.quickDefaults")
+        if (settings.setupDismissedOptional.any { it !in setOf("health", "widget") }) invalid("settings.setupDismissedOptional")
         settings.selectedProfileId?.let { bounded(it, "settings.selectedProfileId", MAX_ID) }
         settings.tonightChoice?.let { bounded(it.profileId, "settings.tonightChoice.profileId", MAX_ID) }
         settings.targetDevice?.let { bounded(it, "settings.targetDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.targetDevice") }

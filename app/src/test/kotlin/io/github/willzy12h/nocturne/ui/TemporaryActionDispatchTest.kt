@@ -63,7 +63,7 @@ class TemporaryActionDispatchTest {
 
     @Test fun temporaryUsesTheReviewedPresetAndOneActionDurationAndShowsOnlyAPlannedReturn() {
         val original = graph.repository.activeNight.value!!
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.checkControl(ui.compose.onNodeWithTag("quick-mode-DRY"), "Dry quick").performClick()
         dialogText("Dry · 30°C · fan 25% · 15 min").assertExists()
         runBlocking { graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.COOL, 44, 40, 30)) } }
         duration(5)
@@ -93,7 +93,7 @@ class TemporaryActionDispatchTest {
 
     @Test fun endingUsesTheOriginalPresetAfterSettingsChangeWhileTheChoiceIsOpen() {
         val original = graph.repository.activeNight.value!!
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.checkControl(ui.compose.onNodeWithTag("quick-mode-DRY"), "Dry quick").performClick()
         runBlocking { graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.COOL, 44, 40, 30)) } }
         duration(5)
         dialogButton(R.string.temporary_end_choice).performScrollTo().performClick()
@@ -111,7 +111,7 @@ class TemporaryActionDispatchTest {
     @Test fun anUnknownNightExplainsWhyTemporaryIsUnavailableAndRetainsEndingAndCancellation() {
         val unknown = graph.repository.activeNight.value!!.copy(confidence = Confidence.UNKNOWN)
         runBlocking { graph.repository.setActiveNight(unknown) }
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.checkControl(ui.compose.onNodeWithTag("quick-mode-DRY"), "Dry quick").performClick()
         dialogButton(R.string.temporary_end_choice).assertIsSelected()
         val preview = graph.actions.previewTemporary(ui.model.quickAction(Command.WARM).temporary.request)
         ui.checkControl(dialogButton(R.string.guard_confirm), "End unavailable temporary", scroll = false).assertIsEnabled()
@@ -124,7 +124,7 @@ class TemporaryActionDispatchTest {
     }
 
     @Test fun aChangedRevisionCannotBeConfirmedFromTheOpenDialogue() {
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.checkControl(ui.compose.onNodeWithTag("quick-mode-DRY"), "Dry quick").performClick()
         // Observe the eligible open dialogue before changing the revision. A first render after
         // the change correctly starts on End instead, which is a different scenario.
         dialogButton(R.string.temporary_choice).assertIsSelected()
@@ -169,10 +169,16 @@ class TemporaryActionDispatchTest {
         assertEquals(Mode.HEAT, graph.link.status.value!!.mode)
     }
 
-    @Test fun boostPreviewShowsItsActualTurboThenHeatAndOffRetainsItsExistingGuard() {
-        ui.control(boostLabel(graph.context, graph.repository.settings.value.boostMinutes)).performClick()
+    @Test fun turboPreviewIsBoundedWhileLegacyBoostSplittingAndOffGuardRemainIntact() {
+        // Boost is still a legacy widget/shortcut action, no longer Tonight's Turbo button.
+        val legacy = ui.model.quickAction(Command.BOOST).temporary.request
+        val preview = graph.actions.previewTemporary(legacy)
+        val details = temporaryDetails(graph.context, legacy, preview, false)
+        assertTrue(details.contains("Turbo · fan 100% · 10 min"))
+        assertTrue(details.contains("Heat · 40°C · fan 100% · 5 min"))
+        ui.checkControl(ui.compose.onNodeWithTag("quick-mode-TURBO"), "Turbo quick").performClick()
         dialogText("Turbo · fan 100% · 10 min").assertExists()
-        dialogText("Heat · 40°C · fan 100% · 5 min").assertExists()
+        dialogText("Heat · 40°C · fan 100% · 5 min").assertDoesNotExist()
         dialogButton(R.string.guard_keep).performClick()
         ui.control(ui.s(R.string.feature_off)).performClick()
         dialogButton(R.string.guard_title).assertExists()

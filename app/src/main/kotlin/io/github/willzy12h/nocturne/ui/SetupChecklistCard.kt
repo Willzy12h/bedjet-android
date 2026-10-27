@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
 import android.Manifest
+import android.app.ActivityManager
 import android.appwidget.AppWidgetManager
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
@@ -51,9 +52,11 @@ internal fun setupSnapshot(context: Context, settings: Settings, healthGranted: 
     return SetupSnapshot(buildSet {
         if (!settings.demoMode && settings.targetDevice?.matches(Regex("ble:(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")) == true) add(SetupItem.PAIR)
         if (bluetooth) add(SetupItem.BLUETOOTH)
-        if (Notifications.canPost(context)) add(SetupItem.NOTIFICATIONS)
+        if ((Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED) && Notifications.canPost(context)) add(SetupItem.NOTIFICATIONS)
         if (NightAlarms.canScheduleExact(context)) add(SetupItem.EXACT_ALARMS)
-        if (context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true) add(SetupItem.BATTERY)
+        if (context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true &&
+            context.getSystemService(ActivityManager::class.java)?.isBackgroundRestricted != true) add(SetupItem.BATTERY)
         if (healthGranted) add(SetupItem.HEALTH)
         if (hasWidget) add(SetupItem.WIDGET)
     })
@@ -118,7 +121,9 @@ internal fun SetupChecklistCard(model: AppViewModel) {
             SetupItem.EXACT_ALARMS -> open(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
             SetupItem.BATTERY -> {
                 @Suppress("BatteryLife")
-                val intent = Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+                val intent = Intent(if (context.getSystemService(ActivityManager::class.java)?.isBackgroundRestricted == true)
+                    AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS else AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:${context.packageName}"))
                 open(intent)
             }
             SetupItem.HEALTH -> if (HealthConnectAccess.available(context))

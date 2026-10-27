@@ -34,7 +34,7 @@ class TemporaryActionDialogTest(look: U06Look) {
 
     @Test fun runningQuickOffersTemporaryAndEndAndKeepsCancellationAtLargeText() {
         val before = ui.graph.repository.activeNight.value
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.quick(ui.graph.repository.settings.value.extendWarm).performClick()
         val inDialog = hasAnyAncestor(isDialog())
         val temporary = ui.compose.onNode(hasText("Temporarily, then resume") and inDialog)
         temporary.assertExists("A running-night Quick action must offer automatic return as well as ending the night")

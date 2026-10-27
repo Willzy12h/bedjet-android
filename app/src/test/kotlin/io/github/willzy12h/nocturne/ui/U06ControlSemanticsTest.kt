@@ -181,7 +181,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     @Test fun remoteSlidersExposeExactCelsiusAndFahrenheitStates() {
         // Hold controlled feedback before any command can enqueue its own snackbar.
         fixture.snackbar()
-        fixture.control(s(R.string.feature_warm)).performClick()
+        fixture.quick(fixture.graph.repository.settings.value.extendWarm).performClick()
         fixture.waitUntil {
             graph.link.status.value?.let { it.mode == Mode.HEAT && it.targetTemperature == 64 && it.fanPercent == 30 } == true &&
                 graph.actions.busy.value.runningLabel == null

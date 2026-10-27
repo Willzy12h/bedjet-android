@@ -1,6 +1,9 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.progressSemantics
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -28,7 +31,11 @@ fun BusyIndicator(model: AppViewModel) {
         Column(Modifier.padding(8.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (rememberMotionAllowed()) LinearProgressIndicator(Modifier.fillMaxWidth())
-            else LinearProgressIndicator(progress = { .5f }, modifier = Modifier.fillMaxWidth())
+            else Box(Modifier.fillMaxWidth().height(4.dp).progressSemantics()
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = .24f))) {
+                Box(Modifier.fillMaxWidth(.35f).height(4.dp).align(Alignment.Center)
+                    .background(MaterialTheme.colorScheme.primary))
+            }
             Text(listOfNotNull(label, queued).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
         }
     }

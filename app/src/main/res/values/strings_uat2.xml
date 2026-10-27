@@ -29,4 +29,5 @@
     <string name="uat_quick_save">Save</string>
     <string name="uat_quick_cancel">Cancel</string>
     <string name="uat_quick_off_help">Off has no temperature, fan or duration. It always asks for confirmation during a tracked night.</string>
+    <string name="uat_connecting">Connecting…</string>
 </resources>

@@ -13,6 +13,6 @@ data class SetupSnapshot(val complete: Set<SetupItem>) {
         if (!reopened && (settings.demoMode || requiredComplete)) return emptyList()
         return SetupItem.entries.filter { item -> item !in complete &&
             (item.required || ((reopened || !settings.setupChecklistCompleted) &&
-                (reopened || item.key !in settings.setupDismissedOptional))) }
+                item.key !in settings.setupDismissedOptional)) }
     }
 }

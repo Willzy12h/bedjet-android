@@ -88,17 +88,23 @@ class UatLayoutAndSetupTest {
         val owner = Owner().also { it.lifecycle.currentState = Lifecycle.State.RESUMED }
         assertTrue(setupSnapshot(app, model.settings.value, false).requiredComplete)
         compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) {
-            NocturneTheme(model.settings.value, model.now()) { SetupChecklistCard(model) }
+            NocturneTheme(model.settings.value, model.now()) { Box(Modifier.requiredSize(320.dp, 640.dp)) { SetupChecklistCard(model) } }
         } }
         compose.waitUntil(5_000) { model.settings.value.setupChecklistCompleted }
         compose.onNodeWithTag("setup-checklist").assertDoesNotExist()
         compose.runOnIdle {
             owner.lifecycle.currentState = Lifecycle.State.STARTED
             shadowOf(app).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+            assertFalse("Revoked runtime permission cannot count as complete",
+                io.github.willzy12h.nocturne.core.store.SetupItem.NOTIFICATIONS in setupSnapshot(app, model.settings.value, false).complete)
             owner.lifecycle.currentState = Lifecycle.State.RESUMED
         }
         compose.waitForIdle()
-        compose.onNodeWithTag("setup-notifications").assertIsDisplayed()
+        val notificationNode = compose.onNodeWithTag("setup-notifications")
+        println("RESUMED_SETUP bounds=" + notificationNode.fetchSemanticsNode().boundsInRoot +
+            "; root=" + compose.onRoot().fetchSemanticsNode().boundsInRoot +
+            "; states=" + setupSnapshot(app, model.settings.value, false))
+        notificationNode.assertIsDisplayed()
         listOf("pair", "bluetooth", "exact", "battery", "health", "widget").forEach {
             compose.onNodeWithTag("setup-$it").assertDoesNotExist()
         }
@@ -154,7 +160,7 @@ class UatLayoutAndSetupTest {
             val results = mutableListOf<TextLayoutResult>()
             compose.onNodeWithText(label, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
             assertTrue(label, results.isNotEmpty())
-            assertFalse("No clipped or ellipsised label: $label", results.single().hasVisualOverflow)
+            assertFalse("No clipped label: $label; size=${results.single().size}; lines=${results.single().lineCount}; width=${results.single().didOverflowWidth}; height=${results.single().didOverflowHeight}", results.single().hasVisualOverflow)
         }
         compose.onNodeWithTag("quick-mode-TURBO").performScrollTo()
         val left = compose.onNodeWithTag("quick-mode-TURBO").getUnclippedBoundsInRoot()
@@ -162,6 +168,25 @@ class UatLayoutAndSetupTest {
         assertEquals(left.top.value, right.top.value, .5f)
         assertEquals((left.right - left.left).value, (right.right - right.left).value, .5f)
         assertTrue(left.right < right.left)
+    }
+
+    @Test fun U3_busyOverlayDoesNotMoveAnyQuickTargetAndLeavesNoIdleSlot() {
+        val model = model(true)
+        compose.setContent { NocturneTheme(model.settings.value, model.now()) { TonightScreen(model, Modifier, onEdit = {}) } }
+        compose.onNodeWithTag("quick-controls").performScrollTo()
+        val tags = (QuickDefaults.modes + Mode.STANDBY).map { "quick-mode-${it.name}" }
+        val before = tags.associateWith { compose.onNodeWithTag(it).getUnclippedBoundsInRoot() }
+        compose.onNodeWithTag("busy-overlay").assertDoesNotExist()
+        val busy = ReflectionHelpers.getField<MutableStateFlow<Boolean>>(model, "_busy")
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle { busy.value = true }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithTag("busy-overlay").assertIsDisplayed()
+        tags.forEach { assertEquals(it, before[it], compose.onNodeWithTag(it).getUnclippedBoundsInRoot()) }
+        compose.runOnIdle { busy.value = false }
+        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithTag("busy-overlay").assertDoesNotExist()
     }
 
     @Test fun U5_everyModeCapturesTheReviewedPresetAndPreservesTemporaryOrEndConsent() {

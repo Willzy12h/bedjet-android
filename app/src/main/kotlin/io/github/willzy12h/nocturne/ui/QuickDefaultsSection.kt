@@ -30,6 +30,7 @@ internal fun quickModeLabel(context: Context, preset: ActionPreset, fahrenheit: 
     val name = context.getString(Format.modeNameRes(preset.mode))
     val words = Format.Words { id, args -> context.getString(id, *args) }
     return when {
+        !QuickDefaults.valid(preset) -> name // Do not advertise an unsupported duration as executable.
         preset.mode == Mode.TURBO -> context.getString(R.string.uat_quick_minutes, name, preset.minutes)
         preset.mode == Mode.DRY -> name
         else -> context.getString(R.string.uat_quick_temp, name, Format.temp(preset.temperature, fahrenheit, words))
@@ -37,14 +38,17 @@ internal fun quickModeLabel(context: Context, preset: ActionPreset, fahrenheit: 
 }
 
 internal fun captureModeQuick(model: AppViewModel, preset: ActionPreset): CapturedQuickAction {
-    require(QuickDefaults.valid(preset))
+    // Keep legacy values intact; only the reviewed, explicitly bounded Temporary choice
+    // can run when the original End request is unsafe. The command owner remains authoritative.
+    require(preset.mode in QuickDefaults.modes)
     val command = when (preset.mode) { Mode.TURBO -> Command.TURBO; Mode.COOL -> Command.COOL; else -> Command.WARM }
     val request = model.graph.actions.capture(command, requireIdentity = true).copy(actionPreset = preset)
     return requireNotNull(captureQuickAction(model.graph, request))
 }
 
 private fun matchesQuick(status: DeviceStatus?, preset: ActionPreset): Boolean = status?.let {
-    it.mode == preset.mode && it.fanPercent == preset.fanPercent &&
+    it.extra?.programStep == 0 && it.remainingSeconds in 1..(preset.minutes * 60 + 120) &&
+        it.mode == preset.mode && it.fanPercent == preset.fanPercent &&
         (!preset.mode.usesTemperature || it.targetTemperature == preset.temperature)
 } == true
 
@@ -56,8 +60,11 @@ internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: Ni
     val live by model.hasLiveStatus.collectAsState()
     val link by model.linkState.collectAsState()
     val runtime by model.runtime.collectAsState()
+    val night by model.activeNight.collectAsState()
     val owner by model.commandBusy.collectAsState()
-    val evidence = status.takeIf { live && link == LinkState.READY && runtime.slotWrite == null && owner.runningLabel == null }
+    val evidence = status.takeIf { live && link == LinkState.READY && runtime.slotWrite == null && owner.runningLabel == null &&
+        (it?.mode == Mode.STANDBY || night == null || (night?.trackingManual == true &&
+            night?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED)) }
     val colours = nocturneColors
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         (QuickDefaults.modes + Mode.STANDBY).chunked(2).forEach { pair ->
@@ -67,7 +74,8 @@ internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: Ni
                     val valid = preset == null || QuickDefaults.valid(preset)
                     val label = preset?.let { quickModeLabel(context, it, settings.fahrenheit) } ?: stringResource(R.string.mode_off)
                     val active = if (preset == null) evidence?.mode == Mode.STANDBY else matchesQuick(evidence, preset)
-                    val description = preset?.let { presetDetail(context, it, settings.fahrenheit) } ?: label
+                    val description = if (!valid) stringResource(R.string.uat_quick_invalid)
+                        else preset?.let { presetDetail(context, it, settings.fahrenheit) } ?: label
                     OutlinedButton(onClick = {
                         if (preset == null) guard.confirm(context.getString(R.string.guard_turn_off)) { model.run(Command.OFF) }
                         else {
@@ -75,7 +83,7 @@ internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: Ni
                             guard.confirm(context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(mode))),
                                 captured.temporary) { model.runCaptured(captured.end) }
                         }
-                    }, enabled = valid,
+                    },
                         modifier = Modifier.weight(1f).heightIn(min = 72.dp).testTag("quick-mode-${mode.name}")
                             .semantics { contentDescription = description },
                         shape = RoundedCornerShape(16.dp), contentPadding = PaddingValues(8.dp),
@@ -85,7 +93,7 @@ internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: Ni
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             ActiveIndicator(colours.mode(mode), active,
                                 if (active) Modifier.testTag("quick-active-${mode.name}") else Modifier)
-                            Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+                            Text(label, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
                         }
                     }
                 }

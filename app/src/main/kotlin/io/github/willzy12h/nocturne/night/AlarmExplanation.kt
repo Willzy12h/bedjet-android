@@ -96,9 +96,9 @@ private fun ZonedDateTime?.clock(): String = this?.format(DateTimeFormatter.ofPa
 
 /** App-facing words stay in resources; packages other than the two built-in clock sources remain identifiable. */
 fun alarmSourceName(context: Context, creator: String?): String = when (creator) {
-    "com.sec.android.app.clockpackage" -> context.getString(R.string.alarm_source_samsung_clock)
+    in samsungClockPackages -> context.getString(R.string.alarm_source_samsung_clock)
     "com.google.android.deskclock" -> context.getString(R.string.alarm_source_google_clock)
-    null -> context.getString(R.string.alarm_source_unknown_app)
+    null, "", "android" -> context.getString(R.string.uat_alarm_unidentified)
     else -> creator
 }
 
@@ -106,7 +106,7 @@ fun AlarmExplanation.description(context: Context): String {
     fun text(id: Int, vararg args: Any) = context.getString(id, *args)
     val wake = wakeAt.clock()
     val next = alarm?.time.clock()
-    val source = alarmSourceName(context, alarm?.creator)
+    val source = alarmSourceName(context, alarm?.identifiedCreator)
     fun ignored(): String = text(R.string.alarm_source_ignored, next, text(when (reason) {
         AlarmReason.UNKNOWN_SOURCE -> R.string.alarm_source_reason_unknown
         AlarmReason.SOURCE_NOT_ALLOWED -> R.string.alarm_source_reason_not_allowed
@@ -162,6 +162,6 @@ fun AlarmExplanation.recheckDescription(context: Context): String {
     if (state == WakeExplanationState.PREVIEW && wakeOrigin == WakeOrigin.PROFILE_DEFAULT && alarm != null)
         result = context.getString(R.string.alarm_recheck_fallback, result, wakeAt.clock())
     val found = alarm ?: return context.getString(R.string.alarm_recheck_none, result)
-    return context.getString(R.string.alarm_recheck_found, found.time.clock(), alarmSourceName(context, found.creator),
+    return context.getString(R.string.alarm_recheck_found, found.time.clock(), alarmSourceName(context, found.identifiedCreator),
         result)
 }

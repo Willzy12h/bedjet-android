@@ -102,6 +102,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     }
     var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
     var snapshotLabel by remember { mutableStateOf("") }
+    var quickDefaultsOpen by remember { mutableStateOf(false) }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
     val diagnostics = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::exportDiagnostics) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
@@ -119,6 +120,17 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
+        OutlinedButton(onClick = model::openSetupChecklist, modifier = Modifier.testTag("open-setup-checklist")) {
+            Text(stringResource(R.string.uat_setup_title))
+        }
+        OutlinedButton(onClick = { quickDefaultsOpen = true }, modifier = Modifier.testTag("open-quick-defaults")) {
+            Text(stringResource(R.string.uat_quick_defaults))
+        }
+        if (quickDefaultsOpen) AlertDialog(onDismissRequest = { quickDefaultsOpen = false },
+            title = { Text(stringResource(R.string.uat_quick_defaults)) },
+            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                QuickDefaultsSection(model, settings)
+            } }, confirmButton = { TextButton(onClick = { quickDefaultsOpen = false }) { Text(stringResource(R.string.uat_setup_done)) } })
 
         Group(stringResource(R.string.settings_appearance)) {
             Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
@@ -229,9 +241,12 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             Text(
                 if (next == null) stringResource(R.string.settings_no_alarm)
                 else stringResource(if (next.counts) R.string.settings_next_alarm else R.string.settings_next_alarm_unused,
-                    Format.clock(next.time), next.creator ?: stringResource(R.string.settings_unknown_app)),
+                    Format.clock(next.time), io.github.willzy12h.nocturne.night.alarmSourceName(context, next.identifiedCreator)),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (next != null) Text(stringResource(R.string.uat_alarm_raw_creator,
+                next.creator ?: stringResource(R.string.uat_alarm_null_creator)),
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("alarm-raw-creator"))
             if (next?.creator != null && !next.counts) {
                 FilledTonalButton(onClick = { model.useAlarmsFrom(next.creator!!) }) {
                     Text(stringResource(R.string.settings_use_alarms_from, next.creator.orEmpty()))

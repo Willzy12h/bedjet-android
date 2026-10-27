@@ -31,7 +31,7 @@ import io.github.willzy12h.nocturne.core.link.LinkState
 
 internal enum class HeaderConnection(@StringRes val text: Int, val icon: ImageVector) {
     CONNECTED(R.string.status_connected, Icons.Default.CheckCircle),
-    CONNECTING(R.string.status_connecting, Icons.Default.Timelapse),
+    CONNECTING(R.string.uat_connecting, Icons.Default.Timelapse),
     DISCONNECTED(R.string.status_disconnected, Icons.Default.RadioButtonUnchecked),
     BLUETOOTH_OFF(R.string.status_bluetooth_off, Icons.Default.BluetoothDisabled),
     DEMO(R.string.status_demo, Icons.Default.Science),

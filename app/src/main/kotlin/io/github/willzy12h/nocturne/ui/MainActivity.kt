@@ -136,6 +136,8 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     var tab by rememberSaveable { mutableStateOf(Tab.TONIGHT) }
+    val setupRequest by model.setupChecklistRequest.collectAsState()
+    LaunchedEffect(setupRequest) { if (setupRequest > 0) tab = Tab.TONIGHT }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
     // Every interrupted editor keeps its own baseline and edits, including profiles not yet saved to the repository.
     var parkedDrafts by rememberSaveable { mutableStateOf(emptyList<String>()) }

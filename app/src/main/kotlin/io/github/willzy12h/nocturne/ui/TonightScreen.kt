@@ -151,7 +151,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         if (selection == null) onEdit(selected) else onEditPhase(selected, selection)
     }
 
-    Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Box(modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.Top) {
             Text(stringResource(R.string.tonight_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(.4f).padding(top = 4.dp).semantics { heading() })
@@ -165,6 +166,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
             .testTag("tonight-content").padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            SetupChecklistCard(model)
             // Long fallback explanations must remain readable without consuming the controls' viewport.
             headline.reason?.let {
                 Text(stringResource(it), modifier = Modifier.fillMaxWidth(),
@@ -172,7 +174,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             AlarmExplanationLine(explanation, openExplanation)
-            BusyIndicator(model)
             QuickControls(model, settings, guard)
             TonightSections(settings,
                 onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } },
@@ -270,33 +271,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
     }
 
-}
-
-/** What the command owner is doing: the running command and how many wait behind it, from any origin (U07). */
-@Composable
-fun BusyIndicator(model: AppViewModel) {
-    val local by model.busy.collectAsState()
-    val owner by model.commandBusy.collectAsState()
-    val active = local || owner.runningLabel != null || owner.queuedCount > 0
-    val reservedHeight = (8 + MaterialTheme.typography.bodySmall.lineHeight.value * LocalDensity.current.fontScale * 3).dp
-    var visible by remember { mutableStateOf(false) }
-    val motion = if (active) rememberMotionAllowed() else false
-    Box(Modifier.fillMaxWidth().height(reservedHeight).onGloballyPositioned {
-        val clipped = it.boundsInWindow()
-        visible = clipped.width > 0f && clipped.height > 0f
-    }) {
-        if (active) Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (motion && visible) LinearProgressIndicator(Modifier.fillMaxWidth())
-            else Box(Modifier.fillMaxWidth().height(4.dp).progressSemantics()
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = .24f), RoundedCornerShape(2.dp))) {
-                Box(Modifier.fillMaxWidth(.35f).height(4.dp).align(Alignment.Center)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
-            }
-            val label = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
-            val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
-            Text(listOfNotNull(label, queued).joinToString(" · "), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        }
+    BusyIndicator(model)
     }
 }
 
@@ -368,61 +343,7 @@ private fun QuickControls(model: AppViewModel, settings: Settings, guard: NightG
                 modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
             Icon(if (collapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess, null)
         }
-        if (!collapsed) QuickButtons(model, settings, guard)
-    }
-}
-
-/** Active markers follow a reported mode; a tap never paints an unconfirmed success. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {
-    val context = LocalContext.current
-    val colors = nocturneColors
-    val status by model.status.collectAsState()
-    val link by model.linkState.collectAsState()
-    val night by model.activeNight.collectAsState()
-    val runtime by model.runtime.collectAsState()
-    val profiles by model.profiles.collectAsState()
-    val limits = (night?.profile ?: settings.resolveProfile(profiles, model.now()))?.limits
-        ?: io.github.willzy12h.nocturne.core.plan.ProfileLimits()
-    val hasLiveStatus by model.hasLiveStatus.collectAsState()
-    val active = reportedQuickAction(status.takeIf { hasLiveStatus }, link, settings, night, runtime.slotWrite, limits)
-    val startBoost = stringResource(R.string.guard_start_boost)
-    val boostDescription = boostDescription(LocalContext.current, settings.boostMinutes)
-    val startWarming = stringResource(R.string.guard_start_warming)
-    val startCooling = stringResource(R.string.guard_start_cooling)
-    val turnOff = stringResource(R.string.guard_turn_off)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 2) {
-        QuickButton(boostLabel(context, settings.boostMinutes), colors.turbo, Mode.TURBO, active == Command.BOOST, Modifier.weight(1f).semantics { contentDescription = boostDescription }) {
-            val captured = model.quickAction(Command.BOOST)
-            guard.confirm(startBoost, captured.temporary) { model.runCaptured(captured.end) }
-        }
-        QuickButton(stringResource(R.string.feature_warm), colors.mode(settings.extendWarm.mode), settings.extendWarm.mode, active == Command.WARM, Modifier.weight(1f)) {
-            val captured = model.quickAction(Command.WARM)
-            val what = if (captured.temporary.preset.mode == Mode.HEAT) startWarming
-                else context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(captured.temporary.preset.mode)))
-            guard.confirm(what, captured.temporary) { model.runCaptured(captured.end) }
-        }
-        QuickButton(stringResource(R.string.feature_cool), colors.mode(settings.extendCool.mode), settings.extendCool.mode, active == Command.COOL, Modifier.weight(1f)) {
-            val captured = model.quickAction(Command.COOL)
-            val what = if (captured.temporary.preset.mode == Mode.COOL) startCooling
-                else context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(captured.temporary.preset.mode)))
-            guard.confirm(what, captured.temporary) { model.runCaptured(captured.end) }
-        }
-        QuickButton(stringResource(R.string.feature_off), colors.idle, Mode.STANDBY, active == Command.OFF, Modifier.weight(1f)) { guard.confirm(turnOff) { model.run(Command.OFF) } }
-    }
-}
-
-@Composable
-private fun QuickButton(label: String, dot: Color, mode: Mode, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = modifier.heightIn(min = 72.dp), shape = RoundedCornerShape(16.dp),
-        contentPadding = PaddingValues(4.dp),
-        colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface),
-        border = quickButtonBorder(MaterialTheme.colorScheme)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            ActiveIndicator(dot, active, if (active) Modifier.testTag("quick-active-${mode.name}") else Modifier)
-            Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
-        }
+        if (!collapsed) ModeQuickButtons(model, settings, guard)
     }
 }
 

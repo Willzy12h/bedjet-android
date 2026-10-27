@@ -112,6 +112,9 @@ internal class U06Fixture(
         layout()
     }
 
+    fun quick(preset: io.github.willzy12h.nocturne.core.store.ActionPreset): SemanticsNodeInteraction =
+        checkControl(compose.onNodeWithTag("quick-mode-${preset.mode.name}"), "Quick ${preset.mode}").assertHasClickAction()
+
     fun control(label: String, scroll: Boolean = true): SemanticsNodeInteraction =
         checkControl(compose.onNode(hasText(label) and hasClickAction()), label, scroll).assertHasClickAction()
 

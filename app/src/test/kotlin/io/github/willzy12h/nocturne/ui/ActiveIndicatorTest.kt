@@ -6,6 +6,8 @@ import androidx.compose.ui.test.*
 import androidx.lifecycle.Lifecycle
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.plan.ProfileLimits
+import io.github.willzy12h.nocturne.night.NightActions.Command
 import org.junit.Assert.*
 import org.junit.After
 import org.junit.Rule
@@ -28,13 +30,16 @@ class ActiveIndicatorTest {
     }
     @After fun restoreClock() { ui.compose.mainClock.autoAdvance = true }
     private fun warm() {
-        val control = ui.compose.onNode(hasText(ui.s(R.string.feature_warm)) and hasClickAction())
+        val control = ui.compose.onNodeWithTag("quick-mode-HEAT")
         control.performScrollTo()
         ui.compose.mainClock.autoAdvance = false
         control.performClick()
         ui.waitUntil { ui.graph.link.status.value?.mode == Mode.HEAT }
         ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertExists()
     }
+    private fun legacyAction() = reportedQuickAction(ui.graph.link.status.value, ui.graph.link.state.value,
+        ui.graph.repository.settings.value, ui.graph.repository.activeNight.value,
+        ui.graph.repository.runtime.value.slotWrite, ui.model.tonightsProfile()?.limits ?: ProfileLimits())
     private fun width() = ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).fetchSemanticsNode().let { it.boundsInRoot.width / it.layoutInfo.density.density }
 
     @Test fun activeQuickMarkerHasAFinitePulseAndStopsWhenOffscreen() {
@@ -65,7 +70,7 @@ class ActiveIndicatorTest {
         ui.compose.runOnUiThread { kotlinx.coroutines.runBlocking {
             repository.updateSettings { it.copy(extendWarm = it.extendWarm.copy(mode = Mode.EXTENDED_HEAT)) }
         } }
-        ui.compose.onNode(hasText(ui.s(R.string.feature_warm)) and hasClickAction()).performScrollTo().performClick()
+        ui.compose.onNodeWithTag("quick-mode-EXTENDED_HEAT").performScrollTo().performClick()
         ui.waitUntil { ui.graph.link.status.value?.mode == Mode.EXTENDED_HEAT }
         ui.compose.onNodeWithTag("quick-active-EXTENDED_HEAT", useUnmergedTree = true).assertExists()
         ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertDoesNotExist()
@@ -87,15 +92,16 @@ class ActiveIndicatorTest {
     @Test fun manualTurboDoesNotClaimTheUploadedQuickBoostIsActive() {
         ui.compose.runOnUiThread { ui.model.run(io.github.willzy12h.nocturne.night.NightActions.Command.TURBO) }
         ui.waitUntil { ui.graph.link.status.value?.let { it.mode == Mode.TURBO && it.extra?.programStep == 0 } == true }
-        ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertDoesNotExist()
+        assertNull("Manual Turbo must not invent the legacy uploaded Boost identity", legacyAction())
+        ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertExists()
     }
 
     @Test fun aConfirmedBoostWithMatchingProgrammeProgressGetsTheQuickMarker() {
-        ui.compose.onNode(hasText(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes)) and hasClickAction())
-            .performScrollTo().performClick()
+        ui.compose.runOnUiThread { ui.model.run(Command.BOOST) }
         ui.waitUntil { ui.graph.repository.runtime.value.slotWrite?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED &&
             ui.graph.link.status.value?.let { it.mode == Mode.TURBO && (it.extra?.programStep ?: 0) > 0 } == true }
-        ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertExists()
+        assertEquals(Command.BOOST, legacyAction())
+        ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test fun changingTheConfiguredBoostDurationDoesNotRelabelTheRunningProgrammeAsActive() {
@@ -103,6 +109,7 @@ class ActiveIndicatorTest {
         ui.compose.runOnUiThread { kotlinx.coroutines.runBlocking {
             ui.graph.repository.updateSettings { it.copy(boostMinutes = if (it.boostMinutes == 15) 30 else 15) }
         } }
+        assertNull("Changed defaults must not identify the running legacy programme", legacyAction())
         ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertDoesNotExist()
     }
 
@@ -110,9 +117,11 @@ class ActiveIndicatorTest {
         ui.compose.runOnUiThread { kotlinx.coroutines.runBlocking {
             ui.graph.repository.updateSettings { it.copy(extendCool = it.extendWarm) }
         } }
-        ui.compose.onNode(hasText(ui.s(R.string.feature_warm)) and hasClickAction()).performScrollTo().performClick()
+        ui.compose.onNodeWithTag("quick-mode-HEAT").performScrollTo().performClick()
         ui.waitUntil { ui.graph.link.status.value?.mode == Mode.HEAT }
-        ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertDoesNotExist()
+        assertNull("Identical legacy presets cannot identify a Warm or Cool request", legacyAction())
+        // The new mode grid has exactly one Heat button: it may show the actual reported manual mode.
+        ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertExists()
         ui.compose.onNodeWithTag("quick-active-COOL", useUnmergedTree = true).assertDoesNotExist()
     }
 
