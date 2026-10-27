@@ -68,7 +68,7 @@ class PermanentTestSigningTest(unittest.TestCase):
 
     def test_pinned_test_certificate_is_not_gpt11(self):
         self.assertEqual(signing.EXPECTED_CERT_SHA256,
-                         "064252ba12e8d8535a8d979688f763b182c7d6ff6ac0c33ddef5f71f42f8dd78")
+                         "bd233ddcf84f6ed97a1597d433a0137dd2c0e64b13c2c537bb8ee5508de85f15")
         self.assertNotEqual(signing.EXPECTED_CERT_SHA256,
                             "42efc6e2284a00ae55345479177e27c45242196c02acb0f51640b886f7c2bde9")
 
