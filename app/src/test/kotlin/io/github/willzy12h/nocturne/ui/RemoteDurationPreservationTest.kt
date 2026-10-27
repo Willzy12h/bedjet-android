@@ -41,7 +41,7 @@ class RemoteDurationPreservationTest : PlatformGraphFixture() {
     @Before fun setup() = runBlocking {
         val demo = DemoBedJet(now = { graph.now() })
         fun receive(report: SourcedStatus?) {
-            // C5 deliberately accepts the unit's reported live range, which can differ from planning limits.
+            // A physical remote can change a reported value beyond Nocturne's safe replay range.
             val shown = report?.let { if (it.status.mode == Mode.HEAT)
                 it.copy(status = it.status.copy(maxTemperature = 86)) else it }
             reports.value = shown
@@ -80,6 +80,8 @@ class RemoteDurationPreservationTest : PlatformGraphFixture() {
         val temperature = graph.actions.remote(app.getString(R.string.remote_temperature_set), affectsProgramme = true,
             confirms = { it.targetTemperature == 82 }) { it.setTemperature(82) }
         assertEquals(OutcomeKind.CONFIRMED, temperature.kind)
+        // Fixture-only physical-remote input must survive the owner's reconnect/status refresh.
+        graph.link.send(io.github.willzy12h.nocturne.core.protocol.Codec.setTemperature(82))
         val before = graph.link.latestSourcedStatus()!!
         assertEquals(82, before.status.targetTemperature)
         assertEquals(86, before.status.maxTemperature)
