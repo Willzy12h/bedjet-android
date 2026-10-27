@@ -99,6 +99,7 @@ jobs:
           python3 -B .github/workflows/test_release_artifacts.py
           python3 -B .github/workflows/test_release_manifest.py
           python3 -B .github/workflows/test_release_screenshots.py
+          python3 -B .github/workflows/test_permanent_test_signing.py
           python3 -B .github/workflows/release-serialization-test.py
 
       - name: Required test, debug and lint gate
@@ -141,6 +142,29 @@ jobs:
             --expected-source "$SOURCE_SHA" --output "$RUNNER_TEMP/nocturne-release" \
             2>&1 | tee "$RUNNER_TEMP/nocturne-release/evidence/signing-driver.log"
 
+      # Independent TEST-only identity; does not touch the production signing settings.
+      - name: Optional permanent TEST signing (when four secrets exist)
+        id: permanent_test_signing
+        env:
+          NOCTURNE_TEST_KEYSTORE_B64: ${{ secrets.NOCTURNE_TEST_KEYSTORE_B64 }}
+          NOCTURNE_TEST_KEYSTORE_PASSWORD: ${{ secrets.NOCTURNE_TEST_KEYSTORE_PASSWORD }}
+          NOCTURNE_TEST_KEY_ALIAS: ${{ secrets.NOCTURNE_TEST_KEY_ALIAS }}
+          NOCTURNE_TEST_KEY_PASSWORD: ${{ secrets.NOCTURNE_TEST_KEY_PASSWORD }}
+        run: |
+          python3 -B .github/workflows/permanent_test_signing.py \
+            --unsigned "$RUNNER_TEMP/nocturne-release/unsigned/app-release-unsigned.apk" \
+            --sdk "$ANDROID_HOME" --build-tools 35.0.0 \
+            --version-code "$VERSION_CODE" \
+            --output-dir "$RUNNER_TEMP/nocturne-permanent-test"
+
+      - name: Upload verified permanent TEST APK
+        if: ${{ steps.permanent_test_signing.outputs.signed == 'true' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nocturne-PERMANENT-TEST-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/nocturne-permanent-test/
+          if-no-files-found: error
+          retention-days: 30
       - name: Release serialization JVM fixture
         run: |
           ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
