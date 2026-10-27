@@ -142,7 +142,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
             .performSemanticsAction(SemanticsActions.Dismiss) { assertTrue(it()) }
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isEmpty() }
         ui.tab(ui.s(R.string.tab_remote))
-        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_lights)).fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_run_for)).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("The Heat fixture must report its four-hour runtime ceiling", 240, graph.link.status.value?.maxRuntimeMinutes)
         withAndWithoutFeedback {
             listOf(R.string.mode_cool, R.string.mode_heat, R.string.mode_gentle_heat,
@@ -209,6 +209,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     private fun quickButtons() {
+        ui.checkLayout(ui.compose.onNodeWithText(ui.s(R.string.gpt12_wake_no_alarm)), "Wake fallback reason")
         val labels = listOf(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes),
             ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
         labels.forEach { label ->

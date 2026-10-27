@@ -124,7 +124,7 @@ class TonightAcceptanceTest {
     @Test fun noAlarmShowsTheProfileFallbackWithAReason() {
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00")
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback")
-        ui.compose.onNodeWithText("No phone alarm available", substring = true).assertExists()
+        ui.checkLayout(ui.compose.onNodeWithText("No phone alarm available"), "No-alarm fallback reason")
     }
 
     @Test fun explicitTonightOverrideWinsOverAnAcceptedPhoneAlarm() {
@@ -134,12 +134,14 @@ class TonightAcceptanceTest {
 
     @Test fun tooSoonPhoneAlarmShowsTheWindowFallback() {
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00")
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Next alarm is less than 1 hour after the night starts")
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback")
+        ui.checkLayout(ui.compose.onNodeWithText("Next alarm is less than 1 hour after the night starts"), "Too-soon alarm fallback reason")
     }
 
     @Test fun tooLatePhoneAlarmShowsTheWindowFallback() {
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00")
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Next alarm is beyond the 18-hour night window")
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback")
+        ui.checkLayout(ui.compose.onNodeWithText("Next alarm is beyond the 18-hour night window"), "Too-late alarm fallback reason")
     }
 
     @Test fun profilesUseTheReadableSimpleTimelineEvenWhenTheCurveStyleIsSaved() {

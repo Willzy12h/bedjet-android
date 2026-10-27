@@ -161,14 +161,16 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(wakeTime, fontSize = if (LocalConfiguration.current.fontScale >= 1.5f) 24.sp else 32.sp,
                     fontWeight = FontWeight.Light, textAlign = TextAlign.End)
-                headline.reason?.let {
-                    Text(stringResource(it), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
             }
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
             .testTag("tonight-content").padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Long fallback explanations must remain readable without consuming the controls' viewport.
+            headline.reason?.let {
+                Text(stringResource(it), modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             AlarmExplanationLine(explanation, openExplanation)
             BusyIndicator(model)
             QuickControls(model, settings, guard)
