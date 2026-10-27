@@ -122,7 +122,6 @@
     <string name="settings_connected_unit">BedJet name: %1$s</string>
     <string name="settings_none_yet">none yet</string>
     <string name="settings_demo">Demo BedJet</string>
-    <string name="settings_demo_help">Try everything with a simulated BedJet instead of the real one.</string>
     <string name="settings_slot_title">Slot used for tonight\'s night</string>
     <string name="settings_slot_help">The other two slots are left alone. What was in a slot before is kept below.</string>
     <string name="settings_slot">Slot %1$d</string>
@@ -168,8 +167,6 @@
     <string name="settings_show_all">Show all %1$d</string>
     <string name="settings_clear_log">Clear log</string>
     <string name="settings_about">About</string>
-    <string name="settings_restore_snapshot_title">Restore this snapshot?</string>
-    <string name="settings_restore_snapshot_text">Profiles, settings and history go back to %1$s. What you have now is saved as a snapshot first.</string>
     <string name="settings_restore_slot_title">Restore original slot %1$d?</string>
     <string name="settings_restore_slot_text">This writes the saved original back to slot %1$d on the selected BedJet 3. It does not start a night. An active night must be ended first.</string>
     <plurals name="settings_saved_programme">
@@ -187,8 +184,6 @@
     <string name="tonight_state_unknown">BedJet state unknown. Check the unit before another programme.</string>
     <string name="tonight_state_manual">Tracking manually. Nocturne has not resumed the programme.</string>
     <string name="tonight_waking_at">Waking you at</string>
-    <string name="tonight_planned_wake">Planned wake</string>
-    <string name="tonight_wakes_at">Wakes you at</string>
     <!-- The step running now: block, mode and fan. -->
     <string name="tonight_now">Now: %1$s · %2$s · fan %3$d%%</string>
     <string name="tonight_end_night">Stop night</string>

@@ -702,8 +702,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
  * failure is thrown, for the caller's "Couldn't save" message.
  */
 internal suspend fun snapshotRestoreMessage(
-    // The app passes runtime_snapshot_restored and runtime_snapshot_unreadable; these English defaults are for
-    // callers without a Context.
+    // Default messages support callers without a Context.
     restored: String = "Restored. What you had before is saved as a snapshot.",
     unreadable: String = "That snapshot couldn't be read.",
     restore: suspend () -> Boolean,

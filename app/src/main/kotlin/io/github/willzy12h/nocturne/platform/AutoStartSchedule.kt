@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.job.JobScheduler
 import android.content.Intent
-import android.os.Build
 import android.os.PersistableBundle
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.core.plan.AlarmPolicy
@@ -133,7 +132,7 @@ object AutoStartSchedule {
         ticket?.putInto(intent)
         return PendingIntent.getBroadcast(graph.context, REQUEST, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }
-    fun exact(graph: Graph): Boolean = Build.VERSION.SDK_INT < 31 || graph.context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    fun exact(graph: Graph): Boolean = graph.context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
 
     /** The UI and AlarmManager share this next eligible night; due() still validates an already owned attempt. */
     fun nextScheduled(graph: Graph): AutoStartPlan? {

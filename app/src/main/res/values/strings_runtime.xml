@@ -65,7 +65,6 @@
     <string name="runtime_target_saved">BedJet selection saved.</string>
     <string name="runtime_target_forgotten">Forgot this BedJet. Choose a BedJet to connect to.</string>
     <string name="runtime_demo_label">Change demo mode</string>
-    <string name="runtime_demo_saved">Demo mode saved.</string>
     <string name="runtime_fan_check">Check fan control</string>
     <string name="runtime_fan_refused">The BedJet must be idle for the supervised fan check.</string>
     <string name="runtime_fan_checked">Fan setting changed and restored. No mode was started.</string>
@@ -161,7 +160,6 @@
     <string name="history_accepted_lower_temp">Accepted a 1 °C lower Middle temperature</string>
     <string name="history_accepted_higher_temp">Accepted a 1 °C higher Middle temperature</string>
     <!-- Fix round 1: snapshot restore result and the BLE link's no-target message. -->
-    <string name="runtime_snapshot_restored">Restored. What you had before is saved as a snapshot.</string>
     <string name="runtime_snapshot_unreadable">That snapshot couldn\'t be read.</string>
     <string name="ble_no_target">No BedJet chosen yet. Choose yours in Setup.</string>
 </resources>

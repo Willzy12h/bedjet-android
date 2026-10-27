@@ -10,7 +10,6 @@
     <string name="setup_choose_help">Finish the phone checks above, then choose the BedJet you want this phone to control. Keep the other phone’s BedJet app closed during the check.</string>
     <string name="setup_selected">Selected: %1$s</string>
     <string name="setup_none">none</string>
-    <string name="setup_demo_on"> · Demo is on</string>
     <string name="setup_searching">Looking for BedJets…</string>
     <string name="setup_find">Find BedJet 3 units</string>
     <string name="setup_choose_unit">Choose %1$s · %2$s</string>
@@ -19,7 +18,6 @@
     <string name="setup_fan_completed">Supervised fan check completed for this BedJet 3. You can repeat it while the BedJet is idle.</string>
     <string name="setup_fan_run">Run supervised fan check</string>
     <string name="setup_fan_repeat">Repeat supervised fan check</string>
-    <string name="setup_demo_help">Demo is separate from your selected real BedJet. Choosing a real unit turns Demo off.</string>
     <string name="checkin_button">Morning check-in</string>
     <string name="checkin_saved">Morning check-in: %1$s</string>
     <string name="checkin_review">Review Middle suggestion</string>
