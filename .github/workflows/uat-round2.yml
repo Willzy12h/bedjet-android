@@ -25,7 +25,8 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew --no-daemon --continue --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
-            :core:test :app:testDebugUnitTest --tests '*Uat*' 2>&1 | tee uat-round2.log
+            :core:test :app:testDebugUnitTest --tests '*Uat*' --tests '*U06ControlSemanticsTest' \
+            :app:lintDebug 2>&1 | tee uat-round2.log
       - name: Record behavioural assertions
         if: always()
         run: |
@@ -50,6 +51,7 @@ jobs:
             uat-round2.log
             core/build/test-results/test/
             app/build/test-results/testDebugUnitTest/
+            app/build/reports/lint-results-debug.*
           retention-days: 14
       - name: Retained U06 normal and large-text captures
         env:
