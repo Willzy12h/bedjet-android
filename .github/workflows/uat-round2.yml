@@ -66,5 +66,5 @@ jobs:
           path: |
             uat-u06-captures.log
             app/build/test-results/testDebugUnitTest/
-            app/build/reports/u06/
+            app/build/screenshots/uat2/u06/
           retention-days: 14
