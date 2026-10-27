@@ -121,8 +121,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         if (overridable) {
             val current = model.now()
             val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse) ?: plannedWake ?: current
+            val expectedNight = night?.identity
             TimePickerDialog(context, { _, hour, minute ->
-                model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()))
+                model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()), expectedNight)
             }, initial.hour, initial.minute, true).show()
         }
     }

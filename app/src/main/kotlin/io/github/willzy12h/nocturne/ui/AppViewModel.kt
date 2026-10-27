@@ -518,8 +518,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         withContext(Dispatchers.Main) { refreshAlarm(); report(outcome) }
     }
 
-    fun setTonightWake(wake: ZonedDateTime?) {
-        val expected = activeNight.value?.identity
+    /** A native picker retains the displayed night, even if another night starts before its approval. */
+    fun setTonightWake(wake: ZonedDateTime?,
+        expected: io.github.willzy12h.nocturne.core.night.NightIdentity? = activeNight.value?.identity) {
         act(hardware = expected != null) {
             if (activeNight.value?.identity != expected) refusal(text(R.string.runtime_wake_night_changed))
             else graph.actions.setWakeOverride(wake, expected)
