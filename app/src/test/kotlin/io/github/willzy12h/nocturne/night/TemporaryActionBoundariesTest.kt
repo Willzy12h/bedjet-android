@@ -837,6 +837,8 @@ class TemporaryActionBoundariesTest {
     }
 
     @Test fun aCapturedFiveMinuteTurboEndChoiceRunsAndDescribesFiveMinutes() = runBlocking {
+        // This case asserts durable real History through the existing injected single-device transport.
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val before = start()
         val request = graph.actions.capture(NightActions.Command.TURBO, requireIdentity = true)
             .copy(replacementConfirmed = true, actionPreset = turbo.copy(minutes = 5))
