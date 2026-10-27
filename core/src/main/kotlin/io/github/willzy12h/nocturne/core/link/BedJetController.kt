@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.core.link
 
+import io.github.willzy12h.nocturne.core.protocol.CommandSafety
+import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Codec
 import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.core.protocol.Mode
@@ -30,6 +32,7 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
     }
 
     suspend fun programSteps(slot: Int): List<ProgramStep> {
+        validateSlot(slot)
         val steps = mutableListOf<ProgramStep>()
         var index = 0
         while (true) {
@@ -43,6 +46,8 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
 
     /** Saves a program into a slot, replacing whatever was there, and confirms the unit kept it. */
     suspend fun store(program: StoredProgram, slot: Int) {
+        validateSlot(slot)
+        validateProgram(program)
         if (program.steps.isEmpty()) throw BedJetError.InvalidProgram("Add at least one phase first.")
         if (program.steps.size > Limits.STEPS_PER_PROGRAM) {
             throw BedJetError.InvalidProgram("A BedJet night can hold up to ${Limits.STEPS_PER_PROGRAM} steps.")
@@ -62,6 +67,9 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
      */
     suspend fun startProgram(slot: Int, onStartAttempt: () -> Unit = {},
         beforePrepare: suspend () -> Unit = {}, beforeStart: () -> Unit = {}) = coroutineScope {
+        validateSlot(slot)
+        val programme = StoredProgram("", programSteps(slot))
+        validateProgram(programme)
         syncClock()
         beforePrepare()
         // Only reports that arrive after this count: a program already running would otherwise look like this one
@@ -78,6 +86,7 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
             }
             beforeStart()
             link.sendGuarded(Codec.startProgram(slot)) {
+                validateProgram(programme)
                 beforeStart()
                 // This runs at the transport write boundary, after the final temporal guard.
                 onStartAttempt()
@@ -107,9 +116,28 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
         Codec.setMode(mode)?.let { link.send(it) }
     }
 
-    suspend fun setTemperature(halfDegrees: Int) = link.send(Codec.setTemperature(halfDegrees))
-    suspend fun setFan(step: Int) = link.send(Codec.setFan(step))
-    suspend fun setRuntime(minutes: Int) = link.send(Codec.setRuntime(minutes))
+    suspend fun setTemperature(halfDegrees: Int) {
+        val status = currentStatus()
+        requireSafe(CommandSafety.controls(status.mode, halfDegrees, status.fanStep))
+        if (!status.mode.usesFan || status.minTemperature > status.maxTemperature ||
+            halfDegrees !in status.minTemperature..status.maxTemperature)
+            throw BedJetError.InvalidProgram("The requested temperature is outside the current control range.")
+        if (status.remainingSeconds > ProgramStep.longestMinutes(status.mode, halfDegrees, status.fanStep) * 60)
+            throw BedJetError.ProgramTooLong()
+        link.send(Codec.setTemperature(halfDegrees))
+    }
+    suspend fun setFan(step: Int) {
+        val status = currentStatus()
+        requireSafe(CommandSafety.controls(status.mode, status.targetTemperature, step))
+        if (!status.mode.usesFan) throw BedJetError.InvalidProgram("Choose a running mode first.")
+        if (status.remainingSeconds > ProgramStep.longestMinutes(status.mode, status.targetTemperature, step) * 60)
+            throw BedJetError.ProgramTooLong()
+        link.send(Codec.setFan(step))
+    }
+    suspend fun setRuntime(minutes: Int) {
+        if (minutes !in 1..CommandSafety.manualMaximum(currentStatus())) throw BedJetError.ProgramTooLong()
+        link.send(Codec.setRuntime(minutes))
+    }
     suspend fun setLed(on: Boolean) = link.send(Codec.setLed(on))
     suspend fun setMuted(muted: Boolean) = link.send(Codec.setMuted(muted))
     suspend fun acknowledge() = link.send(Codec.acknowledgeNotification)
@@ -117,11 +145,27 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
 
     /** Runs a mode right now with a timer, as a snooze, extend or widget button does. Takes over from any program. */
     suspend fun runManual(mode: Mode, temperature: Int, fanStep: Int, minutes: Int) {
+        // Validate the complete request before changing mode: no partially applied unsafe run.
+        requireSafe(CommandSafety.manual(mode, temperature, fanStep, minutes))
         setMode(mode)
-        if (mode.usesTemperature) setTemperature(temperature.coerceIn(mode.temperatureRange))
-        if (mode.usesFan) setFan(fanStep)
-        // The unit resets the timer when the mode changes, so the timer goes last.
-        setRuntime(minutes)
+        if (mode.usesTemperature) link.send(Codec.setTemperature(temperature))
+        if (mode.usesFan) link.send(Codec.setFan(fanStep))
+        // Do not validate against the previous mode's cached status during this owned batch.
+        link.send(Codec.setRuntime(minutes))
+    }
+
+    fun validateProgram(program: StoredProgram) = requireSafe(CommandSafety.programme(program, now().toLocalTime()))
+
+    private fun currentStatus(): DeviceStatus {
+        if (link.state.value != LinkState.READY) throw BedJetError.NotConnected()
+        return link.latestSourcedStatus()?.status ?: throw BedJetError.NotConnected()
+    }
+    private fun validateSlot(slot: Int) {
+        if (slot !in 0 until Limits.SLOTS) throw BedJetError.InvalidProgram("Choose a valid BedJet slot.")
+    }
+    private fun requireSafe(problem: CommandSafety.Problem?) {
+        if (problem == CommandSafety.Problem.DURATION) throw BedJetError.ProgramTooLong()
+        if (problem != null) throw BedJetError.InvalidProgram("The request exceeds the BedJet safety limits.")
     }
 
     private companion object {

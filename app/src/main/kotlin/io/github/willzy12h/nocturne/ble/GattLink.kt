@@ -390,10 +390,16 @@ class GattLink(
             }
             return
         }
-        val parsed = Codec.parseStatus(chunk) ?: return
+        val parsed = Codec.parseStatus(chunk) ?: run {
+            synchronized(startStatusLock) {
+                if (current === session) { session.lastHead = null; session.lastExtra = null }
+            }
+            return
+        }
         if (parsed.extra != null) {
             synchronized(startStatusLock) {
                 if (current !== session || !selected(session.address)) return
+                session.lastHead = null
                 if (startPending) {
                     session.lastExtra = null
                     publish(session, parsed.copy(extra = null))

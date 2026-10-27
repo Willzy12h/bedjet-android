@@ -28,7 +28,7 @@ data class HealthExportResult(val status: HealthExportStatus, val exported: Int 
 
 /** Optional programme activity export. No sensor sleep claim, stages, polling, or background retry loop. */
 class HealthSleepExporter(private val graph: Graph,
-    private val available: () -> Boolean = { HealthConnectClient.getSdkStatus(graph.context) == HealthConnectClient.SDK_AVAILABLE },
+    private val available: () -> Boolean = { HealthConnectAccess.available(graph.context) },
     private val writer: () -> SleepSessionWriter = { AndroidSleepWriter(graph.context) }) {
     private val lock = Mutex()
     private val _state = MutableStateFlow(HealthExportResult(HealthExportStatus.DISABLED))

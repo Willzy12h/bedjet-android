@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.core.protocol.CommandSafety
+
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.ble.BluetoothAdmission
@@ -557,11 +559,17 @@ class NightActions(private val graph: Graph) {
         repo.recordOriginalSlot(device, slot, original)
     }
     private suspend fun quick(preset: ActionPreset, message: String): CommandOutcome {
+        if (!safePreset(preset)) return refused(R.string.runtime_command_out_of_range)
         var sentAt = elapsedMs()
         return manualChange(message, true, confirms = runs(preset) { sentAt }) {
             sentAt = elapsedMs()
             runPreset(preset)
         }
+    }
+    private fun safePreset(preset: ActionPreset): Boolean {
+        val bounds = limits()
+        return CommandSafety.manual(preset.mode, PlanCompiler.temperatureFor(preset.mode, preset.temperature, bounds),
+            PlanCompiler.fanStepFor(preset.fanPercent, bounds), preset.minutes) == null
     }
     private suspend fun runPreset(preset: ActionPreset) {
         val limits = limits()
@@ -697,6 +705,7 @@ class NightActions(private val graph: Graph) {
         }
     }
     private suspend fun timedManual(preset: ActionPreset, kind: EventKind, label: String): CommandOutcome {
+        if (!safePreset(preset)) return refused(R.string.runtime_command_out_of_range)
         val old = repo.activeNight.value
         val message = text(R.string.runtime_timed, label, preset.minutes)
         var sentAt = elapsedMs()
@@ -1552,6 +1561,8 @@ class NightActions(private val graph: Graph) {
                 it.mode != Mode.STANDBY && it.mode != Mode.WAIT && it.temperature !in it.mode.temperatureRange
             })
             return@owned refused(R.string.runtime_restore_imported_out_of_range)
+        if (original.program?.let { CommandSafety.programme(it, graph.now().toLocalTime()) } != null)
+            return@owned refused(R.string.runtime_restore_unsafe)
         connected {
             if (freshStatus().extra?.programStep != 0) return@connected refused(R.string.runtime_slot_running)
             if (originalChanged()) return@connected refused(R.string.runtime_restore_preview_changed)
@@ -1562,6 +1573,8 @@ class NightActions(private val graph: Graph) {
     }
     private suspend fun writeSlotLocked(slot: Int, program: StoredProgram?, label: String, start: Boolean = false,
         expectedOriginal: SlotBackup? = null): CommandOutcome {
+        if (program != null && CommandSafety.programme(program, graph.now().toLocalTime()) != null)
+            return refused(R.string.runtime_restore_unsafe)
         val target = repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target)
         val earlier = repo.runtime.value.slotWrite
         val night = repo.activeNight.value

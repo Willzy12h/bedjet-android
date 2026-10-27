@@ -19,7 +19,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.health.connect.client.HealthConnectClient
+import io.github.willzy12h.nocturne.platform.HealthConnectAccess
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -162,6 +162,7 @@ import kotlin.math.roundToInt
 @Composable fun HealthExportSettingsSection(graph: Graph) {
     val saved by graph.repository.settings.collectAsState()
     val result by graph.platform.healthExport.state.collectAsState()
+    if (!HealthConnectAccess.platformSupported) Text(stringResource(R.string.health_platform_required))
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -172,7 +173,7 @@ import kotlin.math.roundToInt
             try {
                 var enabled = false
                 graph.repository.updateSettings { current ->
-                    if (current.demoMode || expected != graph.repository.settingsPublication.value) current
+                    if (!HealthConnectAccess.platformSupported || current.demoMode || expected != graph.repository.settingsPublication.value) current
                     else {
                         enabled = granted.containsAll(AndroidSleepWriter.PERMISSIONS)
                         current.copy(platform = current.platform.copy(healthSleepExport = enabled))
@@ -191,8 +192,8 @@ import kotlin.math.roundToInt
                 try { graph.repository.updateSettings { current -> if (current.demoMode) current else current.copy(platform = current.platform.copy(healthSleepExport = false)) }
                 } catch (cancelled: CancellationException) { throw cancelled
                 } catch (_: Exception) { message = graph.context.getString(R.string.feature_saving_failed) }
-            } else if (HealthConnectClient.getSdkStatus(graph.context) != HealthConnectClient.SDK_AVAILABLE)
-                message = graph.context.getString(R.string.feature_health_absent)
+            } else if (!HealthConnectAccess.available(graph.context))
+                message = HealthConnectAccess.unavailableMessage(graph.context)
             else {
                 permissionRevision = graph.repository.settingsPublication.value
                 permission.launch(AndroidSleepWriter.PERMISSIONS)

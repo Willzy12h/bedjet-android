@@ -44,7 +44,7 @@ class ReleaseManifestTest(unittest.TestCase):
     def test_reviewed_automatic_start_and_health_inventory_passes(self):
         report = self.audit()
         self.assertTrue(report["pass"], report["issues"])
-        self.assertEqual(41, len(report["components"]))
+        self.assertEqual(40, len(report["components"]))
         self.assertEqual(2, sum(row["widget"] for row in report["components"]))
         clock = next(row for row in report["components"] if row["name"].endswith(".PlatformClockReceiver"))
         self.assertIn("android.app.action.NEXT_ALARM_CLOCK_CHANGED", clock["actions"])
@@ -115,7 +115,7 @@ class ReleaseManifestTest(unittest.TestCase):
                 self.assertEqual(expected_code, result.returncode, result.stdout + result.stderr)
                 report = json.loads((output / "report.json").read_text())
                 self.assertEqual(expected_code == 0, report["pass"])
-                self.assertIn("41 components", (output / "report.md").read_text())
+                self.assertIn("40 components", (output / "report.md").read_text())
 
 
 if __name__ == "__main__":

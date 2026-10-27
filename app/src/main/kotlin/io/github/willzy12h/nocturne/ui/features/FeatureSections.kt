@@ -19,7 +19,7 @@ import io.github.willzy12h.nocturne.night.CommandOrigin
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.health.connect.client.HealthConnectClient
+import io.github.willzy12h.nocturne.platform.HealthConnectAccess
 import androidx.health.connect.client.PermissionController
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
     val settings by graph.repository.settings.collectAsState()
     val prefs=settings.platform
     val scope=rememberCoroutineScope()
+    if (!HealthConnectAccess.platformSupported) Text(stringResource(R.string.health_platform_required))
     var message by remember {mutableStateOf<String?>(null)}
     fun change(transform:(PlatformSettings)->PlatformSettings) {
         scope.launch {
@@ -68,7 +69,7 @@ import kotlinx.coroutines.launch
         if(granted) enableReminder() else message=graph.context.getString(R.string.feature_notification_permission)
     }
     val healthPermission=rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) {granted->
-        if (!graph.repository.settings.value.demoMode) {
+        if (!graph.repository.settings.value.demoMode && HealthConnectAccess.platformSupported) {
             changeHealthOverlay(granted.containsAll(AndroidSleepSource.PERMISSIONS))
             if(!granted.containsAll(AndroidSleepSource.PERMISSIONS)) message=graph.context.getString(R.string.feature_health_permission)
         }
@@ -88,9 +89,9 @@ import kotlinx.coroutines.launch
         }
         AutoStartSettingsSection(graph)
         FeatureSwitch(stringResource(R.string.feature_health_title),prefs.healthSleepOverlay, !settings.demoMode) {enabled->
-            if (!graph.repository.settings.value.demoMode) {
+            if (!graph.repository.settings.value.demoMode && HealthConnectAccess.platformSupported) {
                 if(!enabled) changeHealthOverlay(false)
-                else if(HealthConnectClient.getSdkStatus(graph.context)!=HealthConnectClient.SDK_AVAILABLE) message=graph.context.getString(R.string.feature_health_absent)
+                else if(!HealthConnectAccess.available(graph.context)) message=HealthConnectAccess.unavailableMessage(graph.context)
                 else healthPermission.launch(AndroidSleepSource.PERMISSIONS)
             }
         }

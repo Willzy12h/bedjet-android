@@ -15,7 +15,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
-    <queries><package android:name="com.google.android.apps.healthdata" /></queries>
 
     <application
         android:name=".App"
@@ -26,6 +25,9 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.Nocturne"
         tools:ignore="GoogleAppIndexingWarning">
+
+        <!-- Legacy provider signer checks are incomplete; Android 14+ uses the platform service. -->
+        <service android:name="androidx.health.platform.client.impl.sdkservice.HealthDataSdkService" tools:node="remove" />
 
         <activity android:name=".ui.MainActivity" android:exported="true" android:launchMode="singleTop">
             <intent-filter>

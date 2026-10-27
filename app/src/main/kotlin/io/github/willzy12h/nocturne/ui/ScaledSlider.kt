@@ -11,6 +11,8 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
+import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
@@ -37,6 +39,12 @@ internal fun ScaledSlider(
     onValueChangeFinished: () -> Unit,
 ) {
     val style = MaterialTheme.typography.labelMedium
+    if (!value.isFinite() || !range.start.isFinite() || !range.endInclusive.isFinite() ||
+        range.start > range.endInclusive || ticks.isEmpty() || ticks.any { !it.first.isFinite() } || steps < 0) {
+        Text(stringResource(R.string.remote_control_unavailable), style = style,
+            modifier = modifier.fillMaxWidth().testTag("$tag-unavailable"))
+        return
+    }
     if (range.start == range.endInclusive) {
         // A unit may report one permitted value. There is no adjustable range or three distinct notches.
         Text(ticks[ticks.size / 2].second, style = style, textAlign = TextAlign.Center,

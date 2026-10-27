@@ -14,7 +14,7 @@ import java.time.Duration
 import java.time.Instant
 
 class AndroidSleepSource(context: Context) : SleepSource {
-    private val client=HealthConnectClient.getOrCreate(context)
+    private val client=HealthConnectAccess.client(context)
     override suspend fun permitted()=client.permissionController.getGrantedPermissions().containsAll(PERMISSIONS)
     override suspend fun sessions(start: Instant,end: Instant): List<SleepStage> {
         val stages=mutableListOf<SleepStage>();var token:String?=null
@@ -29,12 +29,12 @@ class AndroidSleepSource(context: Context) : SleepSource {
     }
     companion object {
         val PERMISSIONS=setOf(HealthPermission.getReadPermission(SleepSessionRecord::class))
-        fun reader(context: Context)=SleepOverlayReader({HealthConnectClient.getSdkStatus(context)==HealthConnectClient.SDK_AVAILABLE}) {AndroidSleepSource(context)}
+        fun reader(context: Context)=SleepOverlayReader({HealthConnectAccess.available(context)}) {AndroidSleepSource(context)}
     }
 }
 
 class AndroidSleepWriter(context: Context) : SleepSessionWriter {
-    private val client by lazy { HealthConnectClient.getOrCreate(context) }
+    private val client by lazy { HealthConnectAccess.client(context) }
     override suspend fun permitted() = client.permissionController.getGrantedPermissions().containsAll(PERMISSIONS)
     override suspend fun upsert(record: SleepSessionRecord) {
         // clientRecordId/clientRecordVersion make a retry an upsert, including an already accepted equal version.

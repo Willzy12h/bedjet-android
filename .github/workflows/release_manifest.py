@@ -44,7 +44,6 @@ POLICY_ROWS = [
     ("receiver", "androidx.glance.appwidget.MyPackageReplacedReceiver", False, None, "Glance package-update refresh from Android."),
     ("service", "androidx.glance.appwidget.GlanceRemoteViewsService", True, "android.permission.BIND_REMOTEVIEWS", "Glance collection RemoteViews binding for widget hosts; platform bind permission excludes ordinary callers."),
     ("service", "androidx.core.widget.RemoteViewsCompatService", False, "android.permission.BIND_REMOTEVIEWS", "Core RemoteViews compatibility binding; default nonexported with platform bind permission."),
-    ("service", "androidx.health.platform.client.impl.sdkservice.HealthDataSdkService", True, None, "Legacy Health Connect provider binds across packages; every SDK Binder operation verifies the calling UID owns com.google.android.apps.healthdata."),
     ("provider", "androidx.startup.InitializationProvider", False, None, "AndroidX startup initialization inside the app process; not a public data provider."),
     ("service", "androidx.room.MultiInstanceInvalidationService", False, None, "Room internal database invalidation across the app's own processes."),
     ("service", "androidx.work.impl.background.systemalarm.SystemAlarmService", False, None, "WorkManager internal scheduling service."),
