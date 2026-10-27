@@ -896,7 +896,7 @@ class NightActions(private val graph: Graph) {
         return outcome?.takeIf { it.notificationHandled || expiry != null || (it.kind == OutcomeKind.LOCAL && !preparedNewRequest) }
     }
     private fun unchangedAlarmObservation(night: ActiveNight): Boolean {
-        if (night.wakeOrigin in setOf(WakeOrigin.OVERRIDE, WakeOrigin.AUTO_START)) return true
+        if (night.wakeOrigin == WakeOrigin.OVERRIDE) return true
         val alarm = AlarmSource.describe(context, repo.settings.value)
         if (alarm?.counts == false) return true
         val prepared = graph.runner().prepareRetime(night, night.identity, alarm?.time,
@@ -992,7 +992,7 @@ class NightActions(private val graph: Graph) {
         repo.runtime.value.slotWrite?.let { it.startRequested && it.displaced == night.identity && it.confidence != Confidence.FAILED } == true
     private suspend fun queueRetimeLocked(observationId: String? = null): CommandOutcome {
         val n = repo.activeNight.value ?: return refused(R.string.runtime_no_night)
-        if (n.wakeOrigin in setOf(WakeOrigin.OVERRIDE, WakeOrigin.AUTO_START)) return local(R.string.runtime_unchanged)
+        if (n.wakeOrigin == WakeOrigin.OVERRIDE) return local(R.string.runtime_unchanged)
         val alarm = AlarmSource.describe(context, repo.settings.value)
         if (alarm?.counts == false) return local(R.string.runtime_unchanged)
         val deadline = ZonedDateTime.parse(n.wakeUpStart)

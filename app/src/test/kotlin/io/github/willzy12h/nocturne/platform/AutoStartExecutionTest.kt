@@ -15,6 +15,7 @@ import io.github.willzy12h.nocturne.core.store.AutoStartSettings
 import io.github.willzy12h.nocturne.night.AlarmExplanation
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.NightActions.Command
+import io.github.willzy12h.nocturne.night.OutcomeKind
 import io.github.willzy12h.nocturne.night.description
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -45,10 +46,12 @@ class AutoStartExecutionTest : PlatformGraphFixture() {
         PlatformNotifications.channel(context)
         return graph
     }
-    private fun alarm(at: String) {
+    private fun alarm(at: String, creator: String? = null) {
+        val fire = PendingIntent.getBroadcast(context, 922, Intent("test.auto.alarm"),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        if (creator != null) shadowOf(fire).setCreatorPackage(creator)
         context.getSystemService(AlarmManager::class.java).setAlarmClock(
-            AlarmManager.AlarmClockInfo(Instant.parse(at).toEpochMilli(), null),
-            PendingIntent.getBroadcast(context, 922, Intent("test.auto.alarm"), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            AlarmManager.AlarmClockInfo(Instant.parse(at).toEpochMilli(), fire.takeIf { creator != null }), fire)
     }
 
     @Test fun chargingOffByDefaultStartsTheChosenProfileWithoutAGraceDelay() = runBlocking {
@@ -101,6 +104,7 @@ class AutoStartExecutionTest : PlatformGraphFixture() {
             AlarmSource.describe(context, graph.repository.settings.value), night).description(context)
         assertTrue(description, description.contains("Auto-start", ignoreCase = true))
         assertFalse(description, description.contains("override", ignoreCase = true))
+        alarm("2026-10-27T07:30:00Z")
         graph.actions.perform(Command.RETIME)
         assertEquals(night.wakeAt, graph.repository.activeNight.value!!.wakeAt)
         assertEquals(night.revision, graph.repository.activeNight.value!!.revision)
@@ -119,6 +123,83 @@ class AutoStartExecutionTest : PlatformGraphFixture() {
         assertEquals(wake.toString(), night!!.wakeAt)
         assertEquals("OVERRIDE", night.wakeOrigin.name)
         assertEquals(wake.toString(), graph.repository.settings.value.tonightOverride!!.wakeAt)
+        alarm("2026-10-27T08:30:00Z")
+        graph.actions.submitAlarmChange()
+        assertEquals(OutcomeKind.LOCAL, graph.actions.execute(graph.actions.capture(Command.RETRY_RETIME)).kind)
+        assertEquals(night, graph.repository.activeNight.value)
+    }
+
+    @Test fun anAlarmFollowingAutomaticNightRetimesWhenTheAcceptedAlarmChanges() = runBlocking {
+        val (graph, sent) = startAlarmFollowingAutomaticNight()
+        val original = graph.repository.activeNight.value!!
+        alarm("2026-10-27T07:30:00Z", "approved.clock")
+        graph.actions.submitAlarmChange()
+
+        val outcome = graph.actions.execute(graph.actions.capture(Command.RETRY_RETIME))
+
+        assertEquals(outcome.message, OutcomeKind.CONFIRMED, outcome.kind)
+        val updated = graph.repository.activeNight.value!!
+        assertEquals(original.recordId, updated.recordId)
+        assertEquals(original.revision + 1, updated.revision)
+        assertEquals(Instant.parse("2026-10-27T07:30:00Z"), java.time.ZonedDateTime.parse(updated.wakeAt).toInstant())
+        assertTrue(updated.wakeFromAlarm)
+        assertEquals(Confidence.CONFIRMED, updated.confidence)
+        assertTrue("The owner must write the newly confirmed programme", sent.isNotEmpty())
+        assertNull(graph.repository.runtime.value.alarmInbox)
+        assertNull(graph.repository.runtime.value.retime)
+        assertNull(graph.repository.settings.value.tonightOverride)
+    }
+
+    @Test fun anUnchangedAcceptedAlarmDoesNotRewriteAnAutomaticNight() = runBlocking {
+        val (graph, sent) = startAlarmFollowingAutomaticNight()
+        val original = graph.repository.activeNight.value
+        graph.actions.submitAlarmChange()
+
+        val outcome = graph.actions.execute(graph.actions.capture(Command.RETRY_RETIME))
+
+        assertEquals(OutcomeKind.LOCAL, outcome.kind)
+        assertEquals(original, graph.repository.activeNight.value)
+        assertTrue(sent.isEmpty())
+        assertNull(graph.repository.runtime.value.alarmInbox)
+        assertNull(graph.repository.runtime.value.retime)
+    }
+
+    @Test fun anUnacceptedAlarmDoesNotRewriteAnAutomaticNight() = runBlocking {
+        val (graph, sent) = startAlarmFollowingAutomaticNight()
+        val original = graph.repository.activeNight.value
+        alarm("2026-10-27T07:30:00Z", "unapproved.clock")
+        graph.actions.submitAlarmChange()
+
+        val outcome = graph.actions.execute(graph.actions.capture(Command.RETRY_RETIME))
+
+        assertEquals(OutcomeKind.LOCAL, outcome.kind)
+        assertEquals(original, graph.repository.activeNight.value)
+        assertTrue(sent.isEmpty())
+        assertNull(graph.repository.runtime.value.alarmInbox)
+        assertNull(graph.repository.runtime.value.retime)
+    }
+
+    private suspend fun startAlarmFollowingAutomaticNight(): Pair<Graph, MutableList<ByteArray>> {
+        val sent = mutableListOf<ByteArray>()
+        val graph = setup { demo -> object : BedJetLink by demo {
+            override suspend fun send(command: ByteArray) { sent += command; demo.send(command) }
+            override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+                beforeWrite(); send(command)
+            }
+        } }
+        val profile = graph.repository.profiles.value.first()
+        graph.repository.saveProfile(profile.copy(wakeSource = profile.wakeSource.copy(useAlarm = true)))
+        graph.repository.updateSettings { it.copy(alarmPackages = setOf("approved.clock"), acceptUnknownAlarmSource = false,
+            platform = it.platform.copy(autoStart = it.platform.autoStart!!.copy(mode = AutoStartMode.BEFORE_WAKE))) }
+        alarm("2026-10-27T06:30:00Z", "approved.clock")
+        ChargerRun(graph, { false }, { _, _ -> true }, {}, { true }).execute()
+        val started = graph.repository.activeNight.value!!
+        assertEquals(Confidence.CONFIRMED, started.confidence)
+        assertEquals("AUTO_START", started.wakeOrigin.name)
+        assertEquals(Instant.parse("2026-10-27T06:30:00Z"), java.time.ZonedDateTime.parse(started.wakeAt).toInstant())
+        assertTrue(started.profile!!.wakeSource.useAlarm)
+        sent.clear()
+        return graph to sent
     }
 
     @Test fun anAlarmChangeDuringChargingGraceCannotStartTheStalePlan() = runBlocking {
