@@ -1,7 +1,7 @@
 # Nocturne redesign — code map
 
 Approved design: https://claude.ai/artifact/EXWxySVCprLys7T3YHiiZj ("Round 4: Overcast + side stripe").
-Build order and agent prompts: [BUILD-PACKETS.md](BUILD-PACKETS.md).
+Full build brief for GPT: [BUILD-PACKETS.md](BUILD-PACKETS.md).
 
 This maps each part of the design to the code that has it today, what changes, and how. Paths are relative to
 `app/src/main/kotlin/io/github/willzy12h/nocturne/` (app) or `core/src/main/kotlin/io/github/willzy12h/nocturne/core/` (core).
