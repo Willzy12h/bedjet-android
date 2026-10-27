@@ -18,7 +18,11 @@ import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.data.OperationAdmission
+import io.github.willzy12h.nocturne.core.store.LoggedNotice
+import io.github.willzy12h.nocturne.core.store.NoticeKind
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 object PlatformNotifications {
     const val CHANNEL="bedtime_features"
@@ -66,6 +70,9 @@ object PlatformNotifications {
 object ChargerJobs {
     // Glance's WorkManager uses the default nonnegative job-ID range; reserve a negative native ID.
     const val ID=-6100
+    // The existing delivery lock also covers the local refusal claim, so a replay cannot pass it while it saves.
+    private val delivery = Mutex()
+    private enum class Admission { ENQUEUED, IMPORT_BUSY, IGNORED }
     fun sync(graph: Graph) {
         val scheduler = graph.context.getSystemService(JobScheduler::class.java)
         val pending = scheduler.getPendingJob(ID)
@@ -74,19 +81,52 @@ object ChargerJobs {
         AutoStartSchedule.syncAlarm(graph)
     }
 
-    /** Admission and the synchronous schedule call cannot straddle an import's exclusive gate. */
-    @Synchronized fun enqueue(graph: Graph, ticket: AutoStartTicket): Boolean {
-        val lease = graph.repository.operationAdmission.tryCommand() ?: return false
+    suspend fun enqueue(graph: Graph, ticket: AutoStartTicket): Boolean = delivery.withLock {
+        enqueueLocked(graph, ticket) == Admission.ENQUEUED
+    }
+
+    /** Longer hardware work stays in JobService; this delivery only schedules or records a local refusal. */
+    suspend fun deliver(graph: Graph, ticket: AutoStartTicket) = delivery.withLock {
         try {
-            if (AutoStartSchedule.due(graph, ticket) == null) return false
-            val scheduler = graph.context.getSystemService(JobScheduler::class.java)
-            val pending = scheduler.getPendingJob(ID)
-            if (pending != null && !pending.isPeriodic) return false
+            if (enqueueLocked(graph, ticket) == Admission.IMPORT_BUSY &&
+                !graph.repository.settings.value.demoMode && !AutoStartSchedule.claimed(graph, ticket.key)) {
+                val title = graph.context.getString(R.string.auto_start_outcome)
+                val message = graph.context.getString(R.string.auto_start_result_skipped,
+                    graph.context.getString(R.string.auto_start_skip_import))
+                var announce = false
+                try {
+                    if (!graph.repository.claimAutomation("auto-skip:${ticket.key}") ||
+                        graph.repository.settings.value.demoMode) return@withLock
+                    announce = true
+                    graph.repository.addNotice(LoggedNotice(graph.now().toString(), NoticeKind.PROBLEM, title, message))
+                } catch (error: CancellationException) { throw error
+                } catch (_: Exception) {
+                    // The admission refusal remains certain even when its local record cannot be saved.
+                    announce = true
+                    android.util.Log.w("AutoStart", "Automatic start refusal could not be saved")
+                } finally {
+                    if (announce && !graph.repository.settings.value.demoMode) PlatformNotifications.outcome(graph.context, title, message)
+                }
+            }
+        } finally { sync(graph) }
+    }
+
+    /** Admission and the synchronous schedule call cannot straddle an import's exclusive gate. */
+    private fun enqueueLocked(graph: Graph, ticket: AutoStartTicket): Admission {
+        if (AutoStartSchedule.due(graph, ticket) == null || AutoStartSchedule.claimed(graph, ticket.key)) return Admission.IGNORED
+        val scheduler = graph.context.getSystemService(JobScheduler::class.java)
+        val pending = scheduler.getPendingJob(ID)
+        if (pending != null && !pending.isPeriodic) return Admission.IGNORED
+        val lease = graph.repository.operationAdmission.tryCommand() ?: return Admission.IMPORT_BUSY
+        try {
+            // An import may have completed between the early classification and admission.
+            if (AutoStartSchedule.due(graph, ticket) == null || AutoStartSchedule.claimed(graph, ticket.key)) return Admission.IGNORED
             if (pending != null) scheduler.cancel(ID)
             // The owner evaluates charging once and reports a skip; the OS must not wait indefinitely for a plug.
-            return scheduler.schedule(JobInfo.Builder(ID, ComponentName(graph.context, ChargerJobService::class.java))
+            val result = scheduler.schedule(JobInfo.Builder(ID, ComponentName(graph.context, ChargerJobService::class.java))
                 .setMinimumLatency(0).setOverrideDeadline(AutoStartSchedule.WINDOW_MS)
-                .setExtras(ticket.extras()).build()) == JobScheduler.RESULT_SUCCESS
+                .setExtras(ticket.extras()).build())
+            return if (result == JobScheduler.RESULT_SUCCESS) Admission.ENQUEUED else Admission.IGNORED
         } finally { lease.close() }
     }
     fun charging(context: Context): Boolean {
@@ -170,8 +210,7 @@ class AutoStartReceiver : BroadcastReceiver() {
         val pending = goAsync()
         context.graph.scope.launch {
             try { withTimeout(8_000) {
-                ChargerJobs.enqueue(context.graph, ticket)
-                ChargerJobs.sync(context.graph)
+                ChargerJobs.deliver(context.graph, ticket)
             } } finally { pending.finish() }
         }
     }

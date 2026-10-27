@@ -58,6 +58,10 @@ data class AutoStartTicket(val startsAt: String, val key: String, val fingerprin
 object AutoStartSchedule {
     const val WINDOW_MS = 15 * 60 * 1000L
     private const val REQUEST = 6104
+    private val claimPrefixes = listOf("charger:", "auto-skip:", "cancel:", "charger-unreadable:")
+
+    internal fun claimed(graph: Graph, key: String): Boolean =
+        claimPrefixes.any { "$it$key" in graph.repository.automation.value.claims }
 
     /** One-way interpretation of the old charger setting; a subsequent explicit choice always wins. */
     fun settings(graph: Graph): AutoStartSettings {
@@ -136,7 +140,7 @@ object AutoStartSchedule {
         val queued = graph.context.getSystemService(JobScheduler::class.java).getPendingJob(ChargerJobs.ID)
             ?.takeUnless { it.isPeriodic }?.extras?.let(AutoStartTicket::from)?.key
         val blocked = graph.repository.automation.value.claims.mapNotNull { claim ->
-            listOf("charger:", "auto-skip:", "cancel:", "charger-unreadable:").firstOrNull { claim.startsWith(it) }?.let { claim.removePrefix(it) }
+            claimPrefixes.firstOrNull { claim.startsWith(it) }?.let { claim.removePrefix(it) }
         }.toSet() + listOfNotNull(queued)
         var after = graph.now()
         repeat(blocked.size + 1) {
