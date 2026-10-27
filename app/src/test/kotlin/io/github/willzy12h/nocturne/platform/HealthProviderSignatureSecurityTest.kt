@@ -9,7 +9,6 @@ import android.content.pm.ServiceInfo
 import android.content.pm.Signature
 import android.os.Binder
 import androidx.health.connect.client.HealthConnectClient
-import androidx.health.platform.client.HealthDataService
 import androidx.health.platform.client.impl.sdkservice.HealthDataSdkService
 import androidx.health.platform.client.impl.sdkservice.IGetPermissionTokenCallback
 import androidx.health.platform.client.impl.sdkservice.IHealthDataSdkService
@@ -36,8 +35,8 @@ class HealthProviderSignatureSecurityTest {
             packageName = provider; applicationInfo = app; setLongVersionCode(999999L)
             signatures = arrayOf(Signature(byteArrayOf(1, 2, 3, 4)))
         })
-        pm.setPackagesForUid(Binder.getCallingUid(), arrayOf(provider))
-        val intent = Intent(HealthDataService.ANDROID_HEALTH_PLATFORM_SERVICE_BIND_ACTION).setPackage(provider)
+        pm.setPackagesForUid(Binder.getCallingUid(), provider)
+        val intent = Intent("androidx.health.ACTION_BIND_HEALTH_DATA_SERVICE").setPackage(provider)
         pm.addResolveInfoForIntent(intent, ResolveInfo().apply {
             serviceInfo = ServiceInfo().apply { packageName = provider; name = "$provider.FakeProvider"; applicationInfo = app }
         })
