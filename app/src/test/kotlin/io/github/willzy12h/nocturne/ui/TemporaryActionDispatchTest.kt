@@ -68,7 +68,10 @@ class TemporaryActionDispatchTest {
         runBlocking { graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.COOL, 44, 40, 30)) } }
         duration(5)
         dialogButton(R.string.temporary_confirm).performClick()
-        ui.waitUntil { graph.repository.activeNight.value?.let { it.revision == original.revision + 1 && it.confidence == Confidence.CONFIRMED } == true }
+        ui.waitUntil {
+            graph.repository.activeNight.value?.let { it.revision == original.revision + 1 && it.confidence == Confidence.CONFIRMED } == true &&
+                graph.actions.busy.value.runningLabel == null && !ui.model.busy.value
+        }
         val updated = graph.repository.activeNight.value!!
         assertEquals(original.recordId, updated.recordId)
         assertEquals(original.wakeAt, updated.wakeAt)
@@ -111,10 +114,10 @@ class TemporaryActionDispatchTest {
         ui.control(ui.s(R.string.feature_warm)).performClick()
         dialogButton(R.string.temporary_end_choice).assertIsSelected()
         val preview = graph.actions.previewTemporary(ui.model.quickAction(Command.WARM).temporary.request)
-        ui.checkLayout(dialogText(requireNotNull(preview.refusal)), "Complete temporary refusal")
         ui.checkControl(dialogButton(R.string.guard_confirm), "End unavailable temporary", scroll = false).assertIsEnabled()
         ui.checkControl(dialogButton(R.string.guard_keep), "Keep uncertain tonight", scroll = false)
         dialogButton(R.string.temporary_choice).performScrollTo().performClick()
+        ui.checkLayout(dialogText(requireNotNull(preview.refusal)), "Complete temporary refusal")
         dialogButton(R.string.temporary_confirm).assertIsNotEnabled()
         dialogButton(R.string.guard_keep).performClick()
         assertEquals(unknown, graph.repository.activeNight.value)
@@ -156,7 +159,8 @@ class TemporaryActionDispatchTest {
 
     @Test fun remoteEndingStillSendsOnlyTheChosenModeAndEndsTheNight() {
         ui.tab(ui.s(R.string.tab_remote))
-        ui.waitUntil { ui.model.hasLiveStatus.value && ui.compose.onAllNodesWithText(ui.s(R.string.remote_lights)).fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil { ui.model.hasLiveStatus.value && ui.compose.onAllNodes(
+            hasText(ui.s(R.string.mode_heat)) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
         ui.control(ui.s(R.string.mode_heat)).performClick()
         dialogButton(R.string.temporary_end_choice).performScrollTo().performClick()
         ui.compose.onAllNodes(hasText("10 min", substring = true) and hasAnyAncestor(isDialog())).assertCountEquals(0)
@@ -180,14 +184,17 @@ class TemporaryActionDispatchTest {
     @CoolOnlyLimits
     @Test fun remoteHeatOutsideTheSavedLimitsOpensARefusalInsteadOfThrowing() {
         ui.tab(ui.s(R.string.tab_remote))
-        ui.waitUntil { ui.model.hasLiveStatus.value && ui.compose.onAllNodesWithText(ui.s(R.string.remote_lights)).fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil { ui.model.hasLiveStatus.value && ui.compose.onAllNodes(
+            hasText(ui.s(R.string.mode_heat)) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
         val failure = runCatching { ui.control(ui.s(R.string.mode_heat)).performClick() }.exceptionOrNull()
         assertNull("A mode outside the saved limits must open a choice/refusal, never throw from the tap", failure)
         dialogButton(R.string.temporary_end_choice).assertIsSelected()
         val reason = graph.actions.previewTemporary(graph.actions.captureTemporary(ActionPreset(Mode.HEAT, 44, 70, 10))).refusal!!
         assertTrue("The refusal must explain the saved limits", reason.contains("limits"))
-        ui.checkLayout(dialogText(reason), "Complete saved-limits refusal")
         dialogButton(R.string.guard_confirm).assertIsEnabled()
+        dialogButton(R.string.temporary_choice).performScrollTo().performClick()
+        ui.checkLayout(dialogText(reason), "Complete saved-limits refusal")
+        dialogButton(R.string.temporary_confirm).assertIsNotEnabled()
     }
 
     @Test fun unknownProgrammeDoesNotPromiseThePreviousTemporaryReturn() {
