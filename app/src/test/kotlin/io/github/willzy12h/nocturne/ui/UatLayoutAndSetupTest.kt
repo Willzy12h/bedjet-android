@@ -88,7 +88,8 @@ class UatLayoutAndSetupTest {
         val owner = Owner().also { it.lifecycle.currentState = Lifecycle.State.RESUMED }
         assertTrue(setupSnapshot(app, model.settings.value, false).requiredComplete)
         compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) {
-            NocturneTheme(model.settings.value, model.now()) { Box(Modifier.requiredSize(320.dp, 640.dp)) { SetupChecklistCard(model) } }
+            val settings by model.settings.collectAsState()
+            NocturneTheme(settings, model.now()) { Box(Modifier.requiredSize(320.dp, 640.dp)) { SetupChecklistCard(model) } }
         } }
         compose.waitUntil(5_000) { model.settings.value.setupChecklistCompleted }
         compose.onNodeWithTag("setup-checklist").assertDoesNotExist()
@@ -129,7 +130,10 @@ class UatLayoutAndSetupTest {
     @Test fun U4_settingsEntryRequestsReopeningAndClearsOnlyOptionalDismissals() {
         val model = model(true)
         runBlocking { model.graph.repository.updateSettings { it.copy(setupDismissedOptional = setOf("health", "widget")) } }
-        compose.setContent { NocturneTheme(model.settings.value, model.now()) { SettingsScreen(model, Modifier) } }
+        compose.setContent {
+            val settings by model.settings.collectAsState()
+            NocturneTheme(settings, model.now()) { SettingsScreen(model, Modifier) }
+        }
         compose.onNodeWithTag("open-setup-checklist").performScrollTo().performClick()
         compose.waitUntil(5_000) { model.setupChecklistOpen.value && model.settings.value.setupDismissedOptional.isEmpty() }
         assertEquals(1, model.setupChecklistRequest.value)
@@ -172,7 +176,10 @@ class UatLayoutAndSetupTest {
 
     @Test fun U3_busyOverlayDoesNotMoveAnyQuickTargetAndLeavesNoIdleSlot() {
         val model = model(true)
-        compose.setContent { NocturneTheme(model.settings.value, model.now()) { TonightScreen(model, Modifier, onEdit = {}) } }
+        compose.setContent {
+            val settings by model.settings.collectAsState()
+            NocturneTheme(settings, model.now()) { TonightScreen(model, Modifier, onEdit = {}) }
+        }
         compose.onNodeWithTag("quick-controls").performScrollTo()
         val tags = (QuickDefaults.modes + Mode.STANDBY).map { "quick-mode-${it.name}" }
         val before = tags.associateWith { compose.onNodeWithTag(it).getUnclippedBoundsInRoot() }
