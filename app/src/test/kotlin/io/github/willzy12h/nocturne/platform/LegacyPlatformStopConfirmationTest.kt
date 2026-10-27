@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.platform
 
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Looper
 import android.view.View
 import io.github.willzy12h.nocturne.App
@@ -16,6 +17,7 @@ import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.CommandOutcome
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.night.OutcomeKind
+import io.github.willzy12h.nocturne.service.BedJetService
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -32,6 +34,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ActivityController
+import org.robolectric.android.controller.ServiceController
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowAlertDialog
 import org.robolectric.util.ReflectionHelpers
@@ -66,7 +69,10 @@ class LegacyPlatformStopConfirmationTest {
         graph = graphs.fresh { Graph(app, observed) }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false) }
+        // Owner confirmation and durable History use a real session; all packets still use the injected fake.
+        shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN)
+        shadowOf(android.bluetooth.BluetoothAdapter.getDefaultAdapter()).setEnabled(true)
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val result = graph.actions.execute(graph.actions.capture(Command.START_NIGHT))
         assertEquals(result.message, OutcomeKind.CONFIRMED, result.kind)
         original = requireNotNull(graph.repository.activeNight.value)
@@ -128,8 +134,10 @@ class LegacyPlatformStopConfirmationTest {
 
     private fun assertApprovedStop(command: Command) {
         val activity = open(command)
+        var service: ServiceController<BedJetService>? = null
         try {
             confirmation(command).getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            service = deliverService()
             until { outcomes.isNotEmpty() && graph.actions.busy.value.runningLabel == null }
             val outcome = outcomes.single()
             assertEquals(outcome.message, OutcomeKind.CONFIRMED, outcome.kind)
@@ -140,7 +148,7 @@ class LegacyPlatformStopConfirmationTest {
             assertEquals(1, sent.count { it.contentEquals(Codec.setMode(Mode.STANDBY)!!) })
             assertEquals(1, graph.repository.history.value.single { it.id == original.recordId }
                 .events.count { it.kind == EventKind.STOPPED })
-        } finally { activity.pause().stop().destroy() }
+        } finally { service?.destroy(); activity.pause().stop().destroy() }
     }
 
     @Test fun legacyOffApprovalQueuedBehindANewerNightIsRefused() = runBlocking {
@@ -160,11 +168,13 @@ class LegacyPlatformStopConfirmationTest {
         entered.await()
         resetTraffic()
         val activity = open(command)
+        var service: ServiceController<BedJetService>? = null
         try {
             // The separate cancel cases require the visible guard. Here the owner is already held, so the
             // old immediate-dispatch defect cannot obscure the captured-identity race at admission.
             ShadowAlertDialog.getLatestAlertDialog().getButton(AlertDialog.BUTTON_POSITIVE)
                 ?.takeIf { it.visibility == View.VISIBLE && it.isEnabled }?.performClick()
+            service = deliverService()
             until { graph.actions.busy.value.queuedCount == 1 }
             val newer = original.copy(revision = original.revision + 1)
             graph.repository.setActiveNight(newer)
@@ -180,7 +190,16 @@ class LegacyPlatformStopConfirmationTest {
         } finally {
             release.complete(Unit)
             holder.cancelAndJoin()
+            service?.destroy()
             activity.pause().stop().destroy()
+        }
+    }
+
+    private fun deliverService(): ServiceController<BedJetService> {
+        var delivery: Intent? = null
+        until { delivery = delivery ?: shadowOf(app).nextStartedService; delivery != null }
+        return Robolectric.buildService(BedJetService::class.java).create().also {
+            it.get().onStartCommand(delivery, 0, 1)
         }
     }
 

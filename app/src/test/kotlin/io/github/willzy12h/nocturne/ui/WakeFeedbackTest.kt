@@ -111,8 +111,9 @@ class WakeFeedbackTest {
                 pending = PendingChange("r1", ChangeKind.RETIME, requested.toString(), graph.now().toString(), graph.now().plusMinutes(10).toString(), night.identity)))
         } }
         waitFor(s(R.string.wake_requested, Format.clock(requested)))
-        compose.onNodeWithText("Planned wake").assertExists()
-        compose.onNodeWithText(Format.clock(night.wakeAt)).assertExists()
+        compose.onNodeWithTag("tonight-fixed-wake")
+            .assertTextContains(s(R.string.gpt12_wake_profile_fallback))
+            .assertTextContains(Format.clock(night.wakeAt))
     }
 
     @Test fun anEditSavedForTheNextNightSaysSoOnTonight() {

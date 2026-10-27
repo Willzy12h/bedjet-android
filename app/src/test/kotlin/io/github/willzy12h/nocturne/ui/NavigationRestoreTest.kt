@@ -262,6 +262,41 @@ class NavigationRestoreTest {
         assertEquals(originals.first(), graph.repository.profiles.value.first { it.id == originals.first().id })
     }
 
+    @Test fun leavingDemoDiscardsItsParkedDraftBeforeReturningToRealProfiles() {
+        runBlocking {
+            graph.actions.setDemoMode(false)
+            graph.actions.setDemoMode(true)
+        }
+        val originals = graph.repository.profiles.value
+        launch()
+        editFirstProfile()
+        renameDraft("Disposable demo draft")
+        openTonight()
+        compose.onNodeWithText("Resume editing draft").assertExists()
+        compose.onNodeWithText("Exit demo").performClick()
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10))
+            !graph.repository.settings.value.demoMode
+        }
+        compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
+        assertEquals(originals, graph.repository.profiles.value)
+        assertFalse(graph.repository.profiles.value.any { it.name == "Disposable demo draft" })
+    }
+
+    @Test fun aDemoSessionChangeClosesAnActiveEditorBeforeItCanSaveIntoRealProfiles() {
+        runBlocking {
+            graph.actions.setDemoMode(false)
+            graph.actions.setDemoMode(true)
+        }
+        launch()
+        editFirstProfile()
+        renameDraft("Discard on demo exit")
+        compose.runOnUiThread { runBlocking { graph.actions.setDemoMode(false) } }
+        compose.waitForIdle()
+        compose.onNode(hasSetTextAction() and hasText("Discard on demo exit")).assertDoesNotExist()
+        assertFalse(graph.repository.profiles.value.any { it.name == "Discard on demo exit" })
+    }
+
     @Test fun parkedNewDraftSurvivesDiscardingAnotherEditorAcrossSavedState() {
         launch()
         val originals = graph.repository.profiles.value

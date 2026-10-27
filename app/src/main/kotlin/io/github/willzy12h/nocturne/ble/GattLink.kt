@@ -261,7 +261,7 @@ class GattLink(
                     val name = Codec.parseText(ask(session, Codec.Query.DEVICE_NAME))
                     if (current === session && wanted && session.ready) onName(DeviceId.ble(session.address), name)
                 }
-                // Optional Lull identity comes from characteristic 2001, never the display query.
+                // Verified device identity comes from characteristic 2001, never the display query.
                 // An in-flight timeout still retires this session. Only this connect call's later retry
                 // skips metadata, allowing ordinary control on a fresh session with interop unknown.
                 if (readVerifiedName && session.port().has(Attr.NAME)) operations.withLock {
@@ -390,10 +390,16 @@ class GattLink(
             }
             return
         }
-        val parsed = Codec.parseStatus(chunk) ?: return
+        val parsed = Codec.parseStatus(chunk) ?: run {
+            synchronized(startStatusLock) {
+                if (current === session) { session.lastHead = null; session.lastExtra = null }
+            }
+            return
+        }
         if (parsed.extra != null) {
             synchronized(startStatusLock) {
                 if (current !== session || !selected(session.address)) return
+                session.lastHead = null
                 if (startPending) {
                     session.lastExtra = null
                     publish(session, parsed.copy(extra = null))

@@ -1,0 +1,51 @@
+name: Security regressions
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Focused security behaviour (unsigned and read-only)
+        run: |
+          set -o pipefail
+          python3 -B .github/workflows/test_release_manifest.py
+          ./gradlew --no-daemon --continue --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+            :core:test --tests '*SecurityTest' :app:testDebugUnitTest --tests '*SecurityTest' 2>&1 | tee security-regressions.log
+      - name: Print behavioural evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as E
+          for root in (Path('core/build/test-results/test'),Path('app/build/test-results/testDebugUnitTest')):
+              for file in sorted(root.glob('TEST-*.xml')):
+                  suite=E.parse(file).getroot()
+                  print(suite.attrib)
+                  for case in suite.findall('testcase'):
+                      for error in list(case.findall('failure'))+list(case.findall('error')):
+                          print('FAILED',case.attrib,error.attrib,(error.text or '')[:2500])
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: security-regressions-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            security-regressions.log
+            core/build/test-results/test/
+            app/build/test-results/testDebugUnitTest/
+          retention-days: 14

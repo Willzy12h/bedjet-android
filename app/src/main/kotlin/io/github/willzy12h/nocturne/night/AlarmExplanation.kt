@@ -16,7 +16,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /** ELIGIBLE describes the current candidate, never proof that a running BedJet has applied it. */
-enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED, OUTSIDE_WINDOW, PROFILE_ALARMS_OFF, OVERRIDE, NO_PROFILE, TEST_RUN }
+enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED, OUTSIDE_WINDOW, PROFILE_ALARMS_OFF, OVERRIDE, NO_PROFILE, TEST_RUN, AUTO_START }
 enum class WakeExplanationState { PREVIEW, SAVED, PENDING, FAILED, UNKNOWN, MANUAL }
 enum class AlarmSettingsTarget { ALARM_SOURCES, PROFILE_WAKE, TONIGHT_WAKE }
 
@@ -48,6 +48,7 @@ data class AlarmExplanation(
             val reason = when {
                 night?.isTestRun == true -> AlarmReason.TEST_RUN
                 origin == WakeOrigin.OVERRIDE -> AlarmReason.OVERRIDE
+                origin == WakeOrigin.AUTO_START -> AlarmReason.AUTO_START
                 effectiveProfile == null -> AlarmReason.NO_PROFILE
                 !effectiveProfile.wakeSource.useAlarm -> AlarmReason.PROFILE_ALARMS_OFF
                 alarm == null -> AlarmReason.NO_ALARM
@@ -95,9 +96,9 @@ private fun ZonedDateTime?.clock(): String = this?.format(DateTimeFormatter.ofPa
 
 /** App-facing words stay in resources; packages other than the two built-in clock sources remain identifiable. */
 fun alarmSourceName(context: Context, creator: String?): String = when (creator) {
-    "com.sec.android.app.clockpackage" -> context.getString(R.string.alarm_source_samsung_clock)
+    in samsungClockPackages -> context.getString(R.string.alarm_source_samsung_clock)
     "com.google.android.deskclock" -> context.getString(R.string.alarm_source_google_clock)
-    null -> context.getString(R.string.alarm_source_unknown_app)
+    null, "", "android" -> context.getString(R.string.uat_alarm_unidentified)
     else -> creator
 }
 
@@ -105,7 +106,7 @@ fun AlarmExplanation.description(context: Context): String {
     fun text(id: Int, vararg args: Any) = context.getString(id, *args)
     val wake = wakeAt.clock()
     val next = alarm?.time.clock()
-    val source = alarmSourceName(context, alarm?.creator)
+    val source = alarmSourceName(context, alarm?.identifiedCreator)
     fun ignored(): String = text(R.string.alarm_source_ignored, next, text(when (reason) {
         AlarmReason.UNKNOWN_SOURCE -> R.string.alarm_source_reason_unknown
         AlarmReason.SOURCE_NOT_ALLOWED -> R.string.alarm_source_reason_not_allowed
@@ -131,6 +132,7 @@ fun AlarmExplanation.description(context: Context): String {
         else -> when (wakeOrigin) {
             WakeOrigin.ALARM -> R.string.alarm_source_saved_alarm
             WakeOrigin.OVERRIDE -> R.string.alarm_source_saved_override
+            WakeOrigin.AUTO_START -> R.string.auto_start_saved_wake
             else -> R.string.alarm_source_saved_profile
         }
     }, wake)
@@ -138,6 +140,8 @@ fun AlarmExplanation.description(context: Context): String {
         text(R.string.short_test_saved, wake) else text(R.string.short_test_state, saved)
     // An override needs no current alarm; keep the saved state's confidence wording.
     if (reason == AlarmReason.OVERRIDE && alarm == null) return saved
+    if (reason == AlarmReason.AUTO_START) return if (alarm == null) saved else
+        text(R.string.alarm_source_saved_and_current, saved, text(R.string.alarm_source_current, next, source))
     val current = when {
         alarm == null -> text(R.string.alarm_source_none)
         // Manual/uncertain states can describe a current candidate, but cannot declare it applied or unapplied.
@@ -158,6 +162,6 @@ fun AlarmExplanation.recheckDescription(context: Context): String {
     if (state == WakeExplanationState.PREVIEW && wakeOrigin == WakeOrigin.PROFILE_DEFAULT && alarm != null)
         result = context.getString(R.string.alarm_recheck_fallback, result, wakeAt.clock())
     val found = alarm ?: return context.getString(R.string.alarm_recheck_none, result)
-    return context.getString(R.string.alarm_recheck_found, found.time.clock(), alarmSourceName(context, found.creator),
+    return context.getString(R.string.alarm_recheck_found, found.time.clock(), alarmSourceName(context, found.identifiedCreator),
         result)
 }

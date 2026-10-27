@@ -86,7 +86,7 @@ data class ProgramStep(
     val longestMinutes: Int get() = longestMinutes(mode, temperature, fanStep)
 
     /** False when the unit would stop this step before it finishes. Clock-time steps end when they say. */
-    val fitsUnitLimits: Boolean get() = endsAtClockTime || durationMinutes <= longestMinutes
+    val fitsUnitLimits: Boolean get() = CommandSafety.stepFields(this) == null
 
     companion object {
         /**
@@ -94,6 +94,7 @@ data class ProgramStep(
          * following the table the official app enforces.
          */
         fun longestMinutes(mode: Mode, temperature: Int, fanStep: Int): Int {
+            if (mode == Mode.TURBO) return Limits.TURBO_MINUTES
             if (mode != Mode.HEAT || temperature < 60) return Limits.MAX_STEP_MINUTES
             val row = HEAT_HOURS[fanStep.coerceIn(0, HEAT_HOURS.size - 1)]
             val offset = temperature - 60

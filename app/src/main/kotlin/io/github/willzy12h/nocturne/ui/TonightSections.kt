@@ -10,6 +10,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,8 +36,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import io.github.willzy12h.nocturne.R
@@ -44,7 +49,8 @@ import kotlin.math.abs
 
 /** Reorders actual sections, with a compact view for dragging sections whose content spans several screens. */
 @Composable
-internal fun TonightSections(settings: Settings, onOrder: (List<String>) -> Unit, content: @Composable (String) -> Unit) {
+internal fun TonightSections(settings: Settings, onOrder: (List<String>) -> Unit,
+    onCollapse: (String) -> Unit, content: @Composable (String) -> Unit) {
     val order = settings.normalisedTonightOrder()
     val currentOrder by rememberUpdatedState(order)
     val saveOrder by rememberUpdatedState(onOrder)
@@ -70,6 +76,10 @@ internal fun TonightSections(settings: Settings, onOrder: (List<String>) -> Unit
             "connection" -> R.string.ux_section_connection
             else -> R.string.ux_section_night
         })
+        val savedCollapsed = id in settings.collapsedTonightSections
+        val collapsed = arranging || savedCollapsed
+        val action = stringResource(if (collapsed) R.string.gpt12_expand_section else R.string.gpt12_collapse_section, title)
+        val state = stringResource(if (collapsed) R.string.ux_collapsed else R.string.ux_expanded)
         Column(Modifier.fillMaxWidth().testTag("tonight-section-$id").zIndex(if (dragging == id) 1f else 0f),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
@@ -98,7 +108,20 @@ internal fun TonightSections(settings: Settings, onOrder: (List<String>) -> Unit
                     }) {
                     Icon(Icons.Default.DragHandle, stringResource(R.string.ux_drag_section, title))
                 }
-                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    if (arranging) {
+                        arranging = false
+                        if (savedCollapsed) onCollapse(id)
+                    } else onCollapse(id)
+                }, modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics {
+                    heading()
+                    contentDescription = action
+                    stateDescription = state
+                }) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Start,
+                        modifier = Modifier.weight(1f))
+                    Icon(if (collapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess, null)
+                }
                 IconButton(onClick = { move(id, index - 1) }, enabled = index > 0) {
                     Icon(Icons.Default.ArrowUpward, stringResource(R.string.ux_move_up, title))
                 }
@@ -106,7 +129,7 @@ internal fun TonightSections(settings: Settings, onOrder: (List<String>) -> Unit
                     Icon(Icons.Default.ArrowDownward, stringResource(R.string.ux_move_down, title))
                 }
             }
-            if (!arranging) content(id)
+            if (!collapsed) content(id)
         }
     } }
 }

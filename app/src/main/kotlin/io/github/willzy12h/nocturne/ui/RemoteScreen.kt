@@ -17,19 +17,18 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.protocol.Mode
-import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +36,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.NightActions.Command
+import io.github.willzy12h.nocturne.night.manualRuntimeMaximum
 import kotlin.math.roundToInt
 
 /** Direct control, like the BedJet's own remote. Changing the mode takes over from a running night. */
@@ -51,11 +51,23 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     val f = settings.fahrenheit
     val guard = rememberNightGuard(model)
     val canControl = state == LinkState.READY && hasLiveStatus
+    val context = LocalContext.current
+    val timerSet = stringResource(R.string.remote_timer_set)
+    var customDuration by remember { mutableStateOf<CapturedDuration?>(null) }
+    fun runDuration(captured: CapturedDuration) {
+        val words = Format.Words { id, args -> context.getString(id, *args) }
+        val what = context.getString(R.string.remote_custom_action, Format.duration(captured.request.actionPreset!!.minutes, words))
+        guard.confirm(what, captured.temporary()) { model.remoteDuration(timerSet, captured.request) }
+    }
+    customDuration?.let { captured ->
+        CustomRunDuration(captured, onDismiss = { customDuration = null }, onConfirm = {
+            customDuration = null
+            runDuration(it)
+        })
+    }
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.remote_title), style = MaterialTheme.typography.headlineMedium)
-        ConnectionLine(model)
-        BluetoothBanner(model)
         BusyIndicator(model)
         // No BedJet chosen: the route to choosing one, as on Tonight.
         if (settings.deviceId() == null) {
@@ -94,11 +106,13 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             var temp by remember(s.targetTemperature) { mutableFloatStateOf(s.targetTemperature.toFloat()) }
             val temperatureSet = stringResource(R.string.remote_temperature_set)
             Text(stringResource(R.string.label_temperature, tempText(temp.roundToInt(), f)))
-            Slider(
-                temp, { temp = it }, valueRange = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
+            ScaledSlider(
+                temp, { temp = it }, range = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
                 enabled = canControl,
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(temp.roundToInt(), f)),
                 steps = (s.maxTemperature - s.minTemperature - 1).coerceAtLeast(0),
+                ticks = listOf(s.minTemperature, (s.minTemperature + s.maxTemperature) / 2, s.maxTemperature)
+                    .map { it.toFloat() to tempText(it, f) }, tag = "temperature",
                 onValueChangeFinished = { val t = temp.roundToInt(); model.remote(temperatureSet, affectsProgramme = true, confirms = { it.targetTemperature == t }) { it.setTemperature(t) } },
             )
         }
@@ -106,25 +120,28 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             var fan by remember(s.fanStep) { mutableFloatStateOf(s.fanPercent.toFloat()) }
             val fanSet = stringResource(R.string.remote_fan_set)
             Text(stringResource(R.string.label_fan, fan.roundToInt()))
-            Slider(
-                fan, { fan = it }, valueRange = 5f..100f, steps = 18,
+            ScaledSlider(
+                fan, { fan = it.coerceAtLeast(5f) }, range = 0f..100f, steps = 19,
                 enabled = canControl,
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(fan.roundToInt())),
+                ticks = listOf(0, 50, 100).map { it.toFloat() to stringResource(R.string.remote_percent_tick, it) }, tag = "fan",
                 onValueChangeFinished = { val step = (fan / 5).roundToInt() - 1; model.remote(fanSet, affectsProgramme = true,
                     confirms = { it.fanStep == step }, announceConfirmation = false) { it.setFan(step) } },
             )
+            Text(stringResource(R.string.remote_fan_minimum), style = MaterialTheme.typography.bodySmall)
         }
         if (s.isRunning) {
-            val timerSet = stringResource(R.string.remote_timer_set)
-            val maximumMinutes = if (s.mode == Mode.TURBO) minOf(s.maxRuntimeMinutes, Limits.TURBO_MINUTES)
-                else s.maxRuntimeMinutes
+            val maximumMinutes = manualRuntimeMaximum(s)
             val timerChoices = listOf(15, 30, 60, 120, 240, 480).filter { it <= maximumMinutes }
                 .ifEmpty { listOf(maximumMinutes).filter { it > 0 } }
             Text(stringResource(R.string.remote_run_for), style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 timerChoices.forEach { minutes ->
-                    AssistChip({ model.remote(timerSet, affectsProgramme = true, confirms = { kotlin.math.abs(it.remainingSeconds - minutes * 60) <= 90 }) { it.setRuntime(minutes) } }, enabled = canControl, label = { Text(durationText(minutes)) })
+                    AssistChip({ runDuration(captureDuration(model.graph, s, minutes)) }, enabled = canControl, label = { Text(durationText(minutes)) })
                 }
+                AssistChip({ customDuration = captureDuration(model.graph, s,
+                    ((s.remainingSeconds + 59) / 60).coerceIn(1, maximumMinutes)) }, enabled = canControl && maximumMinutes > 0,
+                    label = { Text(stringResource(R.string.remote_custom)) })
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -136,13 +153,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             }, enabled = canControl, modifier = Modifier.semantics { contentDescription = description }) { Text(boostLabel(LocalContext.current, settings.boostMinutes)) }
         }
         s.extra?.let { extra ->
-            val lightsOn = stringResource(R.string.remote_lights_on)
-            val lightsOff = stringResource(R.string.remote_lights_off)
-            val beepsOn = stringResource(R.string.remote_beeps_on)
-            val beepsOff = stringResource(R.string.remote_beeps_off)
             val reminderCleared = stringResource(R.string.remote_reminder_cleared)
-            SwitchRow(stringResource(R.string.remote_lights), null, extra.ledEnabled, enabled = canControl) { on -> model.remote(if (on) lightsOn else lightsOff, confirms = { it.extra?.ledEnabled == on }) { it.setLed(on) } }
-            SwitchRow(stringResource(R.string.remote_beeps), null, !extra.beepsMuted, enabled = canControl) { on -> model.remote(if (on) beepsOn else beepsOff, confirms = { it.extra?.beepsMuted == !on }) { it.setMuted(!on) } }
             if (extra.notification == 1) {
                 FilledTonalButton({ model.remote(reminderCleared, confirms = { it.extra?.notification == 0 }) { it.acknowledge() } }, enabled = canControl) { Text(stringResource(R.string.remote_clear_reminder)) }
             }

@@ -36,6 +36,7 @@ import io.github.willzy12h.nocturne.core.store.Settings
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import java.time.Duration
+import java.time.Instant
 import java.time.ZonedDateTime
 
 // Two fixed palettes replace Material You: "Midnight Ink" for dark and "Daylight" for light. Fixed colours keep the
@@ -168,9 +169,9 @@ fun NocturneTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () ->
 }
 
 @Composable
-fun NocturneTheme(settings: Settings, at: ZonedDateTime, content: @Composable () -> Unit) {
+fun NocturneTheme(settings: Settings, at: ZonedDateTime, dark: Boolean? = null, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalTemperatureFahrenheit provides settings.fahrenheit) {
-        NocturnePalette(settings.isDarkTheme(at, isSystemInDarkTheme()), content, simple = settings.simpleView)
+        NocturnePalette(dark ?: settings.isDarkTheme(at, isSystemInDarkTheme()), content, simple = settings.simpleView)
     }
 }
 
@@ -192,14 +193,14 @@ fun modeColor(mode: Mode): Color = nocturneColors.mode(mode)
 
 /** Uses the injected app clock and sleeps until the next local theme boundary; resuming refreshes it immediately. */
 @Composable
-internal fun rememberThemeNow(settings: Settings, now: () -> ZonedDateTime): ZonedDateTime {
+internal fun rememberThemeNow(settings: Settings, now: () -> ZonedDateTime, holdUntil: Instant? = null): ZonedDateTime {
     var at by remember { mutableStateOf(now()) }
     val currentClock by rememberUpdatedState(now)
     var clockChange by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(context, settings.themeMode) {
-        if (settings.themeMode != ThemeMode.SCHEDULED) onDispose { }
+    DisposableEffect(context, settings.themeMode, holdUntil) {
+        if (settings.themeMode != ThemeMode.SCHEDULED && holdUntil == null) onDispose { }
         else {
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) { clockChange++ }
@@ -212,12 +213,14 @@ internal fun rememberThemeNow(settings: Settings, now: () -> ZonedDateTime): Zon
             onDispose { context.unregisterReceiver(receiver) }
         }
     }
-    LaunchedEffect(lifecycle, settings.themeMode, settings.scheduledDarkMinute, settings.scheduledLightMinute, clockChange) {
+    LaunchedEffect(lifecycle, settings.themeMode, settings.scheduledDarkMinute, settings.scheduledLightMinute, clockChange, holdUntil) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
                 val current = currentClock()
                 at = current
-                val next = nextThemeBoundary(settings, current) ?: awaitCancellation()
+                val next = listOfNotNull(nextThemeBoundary(settings, current),
+                    holdUntil?.takeIf { it.isAfter(current.toInstant()) }?.atZone(current.zone))
+                    .minByOrNull { it.toInstant() } ?: awaitCancellation()
                 delay(Duration.between(current, next).toMillis().coerceAtLeast(1))
             }
         }

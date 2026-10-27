@@ -73,7 +73,7 @@ class AlarmSettingsNavigationTest {
         ui.waitUntil { ui.graph.repository.settings.value.acceptUnknownAlarmSource && ui.model.nextAlarm.value?.counts == true }
         toggle.assertIsOn()
         ui.tab(ui.s(R.string.tab_tonight))
-        ui.compose.onNodeWithText("Next alarm 06:30 · Unknown app — used").assertIsDisplayed()
+        ui.compose.onNodeWithText("Next alarm 06:30 · Phone alarm (app not identified) — used").assertIsDisplayed()
     }
 
     @Test fun theUnknownSourceControlCanBeDisabledAgain() {

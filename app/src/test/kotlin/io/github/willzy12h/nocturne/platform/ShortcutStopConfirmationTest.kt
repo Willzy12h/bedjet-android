@@ -72,7 +72,10 @@ class ShortcutStopConfirmationTest {
         graph = graphs.fresh { Graph(app, observed) }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false) }
+        // Owner confirmation and durable History use a real session; all packets still use the injected fake.
+        shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN)
+        shadowOf(android.bluetooth.BluetoothAdapter.getDefaultAdapter()).setEnabled(true)
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val result = graph.actions.execute(graph.actions.capture(Command.START_NIGHT))
         assertEquals(result.message, OutcomeKind.CONFIRMED, result.kind)
         original = requireNotNull(graph.repository.activeNight.value)
@@ -100,6 +103,10 @@ class ShortcutStopConfirmationTest {
 
     private fun approveAndDeliver(command: Command): ServiceController<BedJetService> {
         confirmation(command).getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        return deliverService()
+    }
+
+    private fun deliverService(): ServiceController<BedJetService> {
         var delivery: Intent? = null
         until { delivery = delivery ?: shadowOf(app).nextStartedService; delivery != null }
         return Robolectric.buildService(BedJetService::class.java).create().also {
@@ -193,9 +200,11 @@ class ShortcutStopConfirmationTest {
         }
         entered.await()
         resetTraffic()
+        var service: ServiceController<BedJetService>? = null
         try {
             // This is the synchronous approval callback used by Tonight's NightGuard Off button.
             model.withConfirmedNight(original.identity) { model.run(Command.OFF) }
+            service = deliverService()
             until { graph.actions.busy.value.queuedCount == 1 }
             val newer = original.copy(revision = original.revision + 1)
             graph.repository.setActiveNight(newer)
@@ -211,6 +220,7 @@ class ShortcutStopConfirmationTest {
         } finally {
             release.complete(Unit)
             holder.cancelAndJoin()
+            service?.destroy()
             models.clear()
         }
     }

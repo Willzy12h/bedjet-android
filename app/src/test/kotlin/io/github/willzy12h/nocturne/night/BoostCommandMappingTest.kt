@@ -29,7 +29,7 @@ class BoostCommandMappingTest {
         val graph = graphs.fresh { Graph(app, demo) }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false) }
+        graph.repository.updateSettings { it.copy(demoMode = true) }
         for (minutes in listOf(10, 15, 20, 25, 30)) {
             graph.repository.updateSettings { it.copy(boostMinutes = minutes) }
             val result = graph.actions.execute(graph.actions.capture(NightActions.Command.BOOST))

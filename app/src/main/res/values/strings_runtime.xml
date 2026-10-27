@@ -65,7 +65,6 @@
     <string name="runtime_target_saved">BedJet selection saved.</string>
     <string name="runtime_target_forgotten">Forgot this BedJet. Choose a BedJet to connect to.</string>
     <string name="runtime_demo_label">Change demo mode</string>
-    <string name="runtime_demo_saved">Demo mode saved.</string>
     <string name="runtime_fan_check">Check fan control</string>
     <string name="runtime_fan_refused">The BedJet must be idle for the supervised fan check.</string>
     <string name="runtime_fan_checked">Fan setting changed and restored. No mode was started.</string>
@@ -119,13 +118,11 @@
     <string name="notify_channel_wake_help">Shown while your BedJet is waking you, with snooze and extend buttons.</string>
     <string name="notify_channel_working">Talking to BedJet</string>
     <string name="notify_channel_working_help">Shown briefly while a command is sent.</string>
-    <string name="notify_channel_alerts">Changes, problems and updates</string>
-    <string name="notify_channel_alerts_help">When your wake-up moves with your alarm, when something didn\'t work, and new versions.</string>
+    <string name="notify_channel_alerts">Changes and problems</string>
+    <string name="notify_channel_alerts_help">When your wake-up moves with your alarm or something did not work.</string>
     <string name="notify_working">Talking to your BedJet…</string>
     <string name="notify_waking">Waking you at %1$s</string>
     <string name="notify_waking_text">Your BedJet is getting you ready to wake up.</string>
-    <string name="notify_update_title">Nocturne %1$s is available</string>
-    <string name="notify_update_text">Tap to open the release and download it.</string>
     <!-- Wake-up notification buttons: the preset's minutes, e.g. "Snooze warm 10m". -->
     <string name="notify_action_snooze_warm">Snooze warm %1$dm</string>
     <string name="notify_action_snooze_cool">Snooze cool %1$dm</string>
@@ -145,10 +142,6 @@
     <string name="runtime_read_failed">Couldn\'t read that file.</string>
     <string name="runtime_save_failed">Couldn\'t save: %1$s.</string>
     <string name="runtime_discover_failed">Could not look for BedJets. Check Nearby devices permission.</string>
-    <string name="runtime_update_no_release">No release found. A private repository needs a token in Settings.</string>
-    <string name="runtime_update_http">GitHub answered %1$d.</string>
-    <string name="runtime_update_latest">You\'re on the latest version (%1$s).</string>
-    <string name="runtime_update_failed">Update check failed: %1$s</string>
     <string name="runtime_restore_unfinished_notice">Nocturne couldn\'t finish writing a restore. Until it can, changes to profiles, settings, history and saved originals aren\'t saved. Free some storage space, then reopen Nocturne.</string>
     <string name="runtime_originals_not_set_aside">The unreadable saved originals haven\'t been set aside yet. Reopen Nocturne, then try again.</string>
     <string name="runtime_originals_block_stuck">Couldn\'t lift the block on slots with no saved original.</string>
@@ -167,7 +160,6 @@
     <string name="history_accepted_lower_temp">Accepted a 1 °C lower Middle temperature</string>
     <string name="history_accepted_higher_temp">Accepted a 1 °C higher Middle temperature</string>
     <!-- Fix round 1: snapshot restore result and the BLE link's no-target message. -->
-    <string name="runtime_snapshot_restored">Restored. What you had before is saved as a snapshot.</string>
     <string name="runtime_snapshot_unreadable">That snapshot couldn\'t be read.</string>
     <string name="ble_no_target">No BedJet chosen yet. Choose yours in Setup.</string>
 </resources>

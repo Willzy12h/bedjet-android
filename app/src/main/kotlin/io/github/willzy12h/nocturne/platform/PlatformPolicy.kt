@@ -1,7 +1,6 @@
 package io.github.willzy12h.nocturne.platform
 
 import java.time.ZonedDateTime
-import java.util.UUID
 
 data class BedtimeWindow(val bedtime: ZonedDateTime, val opens: ZonedDateTime, val expires: ZonedDateTime) {
     fun key(device: String) = "$device:${bedtime.toLocalDate()}"
@@ -19,14 +18,7 @@ object PlatformPolicy {
         enabled && charging && selected && validPlan && minutes >= 180 && inWindow &&
             !active && !manual && !uncertain && !takeover && prerequisites && !alreadyAttempted
     }
-    fun handoverUuid(name: String): UUID {
-        val bytes = java.security.MessageDigest.getInstance("SHA-256")
-            .digest(("lull.handoff." + name.substringBefore('\u0000')).toByteArray(Charsets.UTF_8)).copyOf(16)
-        bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x50).toByte()
-        bytes[8] = ((bytes[8].toInt() and 0x3f) or 0x80).toByte()
-        val buffer = java.nio.ByteBuffer.wrap(bytes)
-        return UUID(buffer.long, buffer.long)
-    }
+
 }
 data class ChargerEligibility(val enabled: Boolean = true, val charging: Boolean = true,
     val selected: Boolean = true, val validPlan: Boolean = true, val minutes: Long = 180,

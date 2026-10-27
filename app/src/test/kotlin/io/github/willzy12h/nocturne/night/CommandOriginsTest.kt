@@ -249,27 +249,7 @@ class CommandOriginsTest {
         assertNull(graph.repository.activeNight.value)
     }
 
-    @Test fun busyPeerHandoverRefusalCarriesPeerOrigin() = runBlocking {
-        val entered = CompletableDeferred<Unit>()
-        val release = CompletableDeferred<Unit>()
-        val holder = async(Dispatchers.Default) {
-            graph.actions.exclusive { entered.complete(Unit); release.await() }
-        }
-        try {
-            withTimeout(5_000) { entered.await() }
-            val result = graph.platform.handover.peerRequest()
-            assertEquals(OutcomeKind.REFUSED, result.kind)
-            assertEquals(CommandOrigin.PEER, result.origin)
-        } finally {
-            release.complete(Unit)
-            holder.await()
-        }
-    }
-
-    @Test fun peerHandoverCompletionKeepsPeerOriginWhileManualReleaseKeepsApp() = runBlocking {
-        val peer = emittedOutcome { graph.platform.handover.peerRequest() }
-        assertEquals(OutcomeKind.LOCAL, peer.kind)
-        assertEquals(CommandOrigin.PEER, peer.origin)
+    @Test fun manualConnectionReleaseKeepsAppOrigin() = runBlocking {
         val manual = emittedOutcome { graph.platform.handover.release() }
         assertEquals(OutcomeKind.LOCAL, manual.kind)
         assertEquals(CommandOrigin.APP, manual.origin)

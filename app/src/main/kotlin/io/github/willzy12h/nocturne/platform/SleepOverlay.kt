@@ -11,7 +11,8 @@ interface SleepSource {
 }
 class SleepOverlayReader(private val available: () -> Boolean, private val source: () -> SleepSource) {
     suspend fun read(record: NightRecord): SleepOverlay {
-        if (record.isTestRun) return SleepOverlay(SleepAvailability.EMPTY)
+        if (record.isTestRun || io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(record.deviceId))
+            return SleepOverlay(SleepAvailability.EMPTY)
         if (!available()) return SleepOverlay(SleepAvailability.ABSENT)
         return try {
             val client = source()

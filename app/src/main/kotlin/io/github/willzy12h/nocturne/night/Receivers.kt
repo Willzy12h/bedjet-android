@@ -52,16 +52,25 @@ class AlarmChangedReceiver : BroadcastReceiver() {
     }
 }
 private fun BroadcastReceiver.local(context: Context, onTimeout: (() -> Unit)? = null, notifyFailures: Boolean = true, work: suspend () -> Unit) {
-    val pending = goAsync()
+    val admission = context.graph.repository.operationAdmission.queueLocalCommand()
+    val pending = try { goAsync() } catch (e: Exception) { admission.close(); throw e }
+    val finished = java.util.concurrent.atomic.AtomicBoolean(false)
+    fun finish() {
+        if (finished.compareAndSet(false, true)) {
+            admission.close()
+            pending.finish()
+        }
+    }
     context.graph.scope.launch {
-        try { kotlinx.coroutines.withTimeout(8_500) { work() } }
+        try { kotlinx.coroutines.withTimeout(8_500) { admission.awaitReady(); work() } }
         catch (e: TimeoutCancellationException) {
             if (onTimeout != null) onTimeout() else if (notifyFailures) io.github.willzy12h.nocturne.notify.Notifications.showError(context,
                 context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
                 context.getString(io.github.willzy12h.nocturne.R.string.runtime_operation_timeout))
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
         } catch (e: Exception) {
             if (notifyFailures) io.github.willzy12h.nocturne.notify.Notifications.showError(context, context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
                 e.message ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))
-        } finally { pending.finish() }
-    }
+        } finally { finish() }
+    }.invokeOnCompletion { finish() }
 }

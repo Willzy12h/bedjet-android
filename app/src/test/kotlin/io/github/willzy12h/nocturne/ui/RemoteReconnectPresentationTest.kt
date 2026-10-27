@@ -57,7 +57,7 @@ class RemoteReconnectPresentationTest {
             replacement.clock = Clock.fixed(Instant.parse("2026-10-25T22:30:00Z"), ZoneOffset.UTC)
             ReflectionHelpers.setField(app, "graph", replacement)
             runBlocking { replacement.repository.updateSettings {
-                it.copy(demoMode = true, fahrenheit = false, themeMode = ThemeMode.DARK, autoUpdateCheck = false)
+                it.copy(demoMode = true, fahrenheit = false, themeMode = ThemeMode.DARK)
             } }
             replacement.scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 replacement.actions.outcomes.collect { outcomes += it }
@@ -73,9 +73,11 @@ class RemoteReconnectPresentationTest {
         openRemoteAndReconnect()
         compose.onNodeWithText("Air 25°C · room 22°C").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Last reported").assertIsDisplayed()
-        compose.onNodeWithText("Demo · Connecting to your BedJet…").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("status-connection").assertTextEquals("Demo")
+        assertEquals(LinkState.CONNECTING, model.linkState.value)
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsNotEnabled()
         compose.onNodeWithContentDescription("Temperature").performScrollTo().assertIsNotEnabled()
+        compose.onNode(hasText("Settings") and hasClickAction()).performClick()
         switch("Lights").performScrollTo().assertIsDisplayed().assertIsOn().assertIsNotEnabled()
         assertTrue(link.writes.isEmpty())
     }
@@ -87,15 +89,21 @@ class RemoteReconnectPresentationTest {
         compose.onNodeWithText("Air 25°C · room 22°C").performScrollTo().assertIsDisplayed()
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsNotEnabled()
         compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsNotEnabled()
-        switch("Lights").performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText("Demo · Connected").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Last reported").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("status-connection").assertTextEquals("Demo")
+        assertEquals(LinkState.READY, model.linkState.value)
+        compose.onNode(hasText("Settings") and hasClickAction()).performClick()
+        switch("Lights").performScrollTo().assertIsNotEnabled()
         compose.runOnUiThread { link.publish(temperature = 60, led = false) }
+        waitUntil { model.hasLiveStatus.value && model.status.value?.extra?.ledEnabled == false }
+        switch("Lights").performScrollTo().assertIsOff().assertIsEnabled()
+        compose.onNode(hasText("Remote") and hasClickAction()).performClick()
+        compose.onNodeWithText("Air 25°C · room 22°C").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Last reported").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsEnabled()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(30))
         waitUntil { model.status.value?.actualTemperature == 60 }
         compose.onNodeWithText("Air 30°C · room 22°C").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Last reported").assertDoesNotExist()
-        switch("Lights").performScrollTo().assertIsOff().assertIsEnabled()
-        compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsEnabled()
     }
 
     @Test fun aCachedMatchingAccessoryDoesNotConfirmAnOwnerCommand() {

@@ -14,6 +14,7 @@ import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.TurboChain
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ActionPreset
+import io.github.willzy12h.nocturne.core.store.AutoStartSettings
 import io.github.willzy12h.nocturne.platform.PlatformNotifications
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -61,13 +62,14 @@ internal class U06ControlSemanticsTest(look: U06Look) {
             if (platformRows) {
                 f.graph.repository.updateSettings {
                     it.copy(demoMode = false, targetDevice = TARGET,
-                        platform = it.platform.copy(healthSleepOverlay = true))
+                        platform = it.platform.copy(healthSleepOverlay = true, healthSleepExport = true,
+                            autoStart = AutoStartSettings(profileId = Presets.summerCool.id, deviceId = TARGET)))
                 }
             }
         }
         if (platformRows) {
             val app: Application = RuntimeEnvironment.getApplication()
-            shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.BLUETOOTH_ADVERTISE)
+            shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
             PlatformNotifications.channel(app)
         }
     }
@@ -179,7 +181,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     @Test fun remoteSlidersExposeExactCelsiusAndFahrenheitStates() {
         // Hold controlled feedback before any command can enqueue its own snackbar.
         fixture.snackbar()
-        fixture.control(s(R.string.feature_warm)).performClick()
+        fixture.quick(fixture.graph.repository.settings.value.extendWarm).performClick()
         fixture.waitUntil {
             graph.link.status.value?.let { it.mode == Mode.HEAT && it.targetTemperature == 64 && it.fanPercent == 30 } == true &&
                 graph.actions.busy.value.runningLabel == null
@@ -211,13 +213,21 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         toggleTwice(s(R.string.settings_simple_view)) { graph.repository.settings.value.simpleView }
         toggleTwice(s(R.string.settings_show_f)) { graph.repository.settings.value.fahrenheit }
         toggleTwice(s(R.string.settings_quiet_title)) { graph.repository.settings.value.quietNightNotification }
-        toggleTwice(s(R.string.settings_check_weekly)) { graph.repository.settings.value.autoUpdateCheck }
-        toggleTwice(s(R.string.settings_demo)) { graph.repository.settings.value.demoMode }
+        fixture.control(s(R.string.settings_github_releases))
+        fixture.control(s(R.string.settings_project_help))
+        fixture.control(s(R.string.gpt12_exit_demo), scroll = false).performClick()
+        fixture.waitUntil { !graph.repository.settings.value.demoMode }
+        fixture.tab(s(R.string.tab_settings))
+        fixture.snackbar() // The mode boundary disposes the old session and its SnackbarHost.
+        fixture.control(s(R.string.setup_use_demo)).performClick()
+        fixture.waitUntil { graph.repository.settings.value.demoMode }
+        fixture.snackbar()
+        fixture.control(s(R.string.gpt12_exit_demo), scroll = false)
     }
 
-    @Test fun remoteRowsAreSingleToggleableTargets() {
+    @Test fun deviceRowsInSettingsAreSingleToggleableTargets() {
         fixture.waitUntil { graph.link.state.value == LinkState.READY && graph.link.status.value?.extra != null }
-        fixture.tab(s(R.string.tab_remote))
+        fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
         toggleTwice(s(R.string.remote_lights)) { graph.link.status.value!!.extra!!.ledEnabled }
         toggleTwice(s(R.string.remote_beeps)) { !graph.link.status.value!!.extra!!.beepsMuted }
@@ -228,18 +238,23 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
         toggleTwice(s(R.string.feature_reminders)) { graph.repository.settings.value.platform.bedtimeReminder }
-        toggleTwice(s(R.string.feature_charger)) { graph.repository.settings.value.platform.chargerAutoStart }
-        toggleTwice(s(R.string.feature_lull)) { graph.repository.settings.value.platform.lullHandover }
+        toggleTwice(s(R.string.auto_start_title)) { graph.repository.settings.value.platform.autoStart?.enabled == true }
+        toggleTwice(s(R.string.auto_start_only_charging)) { graph.repository.settings.value.platform.autoStart?.onlyIfCharging == true }
+        switchRow(s(R.string.health_export_title), true).assertIsEnabled().performClick()
+        fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepExport }
+        switchRow(s(R.string.health_export_title), false)
         // Disabling is a real supported action without a Health Connect provider or permission activity.
         switchRow(s(R.string.feature_health_title), true).assertIsEnabled().performClick()
         fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepOverlay }
         switchRow(s(R.string.feature_health_title), false)
     }
 
-    @Test fun chargerRowKeepsItsExplainedDisabledStateInDemo() {
+    @Test fun automaticFeatureRowsKeepTheirExplainedDisabledStateInDemo() {
         fixture.tab(s(R.string.tab_settings))
-        switchRow(s(R.string.feature_charger), false).assertIsNotEnabled()
-        compose.onNodeWithText(s(R.string.feature_select_device)).performScrollTo().assertIsDisplayed()
+        switchRow(s(R.string.auto_start_title), false).assertIsNotEnabled()
+        switchRow(s(R.string.auto_start_only_charging), false).assertIsNotEnabled()
+        switchRow(s(R.string.health_export_title), false).assertIsNotEnabled()
+        compose.onAllNodesWithText(s(R.string.platform_demo_unavailable)).onFirst().performScrollTo().assertIsDisplayed()
     }
 
     private fun openEditor() {
@@ -284,6 +299,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         switchRow(s(R.string.editor_wake_with_alarm), false)
         switchRow(s(R.string.editor_repeat_turbo), false).performClick()
         switchRow(s(R.string.editor_repeat_turbo), true)
+        fixture.checkLayout(compose.onNodeWithText(s(R.string.editor_repeat_turbo_help)), "Repeat Turbo explanation")
         fixture.control(s(R.string.editor_save), scroll = false).performClick()
         fixture.waitUntil {
             graph.repository.profiles.value.first { it.id == Presets.summerCool.id }.let {

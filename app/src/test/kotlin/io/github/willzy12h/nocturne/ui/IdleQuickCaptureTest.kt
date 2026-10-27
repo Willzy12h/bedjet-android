@@ -79,7 +79,7 @@ class IdleQuickCaptureTest {
                 // Establish it independently before importing the unsupported saved action.
                 graph.repository.updateSettings { it.copy(
                     demoMode = true, themeMode = ThemeMode.DARK, fahrenheit = false,
-                    autoUpdateCheck = false, boostMinutes = 15,
+                    boostMinutes = 15,
                 ) }
                 val saved = graph.repository.bundle().let { it.copy(settings = it.settings.copy(extendWarm = imported)) }
                 val decoded = BackupCodec.decode(BackupCodec.encode(saved))
@@ -127,6 +127,7 @@ class IdleQuickCaptureTest {
         val holder = graph.scope.launch { graph.actions.exclusive { entered.complete(Unit); release.await() } }
         try {
             waitUntil { entered.isCompleted }
+            compose.onNodeWithText(compose.activity.getString(R.string.tab_remote)).performClick()
             compose.onNode(hasText("Turbo 10m + Heat 5m") and hasClickAction()).performScrollTo().performClick()
             waitUntil { graph.actions.busy.value.queuedCount > 0 }
             assertTrue("The queued tap must not write before owner admission", writes.isEmpty())
@@ -158,8 +159,7 @@ class IdleQuickCaptureTest {
         val physical = demo.status.value
         val history = graph.repository.history.value
         val generation = graph.repository.runtime.value.generation
-        compose.onNode(hasText(compose.activity.getString(R.string.feature_warm)) and hasClickAction())
-            .performScrollTo().performClick()
+        compose.onNodeWithTag("quick-mode-TURBO").performScrollTo().performClick()
         waitUntil { outcomes.isNotEmpty() && graph.actions.busy.value.runningLabel == null }
         assertTrue("An unsupported imported saved Warm action must not reach the transport", writes.isEmpty())
         assertEquals(OutcomeKind.REFUSED, outcomes.single().kind)

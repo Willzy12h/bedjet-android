@@ -46,38 +46,37 @@ class PlatformAdapterTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
             .putExtra(android.os.BatteryManager.EXTRA_PLUGGED,0))
         assertFalse(ChargerJobs.charging(context))
     }
-    @Test fun chargerSchedulerRequiresChargingIsPeriodicAndCancelsOnDisable() = runBlocking {
+    @Test fun autoStartSchedulerUsesOneAlarmAndCancelsOnDisableWithoutCollidingWithWorkManager() = runBlocking {
         // WorkManager is a runtime-only Glance transitive dependency, not a new compile dependency.
         val builder=Class.forName("androidx.work.Configuration\$Builder").getConstructor().newInstance()
         val workRange=builder.javaClass.getMethod("build").invoke(builder)
         val min=workRange.javaClass.getMethod("getMinJobSchedulerId").invoke(workRange) as Int
         val max=workRange.javaClass.getMethod("getMaxJobSchedulerId").invoke(workRange) as Int
         assertFalse(ChargerJobs.ID in min..max)
-        val graph=context.graph;val scheduler=context.getSystemService(JobScheduler::class.java)
-        graph.repository.updateSettings {it.copy(platform=it.platform.copy(chargerAutoStart=true))}
+        val graph=fresh { Graph(context,DemoBedJet()) }
+        val scheduler=context.getSystemService(JobScheduler::class.java)
+        val alarms=shadowOf(context.getSystemService(android.app.AlarmManager::class.java))
+        fun automaticAlarms() = alarms.scheduledAlarms.filter {
+            shadowOf(it.operation).savedIntent.component?.className == AutoStartReceiver::class.java.name
+        }
+        val device="ble:AA:BB:CC:DD:EE:FF"
+        graph.repository.updateSettings {it.copy(demoMode=false,targetDevice=device,platform=it.platform.copy(
+            autoStart=io.github.willzy12h.nocturne.core.store.AutoStartSettings(enabled=true,
+                profileId=graph.repository.profiles.value.first().id,deviceId=device)))}
+        ChargerJobs.sync(graph);ChargerJobs.sync(graph)
+        assertNull(scheduler.getPendingJob(ChargerJobs.ID))
+        val alarm=automaticAlarms().single()
+        assertEquals(0L,alarm.intervalMs)
+        assertTrue(alarm.operation!!.isImmutable)
+        graph.repository.updateSettings {it.copy(platform=it.platform.copy(autoStart=it.platform.autoStart!!.copy(enabled=false)))}
         ChargerJobs.sync(graph)
-        val job=scheduler.getPendingJob(ChargerJobs.ID)!!
-        assertTrue(job.isRequireCharging);assertTrue(job.isPeriodic);assertTrue(job.isPersisted)
-        graph.repository.updateSettings {it.copy(platform=it.platform.copy(chargerAutoStart=false))}
-        ChargerJobs.sync(graph)
+        assertTrue(automaticAlarms().isEmpty())
         assertNull(scheduler.getPendingJob(ChargerJobs.ID))
     }
-    @Test fun oldPeerRequestCannotReleaseNewTarget() = runBlocking {
-        val graph=fresh { Graph(context,DemoBedJet()) }
-        val old="ble:AA:BB:CC:DD:EE:FF"
-        graph.repository.updateSettings {it.copy(targetDevice="ble:11:22:33:44:55:66")}
-        assertEquals(OutcomeKind.STALE,graph.platform.handover.peerRequest(old).kind)
-        assertFalse(graph.sessions.released.value)
-    }
-    @Test fun handoverUsesCoordinatorSuspendResumeAndDeclinesBusyTransaction() = runBlocking {
+    @Test fun manualHandoverUsesCoordinatorSuspendResume() = runBlocking {
         lateinit var graph:Graph
         graph=fresh { Graph(context,DemoBedJet(now={graph.now()})) }
         graph.repository.updateSettings {it.copy(demoMode=true)}
-        val entered=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
-        val operation=async {graph.actions.exclusive {entered.complete(Unit);release.await()}}
-        entered.await()
-        try {assertEquals(OutcomeKind.REFUSED,graph.platform.handover.peerRequest().kind);assertFalse(graph.sessions.released.value)}
-        finally {release.complete(Unit);operation.await()}
         assertEquals(OutcomeKind.LOCAL,graph.platform.handover.release().kind)
         assertTrue(graph.sessions.released.value)
         assertEquals(OutcomeKind.LOCAL,graph.platform.handover.takeBack().kind)

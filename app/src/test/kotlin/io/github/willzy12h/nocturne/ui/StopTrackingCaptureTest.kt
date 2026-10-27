@@ -88,8 +88,7 @@ class StopTrackingCaptureTest {
         val adapter = app.getSystemService(BluetoothManager::class.java).adapter
         shadowOf(adapter).setEnabled(true)
         graph.repository.updateSettings {
-            it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", themeMode = ThemeMode.DARK,
-                autoUpdateCheck = false)
+            it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", themeMode = ThemeMode.DARK,)
         }
         val started = graph.actions.execute(graph.actions.capture(Command.START_NIGHT))
         assertEquals(started.message, OutcomeKind.CONFIRMED, started.kind)

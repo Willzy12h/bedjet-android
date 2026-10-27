@@ -12,6 +12,8 @@ import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.AppliedProgram
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
+import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.QuickDefaults
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -138,18 +140,31 @@ private class CaptureViews(private val ui: U06Fixture) {
 
     private fun tonight(primaryId: Int, name: String) {
         val primary = button(primaryId).performScrollTo()
-        val quick = listOf(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes),
-            ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
-            .map { label -> compose.onNode(hasText(label) and hasClickAction() and hasAnyAncestor(hasTestTag("quick-controls"))) }
-        // U1 moved Quick above the plan: reveal its whole section rather than aligning only the final row.
+        val quick = (QuickDefaults.modes + Mode.STANDBY).map { mode ->
+            compose.onNodeWithTag("quick-mode-${mode.name}")
+        }
         compose.onNodeWithTag("quick-controls").performScrollTo()
         compose.waitForIdle()
-        // A dedicated companion view always records all four Quick actions, even when the primary action
-        // and the intervening plan cannot fit together at 320 dp / fontScale 2.0.
-        ui.capture("tonight-quick")
-        quick.forEach { node ->
-            node.assertIsDisplayed()
-            assertTrue("Every Quick button must be fully displayed in the same capture", fullyVisible(node))
+        // The six-mode grid has three rows. Record one complete grid when it fits;
+        // otherwise record each complete two-column row, without clipping a target.
+        if (quick.all(::fullyVisible)) {
+            ui.capture("tonight-quick")
+            quick.forEach { node ->
+                node.assertIsDisplayed()
+                assertTrue("Every Quick target is fully visible in the grid capture", fullyVisible(node))
+            }
+        } else quick.chunked(2).forEachIndexed { row, nodes ->
+            nodes.first().performScrollTo()
+            nodes.last().performScrollTo()
+            compose.waitForIdle()
+            nodes.forEach { node ->
+                node.assertIsDisplayed()
+                assertTrue("Both targets must be fully visible in row $row", fullyVisible(node))
+            }
+            val left = nodes.first().fetchSemanticsNode().boundsInRoot
+            val right = nodes.last().fetchSemanticsNode().boundsInRoot
+            assertTrue("Quick controls retain two distinct columns", left.right <= right.left)
+            ui.capture("tonight-quick-row-${row + 1}")
         }
         if (fullyVisible(primary)) {
             ui.capture("tonight-$name-and-quick")

@@ -49,7 +49,7 @@ class BluetoothOffTest {
     @Before fun setup() = runBlocking {
         graph = graphs.fresh { Graph(app) }
         ReflectionHelpers.setField(app, "graph", graph)
-        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", autoUpdateCheck = false) }
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.POST_NOTIFICATIONS)
         shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(false)
         context = ServiceStartContext(app)

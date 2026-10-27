@@ -8,9 +8,9 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.History
@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -68,8 +69,8 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) consumeTonightRequest(intent)
         setContent {
             val settings by model.settings.collectAsState()
-            val themeNow = rememberThemeNow(settings, model::now)
-            val dark = settings.isDarkTheme(themeNow, isSystemInDarkTheme())
+            val theme = rememberThemePresentation(settings, model::now)
+            val dark = theme.dark
             // The bars are drawn over the app, so their icons follow the app's theme, not the phone's.
             LaunchedEffect(dark) {
                 val transparent = android.graphics.Color.TRANSPARENT
@@ -78,7 +79,10 @@ class MainActivity : ComponentActivity() {
                     navigationBarStyle = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent),
                 )
             }
-            NocturneTheme(settings, themeNow) { NocturneApp(model, tonightRequest) }
+            NocturneTheme(settings, theme.at, dark) {
+                NocturneApp(model, tonightRequest)
+                ThemeDuePrompt(theme)
+            }
         }
     }
 
@@ -112,6 +116,13 @@ private data class ProfileDraft(val original: Profile, val edited: Profile, val 
 
 @androidx.compose.runtime.Composable
 private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
+    val settings by model.settings.collectAsState()
+    // Editor drafts and captured dialogues belong to their real or disposable demo session.
+    key(settings.demoMode) { SessionApp(model, tonightRequest) }
+}
+
+@androidx.compose.runtime.Composable
+private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
     val configuration = LocalConfiguration.current
     val compactNavigation = configuration.fontScale >= 1.5f && configuration.screenWidthDp < 400
     val view = LocalView.current
@@ -125,6 +136,8 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     var tab by rememberSaveable { mutableStateOf(Tab.TONIGHT) }
+    val setupRequest by model.setupChecklistRequest.collectAsState()
+    LaunchedEffect(setupRequest) { if (setupRequest > 0) tab = Tab.TONIGHT }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
     // Every interrupted editor keeps its own baseline and edits, including profiles not yet saved to the repository.
     var parkedDrafts by rememberSaveable { mutableStateOf(emptyList<String>()) }
@@ -176,6 +189,11 @@ private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
         return
     }
     Scaffold(
+        topBar = { Column(Modifier.statusBarsPadding()) {
+            StatusHeader(model)
+            BluetoothBanner(model)
+            DemoModePanel(model, showTryDemo = false)
+        } },
         snackbarHost = { SnackbarHost(snackbar, Modifier.onSizeChanged { snackbarHeight = it.height }) },
         bottomBar = {
             Column {

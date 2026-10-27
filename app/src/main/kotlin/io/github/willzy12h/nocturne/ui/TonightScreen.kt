@@ -54,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
@@ -95,7 +94,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val running by model.activeNight.collectAsState()
     val alarm by model.nextAlarm.collectAsState()
     val busy by model.busy.collectAsState()
-    val release by model.release.collectAsState()
     val nightStatus by model.nightStatus.collectAsState()
     val runtime by model.runtime.collectAsState()
     var now by remember { mutableStateOf(model.now()) }
@@ -123,8 +121,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         if (overridable) {
             val current = model.now()
             val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse) ?: plannedWake ?: current
+            val expectedNight = night?.identity
             TimePickerDialog(context, { _, hour, minute ->
-                model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()))
+                model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()), expectedNight)
             }, initial.hour, initial.minute, true).show()
         }
     }
@@ -138,12 +137,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     }
     val manualLabel = if (night?.trackingManual == true)
         stringResource(if (confirmed) R.string.tonight_manual_until else R.string.planned_end) else null
-    val wakeLabel = manualLabel ?: stringResource(when {
-        night == null -> R.string.tonight_wakes_at
-        confirmed -> R.string.tonight_waking_at
-        else -> R.string.tonight_planned_wake
-    })
-    val wakeTime = if (manualLabel != null) Format.clock(night!!.endsAt) else plannedWake?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time)
+    val headline = tonightWakeHeadline(settings, profile, now, alarm, night)
+    val wakeTime = headline.at?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time)
     val editPhase: (Block, ZonedDateTime) -> Unit = phaseEdit@{ block, at ->
         val selected = profile ?: return@phaseEdit
         val displayedPlan = plan ?: return@phaseEdit
@@ -156,28 +151,37 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         if (selection == null) onEdit(selected) else onEditPhase(selected, selection)
     }
 
-    Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Box(modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.Top) {
             Text(stringResource(R.string.tonight_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(.4f).padding(top = 4.dp).semantics { heading() })
             Column(Modifier.weight(.6f).testTag("tonight-fixed-wake").semantics(mergeDescendants = true) {},
                 horizontalAlignment = Alignment.End) {
-                Text(wakeLabel, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
+                Text(stringResource(headline.label), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(wakeTime, fontSize = if (LocalConfiguration.current.fontScale >= 1.5f) 24.sp else 32.sp,
                     fontWeight = FontWeight.Light, textAlign = TextAlign.End)
             }
         }
-        AlarmExplanationLine(explanation, openExplanation)
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
             .testTag("tonight-content").padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            BusyIndicator(model)
-            BluetoothBanner(model)
+            SetupChecklistCard(model)
+            // Long fallback explanations must remain readable without consuming the controls' viewport.
+            headline.reason?.let {
+                Text(stringResource(it), modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            AlarmExplanationLine(explanation, openExplanation)
             QuickControls(model, settings, guard)
-            TonightSections(settings, onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } }) { section ->
+            TonightSections(settings,
+                onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } },
+                onCollapse = { id -> model.updateSettings { it.copy(collapsedTonightSections =
+                    if (id in it.collapsedTonightSections) it.collapsedTonightSections - id else it.collapsedTonightSections + id) } },
+            ) { section ->
                 when (section) {
                     "connection" -> {
-                        ConnectionLine(model)
                         val unreadable by model.unreadable.collectAsState()
                         val restoreUnfinished by model.restoreUnfinished.collectAsState()
                         val originalsBlocked by model.originalsBlocked.collectAsState()
@@ -188,7 +192,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                             SlotWriteNotice(it, onChecked = model::acknowledgeSlotWrite)
                         }
                         SetupChecks()
-                        if (settings.deviceId() == null) SetupFlow(model, compact = true)
+                        BedJetPicker(model, compact = true)
                     }
                     "wake" -> {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -266,41 +270,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
         }
     }
-    release?.let { latest ->
-        val uri = LocalUriHandler.current
-        AlertDialog(onDismissRequest = model::dismissRelease,
-            title = { Text(stringResource(R.string.notify_update_title, latest.tag)) },
-            text = { Text(latest.notes.ifBlank { stringResource(R.string.tonight_release_text) }) },
-            confirmButton = { TextButton(onClick = { uri.openUri(latest.apkUrl ?: latest.pageUrl); model.dismissRelease() }) { Text(stringResource(R.string.tonight_release_download)) } },
-            dismissButton = { TextButton(onClick = model::dismissRelease) { Text(stringResource(R.string.tonight_release_later)) } })
-    }
-}
 
-/** What the command owner is doing: the running command and how many wait behind it, from any origin (U07). */
-@Composable
-fun BusyIndicator(model: AppViewModel) {
-    val local by model.busy.collectAsState()
-    val owner by model.commandBusy.collectAsState()
-    val active = local || owner.runningLabel != null || owner.queuedCount > 0
-    val reservedHeight = (8 + MaterialTheme.typography.bodySmall.lineHeight.value * LocalDensity.current.fontScale * 3).dp
-    var visible by remember { mutableStateOf(false) }
-    val motion = if (active) rememberMotionAllowed() else false
-    Box(Modifier.fillMaxWidth().height(reservedHeight).onGloballyPositioned {
-        val clipped = it.boundsInWindow()
-        visible = clipped.width > 0f && clipped.height > 0f
-    }) {
-        if (active) Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (motion && visible) LinearProgressIndicator(Modifier.fillMaxWidth())
-            else Box(Modifier.fillMaxWidth().height(4.dp).progressSemantics()
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = .24f), RoundedCornerShape(2.dp))) {
-                Box(Modifier.fillMaxWidth(.35f).height(4.dp).align(Alignment.Center)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
-            }
-            val label = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
-            val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
-            Text(listOfNotNull(label, queued).joinToString(" · "), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        }
+    BusyIndicator(model)
     }
 }
 
@@ -320,6 +291,7 @@ fun wakeOriginLabel(origin: WakeOrigin, style: WakeLabelStyle): String {
         WakeOrigin.ALARM -> if (style == WakeLabelStyle.HEADLINE) R.string.wake_origin_alarm_headline else R.string.wake_origin_alarm
         WakeOrigin.OVERRIDE -> if (compactTimeline) R.string.wake_origin_override_compact else R.string.wake_origin_override
         WakeOrigin.PROFILE_DEFAULT -> if (style == WakeLabelStyle.TIMELINE) R.string.wake_time else R.string.wake_origin_profile
+        WakeOrigin.AUTO_START -> R.string.wake_origin_auto_start
     })
 }
 
@@ -359,69 +331,19 @@ private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true
 private fun QuickControls(model: AppViewModel, settings: Settings, guard: NightGuard) {
     val collapsed = settings.quickControlsCollapsed
     val state = stringResource(if (collapsed) R.string.ux_collapsed else R.string.ux_expanded)
+    val title = stringResource(R.string.tonight_quick)
+    val action = stringResource(if (collapsed) R.string.gpt12_expand_section else R.string.gpt12_collapse_section, title)
     Column(Modifier.testTag("quick-controls"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = { model.updateSettings { it.copy(quickControlsCollapsed = !it.quickControlsCollapsed) } },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics { heading(); stateDescription = state },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).semantics {
+                heading(); stateDescription = state; contentDescription = action
+            },
             contentPadding = PaddingValues(0.dp)) {
-            Text(stringResource(R.string.tonight_quick), style = MaterialTheme.typography.titleMedium,
+            Text(title, style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f), textAlign = TextAlign.Start)
             Icon(if (collapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess, null)
         }
-        if (!collapsed) QuickButtons(model, settings, guard)
-    }
-}
-
-/** Active markers follow a reported mode; a tap never paints an unconfirmed success. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun QuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {
-    val context = LocalContext.current
-    val colors = nocturneColors
-    val status by model.status.collectAsState()
-    val link by model.linkState.collectAsState()
-    val night by model.activeNight.collectAsState()
-    val runtime by model.runtime.collectAsState()
-    val profiles by model.profiles.collectAsState()
-    val limits = (night?.profile ?: settings.resolveProfile(profiles, model.now()))?.limits
-        ?: io.github.willzy12h.nocturne.core.plan.ProfileLimits()
-    val hasLiveStatus by model.hasLiveStatus.collectAsState()
-    val active = reportedQuickAction(status.takeIf { hasLiveStatus }, link, settings, night, runtime.slotWrite, limits)
-    val startBoost = stringResource(R.string.guard_start_boost)
-    val boostDescription = boostDescription(LocalContext.current, settings.boostMinutes)
-    val startWarming = stringResource(R.string.guard_start_warming)
-    val startCooling = stringResource(R.string.guard_start_cooling)
-    val turnOff = stringResource(R.string.guard_turn_off)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 2) {
-        QuickButton(boostLabel(context, settings.boostMinutes), colors.turbo, Mode.TURBO, active == Command.BOOST, Modifier.weight(1f).semantics { contentDescription = boostDescription }) {
-            val captured = model.quickAction(Command.BOOST)
-            guard.confirm(startBoost, captured.temporary) { model.runCaptured(captured.end) }
-        }
-        QuickButton(stringResource(R.string.feature_warm), colors.mode(settings.extendWarm.mode), settings.extendWarm.mode, active == Command.WARM, Modifier.weight(1f)) {
-            val captured = model.quickAction(Command.WARM)
-            val what = if (captured.temporary.preset.mode == Mode.HEAT) startWarming
-                else context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(captured.temporary.preset.mode)))
-            guard.confirm(what, captured.temporary) { model.runCaptured(captured.end) }
-        }
-        QuickButton(stringResource(R.string.feature_cool), colors.mode(settings.extendCool.mode), settings.extendCool.mode, active == Command.COOL, Modifier.weight(1f)) {
-            val captured = model.quickAction(Command.COOL)
-            val what = if (captured.temporary.preset.mode == Mode.COOL) startCooling
-                else context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(captured.temporary.preset.mode)))
-            guard.confirm(what, captured.temporary) { model.runCaptured(captured.end) }
-        }
-        QuickButton(stringResource(R.string.feature_off), colors.idle, Mode.STANDBY, active == Command.OFF, Modifier.weight(1f)) { guard.confirm(turnOff) { model.run(Command.OFF) } }
-    }
-}
-
-@Composable
-private fun QuickButton(label: String, dot: Color, mode: Mode, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = modifier.heightIn(min = 72.dp), shape = RoundedCornerShape(16.dp),
-        contentPadding = PaddingValues(4.dp),
-        colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface),
-        border = quickButtonBorder(MaterialTheme.colorScheme)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            ActiveIndicator(dot, active, if (active) Modifier.testTag("quick-active-${mode.name}") else Modifier)
-            Text(label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
-        }
+        if (!collapsed) ModeQuickButtons(model, settings, guard)
     }
 }
 

@@ -81,7 +81,7 @@ class RadioOffRetimeTest {
         graph = graphs.fresh { Graph(app, link) }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
-        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target, autoUpdateCheck = false,
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target,
             alarmPackages = setOf("approved.clock"), acceptUnknownAlarmSource = false) }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.POST_NOTIFICATIONS)

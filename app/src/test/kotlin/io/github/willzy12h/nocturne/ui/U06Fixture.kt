@@ -17,8 +17,10 @@ import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.core.store.ThemeMode
+import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.CommandOutcome
 import io.github.willzy12h.nocturne.night.OutcomeKind
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.rules.RuleChain
@@ -84,12 +86,19 @@ internal class U06Fixture(
         override fun evaluate() {
             method = description.methodName.substringBefore('[')
             val app = RuntimeEnvironment.getApplication() as App
-            val replacement = graphs.fresh { Graph(app).also { it.clock = fixedClock } }
+            // Layout tests must not resume Compose's test continuation on a real writer thread.
+            // Keep the real repository and durable operations, but schedule this fixture's writes
+            // on the Android main thread. Repository/runtime concurrency tests retain the real writer.
+            val replacement = graphs.fresh {
+                Graph(app, repositoryFactory = { scope, now ->
+                    Repository(app, scope, writer = Dispatchers.Main.immediate, now = now)
+                }).also { it.clock = fixedClock }
+            }
             ReflectionHelpers.setField(app, "graph", replacement)
             runBlocking {
                 replacement.repository.updateSettings { it.copy(
                     demoMode = true, themeMode = look.theme, simpleView = look.simple,
-                    fahrenheit = false, autoUpdateCheck = false,
+                    fahrenheit = false,
                 ) }
                 replacement.repository.setActiveNight(null)
             }
@@ -111,6 +120,9 @@ internal class U06Fixture(
         compose.onNode(hasContentDescription(label) and hasClickAction()).performClick()
         layout()
     }
+
+    fun quick(preset: io.github.willzy12h.nocturne.core.store.ActionPreset): SemanticsNodeInteraction =
+        checkControl(compose.onNodeWithTag("quick-mode-${preset.mode.name}"), "Quick ${preset.mode}").assertHasClickAction()
 
     fun control(label: String, scroll: Boolean = true): SemanticsNodeInteraction =
         checkControl(compose.onNode(hasText(label) and hasClickAction()), label, scroll).assertHasClickAction()

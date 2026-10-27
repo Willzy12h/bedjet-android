@@ -40,10 +40,19 @@ LEGACY_NAMES = {
     for look in ("dark", "light", "simple-dark", "simple-light", "combined-320dp-200pct")
     for scene in ("01-tonight", "01b-tonight-lower", "02-profiles", "03-remote",
                   "04-history", "05-settings", "06-tonight-running")
-} | {"features-01-idle-handover.png", "features-02-platform-settings.png", "features-03-history-export.png"}
+} | {"features-01-manual-connection-release.png", "features-02-platform-settings.png", "features-03-history-export.png"}
 
 
 class ScreenshotEvidenceTest(unittest.TestCase):
+    def test_feature_inventory_matches_current_capture_without_reintroducing_removed_handover(self):
+        source = (REPOSITORY / "app/src/test/kotlin/io/github/willzy12h/nocturne/ScreenshotCapture.kt").read_text()
+        import re
+        actual = {name + ".png" for name in re.findall(r'shot\("(features-[^"]+)"', source)}
+        expected = {name for name in screenshots.EXPECTED if name.startswith("features-")}
+        self.assertEqual(actual, expected)
+        self.assertIn("features-01-manual-connection-release.png", expected)
+        self.assertNotIn("features-01-idle-handover.png", expected)
+
     def test_complete_known_inventory_accepts_all_102_captures_and_74_unbaselined_views(self):
         self.assertEqual(64, len(GAP_NAMES))
         self.assertEqual(GAP_NAMES, {path.name for path in (REPOSITORY / "docs/screenshots/gaps").glob("*.png")})

@@ -20,11 +20,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.time.*
 
-/**
- * The validator lets a saved original carry any temperature the codec holds, as the BedJet recorded it. An imported
- * original (from a file or a snapshot) may have been edited, so heating/cooling steps must stay within their mode's
- * range. Standby and Wait do not use their temperature byte; recorded originals keep every byte as recorded.
- */
+/** Originals remain lossless; unsafe heating/cooling values are never replayed, regardless of provenance. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ImportedOriginalRestoreTest {
@@ -50,7 +46,6 @@ class ImportedOriginalRestoreTest {
         return graph
     }
 
-    /** Hotter than Heat allows, as a hand-edited file could say. */
     private val tooHot = StoredProgram("edited", listOf(ProgramStep(Mode.HEAT, 5, 200, 1, 0)))
     private val idleBytes = StoredProgram("idle bytes", listOf(
         ProgramStep(Mode.STANDBY, 5, 255, 0, 1),
@@ -71,7 +66,6 @@ class ImportedOriginalRestoreTest {
         importOriginal(graph, program)
         val slots = demo.slots.toList()
         val count = sent.size
-
         val outcome = graph.actions.restoreOriginal(0)
         assertEquals(OutcomeKind.REFUSED, outcome.kind)
         assertEquals(context.getString(R.string.runtime_restore_imported_out_of_range), outcome.message)
@@ -87,7 +81,6 @@ class ImportedOriginalRestoreTest {
     @Test fun anImportedBackupRestoresStandbyAndWaitBytesAsRecorded() = runBlocking {
         val graph = graph()
         importOriginal(graph, idleBytes)
-
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.restoreOriginal(0).kind)
         assertEquals(idleBytes, demo.slots[0])
     }
@@ -99,7 +92,6 @@ class ImportedOriginalRestoreTest {
         val snapshot = repo.snapshots.save(bundle, "Original slots", manual = true)
         assertTrue(repo.restoreSnapshot(snapshot.id))
         assertTrue(repo.originalSlot("demo", 0)!!.imported)
-
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.restoreOriginal(0).kind)
         assertEquals(idleBytes, demo.slots[0])
     }
@@ -124,19 +116,23 @@ class ImportedOriginalRestoreTest {
         val graph = graph()
         val turbo = StoredProgram("turbo", listOf(ProgramStep(Mode.TURBO, 5, 86, 0, 1)))
         importOriginal(graph, turbo)
-
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.restoreOriginal(0).kind)
         assertEquals(turbo, demo.slots[0])
     }
 
-    @Test fun aDeviceRecordedOriginalRestoresAsRecorded() = runBlocking {
+    @Test fun anUnsafeDeviceRecordedOriginalIsKeptButCannotBypassWritePolicy() = runBlocking {
         val graph = graph()
         val recorded = tooHot.copy(steps = tooHot.steps + idleBytes.steps + ProgramStep(Mode.TURBO, 5, 255, 0, 1))
         graph.repository.recordOriginalSlot("demo", 0, recorded)
         assertFalse(graph.repository.originalSlot("demo", 0)!!.imported)
-
-        assertEquals(OutcomeKind.CONFIRMED, graph.actions.restoreOriginal(0).kind)
-        assertEquals(recorded, demo.slots[0])
+        val count = sent.size
+        val outcome = graph.actions.restoreOriginal(0)
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
+        assertEquals(context.getString(R.string.runtime_restore_unsafe), outcome.message)
+        assertEquals(count, sent.size)
+        assertNull(demo.slots[0])
+        assertNull(graph.repository.runtime.value.slotWrite)
+        assertEquals(recorded, graph.repository.originalSlot("demo", 0)!!.program)
     }
 
     @Test fun anImportedOriginalWithinItsModesRangeStillRestores() = runBlocking {
@@ -144,7 +140,6 @@ class ImportedOriginalRestoreTest {
         val repo = graph.repository
         val fine = StoredProgram("theirs", listOf(ProgramStep(Mode.HEAT, 5, 70, 1, 0)))
         repo.restore(repo.bundle().copy(slotBackups = listOf(SlotBackup("demo", 0, fine, clock.instant().toString()))))
-
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.restoreOriginal(0).kind)
         assertEquals(fine, demo.slots[0])
     }

@@ -43,11 +43,19 @@ class BoostSequenceLayoutTest(look: U06Look) {
         }
     }
 
-    @Test fun tonightShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent() = everyDuration(quick = true)
+    @Test fun tonightTurboRemainsTenMinutesWhenTheLegacyBoostDurationChanges() {
+        for (minutes in listOf(10, 15, 20, 25, 30)) {
+            ui.compose.runOnUiThread { runBlocking { ui.graph.repository.updateSettings { it.copy(boostMinutes = minutes) } } }
+            val node = ui.compose.onNodeWithTag("quick-mode-TURBO")
+            node.assertTextContains("Turbo 10m")
+            node.assertContentDescriptionEquals("Turbo · fan 100% · 10 min")
+            ui.checkControl(node, "Turbo ten-minute Quick")
+        }
+    }
 
     @Test fun remoteShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent() {
         ui.tab(ui.s(R.string.tab_remote))
-        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_lights)).fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil { ui.compose.onAllNodes(hasText(ui.s(R.string.mode_heat)) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
         everyDuration(quick = false)
     }
 }

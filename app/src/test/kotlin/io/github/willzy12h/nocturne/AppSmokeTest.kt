@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
@@ -17,6 +18,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.ui.MainActivity
+import io.github.willzy12h.nocturne.core.link.DemoBedJet
+import io.github.willzy12h.nocturne.service.BedJetService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -28,7 +31,11 @@ import org.junit.rules.TestRule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.util.ReflectionHelpers
+import android.Manifest
+import android.bluetooth.BluetoothAdapter
 import android.os.Looper
 import java.time.Duration
 import org.robolectric.annotation.Config
@@ -40,14 +47,26 @@ import kotlinx.coroutines.runBlocking
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class AppSmokeTest {
     private val compose = createAndroidComposeRule<MainActivity>()
+    private val graphs = GraphLifecycle()
+    private var usesRealHistory = false
     private val pinClock = TestRule { base, description ->
         object : org.junit.runners.model.Statement() {
             override fun evaluate() {
                 val app = RuntimeEnvironment.getApplication() as App
-                val graph = app.graph
+                val fixedClock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-21T22:30:00Z"), java.time.ZoneOffset.UTC)
+                usesRealHistory = description.methodName == "completedNightCheckInRecordsComfortWithoutChangingAProfile"
+                val graph = if (usesRealHistory) {
+                    // This case needs real History while the external BedJet remains an injected receipt fake.
+                    val replacement = graphs.fresh { Graph(app, DemoBedJet(now = { java.time.ZonedDateTime.now(fixedClock) })) }
+                    ReflectionHelpers.setField(app, "graph", replacement)
+                    shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
+                    @Suppress("DEPRECATION")
+                    shadowOf(BluetoothAdapter.getDefaultAdapter()).setEnabled(true)
+                    replacement
+                } else app.graph
                 val previous = graph.clock
                 val previousScale = app.resources.configuration.fontScale
-                graph.clock = java.time.Clock.fixed(java.time.Instant.parse("2026-10-21T22:30:00Z"), java.time.ZoneOffset.UTC)
+                graph.clock = fixedClock
                 if (description.methodName == "largeTextNavigationKeepsFiveTabsReachable") {
                     val config = android.content.res.Configuration(app.resources.configuration).apply { fontScale = 2f }
                     @Suppress("DEPRECATION")
@@ -64,7 +83,7 @@ class AppSmokeTest {
             }
         }
     }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(pinClock).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(graphs).around(pinClock).around(compose)
 
     private val graph get() = compose.activity.graph
     private fun s(id: Int) = compose.activity.getString(id)
@@ -77,21 +96,31 @@ class AppSmokeTest {
     fun demoMode() {
         compose.runOnUiThread {
             runBlocking {
-                graph.repository.updateSettings { it.copy(demoMode = true, simpleView = false) }
+                graph.repository.updateSettings { it.copy(demoMode = !usesRealHistory, simpleView = false,
+                    targetDevice = if (usesRealHistory) "ble:AA:BB:CC:DD:EE:FF" else it.targetDevice) }
                 graph.repository.setActiveNight(null)
             }
         }
     }
 
     /** Lets Robolectric's clock run while waiting, as real time would; BedJet replies are given short time limits. */
-    private fun waitForText(text: String) =
+    private fun deliverServiceRequest(service: BedJetService?) {
+        if (service == null) return
+        shadowOf(RuntimeEnvironment.getApplication() as App).nextStartedService?.let {
+            service.onStartCommand(it, 0, 1)
+        }
+    }
+
+    private fun waitForText(text: String, service: BedJetService? = null) =
         compose.waitUntil(10_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+            deliverServiceRequest(service)
             compose.onAllNodes(hasText(text)).fetchSemanticsNodes().isNotEmpty()
         }
 
-    private fun waitForConfirmedNight() = compose.waitUntil(10_000) {
+    private fun waitForConfirmedNight(service: BedJetService? = null) = compose.waitUntil(10_000) {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+        deliverServiceRequest(service)
         graph.repository.activeNight.value?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED &&
             graph.repository.history.value.isNotEmpty() && graph.actions.busy.value.runningLabel == null
     }
@@ -118,7 +147,8 @@ class AppSmokeTest {
         compose.onNodeWithText("New profile").assertIsDisplayed()
         compose.onNodeWithText("Remote").performClick()
         compose.waitUntil(5_000) {
-            compose.onAllNodes(hasText("Connect to your BedJet to use the remote.") or hasText("Lights")).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(hasText(s(R.string.remote_connect)) or
+                (hasText(s(R.string.mode_cool)) and hasClickAction())).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("Nights you run appear here, with every change made during them.").assertIsDisplayed()
@@ -151,7 +181,8 @@ class AppSmokeTest {
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText("BedJet state unknown", substring = true)).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText(s(R.string.tonight_planned_wake)).assertIsDisplayed()
+        compose.onNodeWithTag("tonight-fixed-wake").assertIsDisplayed()
+            .assertTextContains(s(R.string.gpt12_wake_profile_fallback))
         compose.onNodeWithText(s(R.string.tonight_waking_at)).assertDoesNotExist()
         assertTrue(compose.onAllNodes(hasText("Now:", substring = true)).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithTag("night-active-phase").assertDoesNotExist()
@@ -208,7 +239,8 @@ class AppSmokeTest {
         assertTrue(graph.repository.activeNight.value!!.trackingManual)
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
-            compose.onAllNodes(hasText("Manual run until")).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(hasText(s(R.string.tonight_manual_until), substring = true) and
+                hasAnyAncestor(hasTestTag("tonight-section-night"))).fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(compose.onAllNodes(hasText("Waking you at")).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithText(s(R.string.recovery_resume_programme)).performScrollTo().assertIsDisplayed()
@@ -232,7 +264,8 @@ class AppSmokeTest {
         runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } }
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
-            compose.onAllNodes(hasText("Manual run until")).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodes(hasText(s(R.string.tonight_manual_until), substring = true) and
+                hasAnyAncestor(hasTestTag("tonight-section-night"))).fetchSemanticsNodes().isNotEmpty()
         }
         noWakeClaims("simple view")
         // The snooze's wake-up notification now says the same.
@@ -244,18 +277,21 @@ class AppSmokeTest {
 
     @Test
     fun completedNightCheckInRecordsComfortWithoutChangingAProfile() {
-        compose.onNodeWithText("Start night now").performScrollTo().performClick()
-        waitForConfirmedNight()
-        val profileBefore = graph.repository.profiles.value.first { it.id == graph.repository.activeNight.value!!.profileId }
-        compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
-        confirmStopNight()
-        waitForText("Start night now")
-        compose.onNodeWithText("History").performClick()
-        compose.onNodeWithText("Morning check-in").performScrollTo().performClick()
-        compose.onNodeWithText("Just right").performClick()
-        waitForText("Morning check-in: Just right")
-        assertEquals(profileBefore, graph.repository.profiles.value.first { it.id == profileBefore.id })
-        assertTrue(compose.onAllNodes(hasText("Review Middle suggestion")).fetchSemanticsNodes().isEmpty())
+        val controller = Robolectric.buildService(BedJetService::class.java).create()
+        try {
+            compose.onNodeWithText("Start night now").performScrollTo().performClick()
+            waitForConfirmedNight(controller.get())
+            val profileBefore = graph.repository.profiles.value.first { it.id == graph.repository.activeNight.value!!.profileId }
+            compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
+            confirmStopNight()
+            waitForText("Start night now", controller.get())
+            compose.onNodeWithText("History").performClick()
+            compose.onNodeWithText("Morning check-in").performScrollTo().performClick()
+            compose.onNodeWithText("Just right").performClick()
+            waitForText("Morning check-in: Just right")
+            assertEquals(profileBefore, graph.repository.profiles.value.first { it.id == profileBefore.id })
+            assertTrue(compose.onAllNodes(hasText("Review Middle suggestion")).fetchSemanticsNodes().isEmpty())
+        } finally { controller.destroy() }
     }
 
     @Test

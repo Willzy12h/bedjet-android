@@ -34,6 +34,7 @@ import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.data.MiddleSuggestion
 import io.github.willzy12h.nocturne.ui.features.HealthSleepOverlay
+import io.github.willzy12h.nocturne.ui.features.HealthExportMarker
 import io.github.willzy12h.nocturne.ui.features.HistoryExportButton
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -65,6 +66,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                     Text(stringResource(if (night.wakeFromAlarm) R.string.history_times_alarm else R.string.history_times, Format.clock(night.startedAt), Format.clock(night.wakeAt)))
                     historyPlan(night)?.let { NightCurve(it) }
                     HealthSleepOverlay(model.graph, night)
+                    HealthExportMarker(model.graph, night)
                     if (completed && !checkedIn && activeNight?.recordId != night.id) {
                         OutlinedButton(onClick = { checkingIn = true }) { Text(stringResource(R.string.checkin_button)) }
                     }

@@ -134,7 +134,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
         val warmPreset = graph.repository.settings.value.extendWarm
         val warmFeedback = ui.compose.activity.resources.getQuantityString(
             R.plurals.runtime_captured_action_duration, warmPreset.minutes, ui.s(R.string.mode_heat), warmPreset.minutes)
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.quick(ui.graph.repository.settings.value.extendWarm).performClick()
         ui.waitUntil { graph.link.status.value?.mode == Mode.HEAT && graph.actions.busy.value.runningLabel == null }
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isNotEmpty() }
         // Dismiss the command's real feedback so the first pass has no snackbar and the controlled one can follow.
@@ -142,7 +142,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
             .performSemanticsAction(SemanticsActions.Dismiss) { assertTrue(it()) }
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isEmpty() }
         ui.tab(ui.s(R.string.tab_remote))
-        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_lights)).fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_run_for)).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("The Heat fixture must report its four-hour runtime ceiling", 240, graph.link.status.value?.maxRuntimeMinutes)
         withAndWithoutFeedback {
             listOf(R.string.mode_cool, R.string.mode_heat, R.string.mode_gentle_heat,
@@ -171,7 +171,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
             val full = ui.s(R.string.busy_running, label) + " · " +
                 ui.compose.activity.resources.getQuantityString(R.plurals.busy_queued, 2, 2)
             // Actual owner label and queued count, complete text semantics and no visually ellipsised line.
-            ui.checkLayout(ui.compose.onNodeWithText(full), "Long owner and queue description")
+            ui.checkLayout(ui.compose.onNodeWithText(full), "Long owner and queue description", scroll = false)
         } finally { gate.complete(Unit) }
         ui.waitUntil { ui.graph.actions.busy.value.runningLabel == null }
     }
@@ -209,11 +209,10 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     private fun quickButtons() {
-        val labels = listOf(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes),
-            ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
-        labels.forEach { label ->
-            ui.checkControl(ui.compose.onNode(hasText(label) and hasClickAction() and
-                hasAnyAncestor(hasTestTag("quick-controls"))), label).assertHasClickAction()
+        ui.checkLayout(ui.compose.onNodeWithText(ui.s(R.string.gpt12_wake_no_alarm)), "Wake fallback reason")
+        val modes = io.github.willzy12h.nocturne.core.store.QuickDefaults.modes + Mode.STANDBY
+        modes.forEach { mode ->
+            ui.checkControl(ui.compose.onNodeWithTag("quick-mode-${mode.name}"), "Quick $mode").assertHasClickAction()
         }
     }
 

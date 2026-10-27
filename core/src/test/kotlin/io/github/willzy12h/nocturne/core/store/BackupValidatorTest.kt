@@ -21,7 +21,7 @@ class BackupValidatorTest {
         profiles = Presets.all,
         settings = Settings(),
         slotBackups = listOf(
-            SlotBackup("ble:AA:BB", 2, StoredProgram("old", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now),
+            SlotBackup("ble:AA:BB:CC:DD:EE:FF", 2, StoredProgram("old", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now),
             SlotBackup("demo", 1, null, now),
         ),
         history = listOf(

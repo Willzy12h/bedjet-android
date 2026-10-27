@@ -78,7 +78,7 @@ class UiQueuedBluetoothTest {
         }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.repository.updateSettings {
-            it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", autoUpdateCheck = false)
+            it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF")
         }
         graph.actions.confirmMs = 20
         graph.actions.freshStatusMs = 20

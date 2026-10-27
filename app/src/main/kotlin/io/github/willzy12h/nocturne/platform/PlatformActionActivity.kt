@@ -78,9 +78,15 @@ class PlatformActionActivity : ComponentActivity() {
         dialog.show()
     }
     private fun runRequest(request: CommandRequest, replacement: Boolean) {
+            val admission = graph.repository.operationAdmission.tryCommand()
+            if (admission == null) {
+                showResult(getString(R.string.import_command_blocked))
+                return
+            }
             val progress=AlertDialog.Builder(this).setMessage(R.string.feature_working)
                 .setOnCancelListener{finish()}.show()
-            lifecycleScope.launch {
+            val job = lifecycleScope.launch {
+                try {
                 val message = try {
                     BedJetService.runOwned(this@PlatformActionActivity, notifyFailures=false) {
                         if (request.command in setOf(NightActions.Command.OFF, NightActions.Command.END_NIGHT)) {
@@ -93,12 +99,19 @@ class PlatformActionActivity : ComponentActivity() {
                 } catch (_: kotlinx.coroutines.TimeoutCancellationException) { getString(R.string.feature_operation_timeout)
                 } catch (e: kotlinx.coroutines.CancellationException) { throw e
                 } catch (e: Exception) { e.message ?: getString(R.string.runtime_failed) }
-                progress.dismiss()
-                if (!isFinishing) AlertDialog.Builder(this@PlatformActionActivity)
-                    .setTitle(R.string.feature_result).setMessage(message)
-                    .setPositiveButton(android.R.string.ok){_,_->finish()}
-                    .setOnCancelListener{finish()}.show()
+                if (!isFinishing) showResult(message)
+                } finally {
+                    progress.dismiss()
+                    admission.close()
+                }
             }
+            // A destroyed Activity can cancel the launch before its body starts.
+            job.invokeOnCompletion { admission.close() }
+    }
+    private fun showResult(message: String) {
+        AlertDialog.Builder(this).setTitle(R.string.feature_result).setMessage(message)
+            .setPositiveButton(android.R.string.ok){_,_->finish()}
+            .setOnCancelListener{finish()}.show()
     }
     companion object {
         fun intent(context: Context, request: CommandRequest) = Intent(context,PlatformActionActivity::class.java)

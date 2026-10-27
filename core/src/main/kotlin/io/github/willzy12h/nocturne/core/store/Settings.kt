@@ -42,11 +42,12 @@ data class Settings(
     val demoMode: Boolean = false,
     /** The real BedJet chosen by the person, as a [DeviceId] (`ble:<MAC>`). Null until one is chosen. */
     val targetDevice: String? = null,
+    /** Real units explicitly chosen on this phone, newest first. Never includes the simulator. */
+    val rememberedBedJets: List<String> = emptyList(),
+    /** A discarded legacy demo choice must not silently adopt an old Bluetooth preference. */
+    val demoTargetMigrated: Boolean = false,
     /** Local supervised fan check for this exact real BedJet; never inferred from a backup. */
     val setupFanCheckedDevice: String? = null,
-    /** GitHub `owner/repo` whose latest release is checked for updates. The token is kept outside backups. */
-    val updateRepo: String = "Willzy12h/bedjet-android",
-    val autoUpdateCheck: Boolean = false,
     /** Alarms set by these apps move the wake-up; others (calendar reminders, timers) don't. */
     val alarmPackages: Set<String> = setOf("com.google.android.deskclock", "com.sec.android.app.clockpackage"),
     // Appearance. Defaults keep older saved settings and backups loading unchanged.
@@ -55,13 +56,23 @@ data class Settings(
     val scheduledDarkMinute: Int = 22 * 60,
     val scheduledLightMinute: Int = 7 * 60,
     /** Tonight shows the night as a list of steps instead of the bar curve. */
-    val simpleView: Boolean = false,
+    val simpleView: Boolean = true,
     val quickControlsCollapsed: Boolean = false,
+    /** Explicit mode overrides; absent entries retain legacy Warm/Cool values losslessly. */
+    val quickDefaults: List<ActionPreset> = emptyList(),
+    val setupChecklistCompleted: Boolean = false,
+    val setupDismissedOptional: Set<String> = emptySet(),
+    /** Collapsing content never removes the section's accessible header. */
+    val collapsedTonightSections: Set<String> = emptySet(),
     /** Stable section IDs; unknown, repeated and missing IDs are normalised when displayed. */
     val tonightSectionOrder: List<String> = listOf("night", "wake", "connection"),
     val quietNightNotification: Boolean = false,
     val platform: PlatformSettings = PlatformSettings(),
 ) {
+    fun normalisedRememberedBedJets(): List<String> = (listOfNotNull(targetDevice) + rememberedBedJets)
+        .mapNotNull { id -> DeviceId.address(id)?.takeIf { it.matches(Regex("[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}")) }?.let(DeviceId::ble) }
+        .distinct().take(16)
+
     fun normalisedTonightOrder(): List<String> {
         val known = listOf("night", "wake", "connection")
         val saved = tonightSectionOrder.filter { it in known }.distinct()

@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.core.protocol.CommandSafety
+
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.ble.BluetoothAdmission
@@ -147,7 +149,9 @@ class NightActions(private val graph: Graph) {
         }
     }
     /** No FGS, detached launch or retry. Job cancellation propagates after durable uncertainty is saved. */
-    suspend fun performJobOwned(request: CommandRequest, eligible: suspend (DeviceStatus) -> Boolean): CommandOutcome =
+    suspend fun performJobOwned(request: CommandRequest, automaticWake: io.github.willzy12h.nocturne.core.plan.WakeChoice? = null,
+        stillEligible: () -> Boolean = { true }, onPrepared: (PreparedChange) -> Unit = {},
+        eligible: suspend (DeviceStatus) -> Boolean): CommandOutcome =
         owned(label(request.command), request.deviceId, minimumRemainingMs = MIN_BUDGET_MS, origin = CommandOrigin.CHARGER) {
             if (request.requireIdentity && request.expected != repo.activeNight.value?.identity) return@owned stale()
             val manualPreset = timedPreset(request.command)
@@ -157,23 +161,28 @@ class NightActions(private val graph: Graph) {
             slotWriteRefusal(request.command)?.let { return@owned it }
             connected {
                 val fresh = freshStatus()
-                if (repo.activeNight.value != null || !eligible(fresh)) return@connected refused(R.string.runtime_ineligible)
-                run(request, manualPreset)
+                if (repo.activeNight.value != null || !eligible(fresh) || !stillEligible()) return@connected refused(R.string.runtime_ineligible)
+                run(request, manualPreset, automaticWake, stillEligible, onPrepared)
             }
         }
 
     /** A read-only compatibility route. Production writes use named owned methods below. */
-    internal suspend fun <T> exclusive(work: suspend () -> T): T = lock.withLock {
-        try { withTimeout(OPERATION_MS) { graph.sessions.withConnection { work() } } }
-        finally { drainLocalSafely() }
+    internal suspend fun <T> exclusive(work: suspend () -> T): T {
+        val admission = repo.operationAdmission.tryCommand() ?: error(text(R.string.import_command_blocked))
+        try { return lock.withLock {
+            try { withTimeout(OPERATION_MS) { graph.sessions.withConnection { work() } } }
+            finally { drainLocalSafely() }
+        } } finally { admission.close() }
     }
 
     private suspend fun owned(label: String, target: String?, minimumRemainingMs: Long = 0, retimeWork: Boolean = false,
-        origin: CommandOrigin? = null,
+        origin: CommandOrigin? = null, declineIfBusy: Boolean = false,
         work: suspend () -> CommandOutcome): CommandOutcome {
         val source = origin ?: currentCoroutineContext()[CommandOriginContext]?.origin ?: CommandOrigin.APP
         fun tagged(outcome: CommandOutcome): CommandOutcome =
             if (outcome.origin == CommandOrigin.UNSPECIFIED) outcome.copy(origin = source) else outcome
+        val admission = repo.operationAdmission.tryCommand()
+            ?: return tagged(refused(R.string.import_command_blocked)).also { _outcomes.emit(it) }
         _busy.update { it.copy(queuedCount = it.queuedCount + 1) }
         var acquired = false
         val owner = Any()
@@ -187,7 +196,9 @@ class NightActions(private val graph: Graph) {
                 if (!retimeWork) radio.check()
             }
             return withTimeout(OPERATION_MS) {
-                lock.lock(owner)
+                if (declineIfBusy) {
+                    if (!lock.tryLock(owner)) return@withTimeout tagged(refused(R.string.runtime_busy)).also { _outcomes.emit(it) }
+                } else lock.lock(owner)
                 acquired = true
                 _busy.update { it.copy(runningLabel = label, queuedCount = it.queuedCount - 1) }
                 val submitted = currentCoroutineContext()[SubmissionTarget]
@@ -215,6 +226,7 @@ class NightActions(private val graph: Graph) {
             return tagged(CommandOutcome(if (!bluetoothOff && repo.activeNight.value?.confidence == Confidence.UNKNOWN) OutcomeKind.UNKNOWN else OutcomeKind.FAILED,
                 reason ?: text(R.string.runtime_failed), notificationHandled = bluetoothOff)).also { _outcomes.emit(it) }
         } finally {
+            try {
             radio?.close()
             // Ownership is tested even if timeout raced with resumption after lock.lock().
             _busy.update { if (acquired) it.copy(runningLabel = null) else it.copy(queuedCount = (it.queuedCount - 1).coerceAtLeast(0)) }
@@ -223,6 +235,7 @@ class NightActions(private val graph: Graph) {
                 val cleanupMs = minOf(8_000L, OPERATION_MS + 8_000L - (elapsedMs() - startedAt))
                 try { drainLocalSafely(cleanupMs) } finally { lock.unlock(owner) }
             }
+            } finally { admission.close() }
         }
     }
     /** Only a refused re-time attempt may have consumed its alarm. Other queued taps leave that retry's time alone. */
@@ -308,7 +321,9 @@ class NightActions(private val graph: Graph) {
         }
     }
 
-    private suspend fun run(request: CommandRequest, manualPreset: ActionPreset?): CommandOutcome {
+    private suspend fun run(request: CommandRequest, manualPreset: ActionPreset?,
+        automaticWake: io.github.willzy12h.nocturne.core.plan.WakeChoice? = null, stillEligible: () -> Boolean = { true },
+        onPrepared: (PreparedChange) -> Unit = {}): CommandOutcome {
         if (request.deviceId != repo.settings.value.deviceId()) return stale(R.string.runtime_target_changed)
         val command = request.command
         if (command == Command.RESUME) return resumeLocked()
@@ -319,8 +334,19 @@ class NightActions(private val graph: Graph) {
             val s = repo.settings.value
             val old = repo.activeNight.value
             val alarm = AlarmSource.describe(context, s)
-            return apply(graph.runner().prepareStart(profile, alarm?.time, s.workingSlot, request.deviceId!!,
-                old?.identity, old, s.resolveWakeOverride(graph.now()), s, alarm?.creator), R.string.runtime_started)
+            val explicit = s.resolveWakeOverride(graph.now())
+            val override = explicit ?: automaticWake?.let {
+                io.github.willzy12h.nocturne.core.plan.TonightOverride(it.time.toString(), graph.now().toString())
+            }
+            val prepared = graph.runner().prepareStart(profile, alarm?.time, s.workingSlot, request.deviceId!!,
+                old?.identity, old, override, s, alarm?.creator)
+            val attributed = if (explicit == null && automaticWake != null && prepared is Preparation.Ready)
+                Preparation.Ready(prepared.change.copy(intended = prepared.change.intended.copy(
+                    wakeOrigin = WakeOrigin.AUTO_START, wakeFromAlarm = automaticWake.fromAlarm))) else prepared
+            if (attributed is Preparation.Ready) onPrepared(attributed.change)
+            return apply(attributed, R.string.runtime_started, validate = {
+                if (!stillEligible()) throw PlanException(text(R.string.auto_start_skip_changed))
+            })
         }
         if (command == Command.REAPPLY) {
             val night = repo.activeNight.value ?: return refused(R.string.runtime_no_night)
@@ -350,7 +376,7 @@ class NightActions(private val graph: Graph) {
         }
     }
     private suspend fun apply(preparation: Preparation, message: Int,
-        afterWrite: suspend () -> Unit = {}): CommandOutcome {
+        validate: () -> Unit = {}, afterWrite: suspend () -> Unit = {}): CommandOutcome {
         val change = when (preparation) {
             is Preparation.Ready -> preparation.change
             is Preparation.Refused -> return if (preparation.unchanged) local(R.string.runtime_unchanged)
@@ -358,7 +384,7 @@ class NightActions(private val graph: Graph) {
             is Preparation.Stale -> return stale()
         }
         val pendingRetimeId = repo.runtime.value.retime?.id
-        return try { applyPrepared(change, message, afterWrite)
+        return try { applyPrepared(change, message, afterWrite, validate)
         } catch (e: CancellationException) {
             confirmedPreparedProgramme(change)?.let { confirmed ->
                 withContext(NonCancellable) {
@@ -412,7 +438,14 @@ class NightActions(private val graph: Graph) {
         val events = if (night.applied in record.revisions) record.events else record.events +
             event(if (started) EventKind.STARTED else if (change.request.kind == ChangeKind.TEMPORARY) EventKind.TEMPORARY else EventKind.RETIMED,
                 programmeDetail(change, night, message))
-        repo.addRecord(revised.copy(events = events))
+        val continuous = change.request.kind == ChangeKind.START ||
+            (record.bedJetRunConfirmed && change.previous?.confidence == Confidence.CONFIRMED &&
+                change.previous?.trackingManual == false && events.none {
+                    it.kind in setOf(EventKind.ERROR, EventKind.STOPPED, EventKind.REMOTE_CHANGE, EventKind.RECOVERED)
+                })
+        repo.addRecord(revised.copy(events = events, bedJetRunConfirmed = continuous && !repo.settings.value.demoMode &&
+            !night.isTestRun && !io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(night.deviceId) &&
+                night.deviceId.startsWith("ble:") && night.confidence == Confidence.CONFIRMED && night.pending == null))
     }
     private fun temporaryShortened(change: PreparedChange): Boolean {
         if (change.request.kind != ChangeKind.RETIME) return false
@@ -432,7 +465,8 @@ class NightActions(private val graph: Graph) {
         return copy(alarmInbox = matchingInbox ?: AlarmObservation(UUID.randomUUID().toString(),
             change.intended.recordId, pending.deviceId, graph.now().toString()))
     }
-    private suspend fun applyPrepared(change: PreparedChange, message: Int, afterWrite: suspend () -> Unit): CommandOutcome {
+    private suspend fun applyPrepared(change: PreparedChange, message: Int, afterWrite: suspend () -> Unit,
+        validate: () -> Unit): CommandOutcome {
         var confirmedPublicationFailure: Exception? = null
         val result = graph.runner().apply(change, { repo.activeNight.value }, { repo.runtime.value.generation },
             publish = {
@@ -452,7 +486,7 @@ class NightActions(private val graph: Graph) {
                         isTestRun = intended.isTestRun))
                 }
                 if (it.confidence != Confidence.CONFIRMED) Notifications.cancelQuiet(context)
-            }, beforeWrite = { backup(change.intended.deviceId, change.intended.slot) }, afterWrite = afterWrite)
+            }, validate = validate, beforeWrite = { backup(change.intended.deviceId, change.intended.slot) }, afterWrite = afterWrite)
         confirmedPublicationFailure?.let { throw it }
         val outcome = when (result) {
             is NightMutation.Applied -> {
@@ -525,11 +559,17 @@ class NightActions(private val graph: Graph) {
         repo.recordOriginalSlot(device, slot, original)
     }
     private suspend fun quick(preset: ActionPreset, message: String): CommandOutcome {
+        if (!safePreset(preset)) return refused(R.string.runtime_command_out_of_range)
         var sentAt = elapsedMs()
         return manualChange(message, true, confirms = runs(preset) { sentAt }) {
             sentAt = elapsedMs()
             runPreset(preset)
         }
+    }
+    private fun safePreset(preset: ActionPreset): Boolean {
+        val bounds = limits()
+        return CommandSafety.manual(preset.mode, PlanCompiler.temperatureFor(preset.mode, preset.temperature, bounds),
+            PlanCompiler.fanStepFor(preset.fanPercent, bounds), preset.minutes) == null
     }
     private suspend fun runPreset(preset: ActionPreset) {
         val limits = limits()
@@ -665,6 +705,7 @@ class NightActions(private val graph: Graph) {
         }
     }
     private suspend fun timedManual(preset: ActionPreset, kind: EventKind, label: String): CommandOutcome {
+        if (!safePreset(preset)) return refused(R.string.runtime_command_out_of_range)
         val old = repo.activeNight.value
         val message = text(R.string.runtime_timed, label, preset.minutes)
         var sentAt = elapsedMs()
@@ -702,7 +743,8 @@ class NightActions(private val graph: Graph) {
         if (repo.activeNight.value?.identity == night.identity) finishLocked(night, kind, detail)
     }
     private suspend fun finishLocked(night: ActiveNight, kind: EventKind, detail: String,
-        end: PendingEnd = PendingEnd(night.identity, event(kind, detail), isTestRun = night.isTestRun)) {
+        end: PendingEnd = PendingEnd(night.identity, event(kind, detail), isTestRun = night.isTestRun,
+            confirmedCompletionAt = confirmedCompletion(night, kind))) {
         val transition = io.github.willzy12h.nocturne.core.night.stopTracking(night, detail, graph.now(), repo.runtime.value.generation)
         // IR-06: a slot write made in this night, or one that displaced it, ends with it.
         repo.updateRuntime { it.copy(ending = end,
@@ -717,13 +759,21 @@ class NightActions(private val graph: Graph) {
         completeLocalEnd()
         repo.runtime.value.resumeOffer?.let { Notifications.showResume(context) }
     }
+    /** A clock or an ENDED label alone cannot turn uncertain tracking into a confirmed completed programme. */
+    private fun confirmedCompletion(night: ActiveNight, kind: EventKind): String? = night.endsAt.takeIf {
+        kind == EventKind.ENDED && night.confidence == Confidence.CONFIRMED && night.pending == null &&
+            !night.trackingManual && !night.isTestRun && !repo.settings.value.demoMode &&
+            !io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(night.deviceId) &&
+            repo.runtime.value.retime == null && repo.runtime.value.alarmInbox == null &&
+            !graph.now().isBefore(ZonedDateTime.parse(night.endsAt)) &&
+            repo.history.value.any { it.id == night.recordId && it.bedJetRunConfirmed }
+    }
     /** Complete an idempotent local journal after a crash between the separate durable files. */
     private suspend fun completeLocalEnd() {
         val end = repo.runtime.value.ending ?: return
         val active = repo.activeNight.value
         if (active == null || active.identity == end.identity) {
-            val events = repo.history.value.firstOrNull { it.id == end.identity.nightId }?.events.orEmpty()
-            if (end.event !in events) repo.addEvent(end.identity.nightId, end.event)
+            repo.completeHistoryRecord(end.identity.nightId, end.event, end.confirmedCompletionAt)
             publishNight(null)
             if (!end.isTestRun && active?.isTestRun != true &&
                 repo.history.value.none { it.id == end.identity.nightId && it.isTestRun })
@@ -799,7 +849,12 @@ class NightActions(private val graph: Graph) {
     }
     /** A coalesced observation inbox, not a second command owner. This only uses the repository writer.
      * The receiver can submit while a whole hardware transaction holds the coordinator mutex. */
-    suspend fun submitAlarmChange(): CommandOutcome = submitAlarmChangeLocal().copy(origin = CommandOrigin.ALARM)
+    suspend fun submitAlarmChange(): CommandOutcome {
+        val admission = repo.operationAdmission.tryCommand()
+            ?: return refused(R.string.import_command_blocked).copy(origin = CommandOrigin.ALARM)
+        try { return submitAlarmChangeLocal().copy(origin = CommandOrigin.ALARM) }
+        finally { admission.close() }
+    }
     private suspend fun submitAlarmChangeLocal(): CommandOutcome {
         val night = repo.activeNight.value
         if (night == null) {
@@ -1506,6 +1561,8 @@ class NightActions(private val graph: Graph) {
                 it.mode != Mode.STANDBY && it.mode != Mode.WAIT && it.temperature !in it.mode.temperatureRange
             })
             return@owned refused(R.string.runtime_restore_imported_out_of_range)
+        if (original.program?.let { CommandSafety.programme(it, graph.now().toLocalTime()) } != null)
+            return@owned refused(R.string.runtime_restore_unsafe)
         connected {
             if (freshStatus().extra?.programStep != 0) return@connected refused(R.string.runtime_slot_running)
             if (originalChanged()) return@connected refused(R.string.runtime_restore_preview_changed)
@@ -1516,6 +1573,8 @@ class NightActions(private val graph: Graph) {
     }
     private suspend fun writeSlotLocked(slot: Int, program: StoredProgram?, label: String, start: Boolean = false,
         expectedOriginal: SlotBackup? = null): CommandOutcome {
+        if (program != null && CommandSafety.programme(program, graph.now().toLocalTime()) != null)
+            return refused(R.string.runtime_restore_unsafe)
         val target = repo.settings.value.deviceId() ?: return refused(R.string.runtime_choose_target)
         val earlier = repo.runtime.value.slotWrite
         val night = repo.activeNight.value
@@ -1568,7 +1627,8 @@ class NightActions(private val graph: Graph) {
     }
     suspend fun initialise() {
         lock.withLock {
-            if (repo.settings.value.targetDevice == null) graph.bleLink.rememberedAddress()?.let { address ->
+            if (repo.settings.value.targetDevice == null && !repo.settings.value.demoMode &&
+                !repo.settings.value.demoTargetMigrated && !repo.startupMigrationBlocked) graph.bleLink.rememberedAddress()?.let { address ->
                 repo.updateSettings { it.copy(targetDevice = DeviceId.ble(address)) }
                 repo.addNotice(LoggedNotice(graph.now().toString(), NoticeKind.INFO, text(R.string.runtime_target_saved), text(R.string.runtime_adopted)))
             }
@@ -1639,7 +1699,9 @@ class NightActions(private val graph: Graph) {
         origin = CommandOrigin.SETTINGS) {
         val old = repo.settings.value
         val updated = change(old)
+        if (updated.demoMode != old.demoMode) return@owned changeDemoModeLocked(updated.demoMode)
         if (updated.deviceId() != old.deviceId() || updated.targetDevice != old.targetDevice) {
+            if (repo.startupMigrationBlocked) return@owned refused(R.string.gpt12_demo_migration_failed)
             if (repo.activeNight.value != null) return@owned refused(R.string.runtime_active_target)
             advanceGeneration(); graph.link.disconnect()
         }
@@ -1648,22 +1710,70 @@ class NightActions(private val graph: Graph) {
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_settings_saved))
     }
     suspend fun selectTarget(deviceId: String?, useRealDevice: Boolean = false): CommandOutcome = owned(text(R.string.runtime_target_label), repo.settings.value.deviceId()) {
-        if (repo.activeNight.value != null) return@owned refused(R.string.runtime_active_target)
+        if (repo.startupMigrationBlocked) return@owned refused(R.string.gpt12_demo_migration_failed)
         if (deviceId != null && DeviceId.address(deviceId)?.matches(Regex("[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}")) != true) return@owned refused(R.string.runtime_invalid_target)
+        if (repo.isDemoSession) {
+            if (!useRealDevice) return@owned refused(R.string.gpt12_demo_pair_help)
+            val exit = changeDemoModeLocked(false)
+            if (!exit.succeeded) return@owned exit
+        }
+        if (repo.activeNight.value != null) return@owned refused(R.string.runtime_active_target)
+        val selected = deviceId?.let { DeviceId.ble(DeviceId.address(it)!!) }
         advanceGeneration()
         graph.link.disconnect()
         // Setup must not expose a real target while Demo is still selected, or vice versa.
-        repo.updateSettings { it.copy(targetDevice = deviceId, demoMode = if (useRealDevice) false else it.demoMode,
-            setupFanCheckedDevice = it.setupFanCheckedDevice.takeIf { checked -> deviceId != null && checked == deviceId }) }
-        if (deviceId == null) graph.bleLink.forget()
-        CommandOutcome(OutcomeKind.LOCAL, text(if (deviceId == null) R.string.runtime_target_forgotten else R.string.runtime_target_saved))
+        repo.updateSettings { current ->
+            val remembered = current.normalisedRememberedBedJets()
+            current.copy(targetDevice = selected, demoMode = if (useRealDevice) false else current.demoMode,
+                rememberedBedJets = if (selected == null) remembered.filterNot { it == current.targetDevice }
+                    else (listOf(selected) + remembered).distinct().take(16), demoTargetMigrated = false,
+                setupFanCheckedDevice = current.setupFanCheckedDevice.takeIf { checked -> selected != null && checked == selected })
+        }
+        if (selected == null) graph.bleLink.forget()
+        CommandOutcome(OutcomeKind.LOCAL, text(if (selected == null) R.string.runtime_target_forgotten else R.string.runtime_target_saved))
     }
-    suspend fun setDemoMode(enabled: Boolean): CommandOutcome = owned(text(R.string.runtime_demo_label), repo.settings.value.deviceId()) {
-        if (repo.activeNight.value != null && enabled != repo.settings.value.demoMode) return@owned refused(R.string.runtime_active_target)
-        advanceGeneration()
-        graph.link.disconnect()
-        repo.updateSettings { it.copy(demoMode = enabled) }
-        CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_demo_saved))
+    suspend fun setDemoMode(enabled: Boolean): CommandOutcome = owned(text(R.string.runtime_demo_label),
+        repo.settings.value.deviceId(), declineIfBusy = enabled) { changeDemoModeLocked(enabled) }
+
+    private suspend fun changeDemoModeLocked(enabled: Boolean): CommandOutcome {
+        if (repo.startupMigrationBlocked) return refused(R.string.gpt12_demo_migration_failed)
+        if (enabled == repo.settings.value.demoMode) return local(if (enabled) R.string.gpt12_demo_started else R.string.gpt12_demo_ended)
+        if (enabled) {
+            if (repo.activeNight.value != null) return refused(R.string.runtime_active_target)
+            try {
+                graph.sessions.beginDemoTransition()
+                graph.link.disconnect()
+                graph.resetDemoSession()
+                repo.enterDemoSession()
+            } finally {
+                // Publication may win a cancellation while returning from the repository writer.
+                graph.sessions.finishDemoTransition(repo.isDemoSession)
+            }
+        } else if (repo.isDemoSession) {
+            // The owner has finished any simulated command. No simulated ending reaches real History or originals.
+            try {
+                graph.sessions.beginDemoTransition()
+                graph.link.disconnect()
+                NightAlarms.cancel(context)
+                NightAlarms.cancelLocalRetry(context)
+                NightAlarms.cancelReconcileRetry(context)
+                Notifications.cancelWakeUp(context)
+                Notifications.cancelResume(context)
+                repo.exitDemoSession()
+                graph.resetDemoSession()
+            } finally {
+                graph.sessions.finishDemoTransition(repo.isDemoSession)
+            }
+        } else {
+            // Compatibility for a pre-upgrade repository used before application startup normalisation.
+            if (repo.activeNight.value != null) return refused(R.string.runtime_active_target)
+            advanceGeneration()
+            graph.link.disconnect()
+            repo.updateSettings { it.copy(demoMode = false) }
+            graph.resetDemoSession()
+        }
+        refreshQuietNotification()
+        return local(if (enabled) R.string.gpt12_demo_started else R.string.gpt12_demo_ended)
     }
     suspend fun forgetTarget(): CommandOutcome = selectTarget(null)
     suspend fun setupFanCheck(): CommandOutcome = owned(text(R.string.runtime_fan_check), repo.settings.value.deviceId(), MIN_BUDGET_MS) {
@@ -1684,15 +1794,13 @@ class NightActions(private val graph: Graph) {
             CommandOutcome(OutcomeKind.CONFIRMED, text(R.string.runtime_fan_checked))
         }
     }
-    suspend fun releaseForOtherPhone(untilMs: Long? = null, declineIfBusy: Boolean = false): CommandOutcome {
-        if (declineIfBusy && lock.isLocked) return refused(R.string.runtime_busy).copy(origin = CommandOrigin.PEER)
-        return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId(),
-            origin = if (declineIfBusy) CommandOrigin.PEER else null) {
+    suspend fun releaseForOtherPhone(): CommandOutcome {
+        return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId()) {
             // Handover invalidates queued commands, but an existing recovery reason and
             // short-lived resume offer remain meaningful when this phone releases the link.
             repo.updateRuntime { it.copy(generation = it.generation + 1,
                 resumeOffer = validResumeOffer(it)?.copy(commandVersion = it.generation + 1)) }
-            graph.sessions.suspendAutoConnect(untilMs).join()
+            graph.sessions.suspendAutoConnect(null).join()
             CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_released))
         }
     }
@@ -1716,6 +1824,40 @@ class NightActions(private val graph: Graph) {
             CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_taken_back))
         }
     }
+    /** A reviewed runtime keeps its target/night through both dialogues and rechecks the live mode's limit. */
+    suspend fun remoteDuration(label: String, request: CommandRequest): CommandOutcome =
+        owned(label, request.deviceId, MIN_BUDGET_MS, origin = request.origin) {
+            if (request.expected != repo.activeNight.value?.identity) return@owned stale()
+            val preset = request.actionPreset ?: return@owned refused(R.string.remote_custom_invalid)
+            connected {
+                val current = graph.link.latestSourcedStatus()?.takeIf { it.isFrom(request.deviceId) }?.status
+                    ?: return@connected refused(R.string.remote_custom_changed)
+                if (current.mode != preset.mode) return@connected refused(R.string.remote_custom_changed)
+                val leaveProgramme = request.expected != null || (current.extra?.programStep ?: 0) > 0
+                if (leaveProgramme && (current.targetTemperature != preset.temperature || current.fanPercent != preset.fanPercent))
+                    return@connected refused(R.string.remote_custom_changed)
+                // runManual applies the mode's protocol range. Refuse rather than change the reviewed live setpoint.
+                if (leaveProgramme && preset.mode.usesTemperature && preset.temperature !in preset.mode.temperatureRange)
+                    return@connected refused(R.string.remote_custom_temperature)
+                if (preset.minutes !in 1..manualRuntimeMaximum(current))
+                    return@connected refused(R.string.remote_custom_changed)
+                advanceGeneration(preserveOffer = repo.activeNight.value?.trackingManual != false)
+                var sentAt = elapsedMs()
+                manualChange(label, endsNight = true, affectsProgramme = true, confirms = { report ->
+                    val elapsedSeconds = (elapsedMs() - sentAt).coerceAtLeast(0) / 1_000
+                    val remaining = (preset.minutes * 60L - elapsedSeconds).coerceAtLeast(0)
+                    report.mode == preset.mode && report.remainingSeconds.toLong() in (remaining - 5).coerceAtLeast(0)..remaining &&
+                        (!leaveProgramme || (report.extra?.programStep == 0 &&
+                            (!preset.mode.usesTemperature || report.targetTemperature == preset.temperature) &&
+                            (!preset.mode.usesFan || report.fanPercent == preset.fanPercent)))
+                }) {
+                    sentAt = elapsedMs()
+                    if (leaveProgramme) graph.controller().runManual(preset.mode, preset.temperature, (preset.fanPercent / 5) - 1, preset.minutes)
+                    else graph.controller().setRuntime(preset.minutes)
+                }.let { if (it.kind == OutcomeKind.ACCEPTED) it.copy(kind = OutcomeKind.UNKNOWN) else it }
+            }
+        }
+
     /** A Remote-screen change. [confirms] says which BedJet report shows it took effect; without one it is only sent. */
     suspend fun remote(label: String, endsNight: Boolean = false, affectsProgramme: Boolean = false,
         target: String? = repo.settings.value.deviceId(), expected: NightIdentity? = repo.activeNight.value?.identity,

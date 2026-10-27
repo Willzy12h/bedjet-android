@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.core.link
 
+import io.github.willzy12h.nocturne.core.protocol.Codec
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
@@ -52,7 +53,6 @@ class ControllerTest {
         link.connect()
         assertThrows<BedJetError.ProgramTooLong> { controller.startProgram(slot = 0) }
         assertEquals(Mode.STANDBY, link.status.value!!.mode)
-        // The controller clears the notification so the unit stops repeating it.
         assertEquals(0, link.status.value!!.extra?.notification)
     }
 
@@ -88,13 +88,14 @@ class ControllerTest {
     }
 
     @Test
-    fun runtimeIsClampedToTheModeLimit() = runTest {
+    fun runtimeIsRefusedBeforeExceedingTheModeLimit() = runTest {
         val link = demo()
         link.connect()
         val controller = BedJetController(link) { now }
         controller.setMode(Mode.HEAT)
-        controller.setRuntime(600)
-        assertEquals(240 * 60, link.status.value!!.remainingSeconds)
+        val before = link.status.value!!.remainingSeconds
+        assertThrows<BedJetError.ProgramTooLong> { controller.setRuntime(600) }
+        assertEquals(before, link.status.value!!.remainingSeconds)
     }
 
     @Test
@@ -141,7 +142,6 @@ class ControllerTest {
         val controller = BedJetController(LaggingLink(demo, backgroundScope), { now })
         controller.store(StoredProgram("Night", listOf(ProgramStep(Mode.COOL, 5, 44, 2, 0))), 0)
         controller.startProgram(0)
-        // The unit refuses the new program but keeps reporting the old one at step 1 for a moment.
         demo.slots[1] = StoredProgram("too hot", listOf(ProgramStep(Mode.HEAT, 19, 80, 3, 0)))
         assertThrows<BedJetError.ProgramTooLong> { controller.startProgram(1) }
     }
@@ -173,10 +173,7 @@ class ControllerTest {
         assertEquals(listOf("send 08", "prepare", "send 01", "cancel"), link.calls)
     }
 
-    /**
-     * Records what the controller asks for and never confirms a start. Preparing publishes a stale program step, as
-     * a report racing the start would: a controller already listening would take it as confirmation.
-     */
+    /** A readable, safe slot that never confirms a start; preparation publishes a stale step. */
     private class ScriptedLink(private val holdStart: Boolean = false) : BedJetLink {
         val calls = mutableListOf<String>()
         private val stale = io.github.willzy12h.nocturne.core.protocol.DeviceStatus(
@@ -197,14 +194,14 @@ class ControllerTest {
             status.value = stale
         }
         override fun cancelPreparedStart() { calls += "cancel" }
-        override suspend fun query(request: Int) = ByteArray(0)
+        override suspend fun query(request: Int) = Codec.writeProgram(2,
+            listOf(ProgramStep(Mode.COOL, 5, 50, 0, 10))).single().drop(2).toByteArray()
     }
 
     /** Reports status a moment after it changes, as the real unit's notifications do. */
     private class LaggingLink(private val inner: DemoBedJet, scope: kotlinx.coroutines.CoroutineScope) : BedJetLink by inner {
         private val lagged = kotlinx.coroutines.flow.MutableStateFlow(inner.status.value)
         override val status: kotlinx.coroutines.flow.StateFlow<io.github.willzy12h.nocturne.core.protocol.DeviceStatus?> = lagged
-
         init {
             scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
                 inner.status.collect { kotlinx.coroutines.delay(300); lagged.value = it }
@@ -220,5 +217,4 @@ class ControllerTest {
             inner.send(copy)
         }
     }
-
 }

@@ -59,7 +59,8 @@ class TruthfulOutcomesTest {
         }, now = now) } }
         g.clock = clock
         context.graph.clock = clock
-        g.repository.updateSettings { it.copy(demoMode = true) }
+        // A simulated restart retains the fixture's persisted real/demo selection.
+        if (!::graph.isInitialized) g.repository.updateSettings { it.copy(demoMode = true) }
         return g
     }
     private suspend fun start(): ActiveNight {
@@ -280,6 +281,7 @@ class TruthfulOutcomesTest {
     }
 
     @Test fun anUnknownBoostEndsWithItsNightAndIsNotReportedForTheNext() = runBlocking {
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val n = start(); advance(30)
         beforeSend = { if (it[0] == 0x01.toByte() && it[1].toInt() and 0xff in 0x80..0x82) throw IOException("GATT write lost") }
         assertEquals(OutcomeKind.UNKNOWN, graph.actions.execute(graph.actions.capture(NightActions.Command.BOOST)
@@ -308,6 +310,7 @@ class TruthfulOutcomesTest {
     // IR-23
 
     @Test fun anInterruptedFirstStartKeepsItsHistory() = runBlocking {
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         beforeSend = { if (it[0] == 0x40.toByte()) throw kotlinx.coroutines.CancellationException("process dies") }
         try { start(); fail("cancel expected") } catch (_: kotlinx.coroutines.CancellationException) {}
         beforeSend = {}

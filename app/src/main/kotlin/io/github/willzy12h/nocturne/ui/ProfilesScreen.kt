@@ -15,6 +15,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -32,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -76,8 +80,11 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             items(profiles, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }
                 val copyName = stringResource(R.string.profiles_copy_name, profile.name)
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = MaterialTheme.colorScheme.onSurface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(profile.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                             if (settings.resolveTonightChoice(model.now())?.profileId == profile.id) Text(stringResource(R.string.profiles_tonight), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
@@ -89,7 +96,10 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(describe(profile), style = MaterialTheme.typography.bodySmall)
-                        model.previewPlan(profile).getOrNull()?.let { NightCurve(it) }
+                        model.previewPlan(profile).getOrNull()?.let {
+                            NightTimeline(it, wake.origin, settings.fahrenheit,
+                                modifier = Modifier.testTag("profile-timeline-${profile.id}"))
+                        }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = { model.updateSettings { it.chooseTonight(profile.id, model.now()) } }) { Text(stringResource(R.string.profiles_use_tonight)) }
                             TextButton(onClick = { onEdit(profile) }) { Text(stringResource(R.string.action_edit)) }

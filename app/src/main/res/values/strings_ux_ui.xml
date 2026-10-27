@@ -25,5 +25,5 @@
     <string name="ux_current_phase">Current phase: %1$s</string>
     <string name="ux_release_help">Release the connection so another phone can use this BedJet. This does not turn it off.</string>
     <string name="settings_preset_unsupported">This saved action uses unsupported settings. Choose a mode below to repair it.</string>
-    <string name="settings_preset_quick_unsupported">This preset is unsupported by the %1$s Quick button. Choose a supported mode below to use that button.</string>
+    <string name="settings_preset_quick_unsupported">The legacy %1$s shortcut or widget cannot use this preset. The mode buttons use Quick defaults.</string>
 </resources>

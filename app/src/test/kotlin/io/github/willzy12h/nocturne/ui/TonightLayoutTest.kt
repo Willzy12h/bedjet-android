@@ -35,13 +35,13 @@ class TonightLayoutTest {
         val quick = ui.compose.onNode(hasText(ui.s(R.string.tonight_quick)) and hasClickAction())
         quick.assertIsDisplayed().performClick()
         ui.waitUntil { saved().contains("\"quickControlsCollapsed\":true") }
-        ui.compose.onNode(hasText(ui.s(R.string.feature_warm)) and hasClickAction()).assertDoesNotExist()
+        ui.compose.onNodeWithTag("quick-mode-HEAT").assertDoesNotExist()
         tab(R.string.tab_settings); tab(R.string.tab_tonight)
-        ui.compose.onNode(hasText(ui.s(R.string.feature_warm)) and hasClickAction()).assertDoesNotExist()
-        quick.performClick()
+        ui.compose.onNodeWithTag("quick-mode-HEAT").assertDoesNotExist()
+        quick.performScrollTo().performClick()
         ui.waitUntil { !ui.graph.repository.settings.value.quickControlsCollapsed }
-        val warm = ui.compose.onNode(hasText(ui.s(R.string.feature_warm)) and hasClickAction())
-        warm.assertIsDisplayed()
+        val warm = ui.compose.onNodeWithTag("quick-mode-HEAT")
+        warm.performScrollTo().assertIsDisplayed()
         val section = ui.compose.onNodeWithTag("tonight-section-night").getUnclippedBoundsInRoot()
         assertTrue(warm.getUnclippedBoundsInRoot().bottom < section.top)
     }

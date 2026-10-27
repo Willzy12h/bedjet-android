@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -29,12 +30,14 @@ import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.deviceId
-import io.github.willzy12h.nocturne.core.store.Release
 import io.github.willzy12h.nocturne.core.store.Settings
+import io.github.willzy12h.nocturne.core.store.BackupException
+import io.github.willzy12h.nocturne.core.store.BackupFailure
+import io.github.willzy12h.nocturne.data.ImportPreview
+import io.github.willzy12h.nocturne.data.RestoreUnfinished
 import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.data.MiddleSuggestion
 import io.github.willzy12h.nocturne.data.MorningCheckIn
-import io.github.willzy12h.nocturne.core.store.UpdateChecker
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.AlarmExplanation
@@ -53,12 +56,11 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -71,11 +73,10 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import java.net.HttpURLConnection
-import java.net.URL
 import java.time.ZonedDateTime
 
 /** The screens' view of the app: stored data, the live BedJet, and the actions behind every button. */
@@ -86,6 +87,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val profiles = repo.profiles
     val settings = repo.settings
+    private val _setupChecklistOpen = MutableStateFlow(false)
+    val setupChecklistOpen = _setupChecklistOpen.asStateFlow()
+    private val _setupChecklistRequest = MutableStateFlow(0)
+    val setupChecklistRequest = _setupChecklistRequest.asStateFlow()
+    fun openSetupChecklist() {
+        updateSettings { it.copy(setupDismissedOptional = emptySet()) }
+        _setupChecklistOpen.value = true
+        _setupChecklistRequest.value += 1
+    }
+    fun closeSetupChecklist() { _setupChecklistOpen.value = false }
+    /** Name replies are independent of status receipts; both sources remain bound to their own device. */
+    val selectedBedJetName = combine(settings, graph.bleLink.verifiedNames, graph.bleLink.displayNames) { s, verified, displayed ->
+        if (s.demoMode) null else s.targetDevice?.let { target ->
+            verified?.takeIf { it.first == target }?.second ?: displayed?.takeIf { it.first == target }?.second
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, bedJetName())
     val history = repo.history.map { records -> records.filterNot { it.isTestRun } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, repo.history.value.filterNot { it.isTestRun })
     fun morningCheckIn(nightId: String): MorningCheckIn? = repo.morningCheckIn(nightId)
@@ -113,6 +130,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val activeNight = repo.activeNight
     val slotBackups = repo.slotBackups
     val snapshots = repo.snapshotList
+    private val _importPreview = MutableStateFlow<ImportPreview?>(null)
+    val importPreview: StateFlow<ImportPreview?> = _importPreview.asStateFlow()
+    private val _importApplying = MutableStateFlow(false)
+    val importApplying: StateFlow<Boolean> = _importApplying.asStateFlow()
+    private var importGeneration = 0L
+    private var importSessionRevision = repo.sessionRevision.value
     val notices = repo.notices
     val unreadable = repo.unreadable
     /** A restore still not finished on disk; the banner says so instead of "set aside" (P5). */
@@ -132,8 +155,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Whether the displayed value came from the selected target's current visible connection. */
     val hasLiveStatus: StateFlow<Boolean> = _hasLiveStatus.asStateFlow()
     /** Retain the selected target's last display while hidden/reconnecting; only visible screens collect live data.
-     * Control fields stay live; actual/ambient sensor readings update at most once a second. */
+     * Control fields stay live; sensor changes of at least half a degree publish at most every 30 seconds. */
     val status: StateFlow<DeviceStatus?> = repo.settings.map { it.deviceId() }.distinctUntilChanged().flatMapLatest { target ->
+        // These survive a visibility change, but never a selected-target change.
+        var lastSensors: Pair<Int, Int>? = null
+        var lastSensorAt = 0L
         visible.flatMapLatest { shown ->
             if (!shown) {
                 _hasLiveStatus.value = false
@@ -141,10 +167,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 val live = graph.link.sourcedStatus.map { displayedStatus(it, target) }
                     .onEach { if (it == null) _hasLiveStatus.value = false }
-                val temperatures = live.filterNotNull().map { it.actualTemperature to it.ambientTemperature }
-                    .distinctUntilChanged().conflate().transform<Pair<Int, Int>, Pair<Int, Int>> {
-                        emit(it)
-                        delay(1_000)
+                val temperatures = live.map { it?.let { s -> s.actualTemperature to s.ambientTemperature } }
+                    .distinctUntilChanged().transformLatest<Pair<Int, Int>?, Pair<Int, Int>> { sensors ->
+                        // A retired connection cancels its queued sample without erasing the display cache.
+                        if (sensors == null) return@transformLatest
+                        val previous = lastSensors
+                        if (previous != null) emit(previous)
+                        if (previous == sensors) return@transformLatest
+                        if (previous != null) delay((lastSensorAt + 30_000 - SystemClock.elapsedRealtime()).coerceAtLeast(0))
+                        // Protocol sensor values are half-degrees: one unit is the 0.5 °C threshold.
+                        val next = if (previous == null) sensors else
+                            (if (kotlin.math.abs(sensors.first - previous.first) >= 1) sensors.first else previous.first) to
+                            (if (kotlin.math.abs(sensors.second - previous.second) >= 1) sensors.second else previous.second)
+                        lastSensors = next
+                        lastSensorAt = SystemClock.elapsedRealtime()
+                        emit(next)
                     }
                 combine(live, temperatures) { current, (actual, ambient) ->
                     current?.copy(actualTemperature = actual, ambientTemperature = ambient)
@@ -194,6 +231,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch {
+            repo.sessionRevision.collect { revision ->
+                if (revision != importSessionRevision) cancelImport()
+            }
+        }
+        viewModelScope.launch {
             repo.settings.map { it.demoMode }.distinctUntilChanged().collect {
                 if (screenVisible) refreshBluetooth()
             }
@@ -213,16 +255,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val nextAlarm: StateFlow<AlarmSource.NextAlarm?> = _nextAlarm.asStateFlow()
     private val _alarmCheck = MutableStateFlow<String?>(null)
     val alarmCheck: StateFlow<String?> = _alarmCheck.asStateFlow()
-    private val _release = MutableStateFlow<Release?>(null)
-    val release: StateFlow<Release?> = _release.asStateFlow()
 
     val version: String = BuildConfig.VERSION_NAME
 
     /** The app clock's current time. */
     fun now(): ZonedDateTime = graph.now()
-    var updateToken: String
-        get() = repo.updateToken
-        set(value) { repo.updateToken = value }
 
     // Screen lifecycle: hold the BedJet while the app is on screen so the controls are live.
 
@@ -243,7 +280,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             graph.actions.reconcile()
             if (graph.actions.retimePending) io.github.willzy12h.nocturne.service.BedJetService.start(getApplication(), NightActions.Command.RETRY_RETIME)
         }
-        maybeAutoCheckUpdates()
     }
 
     fun onScreenHidden() {
@@ -388,6 +424,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             confirms = { it.mode == mode && (request.expected == null || it.extra?.programStep == 0) }) { it.setMode(mode) } }
     }
 
+    internal fun remoteDuration(label: String, request: CommandRequest) = act {
+        graph.actions.remoteDuration(label, request.copy(origin = CommandOrigin.APP))
+    }
+
     /** A Remote control: sent straight to the BedJet. */
     fun remote(label: String, endsNight: Boolean = false, affectsProgramme: Boolean = false,
         confirms: ((io.github.willzy12h.nocturne.core.protocol.DeviceStatus) -> Boolean)? = null,
@@ -433,6 +473,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
 
     private fun act(hardware: Boolean = true, deferBluetoothCheck: Boolean = false, work: suspend () -> CommandOutcome) {
+        // A tap is pending before its coroutine can wait for earlier saves or reach the service/owner.
+        val admission = repo.operationAdmission.tryCommand() ?: run {
+            report(refusal(text(R.string.import_command_blocked)))
+            return
+        }
         val pending = lastSave
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
         val feedback = if (hardware) tapHaptics.capture() else null
@@ -462,8 +507,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 finally { _busy.value = false }
                 feedback?.complete(outcome)
                 report(outcome)
-            } finally { radio?.close(); feedback?.close() }
-        }
+            } finally { radio?.close(); feedback?.close(); admission.close() }
+        }.invokeOnCompletion { admission.close() }
     }
 
     // Profiles, settings, backups
@@ -483,8 +528,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         withContext(Dispatchers.Main) { refreshAlarm(); report(outcome) }
     }
 
-    fun setTonightWake(wake: ZonedDateTime?) {
-        val expected = activeNight.value?.identity
+    /** A native picker retains the displayed night, even if another night starts before its approval. */
+    fun setTonightWake(wake: ZonedDateTime?,
+        expected: io.github.willzy12h.nocturne.core.night.NightIdentity? = activeNight.value?.identity) {
         act(hardware = expected != null) {
             if (activeNight.value?.identity != expected) refusal(text(R.string.runtime_wake_night_changed))
             else graph.actions.setWakeOverride(wake, expected)
@@ -511,7 +557,67 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit(text(R.string.runtime_snapshot_saved)) }
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
-    fun restoreSnapshot(id: String) = save { _messages.tryEmit(snapshotRestoreMessage(text(R.string.runtime_snapshot_restored), text(R.string.runtime_snapshot_unreadable)) { repo.restoreSnapshot(id) }) }
+    fun restoreSnapshot(id: String) = stageImport { repo.previewSnapshot(id) }
+
+    private fun stageImport(read: suspend () -> ImportPreview?) {
+        if (_importApplying.value) return
+        val generation = ++importGeneration
+        val sessionRevision = repo.sessionRevision.value
+        importSessionRevision = sessionRevision
+        _importPreview.value = null
+        save {
+            try {
+                val preview = read()
+                if (generation != importGeneration || sessionRevision != repo.sessionRevision.value) return@save
+                _importPreview.value = preview
+                _messages.tryEmit(text(if (preview == null) R.string.runtime_snapshot_unreadable else R.string.import_review_ready))
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                if (generation == importGeneration && sessionRevision == repo.sessionRevision.value)
+                    _messages.tryEmit(importError(e))
+            }
+        }
+    }
+
+    fun cancelImport() {
+        if (_importApplying.value) return
+        importGeneration++
+        _importPreview.value = null
+    }
+
+    fun confirmImport(preview: ImportPreview) {
+        if (_importPreview.value !== preview || importSessionRevision != repo.sessionRevision.value) {
+            cancelImport()
+            _messages.tryEmit(text(R.string.import_preview_changed))
+            return
+        }
+        if (_importApplying.value || !preview.canApply) return
+        _importApplying.value = true
+        save {
+            try {
+                repo.applyImport(preview)
+                _importPreview.value = null
+                _messages.tryEmit(text(R.string.runtime_backup_restored))
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                if (e is BackupException && e.failure == BackupFailure.CHANGED) _importPreview.value = null
+                _messages.tryEmit(importError(e))
+            } finally { _importApplying.value = false }
+        }
+    }
+
+    private fun importError(error: Exception): String = when (error) {
+        is RestoreUnfinished -> error.message ?: text(R.string.runtime_read_failed)
+        is BackupException -> text(when (error.failure) {
+            BackupFailure.BUSY -> R.string.import_busy
+            BackupFailure.CHANGED -> R.string.import_preview_changed
+            BackupFailure.NEWER_SCHEMA -> R.string.import_newer
+            BackupFailure.TOO_LARGE -> R.string.import_too_large
+            BackupFailure.DAMAGED -> R.string.import_damaged
+            BackupFailure.INVALID -> R.string.import_invalid
+        })
+        else -> text(R.string.runtime_read_failed)
+    }
 
     fun export(uri: android.net.Uri) {
         graph.scope.launch {
@@ -521,7 +627,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Writes the diagnostics file the person chose (NightActions.diagnostics: no update token). */
+    /** Writes the diagnostics file the person chose (NightActions.diagnostics: no private preferences). */
     fun exportDiagnostics(uri: android.net.Uri,
         open: ((android.net.Uri) -> java.io.OutputStream?)? = null) {
         val app = getApplication<Application>()
@@ -533,13 +639,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun import(uri: android.net.Uri) {
-        graph.scope.launch {
-            runCatching { repo.restore(repo.importFrom(uri)) }
-                .onSuccess { _messages.tryEmit(text(R.string.runtime_backup_restored)) }
-                .onFailure { _messages.tryEmit(it.message ?: text(R.string.runtime_read_failed)) }
-        }
-    }
+    fun import(uri: android.net.Uri) = stageImport { repo.previewImport(repo.importFrom(uri)) }
 
     /** The latest save, which later saves and commands wait for. Only touched on the main thread. */
     private var lastSave: Job? = null
@@ -560,8 +660,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun forgetBedJet() = act(hardware = false) { graph.actions.forgetTarget() }
 
+    private var discoveryJob: Job? = null
+
     fun discoverBedJets() {
-        viewModelScope.launch {
+        if (repo.settings.value.demoMode) {
+            _messages.tryEmit(text(R.string.gpt12_demo_pair_help))
+            return
+        }
+        if (discoveryJob?.isActive == true) return
+        discoveryJob = viewModelScope.launch {
             _discovering.value = true
             _foundBedJets.value = emptyList()
             try { _foundBedJets.value = graph.bleLink.discover(10_000) }
@@ -572,51 +679,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectBedJet(address: String) = act(hardware = false) {
-        graph.actions.selectTarget("ble:$address", useRealDevice = true)
-    }
-
-    /** Setup's separate "Use demo instead": Demo on, the real target left as it is (null stays null). */
-    fun useDemo() = act(hardware = false) { graph.actions.setDemoMode(true) }
-
-    fun runSetupFanCheck() = act { graph.actions.setupFanCheck() }
-
-    fun bedJetName(): String? = if (settings.value.demoMode) "BEDJET-DEMO" else graph.bleLink.deviceName
-
-    // Updates
-
-    fun checkForUpdates(quiet: Boolean = false) {
-        graph.scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                runCatching {
-                    val connection = URL(UpdateChecker.latestUrl(settings.value.updateRepo)).openConnection() as HttpURLConnection
-                    connection.setRequestProperty("Accept", "application/vnd.github+json")
-                    repo.updateToken.takeIf { it.isNotBlank() }?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
-                    connection.connectTimeout = 10_000
-                    connection.readTimeout = 10_000
-                    when (val code = connection.responseCode) {
-                        200 -> UpdateChecker.parseLatest(connection.inputStream.bufferedReader().readText())
-                        404 -> error(text(R.string.runtime_update_no_release))
-                        else -> error(text(R.string.runtime_update_http, code))
-                    }
-                }
-            }
-            getApplication<Application>().getSharedPreferences("updates", 0).edit().putLong("lastCheck", graph.clock.millis()).apply()
-            result.onSuccess { latest ->
-                if (latest != null && UpdateChecker.isNewer(latest.tag, version)) {
-                    _release.value = latest
-                    if (quiet) Notifications.showUpdate(getApplication(), latest.tag, latest.pageUrl)
-                } else if (!quiet) _messages.tryEmit(text(R.string.runtime_update_latest, version))
-            }.onFailure { if (!quiet) _messages.tryEmit(text(R.string.runtime_update_failed, it.message.toString())) }
+        graph.actions.selectTarget("ble:$address", useRealDevice = true).also {
+            if (it.succeeded && screenVisible) graph.sessions.reconnect()
         }
     }
 
-    fun dismissRelease() { _release.value = null }
-
-    private fun maybeAutoCheckUpdates() {
-        if (!settings.value.autoUpdateCheck) return
-        val last = getApplication<Application>().getSharedPreferences("updates", 0).getLong("lastCheck", 0)
-        if (graph.clock.millis() - last > 7 * 24 * 3600 * 1000L) checkForUpdates(quiet = true)
+    /** A separate in-memory session, entered only after any real discovery has closed. */
+    fun useDemo() = act(hardware = false) {
+        discoveryJob?.cancelAndJoin()
+        graph.actions.setDemoMode(true).also {
+            if (it.succeeded && screenVisible) graph.sessions.reconnect()
+        }
     }
+
+    fun exitDemo() = act(hardware = false) {
+        graph.actions.setDemoMode(false).also {
+            if (it.succeeded && screenVisible) graph.sessions.reconnect()
+        }
+    }
+
+    fun runSetupFanCheck() = act { graph.actions.setupFanCheck() }
+
+    fun bedJetName(): String? = if (settings.value.demoMode) "BEDJET-DEMO" else settings.value.targetDevice?.let {
+        graph.bleLink.deviceNameFor(it) ?: graph.bleLink.deviceName
+    }
+
+
 }
 
 /**
@@ -624,8 +712,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
  * failure is thrown, for the caller's "Couldn't save" message.
  */
 internal suspend fun snapshotRestoreMessage(
-    // The app passes runtime_snapshot_restored and runtime_snapshot_unreadable; these English defaults are for
-    // callers without a Context.
+    // Default messages support callers without a Context.
     restored: String = "Restored. What you had before is saved as a snapshot.",
     unreadable: String = "That snapshot couldn't be read.",
     restore: suspend () -> Boolean,

@@ -30,6 +30,7 @@ POLICY_ROWS = [
     ("service", ".service.BedJetService", False, None, "Internal owner of hardware operations; external apps cannot start or bind it directly."),
     ("receiver", ".platform.PlatformClockReceiver", False, None, "System boot/package/clock events remain deliverable; no ordinary external sender is needed."),
     ("receiver", ".platform.AutomationCancelReceiver", False, None, "Immutable in-app notification PendingIntents only."),
+    ("receiver", ".platform.AutoStartReceiver", False, None, "App-scheduled immutable automatic-start PendingIntent only; saved consent and target are checked before enqueueing."),
     ("receiver", ".platform.BedtimeReminderReceiver", False, None, "App-scheduled immutable reminder PendingIntent only."),
     ("receiver", ".night.NightAlarmReceiver", False, None, "App-scheduled identity-bearing night/retry PendingIntents only."),
     ("receiver", ".night.BootReceiver", False, None, "System boot/package/clock/exact-alarm events remain deliverable; application action allowlist is additional validation."),
@@ -43,7 +44,6 @@ POLICY_ROWS = [
     ("receiver", "androidx.glance.appwidget.MyPackageReplacedReceiver", False, None, "Glance package-update refresh from Android."),
     ("service", "androidx.glance.appwidget.GlanceRemoteViewsService", True, "android.permission.BIND_REMOTEVIEWS", "Glance collection RemoteViews binding for widget hosts; platform bind permission excludes ordinary callers."),
     ("service", "androidx.core.widget.RemoteViewsCompatService", False, "android.permission.BIND_REMOTEVIEWS", "Core RemoteViews compatibility binding; default nonexported with platform bind permission."),
-    ("service", "androidx.health.platform.client.impl.sdkservice.HealthDataSdkService", True, None, "Legacy Health Connect provider binds across packages; every SDK Binder operation verifies the calling UID owns com.google.android.apps.healthdata."),
     ("provider", "androidx.startup.InitializationProvider", False, None, "AndroidX startup initialization inside the app process; not a public data provider."),
     ("service", "androidx.room.MultiInstanceInvalidationService", False, None, "Room internal database invalidation across the app's own processes."),
     ("service", "androidx.work.impl.background.systemalarm.SystemAlarmService", False, None, "WorkManager internal scheduling service."),
@@ -70,10 +70,10 @@ def qualify(name, package=PACKAGE):
 POLICY = {(kind, qualify(name)): (exported, permission, reason)
           for kind, name, exported, permission, reason in POLICY_ROWS}
 REVIEWED_PERMISSIONS = {"android.permission." + name for name in (
-    "BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "BLUETOOTH_ADVERTISE", "POST_NOTIFICATIONS",
+    "BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "POST_NOTIFICATIONS",
     "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_CONNECTED_DEVICE", "SCHEDULE_EXACT_ALARM",
     "USE_EXACT_ALARM", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "RECEIVE_BOOT_COMPLETED",
-    "INTERNET", "health.READ_SLEEP", "WAKE_LOCK", "ACCESS_NETWORK_STATE",
+    "health.READ_SLEEP", "health.WRITE_SLEEP", "WAKE_LOCK", "ACCESS_NETWORK_STATE",
 )} | {PACKAGE + ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"}
 
 

@@ -19,7 +19,7 @@ import io.github.willzy12h.nocturne.night.CommandOrigin
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.health.connect.client.HealthConnectClient
+import io.github.willzy12h.nocturne.platform.HealthConnectAccess
 import androidx.health.connect.client.PermissionController
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
@@ -43,57 +43,60 @@ import kotlinx.coroutines.launch
     val settings by graph.repository.settings.collectAsState()
     val prefs=settings.platform
     val scope=rememberCoroutineScope()
+    if (!HealthConnectAccess.platformSupported) Text(stringResource(R.string.health_platform_required))
     var message by remember {mutableStateOf<String?>(null)}
-    var notificationChoice by remember {mutableStateOf<String?>(null)}
     fun change(transform:(PlatformSettings)->PlatformSettings) {
         scope.launch {
             try { graph.repository.updateSettings { it.copy(platform=transform(it.platform)) } }
             catch (_: Exception) {message=graph.context.getString(R.string.feature_saving_failed)}
         }
     }
-    fun enableNotificationFeature(which:String) {
+    fun changeHealthOverlay(enabled: Boolean) {
+        scope.launch {
+            try {
+                graph.repository.updateSettings { current ->
+                    if (current.demoMode) current else current.copy(platform = current.platform.copy(healthSleepOverlay = enabled))
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (_: Exception) { message = graph.context.getString(R.string.feature_saving_failed) }
+        }
+    }
+    fun enableReminder() {
         if (!PlatformNotifications.available(graph.context)) {message=graph.context.getString(R.string.feature_notification_permission);return}
-        change {if(which=="charger") it.copy(chargerAutoStart=true,chargerDevice=settings.targetDevice) else it.copy(bedtimeReminder=true)}
+        change {it.copy(bedtimeReminder=true)}
     }
     val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {granted->
-        if(granted) notificationChoice?.let(::enableNotificationFeature) else message=graph.context.getString(R.string.feature_notification_permission)
-    }
-    val advertisePermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if(granted) change {it.copy(lullHandover=true)} else message=graph.context.getString(R.string.feature_advertise_permission)
+        if(granted) enableReminder() else message=graph.context.getString(R.string.feature_notification_permission)
     }
     val healthPermission=rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) {granted->
-        change {it.copy(healthSleepOverlay=granted.containsAll(AndroidSleepSource.PERMISSIONS))}
-        if(!granted.containsAll(AndroidSleepSource.PERMISSIONS)) message=graph.context.getString(R.string.feature_health_permission)
+        if (!graph.repository.settings.value.demoMode && HealthConnectAccess.platformSupported) {
+            changeHealthOverlay(granted.containsAll(AndroidSleepSource.PERMISSIONS))
+            if(!granted.containsAll(AndroidSleepSource.PERMISSIONS)) message=graph.context.getString(R.string.feature_health_permission)
+        }
     }
-    fun notificationToggle(which:String,enabled:Boolean) {
-        if(!enabled) {change {if(which=="charger") it.copy(chargerAutoStart=false) else it.copy(bedtimeReminder=false)};return}
-        notificationChoice=which
+    fun reminderToggle(enabled:Boolean) {
+        if(!enabled) {change {it.copy(bedtimeReminder=false)};return}
         if(Build.VERSION.SDK_INT>=33 && graph.context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        else enableNotificationFeature(which)
+        else enableReminder()
     }
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        FeatureSwitch(stringResource(R.string.feature_reminders),prefs.bedtimeReminder) {notificationToggle("reminder",it)}
+        FeatureSwitch(stringResource(R.string.feature_reminders),prefs.bedtimeReminder) {reminderToggle(it)}
         if(prefs.bedtimeReminder) Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             Text(androidx.compose.ui.res.pluralStringResource(R.plurals.feature_reminder_minutes,prefs.reminderMinutes,prefs.reminderMinutes),Modifier.weight(1f))
             TextButton({change {it.copy(reminderMinutes=(it.reminderMinutes+5).coerceAtMost(120))}}) {Text(stringResource(R.string.feature_earlier))}
             TextButton({change {it.copy(reminderMinutes=(it.reminderMinutes-5).coerceAtLeast(0))}}) {Text(stringResource(R.string.feature_later))}
         }
-        FeatureSwitch(stringResource(R.string.feature_charger),prefs.chargerAutoStart,!settings.demoMode && settings.targetDevice!=null) {notificationToggle("charger",it)}
-        Text(stringResource(R.string.feature_charger_help),style=MaterialTheme.typography.bodySmall)
-        if(settings.demoMode || settings.targetDevice==null) Text(stringResource(R.string.feature_select_device),style=MaterialTheme.typography.bodySmall)
-        FeatureSwitch(stringResource(R.string.feature_health_title),prefs.healthSleepOverlay) {enabled->
-            if(!enabled) change {it.copy(healthSleepOverlay=false)}
-            else if(HealthConnectClient.getSdkStatus(graph.context)!=HealthConnectClient.SDK_AVAILABLE) message=graph.context.getString(R.string.feature_health_absent)
-            else healthPermission.launch(AndroidSleepSource.PERMISSIONS)
+        AutoStartSettingsSection(graph)
+        FeatureSwitch(stringResource(R.string.feature_health_title),prefs.healthSleepOverlay, !settings.demoMode) {enabled->
+            if (!graph.repository.settings.value.demoMode && HealthConnectAccess.platformSupported) {
+                if(!enabled) changeHealthOverlay(false)
+                else if(!HealthConnectAccess.available(graph.context)) message=HealthConnectAccess.unavailableMessage(graph.context)
+                else healthPermission.launch(AndroidSleepSource.PERMISSIONS)
+            }
         }
         Text(stringResource(R.string.feature_health_privacy),style=MaterialTheme.typography.bodySmall)
-        FeatureSwitch(stringResource(R.string.feature_lull),prefs.lullHandover) {enabled->
-            if(!enabled) change {it.copy(lullHandover=false)}
-            else if(graph.context.checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE)==PackageManager.PERMISSION_GRANTED) change {it.copy(lullHandover=true)}
-            else advertisePermission.launch(Manifest.permission.BLUETOOTH_ADVERTISE)
-        }
-        Text(stringResource(R.string.feature_lull_help),style=MaterialTheme.typography.bodySmall)
+        HealthExportSettingsSection(graph)
         message?.let {Text(it,color=MaterialTheme.colorScheme.error)}
     }
 }
@@ -130,10 +133,5 @@ import kotlinx.coroutines.launch
         if(asSettings) OutlinedButton(onClick=handover,enabled=!busy,modifier=Modifier.heightIn(min=48.dp)) {Text(label)}
         else DropdownMenuItem(text={Text(label)},enabled=!busy,onClick=handover)
     }
-    if(!asSettings && settings.platform.lullHandover) DropdownMenuItem(text={Text(stringResource(R.string.feature_request))},enabled=!busy,onClick={
-        work {
-            val request=graph.platform.handover.request()
-            if(request.succeeded) BedJetService.runOwned(graph.context, notifyFailures=false) {graph.platform.handover.takeBack()} else request
-        }
-    })
+
 }

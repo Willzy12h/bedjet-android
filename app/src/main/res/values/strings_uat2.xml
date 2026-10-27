@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="uat_connection_description">%1$s: %2$s</string>
+    <string name="uat_alarm_unidentified">Phone alarm (app not identified)</string>
+    <string name="uat_alarm_raw_creator">Raw alarm creator: %1$s</string>
+    <string name="uat_alarm_null_creator">&lt;null&gt;</string>
+    <string name="uat_setup_title">Setup checklist</string>
+    <string name="uat_setup_pair">Pair BedJet</string>
+    <string name="uat_setup_bluetooth">Bluetooth on and nearby-device access</string>
+    <string name="uat_setup_notifications">Notifications</string>
+    <string name="uat_setup_exact">Exact alarms</string>
+    <string name="uat_setup_battery">Battery unrestricted</string>
+    <string name="uat_setup_health">Health Connect (optional)</string>
+    <string name="uat_setup_widget">Home-screen widget (optional)</string>
+    <string name="uat_setup_complete">All required setup is complete.</string>
+    <string name="uat_setup_fix">Set up</string>
+    <string name="uat_setup_skip">Dismiss</string>
+    <string name="uat_setup_dismiss_item">Dismiss %1$s</string>
+    <string name="uat_setup_done">Done</string>
+    <string name="uat_setup_widget_help">Touch and hold your home screen, choose Widgets, then add a Nocturne widget.</string>
+    <string name="uat_setup_unavailable">This phone could not open that setting. Open the app’s settings to review it.</string>
+    <string name="uat_setup_demo">Exit Demo to set up a real BedJet.</string>
+    <string name="uat_quick_defaults">Quick defaults</string>
+    <string name="uat_quick_temp">%1$s %2$s</string>
+    <string name="uat_quick_minutes">%1$s %2$dm</string>
+    <string name="uat_quick_edit">Edit %1$s</string>
+    <string name="uat_quick_invalid">These saved values exceed the current safety limits. They have been kept; review and save safe values before using this action.</string>
+    <string name="uat_quick_summary">%1$s · Fan %2$d%% · %3$d minutes</string>
+    <string name="uat_quick_save">Save</string>
+    <string name="uat_quick_cancel">Cancel</string>
+    <string name="uat_quick_off_help">Off has no temperature, fan or duration. It always asks for confirmation during a tracked night.</string>
+    <string name="uat_connecting">Connecting…</string>
+</resources>

@@ -327,6 +327,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val start = async { runCatching { controller.startProgram(2) } }
         eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
@@ -387,6 +388,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val result = runCatching { controller.startProgram(2) { throw IllegalStateException("too late") } }
         assertTrue("$result", result.exceptionOrNull() is IllegalStateException)
@@ -401,6 +403,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         port.holdWrites = true
         val start = async { runCatching { controller.startProgram(2) } }
@@ -422,6 +425,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         var reported = false
         val start = async {
@@ -457,6 +461,7 @@ class GattLinkTest {
         link.connect()
         val port = fake.ports.single()
         port.holdWrites = true
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val start = async { runCatching { controller.startProgram(2) } }
         eventually { port.writes.any { it[0].toInt() == 0x08 } }
@@ -482,6 +487,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val start = async {
             runCatching {
@@ -503,6 +509,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val start = async {
             runCatching {
@@ -529,6 +536,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val first = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         var dropped = false
         val result = withTimeout(5_000) {
@@ -555,6 +563,7 @@ class GattLinkTest {
     fun aStartWithNoLiveSessionFailsRatherThanReconnecting() = runBlocking {
         link.connect()
         val first = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         var dropped = false
         val result = withTimeout(5_000) {

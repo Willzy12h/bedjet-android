@@ -104,7 +104,7 @@ class RepositoryTest {
 
     private val program = StoredProgram("original", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0)))
 
-    private fun backup(slot: Int, name: String, device: String = "ble:AA:BB") =
+    private fun backup(slot: Int, name: String, device: String = "ble:AA:BB:CC:DD:EE:FF") =
         SlotBackup(device, slot, StoredProgram(name, listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now.toString())
 
     @Test
@@ -280,31 +280,31 @@ class RepositoryTest {
     @Test
     fun theFirstOriginalOfASlotIsKeptOnRetry() = runBlocking {
         val repo = repository()
-        val first = repo.recordOriginalSlot("ble:AA:BB", 2, program)
-        assertEquals(SlotBackup("ble:AA:BB", 2, program, now.toString(), empty = false), first)
+        val first = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program)
+        assertEquals(SlotBackup("ble:AA:BB:CC:DD:EE:FF", 2, program, now.toString(), empty = false), first)
 
         // A retry finds the app's own program in the slot; the user's original stays.
-        val retry = repo.recordOriginalSlot("ble:AA:BB", 2, StoredProgram("Spring/Autumn", emptyList()))
+        val retry = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, StoredProgram("Spring/Autumn", emptyList()))
         assertEquals(first, retry)
-        assertEquals(first, repo.originalSlot("ble:AA:BB", 2))
-        assertEquals(first, repository().originalSlot("ble:AA:BB", 2))
+        assertEquals(first, repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
+        assertEquals(first, repository().originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
     }
 
     @Test
     fun anEmptySlotIsRecordedAsEmpty() = runBlocking {
         val repo = repository()
-        val stored = repo.recordOriginalSlot("ble:AA:BB", 0, null)
+        val stored = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 0, null)
         assertTrue(stored.empty)
         assertNull(stored.program)
-        assertEquals(stored, repository().originalSlot("ble:AA:BB", 0))
+        assertEquals(stored, repository().originalSlot("ble:AA:BB:CC:DD:EE:FF", 0))
     }
 
     @Test
     fun recordingAnOriginalThrowsWhenItCantBeSaved() {
         val repo = repository(writeFile = failingFor("slot-backups.json"))
-        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
-        assertNull(repo.originalSlot("ble:AA:BB", 2))
-        assertNull(repository().originalSlot("ble:AA:BB", 2))
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
+        assertNull(repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
+        assertNull(repository().originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
     }
 
     @Test
@@ -317,19 +317,19 @@ class RepositoryTest {
 
         val second = repository()
         assertTrue(second.unreadable.value.isEmpty())
-        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB", 2, program) } }
-        assertNull(second.originalSlot("ble:AA:BB", 2))
+        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
+        assertNull(second.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
         assertFalse(File(dir, "slot-backups.json").exists())
 
         // A restore with no original for this BedJet cannot silently authorise the current programme as original.
         second.restore(second.bundle())
-        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
         val recovered = backup(2, "known original")
         second.restore(second.bundle().copy(slotBackups = listOf(recovered)))
-        assertEquals(recovered.copy(imported = true), second.recordOriginalSlot("ble:AA:BB", 2, program))
-        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:CC:DD", 2, program) } }
-        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB", 1, program) } }
-        assertEquals(recovered.copy(imported = true), repository().recordOriginalSlot("ble:AA:BB", 2, program))
+        assertEquals(recovered.copy(imported = true), second.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program))
+        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:11:22:33:44:55:66", 2, program) } }
+        assertThrows(IOException::class.java) { runBlocking { second.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 1, program) } }
+        assertEquals(recovered.copy(imported = true), repository().recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program))
     }
 
     @Test
@@ -337,9 +337,9 @@ class RepositoryTest {
         val corrupt = "[{ broken"
         File(dir, "slot-backups.json").writeText(corrupt)
         val first = repository(writeFile = failingFor("slot-backups-integrity.json"))
-        assertThrows(IOException::class.java) { runBlocking { first.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertThrows(IOException::class.java) { runBlocking { first.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
         assertEquals(corrupt, File(dir, "slot-backups.json").readText())
-        assertThrows(IOException::class.java) { runBlocking { repository().recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertThrows(IOException::class.java) { runBlocking { repository().recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
     }
 
     @Test
@@ -350,20 +350,20 @@ class RepositoryTest {
         // A plain dismissal only hides the notice.
         repo.dismissUnreadable()
         assertTrue(repo.originalsBlocked.value)
-        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
 
         repo.dismissUnreadable(acceptLostOriginals = true)
         assertFalse(repo.originalsBlocked.value)
         assertFalse(File(dir, "slot-backups-integrity.json").exists())
         assertEquals("\"$now\"", File(dir, "slot-backups-loss-accepted.json").readText())
         // What the slot holds now is saved, marked as possibly the app's own programme.
-        val recorded = repo.recordOriginalSlot("ble:AA:BB", 2, program)
-        assertEquals(SlotBackup("ble:AA:BB", 2, program, now.toString(), uncertain = true), recorded)
+        val recorded = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program)
+        assertEquals(SlotBackup("ble:AA:BB:CC:DD:EE:FF", 2, program, now.toString(), uncertain = true), recorded)
 
         val restarted = repository()
         assertFalse(restarted.originalsBlocked.value)
-        assertEquals(recorded, restarted.originalSlot("ble:AA:BB", 2))
-        assertTrue(restarted.recordOriginalSlot("ble:AA:BB", 1, null).uncertain)
+        assertEquals(recorded, restarted.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
+        assertTrue(restarted.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 1, null).uncertain)
     }
 
     /** An original saved after the accepted loss may be the app's own programme, so a backup's exact one replaces it. */
@@ -372,16 +372,16 @@ class RepositoryTest {
         File(dir, "slot-backups.json").writeText("[{ broken")
         val repo = repository()
         repo.dismissUnreadable(acceptLostOriginals = true)
-        val unsure = repo.recordOriginalSlot("ble:AA:BB", 2, StoredProgram("Spring/Autumn", emptyList()))
-        val unsureOther = repo.recordOriginalSlot("ble:AA:BB", 1, null)
+        val unsure = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, StoredProgram("Spring/Autumn", emptyList()))
+        val unsureOther = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 1, null)
         assertTrue(unsure.uncertain)
 
         val known = backup(2, "known original")
         repo.restore(repo.bundle().copy(slotBackups = listOf(known)))
-        assertEquals(known.copy(imported = true), repo.originalSlot("ble:AA:BB", 2))
+        assertEquals(known.copy(imported = true), repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
         // A slot the backup has nothing for keeps what was saved.
-        assertEquals(unsureOther, repo.originalSlot("ble:AA:BB", 1))
-        assertEquals(known.copy(imported = true), repository().originalSlot("ble:AA:BB", 2))
+        assertEquals(unsureOther, repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 1))
+        assertEquals(known.copy(imported = true), repository().originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
     }
 
     @Test
@@ -390,24 +390,24 @@ class RepositoryTest {
         val repo = repository(deleteFile = { file -> if (file.name != "slot-backups-integrity.json") AtomicFile(file).delete() })
         assertThrows(IOException::class.java) { runBlocking { repo.dismissUnreadable(acceptLostOriginals = true) } }
         assertTrue(repo.originalsBlocked.value)
-        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
         assertTrue(repository().originalsBlocked.value)
     }
 
     /** A damaged record of the accepted loss is read as accepted now: later originals stay uncertain, older ones win. */
     @Test
     fun aDamagedLossRecordCountsFromNowAndIsReported() = runBlocking {
-        val earlier = SlotBackup("ble:AA:BB", 2, program, now.minusHours(1).toString(), uncertain = true)
+        val earlier = SlotBackup("ble:AA:BB:CC:DD:EE:FF", 2, program, now.minusHours(1).toString(), uncertain = true)
         File(dir, "slot-backups.json").writeText(BackupCodec.json.encodeToString(ListSerializer(SlotBackup.serializer()), listOf(earlier)))
         File(dir, "slot-backups-loss-accepted.json").writeText("{bad")
         val repo = repository()
         assertEquals(listOf("slot-backups-loss-accepted.json"), repo.unreadable.value)
         assertEquals("\"$now\"", File(dir, "slot-backups-loss-accepted.json").readText())
         assertTrue(dir.listFiles()!!.any { it.name.startsWith("slot-backups-loss-accepted.json.corrupt-") })
-        assertTrue(repo.recordOriginalSlot("ble:AA:BB", 1, null).uncertain)
+        assertTrue(repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 1, null).uncertain)
         // Saved before the time it is now read as, so a backup's record of the slot doesn't replace it.
         repo.restore(repo.bundle().copy(slotBackups = listOf(backup(2, "from a backup"))))
-        assertEquals(earlier, repo.originalSlot("ble:AA:BB", 2))
+        assertEquals(earlier, repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
     }
 
     @Test
@@ -415,7 +415,7 @@ class RepositoryTest {
         val repo = repository()
         repo.dismissUnreadable(acceptLostOriginals = true)
         assertFalse(File(dir, "slot-backups-loss-accepted.json").exists())
-        assertFalse(repo.recordOriginalSlot("ble:AA:BB", 2, program).uncertain)
+        assertFalse(repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program).uncertain)
     }
 
     @Test
@@ -425,7 +425,7 @@ class RepositoryTest {
         assertThrows(IOException::class.java) { runBlocking { repo.dismissUnreadable(acceptLostOriginals = true) } }
         assertTrue(repo.originalsBlocked.value)
         assertEquals(listOf("slot-backups.json"), repo.unreadable.value)
-        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
         assertTrue(repository().originalsBlocked.value)
     }
 
@@ -433,14 +433,14 @@ class RepositoryTest {
     fun demoAndRealOriginalsAreSeparate() = runBlocking {
         val repo = repository()
         val demo = repo.recordOriginalSlot("demo", 2, StoredProgram("demo", emptyList()))
-        val real = repo.recordOriginalSlot("ble:AA:BB", 2, program)
+        val real = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program)
         assertNotEquals(demo, real)
         assertEquals(demo, repo.originalSlot("demo", 2))
-        assertEquals(real, repo.originalSlot("ble:AA:BB", 2))
-        assertNull(repo.originalSlot("ble:CC:DD", 2))
+        assertEquals(real, repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
+        assertNull(repo.originalSlot("ble:11:22:33:44:55:66", 2))
 
         backup(2, "another demo", "demo").let { repo.recordOriginalSlot(it.deviceId, it.slot, it.program) }
-        assertEquals(real, repo.originalSlot("ble:AA:BB", 2))
+        assertEquals(real, repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
     }
 
     // Originals saved before devices were recorded
@@ -462,26 +462,26 @@ class RepositoryTest {
         link.connect()
         val runner = NightRunner(BedJetController(link) { now }) { now }
 
-        repo.originalsFor("ble:AA:BB")
-        val change = (runner.prepareStart(Presets.springAutumn, null, 2, "ble:AA:BB", null, null) as io.github.willzy12h.nocturne.core.night.Preparation.Ready).change
+        repo.originalsFor("ble:AA:BB:CC:DD:EE:FF")
+        val change = (runner.prepareStart(Presets.springAutumn, null, 2, "ble:AA:BB:CC:DD:EE:FF", null, null) as io.github.willzy12h.nocturne.core.night.Preparation.Ready).change
         runner.apply(change, { repo.activeNight.value }, publish = { repo.setActiveNight(it) }, beforeWrite = {
-            repo.recordOriginalSlot("ble:AA:BB", 2, BedJetController(link) { now }.storedPrograms()[2])
+            repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, BedJetController(link) { now }.storedPrograms()[2])
         })
-        val adopted = migrated.copy(deviceId = "ble:AA:BB")
-        assertEquals(adopted, repo.originalSlot("ble:AA:BB", 2))
+        val adopted = migrated.copy(deviceId = "ble:AA:BB:CC:DD:EE:FF")
+        assertEquals(adopted, repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
         assertEquals(listOf(adopted), repo.slotBackups.value)
         assertEquals(listOf(adopted), repository().slotBackups.value)
         // Only one BedJet can have been the one it came from.
-        assertNull(repo.originalSlot("ble:CC:DD", 2))
+        assertNull(repo.originalSlot("ble:11:22:33:44:55:66", 2))
     }
 
     @Test
     fun recordingAnOriginalAdoptsAMigratedOne() = runBlocking {
         version1Original()
         val repo = repository()
-        assertEquals(migrated, repo.originalSlot("ble:AA:BB", 2))
-        val stored = repo.recordOriginalSlot("ble:AA:BB", 2, StoredProgram("Spring/Autumn", emptyList()))
-        assertEquals(migrated.copy(deviceId = "ble:AA:BB"), stored)
+        assertEquals(migrated, repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
+        val stored = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, StoredProgram("Spring/Autumn", emptyList()))
+        assertEquals(migrated.copy(deviceId = "ble:AA:BB:CC:DD:EE:FF"), stored)
         assertEquals(listOf(stored), repository().slotBackups.value)
     }
 
@@ -503,9 +503,9 @@ class RepositoryTest {
         repo.restore(repo.bundle().copy(slotBackups = listOf(backup(2, "nocturne's"))))
         assertEquals(listOf(migrated), repo.slotBackups.value)
 
-        repo.originalsFor("ble:AA:BB")
+        repo.originalsFor("ble:AA:BB:CC:DD:EE:FF")
         repo.restore(repo.bundle().copy(slotBackups = listOf(migrated.copy(program = StoredProgram("older", emptyList())))))
-        assertEquals(listOf(migrated.copy(deviceId = "ble:AA:BB")), repo.slotBackups.value)
+        assertEquals(listOf(migrated.copy(deviceId = "ble:AA:BB:CC:DD:EE:FF")), repo.slotBackups.value)
     }
 
     // Import
@@ -513,7 +513,7 @@ class RepositoryTest {
     private fun importable() = BackupBundle(
         createdAt = now.minusDays(2).toString(),
         profiles = listOf(Presets.winterWarm.copy(id = "imported", name = "Imported")),
-        settings = Settings(fahrenheit = true, demoMode = false, targetDevice = "ble:11:22", workingSlot = 0),
+        settings = Settings(fahrenheit = true, demoMode = false, targetDevice = "ble:22:33:44:55:66:77", workingSlot = 0),
         history = listOf(NightRecord("n1", "imported", "Imported", now.minusDays(3).toString(), now.minusDays(3).plusHours(8).toString(), true)),
     )
 
@@ -534,11 +534,11 @@ class RepositoryTest {
     @Test
     fun aValidImportKeepsTheDeviceTokenAndNight() = runBlocking {
         val repo = repository()
-        repo.updateSettings { it.copy(demoMode = true, targetDevice = "ble:AA:BB") }
-        repo.updateToken = "ghp_secret"
+        repo.updateSettings { it.copy(demoMode = true, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
+        context.getSharedPreferences("secrets", Context.MODE_PRIVATE).edit().putString("updateToken", "ghp_secret").commit()
         val night = ActiveNight("night-1", "preset-summer", now.toString(), now.plusHours(8).toString(), false, 2, now.plusHours(7).toString(), now.plusHours(9).toString())
         repo.setActiveNight(night)
-        repo.recordOriginalSlot("ble:AA:BB", 2, program)
+        repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program)
 
         repo.restore(importable())
 
@@ -546,11 +546,11 @@ class RepositoryTest {
         assertTrue(repo.settings.value.fahrenheit)
         assertEquals(0, repo.settings.value.workingSlot)
         assertTrue(repo.settings.value.demoMode)
-        assertEquals("ble:AA:BB", repo.settings.value.targetDevice)
-        assertEquals("ghp_secret", repo.updateToken)
+        assertEquals("ble:AA:BB:CC:DD:EE:FF", repo.settings.value.targetDevice)
+        assertEquals("ghp_secret", context.getSharedPreferences("secrets", Context.MODE_PRIVATE).getString("updateToken", null))
         assertEquals(night, repo.activeNight.value)
         assertEquals(listOf("n1"), repo.history.value.map { it.id })
-        assertEquals(SlotBackup("ble:AA:BB", 2, program, now.toString()), repo.originalSlot("ble:AA:BB", 2))
+        assertEquals(SlotBackup("ble:AA:BB:CC:DD:EE:FF", 2, program, now.toString()), repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
 
         // What was there before is kept, and everything is on disk.
         val before = repo.snapshots.list().single { it.label == "Before import" }
@@ -733,12 +733,12 @@ class RepositoryTest {
     @Test
     fun restoreCannotImportAnotherPhonesSupervisedFanCheck() = runBlocking {
         val repo = repository()
-        repo.updateSettings { it.copy(targetDevice = "ble:AA:BB", setupFanCheckedDevice = "ble:AA:BB") }
-        repo.restore(importable().copy(settings = importable().settings.copy(setupFanCheckedDevice = "ble:11:22")))
+        repo.updateSettings { it.copy(targetDevice = "ble:AA:BB:CC:DD:EE:FF", setupFanCheckedDevice = "ble:AA:BB:CC:DD:EE:FF") }
+        repo.restore(importable().copy(settings = importable().settings.copy(setupFanCheckedDevice = "ble:22:33:44:55:66:77")))
 
-        assertEquals("ble:AA:BB", repo.settings.value.targetDevice)
-        assertEquals("ble:AA:BB", repo.settings.value.setupFanCheckedDevice)
-        assertEquals("ble:AA:BB", repository().settings.value.setupFanCheckedDevice)
+        assertEquals("ble:AA:BB:CC:DD:EE:FF", repo.settings.value.targetDevice)
+        assertEquals("ble:AA:BB:CC:DD:EE:FF", repo.settings.value.setupFanCheckedDevice)
+        assertEquals("ble:AA:BB:CC:DD:EE:FF", repository().settings.value.setupFanCheckedDevice)
     }
 
     @Test
@@ -828,12 +828,12 @@ class RepositoryTest {
         val repo = repository()
         // What the BedJet held, recorded as it was: hotter than the official app allows for Heat.
         val recorded = StoredProgram("bedjet", listOf(ProgramStep(Mode.HEAT, 5, 200, 1, 0)))
-        repo.recordOriginalSlot("ble:AA:BB", 2, recorded)
+        repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, recorded)
         repo.snapshotNow("Mine")
         val id = repo.snapshots.list().single { it.label == "Mine" }.id
 
         assertTrue(repo.restoreSnapshot(id))
-        assertEquals(recorded, repo.originalSlot("ble:AA:BB", 2)!!.program)
+        assertEquals(recorded, repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2)!!.program)
     }
 
     // A restore that can't be finished in process (IR-13)
@@ -857,9 +857,9 @@ class RepositoryTest {
         assertTrue(File(dir, "restore-pending.json").exists())
 
         disk.broken = false
-        val recorded = repo.recordOriginalSlot("ble:AA:BB", 2, program)
+        val recorded = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program)
         val restarted = repository()
-        assertEquals(recorded, restarted.originalSlot("ble:AA:BB", 2))
+        assertEquals(recorded, restarted.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
         // What was shown is what the next start loads.
         assertEquals(repo.bundle().copy(createdAt = ""), restarted.bundle().copy(createdAt = ""))
     }
@@ -870,10 +870,10 @@ class RepositoryTest {
         val repo = repository(writeFile = disk.write)
         assertThrows(IOException::class.java) { runBlocking { repo.restore(importable()) } }
 
-        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB", 2, program) } }
-        assertNull(repo.originalSlot("ble:AA:BB", 2))
+        assertThrows(IOException::class.java) { runBlocking { repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program) } }
+        assertNull(repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
         val restarted = repository()
-        assertNull(restarted.originalSlot("ble:AA:BB", 2))
+        assertNull(restarted.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
         assertEquals(repo.bundle().copy(createdAt = ""), restarted.bundle().copy(createdAt = ""))
     }
 
@@ -1080,16 +1080,16 @@ class RepositoryTest {
         val repo = repository()
         repo.restore(importable().copy(slotBackups = listOf(migrated)))
         assertTrue(repo.slotBackups.value.single().imported)
-        assertNull(repo.originalSlot("ble:AA:BB", 2))
-        assertTrue(repo.originalsFor("ble:AA:BB").isEmpty())
-        assertNull(repository().originalSlot("ble:AA:BB", 2))
+        assertNull(repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
+        assertTrue(repo.originalsFor("ble:AA:BB:CC:DD:EE:FF").isEmpty())
+        assertNull(repository().originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
 
         val current = StoredProgram("actual selected BedJet original", listOf(ProgramStep(Mode.HEAT, 7, 64, 0, 20)))
-        val recorded = repo.recordOriginalSlot("ble:AA:BB", 2, current)
+        val recorded = repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, current)
         assertEquals(current, recorded.program)
-        assertEquals("ble:AA:BB", recorded.deviceId)
+        assertEquals("ble:AA:BB:CC:DD:EE:FF", recorded.deviceId)
         assertFalse(recorded.imported)
-        assertEquals(recorded, repository().originalSlot("ble:AA:BB", 2))
+        assertEquals(recorded, repository().originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
     }
 
     @Test
@@ -1151,9 +1151,21 @@ class RepositoryTest {
     // Secrets
 
     @Test
-    fun theUpdateTokenIsNeverExportedOrSnapshotted() = runBlocking {
+    fun removingTheUpdaterDeletesItsLegacyTokenAndSchedule() {
+        val secrets = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
+        val updates = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
+        secrets.edit().putString("updateToken", "legacy-private-repository-token").putString("unrelated", "keep").commit()
+        updates.edit().putLong("lastCheck", 123L).commit()
+        repository()
+        assertFalse("Removed updater credentials must not remain on the phone", secrets.contains("updateToken"))
+        assertFalse("Removed updater schedule must not remain on the phone", updates.contains("lastCheck"))
+        assertEquals("keep", secrets.getString("unrelated", null))
+    }
+
+    @Test
+    fun aLegacyUpdateTokenIsNeverExportedOrSnapshotted() = runBlocking {
         val repo = repository()
-        repo.updateToken = "ghp_secret"
+        context.getSharedPreferences("secrets", Context.MODE_PRIVATE).edit().putString("updateToken", "ghp_secret").commit()
         assertFalse(BackupCodec.encode(repo.bundle()).contains("ghp_secret"))
         repo.snapshotNow("Mine")
         val file = File(dir, "export.json")

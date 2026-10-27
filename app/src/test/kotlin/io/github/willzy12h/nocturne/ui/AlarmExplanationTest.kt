@@ -47,7 +47,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
     enum class Scenario(val expected: String, val expectedWake: String = "07:00") {
         SAMSUNG("Next alarm 06:30 · Samsung Clock — used", "06:30"),
         NULL_DENIED("Alarm 06:30 ignored: source unknown — tap to change"),
-        NULL_ALLOWED("Next alarm 06:30 · Unknown app — used", "06:30"),
+        NULL_ALLOWED("Next alarm 06:30 · Phone alarm (app not identified) — used", "06:30"),
         APP_DENIED("Alarm 06:30 ignored: app not allowed — tap to change"),
         TOO_SOON("Alarm 23:00 ignored: too soon — normal nights need at least 1 hour — tap to change"),
         TOO_LATE("Alarm 16:31 ignored: too late — beyond tonight’s 18 hours — tap to change"),
