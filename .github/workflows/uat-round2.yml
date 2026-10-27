@@ -51,3 +51,20 @@ jobs:
             core/build/test-results/test/
             app/build/test-results/testDebugUnitTest/
           retention-days: 14
+      - name: Retained U06 normal and large-text captures
+        env:
+          SCREENSHOT_TAG: uat2
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --continue --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+            :app:testDebugUnitTest --tests '*U06NormalCaptureTest' --tests '*U06LargeTextCaptureTest' \
+            2>&1 | tee uat-u06-captures.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: uat-u06-captures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            uat-u06-captures.log
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/u06/
+          retention-days: 14
