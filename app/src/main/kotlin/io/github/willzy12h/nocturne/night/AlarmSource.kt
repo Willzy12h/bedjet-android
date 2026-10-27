@@ -14,24 +14,24 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
-/**
- * Android's next exposed alarm-clock event (from any setAlarmClock producer), never a list of alarms.
- * A rejected event cannot be skipped here to inspect a later clock alarm. The nullable show-intent creator
- * identifies that PendingIntent's original app; it is not permanent provenance for a saved night.
- */
+/** The next exposed alarm-clock event only. Display identification never widens acceptance. */
 object AlarmSource {
-    data class NextAlarm(val time: ZonedDateTime, val creator: String?, val counts: Boolean)
+    data class NextAlarm(val time: ZonedDateTime, val creator: String?, val counts: Boolean,
+        val identifiedCreator: String? = creator, val creatorUid: Int? = null)
 
     fun describe(context: Context, settings: Settings): NextAlarm? {
         val info = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock ?: return null
-        val creator = info.showIntent?.creatorPackage
+        val show = info.showIntent
+        val creator = show?.creatorPackage
+        val uid = show?.creatorUid
         val counts = io.github.willzy12h.nocturne.core.plan.AlarmPolicy(settings).acceptsSource(creator)
-        return NextAlarm(Instant.ofEpochMilli(info.triggerTime).atZone(ZoneId.systemDefault()), creator, counts)
+        return NextAlarm(Instant.ofEpochMilli(info.triggerTime).atZone(ZoneId.systemDefault()), creator, counts,
+            identifyAlarmCreator(context, creator, uid), uid)
     }
 
     fun next(context: Context, settings: Settings): ZonedDateTime? = describe(context, settings)?.takeIf { it.counts }?.time
 
-    /** Read the current Android event once and export the same decision/text shown beneath Tonight's wake. */
+    /** Export raw provenance and the separate display inference without querying or launching the show intent. */
     fun diagnostics(context: Context, settings: Settings, profile: Profile?, night: ActiveNight?, runtime: RuntimeState,
         status: NightStatus, now: ZonedDateTime): JsonObject {
         val explanation = AlarmExplanation.resolve(settings, profile, now, describe(context, settings), night, runtime, status)
@@ -44,6 +44,8 @@ object AlarmSource {
             put("wakeOrigin", JsonPrimitive(explanation.wakeOrigin?.name))
             put("alarmAt", JsonPrimitive(explanation.alarm?.time?.toString()))
             put("creatorPackage", JsonPrimitive(explanation.alarm?.creator))
+            put("creatorUid", explanation.alarm?.creatorUid?.let(::JsonPrimitive) ?: JsonNull)
+            put("identifiedCreatorPackage", JsonPrimitive(explanation.alarm?.identifiedCreator))
             put("sourceAccepted", explanation.sourceAccepted?.let(::JsonPrimitive) ?: JsonNull)
             put("nightStart", JsonPrimitive(explanation.nightStart.toString()))
             put("windowStart", JsonPrimitive(explanation.nightStart.plus(WakeResolver.MIN_NIGHT).toString()))
