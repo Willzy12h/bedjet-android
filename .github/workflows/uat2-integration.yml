@@ -7,7 +7,7 @@ jobs:
   verify:
     if: github.head_ref == 'gpt/nocturne-final' && github.event.pull_request.number == 4 && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -26,13 +26,12 @@ jobs:
         run: |
           python3 .github/uat2-integrate.py
           python3 .github/uat2-followup.py
-      - name: Behavioural UAT and security verification
+          python3 .github/uat2-complete.py
+      - name: Full core and app behavioural verification
         run: |
           set -o pipefail
           ./gradlew --no-daemon --continue --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
-            :core:test :app:testDebugUnitTest --tests '*Uat*' --tests '*SecurityTest' \
-            --tests '*TemporaryActionDispatchTest' --tests '*TemporaryActionBoundariesTest' \
-            --tests '*ActiveIndicatorTest' --tests '*TonightLayoutTest' 2>&1 | tee uat2-integration.log
+            :core:test :app:testDebugUnitTest 2>&1 | tee uat2-integration.log
       - name: Record tests
         if: always()
         run: |
