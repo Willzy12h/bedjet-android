@@ -101,3 +101,14 @@ edit(T+'ui/UatLayoutAndSetupTest.kt',
             "; states=" + setupSnapshot(app, model.settings.value, false))
         notificationNode.assertIsDisplayed()''')
 print('Applied UAT corrections while retaining receipt, layout, lifecycle and legacy-action assertions.')
+
+# The checklist promises notification permission, not just a manager switch. Android 13+ needs both.
+edit(A+'ui/SetupChecklistCard.kt',
+     'if (Notifications.canPost(context)) add(SetupItem.NOTIFICATIONS)',
+     '''if ((Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED) && Notifications.canPost(context)) add(SetupItem.NOTIFICATIONS)''')
+edit(T+'ui/UatLayoutAndSetupTest.kt',
+     '            shadowOf(app).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)',
+     '''            shadowOf(app).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+            assertFalse("Revoked runtime permission cannot count as complete",
+                io.github.willzy12h.nocturne.core.store.SetupItem.NOTIFICATIONS in setupSnapshot(app, model.settings.value, false).complete)''')
