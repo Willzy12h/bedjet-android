@@ -419,14 +419,16 @@ class Repository(
         update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { History.addEvent(it, recordId, event) }
 
     /** The ending journal can replay after a crash without duplicating an event or advancing its export version. */
-    suspend fun completeHistoryRecord(recordId: String, event: HistoryEvent, confirmedCompletionAt: String?) =
-        update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { records ->
-            if (_settings.value.demoMode) records else records.map { record ->
+    suspend fun completeHistoryRecord(recordId: String, event: HistoryEvent, confirmedCompletionAt: String?) = serially {
+            if (_settings.value.demoMode) return@serially
+            val before = _history.value
+            val records = before.map { record ->
                 if (record.id != recordId) record else {
                     val events = if (event in record.events) record.events else record.events + event
                     val completed = confirmedCompletionAt?.takeIf {
                         record.bedJetRunConfirmed && !record.isTestRun && !DeviceId.isDemo(record.deviceId) &&
-                            event.kind == EventKind.ENDED && events.none { e -> e.kind == EventKind.ERROR || e.kind == EventKind.STOPPED }
+                            event.kind == EventKind.ENDED && events.none { e -> e.kind in
+                                setOf(EventKind.ERROR, EventKind.STOPPED, EventKind.REMOTE_CHANGE, EventKind.RECOVERED) }
                     }
                     if (completed == null || completed == record.confirmedCompletionAt) record.copy(events = events)
                     else record.copy(events = events, confirmedCompletionAt = completed,
@@ -434,9 +436,28 @@ class Repository(
                             java.time.ZonedDateTime.parse(completed).toInstant().toEpochMilli(), 1))
                 }
             }
+            if (records != before) {
+                writeValue(HISTORY, ListSerializer(NightRecord.serializer()), records)
+                _history.value = records
+            }
         }
 
     private fun Long.saturatedIncrement(): Long = if (this == Long.MAX_VALUE) this else this + 1
+
+    /** Provider acknowledgement never marks a replacement/imported/edited record as the version just written. */
+    suspend fun markHealthExported(expected: NightRecord): Boolean = serially {
+        if (_settings.value.demoMode || !_settings.value.platform.healthSleepExport || expected.healthExportVersion <= 0)
+            return@serially false
+        val current = _history.value.firstOrNull { it.id == expected.id } ?: return@serially false
+        if (current.copy(healthExportedVersion = 0) != expected.copy(healthExportedVersion = 0) ||
+            !current.bedJetRunConfirmed || current.confirmedCompletionAt == null || _activeNight.value?.recordId == current.id)
+            return@serially false
+        if (current.healthExportedVersion == expected.healthExportVersion) return@serially true
+        val records = _history.value.map { if (it.id == current.id) it.copy(healthExportedVersion = expected.healthExportVersion) else it }
+        writeValue(HISTORY, ListSerializer(NightRecord.serializer()), records)
+        _history.value = records
+        true
+    }
 
     /** Feedback is linked to a completed record. Rating alone never edits a reusable profile. */
     suspend fun recordMorningCheckIn(nightId: String, comfort: MorningComfort): MorningCheckIn? = serially {

@@ -16,7 +16,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /** ELIGIBLE describes the current candidate, never proof that a running BedJet has applied it. */
-enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED, OUTSIDE_WINDOW, PROFILE_ALARMS_OFF, OVERRIDE, NO_PROFILE, TEST_RUN }
+enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED, OUTSIDE_WINDOW, PROFILE_ALARMS_OFF, OVERRIDE, NO_PROFILE, TEST_RUN, AUTO_START }
 enum class WakeExplanationState { PREVIEW, SAVED, PENDING, FAILED, UNKNOWN, MANUAL }
 enum class AlarmSettingsTarget { ALARM_SOURCES, PROFILE_WAKE, TONIGHT_WAKE }
 
@@ -48,6 +48,7 @@ data class AlarmExplanation(
             val reason = when {
                 night?.isTestRun == true -> AlarmReason.TEST_RUN
                 origin == WakeOrigin.OVERRIDE -> AlarmReason.OVERRIDE
+                origin == WakeOrigin.AUTO_START -> AlarmReason.AUTO_START
                 effectiveProfile == null -> AlarmReason.NO_PROFILE
                 !effectiveProfile.wakeSource.useAlarm -> AlarmReason.PROFILE_ALARMS_OFF
                 alarm == null -> AlarmReason.NO_ALARM
@@ -131,6 +132,7 @@ fun AlarmExplanation.description(context: Context): String {
         else -> when (wakeOrigin) {
             WakeOrigin.ALARM -> R.string.alarm_source_saved_alarm
             WakeOrigin.OVERRIDE -> R.string.alarm_source_saved_override
+            WakeOrigin.AUTO_START -> R.string.auto_start_saved_wake
             else -> R.string.alarm_source_saved_profile
         }
     }, wake)
@@ -138,6 +140,8 @@ fun AlarmExplanation.description(context: Context): String {
         text(R.string.short_test_saved, wake) else text(R.string.short_test_state, saved)
     // An override needs no current alarm; keep the saved state's confidence wording.
     if (reason == AlarmReason.OVERRIDE && alarm == null) return saved
+    if (reason == AlarmReason.AUTO_START) return if (alarm == null) saved else
+        text(R.string.alarm_source_saved_and_current, saved, text(R.string.alarm_source_current, next, source))
     val current = when {
         alarm == null -> text(R.string.alarm_source_none)
         // Manual/uncertain states can describe a current candidate, but cannot declare it applied or unapplied.

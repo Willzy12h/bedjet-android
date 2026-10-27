@@ -147,6 +147,18 @@ class BedJetService : Service() {
         const val SERVICE_MS = NightActions.OPERATION_MS + 10_000L
         /** The UI waits longer still: foreground promotion, the service bound and a margin. */
         const val RUN_OWNED_MS = SERVICE_MS + 15_000L
+        /** JobScheduler supplies the lifetime. This preserves service admission and budgets without an FGS exemption. */
+        suspend fun <T> runJobOwned(graph: io.github.willzy12h.nocturne.Graph, work: suspend () -> T): T {
+            val admission = graph.repository.operationAdmission.tryCommand()
+                ?: error(graph.context.getString(R.string.import_command_blocked))
+            try {
+                check(!graph.repository.settings.value.demoMode) { graph.context.getString(R.string.platform_demo_unavailable) }
+                val target = graph.repository.settings.value.deviceId()
+                return withContext(SubmissionTarget(target) + CommandOriginContext(CommandOrigin.CHARGER)) {
+                    withTimeout(SERVICE_MS) { work() }
+                }
+            } finally { admission.close() }
+        }
         private class Handoff(val target: String?, val notifyFailures: Boolean, val origin: CommandOrigin,
             val feedback: CommandFeedback?, val deferBluetoothCheck: Boolean, val work: suspend () -> Any?) {
             val result = CompletableDeferred<Any?>()

@@ -242,6 +242,8 @@ class RuntimeFixRoundTest {
     }
 
     @Test fun boostOffersTheProgrammeItActuallyDisplacesWithANewExpiry() = runBlocking {
+        // This asserts durable real History; the injected transport remains the simulator.
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val first = start()
         at("2026-10-21T23:00:00Z")
         val replacement = start()

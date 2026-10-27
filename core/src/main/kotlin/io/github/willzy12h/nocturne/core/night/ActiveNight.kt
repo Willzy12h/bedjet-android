@@ -7,7 +7,7 @@ import io.github.willzy12h.nocturne.core.store.RecordedStep
 import kotlinx.serialization.Serializable
 import java.time.ZonedDateTime
 
-@Serializable enum class WakeOrigin { ALARM, PROFILE_DEFAULT, OVERRIDE }
+@Serializable enum class WakeOrigin { ALARM, PROFILE_DEFAULT, OVERRIDE, AUTO_START }
 @Serializable enum class Confidence { CONFIRMED, PENDING, FAILED, UNKNOWN }
 @Serializable enum class ChangeKind { START, RETIME, REAPPLY, RESUME, STOP, MANUAL, TEMPORARY }
 @Serializable data class NightIdentity(val nightId: String, val revision: Int)

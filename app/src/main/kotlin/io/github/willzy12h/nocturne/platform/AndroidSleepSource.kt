@@ -33,6 +33,18 @@ class AndroidSleepSource(context: Context) : SleepSource {
     }
 }
 
+class AndroidSleepWriter(context: Context) : SleepSessionWriter {
+    private val client by lazy { HealthConnectClient.getOrCreate(context) }
+    override suspend fun permitted() = client.permissionController.getGrantedPermissions().containsAll(PERMISSIONS)
+    override suspend fun upsert(record: SleepSessionRecord) {
+        // clientRecordId/clientRecordVersion make a retry an upsert, including an already accepted equal version.
+        client.insertRecords(listOf(record))
+    }
+    companion object {
+        val PERMISSIONS = setOf(HealthPermission.getWritePermission(SleepSessionRecord::class))
+    }
+}
+
 /** Actual data-use rationale required by both the legacy provider and Android 14+ permission UI. */
 class HealthRationaleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

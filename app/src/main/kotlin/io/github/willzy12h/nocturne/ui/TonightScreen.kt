@@ -313,6 +313,7 @@ fun wakeOriginLabel(origin: WakeOrigin, style: WakeLabelStyle): String {
         WakeOrigin.ALARM -> if (style == WakeLabelStyle.HEADLINE) R.string.wake_origin_alarm_headline else R.string.wake_origin_alarm
         WakeOrigin.OVERRIDE -> if (compactTimeline) R.string.wake_origin_override_compact else R.string.wake_origin_override
         WakeOrigin.PROFILE_DEFAULT -> if (style == WakeLabelStyle.TIMELINE) R.string.wake_time else R.string.wake_origin_profile
+        WakeOrigin.AUTO_START -> R.string.wake_origin_auto_start
     })
 }
 

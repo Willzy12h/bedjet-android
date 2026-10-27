@@ -130,6 +130,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         if (night.identity != expected) return Preparation.Stale(expected, night.identity)
         val profile = night.profile ?: liveProfile ?: return Preparation.Refused("The saved profile is unavailable.")
         if (night.wakeOrigin == WakeOrigin.OVERRIDE) return Preparation.Refused("Tonight's wake override is unchanged.", unchanged = true)
+        if (night.wakeOrigin == WakeOrigin.AUTO_START) return Preparation.Refused("AUTO_START_WAKE_UNCHANGED", unchanged = true)
         val start = ZonedDateTime.parse(night.startedAt)
         val accepted = profile.wakeSource.useAlarm && AlarmPolicy(settings).accept(alarm, alarmOrigin, start)
         val wake = if (accepted) alarm!! else WakeResolver.nextOccurrence(profile.wakeSource.defaultWakeMinute, start.plus(WakeResolver.MIN_NIGHT))
@@ -173,7 +174,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
                 ?: TemporaryProgramme.Composition(base, null)
             val plan = composed.plan
             val intended = night.copy(profile = profile, profileId = profile.id, wakeAt = wake.toString(),
-                wakeFromAlarm = origin == WakeOrigin.ALARM, wakeOrigin = origin, revision = revision,
+                wakeFromAlarm = origin == WakeOrigin.ALARM || (origin == WakeOrigin.AUTO_START && night.wakeFromAlarm),
+                wakeOrigin = origin, revision = revision,
                 wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(), applied = AppliedProgram.from(plan, revision),
                 confidence = Confidence.CONFIRMED, pending = null, temporary = composed.temporary)
             Preparation.Ready(PreparedChange(plan, intended, night, request))
@@ -234,7 +236,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
      * Task 4 supplies repository callbacks; no callback is invoked for stale/expired requests. */
     suspend fun apply(change: PreparedChange, current: () -> ActiveNight?,
         commandVersion: () -> Long = { 0 }, publish: suspend (ActiveNight) -> Unit = {},
-        beforeWrite: suspend () -> Unit = {}, afterWrite: suspend () -> Unit = {}): NightMutation {
+        validate: () -> Unit = {}, beforeWrite: suspend () -> Unit = {}, afterWrite: suspend () -> Unit = {}): NightMutation {
         if (change.expectedCommand != null && change.expectedCommand != commandVersion()) return NightMutation.Stale(change.request.expected, current()?.identity)
         when (val check = Eligibility.check(current(), now(), change.request)) {
             is Eligibility.Stale -> return NightMutation.Stale(check.expected, check.actual)
@@ -262,14 +264,17 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             checkOwnership()
             // Backing up/persisting may have consumed the remaining request lifetime.
             checkExecutionTime(change)
+            validate()
             writeMayHaveHappened = true
             controller.store(StoredProgram(change.intended.profile!!.name, change.plan.programSteps), change.intended.slot)
             checkOwnership()
             checkExecutionTime(change)
+            validate()
             controller.startProgram(change.intended.slot, onStartAttempt = { startMayHaveHappened = true },
-                beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change) }) {
+                beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change); validate() }) {
                 checkOwnership()
                 checkExecutionTime(change)
+                validate()
             }
             publish(change.intended)
             return NightMutation.Applied(change.plan, change.intended)

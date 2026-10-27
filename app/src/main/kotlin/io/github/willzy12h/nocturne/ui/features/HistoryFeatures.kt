@@ -34,10 +34,13 @@ import java.time.format.DateTimeFormatter
     var identifiers by remember {mutableStateOf(false)}
     var status by remember {mutableStateOf<String?>(null)}
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {uri->
-        if(uri!=null) scope.launch {
+        if(uri!=null && !graph.repository.settings.value.demoMode) scope.launch {
             try {
+                if (graph.repository.settings.value.demoMode) return@launch
                 val csv=HistoryCsv.encode(graph.repository.history.value,settings.fahrenheit,identifiers)
-                withContext(Dispatchers.IO) {graph.context.contentResolver.openOutputStream(uri,"wt")?.use {it.write(csv.toByteArray(Charsets.UTF_8))}
+                withContext(Dispatchers.IO) {
+                    if (graph.repository.settings.value.demoMode) throw kotlinx.coroutines.CancellationException("Demo session")
+                    graph.context.contentResolver.openOutputStream(uri,"wt")?.use {it.write(csv.toByteArray(Charsets.UTF_8))}
                     ?: error("No output stream")}
                 status=graph.context.getString(R.string.feature_export_done)
             } catch(e:kotlinx.coroutines.CancellationException){throw e
@@ -45,10 +48,10 @@ import java.time.format.DateTimeFormatter
         }
     }
     Column {
-        TextButton({identifiers=false;dialog=true}) {Text(stringResource(R.string.feature_csv))}
+        TextButton({identifiers=false;dialog=true}, enabled = !settings.demoMode) {Text(stringResource(R.string.feature_csv))}
         status?.let {Text(it)}
     }
-    if(dialog) AlertDialog(onDismissRequest={dialog=false},title={Text(stringResource(R.string.feature_csv))},text={
+    if(dialog && !settings.demoMode) AlertDialog(onDismissRequest={dialog=false},title={Text(stringResource(R.string.feature_csv))},text={
         Column {
             Text(stringResource(R.string.feature_csv_help))
             Row(Modifier.toggleable(identifiers,role=Role.Checkbox,onValueChange={identifiers=it})) {Checkbox(identifiers,null);Text(stringResource(R.string.feature_identifiers))}
@@ -58,9 +61,9 @@ import java.time.format.DateTimeFormatter
 }
 
 @Composable fun HealthSleepOverlay(graph:Graph,record:NightRecord) {
-    if (record.isTestRun) return
+    if (record.isTestRun || io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(record.deviceId)) return
     val settings by graph.repository.settings.collectAsState()
-    if(!settings.platform.healthSleepOverlay)return
+    if(settings.demoMode || !settings.platform.healthSleepOverlay)return
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     var resume by remember {mutableIntStateOf(0)}
     var result by remember(record.id) {mutableStateOf<SleepOverlay?>(null)}

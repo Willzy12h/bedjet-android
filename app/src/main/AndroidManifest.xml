@@ -61,9 +61,12 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.app.action.NEXT_ALARM_CLOCK_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
         <receiver android:name=".platform.AutomationCancelReceiver" android:exported="false" />
+        <receiver android:name=".platform.AutoStartReceiver" android:exported="false" />
         <receiver android:name=".platform.BedtimeReminderReceiver" android:exported="false" />
 
         <!-- App shortcuts (and Samsung Routines / Bixby) land here for visible confirmation before the service owns the command. -->
