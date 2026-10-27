@@ -1706,19 +1706,30 @@ class NightActions(private val graph: Graph) {
         if (enabled == repo.settings.value.demoMode) return local(if (enabled) R.string.gpt12_demo_started else R.string.gpt12_demo_ended)
         if (enabled) {
             if (repo.activeNight.value != null) return refused(R.string.runtime_active_target)
-            graph.link.disconnect()
-            graph.resetDemoSession()
-            repo.enterDemoSession()
+            try {
+                graph.sessions.beginDemoTransition()
+                graph.link.disconnect()
+                graph.resetDemoSession()
+                repo.enterDemoSession()
+            } finally {
+                // Publication may win a cancellation while returning from the repository writer.
+                graph.sessions.finishDemoTransition(repo.isDemoSession)
+            }
         } else if (repo.isDemoSession) {
             // The owner has finished any simulated command. No simulated ending reaches real History or originals.
-            graph.link.disconnect()
-            NightAlarms.cancel(context)
-            NightAlarms.cancelLocalRetry(context)
-            NightAlarms.cancelReconcileRetry(context)
-            Notifications.cancelWakeUp(context)
-            Notifications.cancelResume(context)
-            repo.exitDemoSession()
-            graph.resetDemoSession()
+            try {
+                graph.sessions.beginDemoTransition()
+                graph.link.disconnect()
+                NightAlarms.cancel(context)
+                NightAlarms.cancelLocalRetry(context)
+                NightAlarms.cancelReconcileRetry(context)
+                Notifications.cancelWakeUp(context)
+                Notifications.cancelResume(context)
+                repo.exitDemoSession()
+                graph.resetDemoSession()
+            } finally {
+                graph.sessions.finishDemoTransition(repo.isDemoSession)
+            }
         } else {
             // Compatibility for a pre-upgrade repository used before application startup normalisation.
             if (repo.activeNight.value != null) return refused(R.string.runtime_active_target)

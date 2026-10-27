@@ -187,6 +187,8 @@ class RuntimeOwnershipTest {
         assertEquals(Mode.STANDBY, demo.status.value!!.mode)
     }
     @Test fun aPersistedWidgetOffAfterProcessDeathUsesTargetNotOldNightIdentity() = runBlocking {
+        // This case checks durable real History, using the injected single-device transport.
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val initial = start()
         val rendered = io.github.willzy12h.nocturne.platform.PlatformActionActivity.intent(context,
             graph.actions.capture(NightActions.Command.OFF, requireIdentity = true))
@@ -584,6 +586,8 @@ class RuntimeOwnershipTest {
         assertNull(graph.repository.settings.value.tonightOverride)
     }
     @Test fun interruptedLocalFinishKeepsDurableResumeOfferAndReconcilesWithoutHardware() = runBlocking {
+        // This case checks durable real History, using the injected single-device transport.
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val night = start()
         failClear = true
         graph.actions.perform(NightActions.Command.OFF)
