@@ -32,7 +32,7 @@ for name,count in [('TemporaryActionDialogTest.kt',1),('TemporaryTrackingTruthTe
          'ui.quick(ui.graph.repository.settings.value.extendWarm)',count)
 edit(T+'ui/U06ControlSemanticsTest.kt','fixture.control(s(R.string.feature_warm))',
      'fixture.quick(fixture.graph.repository.settings.value.extendWarm)')
-edit(T+'AppearanceTest.kt','compose.onNodeWithText(io.github.willzy12h/nocturne/ui.expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))',
+edit(T+'AppearanceTest.kt','compose.onNodeWithText(io.github.willzy12h.nocturne.ui.expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))',
      'compose.onNodeWithText("Turbo 10m")')
 edit(T+'ui/U06PrimaryLayoutTest.kt', '''        val labels = listOf(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes),
             ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
