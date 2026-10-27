@@ -522,6 +522,7 @@ class SendConfirmationTest {
 
     @Test fun anotherUnitsAlreadyMatchingValueCannotConfirmTheWrite() = runBlocking {
         demo.connect()
+        demo.send(Codec.setMode(Mode.HEAT)!!)
         foreign = SourcedStatus("ble:AA:BB:CC:DD:EE:FF", demo.status.value!!.copy(targetTemperature = 70))
         val outcome = graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 70 }) {
             it.setTemperature(70)

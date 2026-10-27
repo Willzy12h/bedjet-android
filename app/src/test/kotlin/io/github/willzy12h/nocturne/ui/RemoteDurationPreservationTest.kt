@@ -76,10 +76,12 @@ class RemoteDurationPreservationTest : PlatformGraphFixture() {
             assertEquals(OutcomeKind.LOCAL, graph.actions.execute(graph.actions.capture(Command.STOP_TRACKING)).kind)
             assertNull(graph.repository.activeNight.value)
         }
-        // This is the existing live Remote temperature route: it sends the value chosen within reported limits.
-        val temperature = graph.actions.remote(app.getString(R.string.remote_temperature_set), affectsProgramme = true,
-            confirms = { it.targetTemperature == 82 }) { it.setTemperature(82) }
-        assertEquals(OutcomeKind.CONFIRMED, temperature.kind)
+        // Simulate a physical remote changing the unit beyond Nocturne's safe replay range.
+        // APP-01 must not be bypassed to arrange this fixture.
+        val external = reports.value!!.let { it.copy(status = it.status.copy(targetTemperature = 82)) }
+        reports.value = external
+        statuses.value = external.status
+        if (!observedOnly) graph.repository.setActiveNight(graph.repository.activeNight.value!!.copy(trackingManual = true))
         // Fixture-only physical-remote input must survive the owner's reconnect/status refresh.
         graph.link.send(io.github.willzy12h.nocturne.core.protocol.Codec.setTemperature(82))
         val before = graph.link.latestSourcedStatus()!!

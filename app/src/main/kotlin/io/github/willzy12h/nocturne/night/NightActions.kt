@@ -1832,14 +1832,15 @@ class NightActions(private val graph: Graph) {
             connected {
                 val current = graph.link.latestSourcedStatus()?.takeIf { it.isFrom(request.deviceId) }?.status
                     ?: return@connected refused(R.string.remote_custom_changed)
-                if (current.mode != preset.mode || preset.minutes !in 1..manualRuntimeMaximum(current))
-                    return@connected refused(R.string.remote_custom_changed)
+                if (current.mode != preset.mode) return@connected refused(R.string.remote_custom_changed)
                 val leaveProgramme = request.expected != null || (current.extra?.programStep ?: 0) > 0
                 if (leaveProgramme && (current.targetTemperature != preset.temperature || current.fanPercent != preset.fanPercent))
                     return@connected refused(R.string.remote_custom_changed)
                 // runManual applies the mode's protocol range. Refuse rather than change the reviewed live setpoint.
                 if (leaveProgramme && preset.mode.usesTemperature && preset.temperature !in preset.mode.temperatureRange)
                     return@connected refused(R.string.remote_custom_temperature)
+                if (preset.minutes !in 1..manualRuntimeMaximum(current))
+                    return@connected refused(R.string.remote_custom_changed)
                 advanceGeneration(preserveOffer = repo.activeNight.value?.trackingManual != false)
                 var sentAt = elapsedMs()
                 manualChange(label, endsNight = true, affectsProgramme = true, confirms = { report ->

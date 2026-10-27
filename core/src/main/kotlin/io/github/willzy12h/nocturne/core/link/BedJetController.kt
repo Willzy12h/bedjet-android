@@ -129,8 +129,9 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
     suspend fun setFan(step: Int) {
         val status = currentStatus()
         requireSafe(CommandSafety.controls(status.mode, status.targetTemperature, step))
-        if (!status.mode.usesFan) throw BedJetError.InvalidProgram("Choose a running mode first.")
-        if (status.remainingSeconds > ProgramStep.longestMinutes(status.mode, status.targetTemperature, step) * 60)
+        // Standby fan preferences support the non-heating setup check; no mode is started here.
+        if (status.mode.usesFan && status.remainingSeconds >
+            ProgramStep.longestMinutes(status.mode, status.targetTemperature, step) * 60)
             throw BedJetError.ProgramTooLong()
         link.send(Codec.setFan(step))
     }

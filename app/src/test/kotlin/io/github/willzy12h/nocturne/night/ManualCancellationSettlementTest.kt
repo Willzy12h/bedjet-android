@@ -108,8 +108,8 @@ class ManualCancellationSettlementTest {
     }
 
     private suspend fun temperature(written: CompletableDeferred<Unit>): CommandOutcome =
-        graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 72 }) {
-            it.setTemperature(72)
+        graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 50 }) {
+            it.setTemperature(50) // Valid in Cool and Heat; cancellation assertions stay unchanged.
             workReturned = true
             written.complete(Unit)
         }
