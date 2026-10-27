@@ -1,0 +1,31 @@
+name: Security recovery verification
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.head_ref == 'gpt/nocturne-final' && github.event.pull_request.number == 4 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Inspect source boundaries in disposable checkout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          names = {'FeatureSections.kt', 'PlatformAutomationSettings.kt', 'RemoteDuration.kt', 'ScaledSlider.kt', 'release_manifest.py', 'test_release_manifest.py'}
+          for p in sorted(Path('.').rglob('*')):
+              if p.is_file() and p.name in names:
+                  print('\n===== ' + str(p) + ' =====')
+                  for n, line in enumerate(p.read_text().splitlines(), 1):
+                      print(f'{n}: {line}')
+          print('\n===== Health client construction sites =====')
+          for p in Path('app/src').rglob('*.kt'):
+              for n, line in enumerate(p.read_text().splitlines(), 1):
+                  if 'HealthConnectClient.' in line:
+                      print(f'{p}:{n}: {line}')
+          PY
