@@ -170,6 +170,16 @@
         "connection",
         "night",
         "wake"
+      ],
+      "quickDefaults": [
+        {
+          "$ref": "action"
+        }
+      ],
+      "setupChecklistCompleted": true,
+      "setupDismissedOptional": [
+        "health",
+        "widget"
       ]
     },
     "slotBackup": {
