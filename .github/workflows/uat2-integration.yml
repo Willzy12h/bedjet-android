@@ -23,13 +23,16 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
       - name: Integrate reviewed UAT changes in isolated checkout
-        run: python3 .github/uat2-integrate.py
+        run: |
+          python3 .github/uat2-integrate.py
+          python3 .github/uat2-followup.py
       - name: Behavioural UAT and security verification
         run: |
           set -o pipefail
           ./gradlew --no-daemon --continue --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
             :core:test :app:testDebugUnitTest --tests '*Uat*' --tests '*SecurityTest' \
-            --tests '*TemporaryActionDispatchTest' --tests '*TemporaryActionBoundariesTest' 2>&1 | tee uat2-integration.log
+            --tests '*TemporaryActionDispatchTest' --tests '*TemporaryActionBoundariesTest' \
+            --tests '*ActiveIndicatorTest' --tests '*TonightLayoutTest' 2>&1 | tee uat2-integration.log
       - name: Record tests
         if: always()
         run: |
