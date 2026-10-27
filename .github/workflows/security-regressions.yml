@@ -38,27 +38,27 @@ jobs:
           retention-days: 14
       # Only public Robolectric Android runtime dependencies; no HOME or credentials archive.
       - name: Package public Android test runtimes
-        if: always() && github.run_number == 4
+        if: always() && github.run_number == 5
         run: |
           mkdir -p "$RUNNER_TEMP/public-runtimes"
           tar -czf - -C "$HOME" .m2/repository/org/robolectric | \
             split -b 400m -d - "$RUNNER_TEMP/public-runtimes/runtime-"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 4
+        if: always() && github.run_number == 5
         with:
           name: public-runtimes-00-${{ github.run_id }}
           path: ${{ runner.temp }}/public-runtimes/runtime-00
           compression-level: 0
           retention-days: 1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 4
+        if: always() && github.run_number == 5
         with:
           name: public-runtimes-01-${{ github.run_id }}
           path: ${{ runner.temp }}/public-runtimes/runtime-01
           compression-level: 0
           retention-days: 1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 4
+        if: always() && github.run_number == 5
         with:
           name: public-runtimes-02-${{ github.run_id }}
           path: ${{ runner.temp }}/public-runtimes/runtime-02

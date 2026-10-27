@@ -60,7 +60,7 @@ class HealthLegacyContainmentSecurityTest : PlatformGraphFixture() {
     @Test fun directReaderConstructionFailsClosedBeforeLegacyProviderIpc() {
         installImitationProvider()
         assertThrows(UnsupportedOperationException::class.java) { AndroidSleepSource(context) }
-        assertTrue(shadowOf(RuntimeEnvironment.getApplication()).boundServiceIntents.isEmpty())
+        assertTrue(shadowOf(RuntimeEnvironment.getApplication()).boundServiceConnections.isEmpty())
     }
 
     @Test fun savedExportOptInCannotConstructOrWriteToAnImitationProvider() = runBlocking {
