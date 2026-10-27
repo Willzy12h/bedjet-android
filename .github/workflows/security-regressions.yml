@@ -36,59 +36,31 @@ jobs:
             core/build/test-results/test/
             app/build/test-results/testDebugUnitTest/
           retention-days: 14
-      # Public binaries only; this job receives no credentials or signing material.
-      - name: Package public offline build inputs
-        if: always() && github.run_number == 3
+      # Only public Robolectric Android runtime dependencies; no HOME or credentials archive.
+      - name: Package public Android test runtimes
+        if: always() && github.run_number == 4
         run: |
-          mkdir -p "$RUNNER_TEMP/public-inputs" "$RUNNER_TEMP/public-parts"
-          tar -czf "$RUNNER_TEMP/public-inputs/gradle-public.tar.gz" -C "$HOME" \
-            .gradle/caches/modules-2 .gradle/wrapper/dists
-          if [ -d "$HOME/.m2/repository/org/robolectric" ]; then
-            tar -czf "$RUNNER_TEMP/public-inputs/robolectric-public.tar.gz" -C "$HOME" .m2/repository/org/robolectric
-          fi
-          tar -czf "$RUNNER_TEMP/public-inputs/android-sdk-public.tar.gz" -C "$ANDROID_HOME" \
-            platforms/android-36 build-tools/35.0.0 licenses
-          tar -czf "$RUNNER_TEMP/public-inputs/jdk17-public.tar.gz" -C "$JAVA_HOME" .
-          tar -cf - -C "$RUNNER_TEMP/public-inputs" . | split -b 400m -d - "$RUNNER_TEMP/public-parts/input-"
+          mkdir -p "$RUNNER_TEMP/public-runtimes"
+          tar -czf - -C "$HOME" .m2/repository/org/robolectric | \
+            split -b 400m -d - "$RUNNER_TEMP/public-runtimes/runtime-"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 3
+        if: always() && github.run_number == 4
         with:
-          name: public-inputs-00-${{ github.run_id }}
-          path: ${{ runner.temp }}/public-parts/input-00
+          name: public-runtimes-00-${{ github.run_id }}
+          path: ${{ runner.temp }}/public-runtimes/runtime-00
           compression-level: 0
           retention-days: 1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 3
+        if: always() && github.run_number == 4
         with:
-          name: public-inputs-01-${{ github.run_id }}
-          path: ${{ runner.temp }}/public-parts/input-01
+          name: public-runtimes-01-${{ github.run_id }}
+          path: ${{ runner.temp }}/public-runtimes/runtime-01
           compression-level: 0
           retention-days: 1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 3
+        if: always() && github.run_number == 4
         with:
-          name: public-inputs-02-${{ github.run_id }}
-          path: ${{ runner.temp }}/public-parts/input-02
-          compression-level: 0
-          retention-days: 1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 3
-        with:
-          name: public-inputs-03-${{ github.run_id }}
-          path: ${{ runner.temp }}/public-parts/input-03
-          compression-level: 0
-          retention-days: 1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 3
-        with:
-          name: public-inputs-04-${{ github.run_id }}
-          path: ${{ runner.temp }}/public-parts/input-04
-          compression-level: 0
-          retention-days: 1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && github.run_number == 3
-        with:
-          name: public-inputs-05-${{ github.run_id }}
-          path: ${{ runner.temp }}/public-parts/input-05
+          name: public-runtimes-02-${{ github.run_id }}
+          path: ${{ runner.temp }}/public-runtimes/runtime-02
           compression-level: 0
           retention-days: 1

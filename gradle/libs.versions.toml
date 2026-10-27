@@ -13,8 +13,7 @@ robolectric = "4.14.1"
 junit4 = "4.13.2"
 
 [libraries]
-# Includes the inbound/outbound provider signature fix and updated Google certificates.
-health-connect = { module = "androidx.health.connect:connect-client", version = "1.2.0-alpha06" }
+health-connect = { module = "androidx.health.connect:connect-client", version = "1.1.0" }
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
