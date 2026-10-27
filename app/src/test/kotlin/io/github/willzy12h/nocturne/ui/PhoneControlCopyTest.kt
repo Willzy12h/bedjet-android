@@ -82,7 +82,7 @@ class PhoneControlCopyTest {
         val app = context as App
         val graph = graphs.fresh { Graph(app) }
         ReflectionHelpers.setField(app, "graph", graph)
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false) }
+        graph.repository.updateSettings { it.copy(demoMode = true) }
         for (minutes in listOf(10, 15, 20, 25, 30)) {
             graph.repository.updateSettings { it.copy(boostMinutes = minutes) }
             val controller = Robolectric.buildActivity(ShortcutActivity::class.java,

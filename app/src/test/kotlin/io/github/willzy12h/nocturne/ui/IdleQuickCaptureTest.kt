@@ -79,7 +79,7 @@ class IdleQuickCaptureTest {
                 // Establish it independently before importing the unsupported saved action.
                 graph.repository.updateSettings { it.copy(
                     demoMode = true, themeMode = ThemeMode.DARK, fahrenheit = false,
-                    autoUpdateCheck = false, boostMinutes = 15,
+                    boostMinutes = 15,
                 ) }
                 val saved = graph.repository.bundle().let { it.copy(settings = it.settings.copy(extendWarm = imported)) }
                 val decoded = BackupCodec.decode(BackupCodec.encode(saved))

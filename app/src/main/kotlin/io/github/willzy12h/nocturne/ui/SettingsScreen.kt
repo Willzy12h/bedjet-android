@@ -41,7 +41,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.store.Migrations
@@ -50,11 +49,13 @@ import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.annotation.StringRes
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.store.ThemeMode
+import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.WakeAction
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.notify.Notifications
@@ -71,6 +72,7 @@ import kotlin.math.roundToInt
 @Composable
 fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0, alarmsRequest: Int = 0) {
     val settings by model.settings.collectAsState()
+    val selectedName by model.selectedBedJetName.collectAsState()
     val snapshots by model.snapshots.collectAsState()
     val importPreview by model.importPreview.collectAsState()
     val importApplying by model.importApplying.collectAsState()
@@ -87,8 +89,17 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val alarmCheck by model.alarmCheck.collectAsState()
     val f = settings.fahrenheit
     val context = LocalContext.current
+    val uri = LocalUriHandler.current
     val systemDark = isSystemInDarkTheme()
-    var pendingTheme by remember { mutableStateOf<ThemeMode?>(null) }
+    var pendingTheme by remember { mutableStateOf<Settings?>(null) }
+    fun saveAppearance(requested: Settings) {
+        model.updateSettings { it.copy(themeMode = requested.themeMode,
+            scheduledDarkMinute = requested.scheduledDarkMinute, scheduledLightMinute = requested.scheduledLightMinute) }
+    }
+    fun chooseAppearance(requested: Settings) {
+        if (!requested.isDarkTheme(model.now(), systemDark)) pendingTheme = requested
+        else saveAppearance(requested)
+    }
     var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
     var snapshotLabel by remember { mutableStateOf("") }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
@@ -100,7 +111,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             text = { Text(stringResource(R.string.ux_light_theme_warning)) },
             confirmButton = { TextButton(onClick = {
                 pendingTheme = null
-                model.updateSettings { it.copy(themeMode = requested) }
+                approveLightSelection(context, requested, model.now())
+                saveAppearance(requested)
             }) { Text(stringResource(R.string.ux_switch)) } },
             dismissButton = { TextButton(onClick = { pendingTheme = null }) { Text(stringResource(R.string.feature_cancel)) } })
     }
@@ -113,19 +125,17 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(settings.themeMode == mode, {
-                        if (settings.themeMode != mode && (mode == ThemeMode.LIGHT || (mode == ThemeMode.SYSTEM && !systemDark)))
-                            pendingTheme = mode
-                        else model.updateSettings { it.copy(themeMode = mode) }
+                        if (settings.themeMode != mode) chooseAppearance(settings.copy(themeMode = mode))
                     }, label = { Text(stringResource(themeName(mode))) })
                 }
             }
             if (settings.themeMode == ThemeMode.SCHEDULED) {
                 Text(stringResource(R.string.settings_scheduled_help), style = MaterialTheme.typography.bodySmall)
                 TimeRow(stringResource(R.string.settings_dark_from), settings.scheduledDarkMinute) { minute ->
-                    model.updateSettings { it.copy(scheduledDarkMinute = minute) }
+                    if (minute != settings.scheduledDarkMinute) chooseAppearance(settings.copy(scheduledDarkMinute = minute))
                 }
                 TimeRow(stringResource(R.string.settings_light_from), settings.scheduledLightMinute) { minute ->
-                    model.updateSettings { it.copy(scheduledLightMinute = minute) }
+                    if (minute != settings.scheduledLightMinute) chooseAppearance(settings.copy(scheduledLightMinute = minute))
                 }
             }
             SwitchRow(stringResource(R.string.settings_simple_view), stringResource(R.string.settings_simple_view_help), settings.simpleView) { on ->
@@ -134,10 +144,9 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         }
 
         Group(stringResource(R.string.settings_bedjet)) {
-            Text(stringResource(R.string.settings_connected_unit, model.bedJetName() ?: stringResource(R.string.settings_none_yet)), style = MaterialTheme.typography.bodyMedium)
-            SwitchRow(stringResource(R.string.settings_demo), stringResource(R.string.settings_demo_help), settings.demoMode) { on ->
-                model.updateSettings { it.copy(demoMode = on) }
-            }
+            Text(stringResource(R.string.settings_connected_unit, if (settings.demoMode) stringResource(R.string.status_demo_device) else selectedName ?: stringResource(R.string.settings_none_yet)), style = MaterialTheme.typography.bodyMedium)
+            DeviceControls(model)
+            DemoModePanel(model, showBanner = false)
             Text(stringResource(R.string.settings_slot_title), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.settings_slot_help), style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -246,7 +255,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
 
         Group(stringResource(R.string.settings_phone_setup)) {
             SetupChecks(showAll = true)
-            SetupFlow(model)
+            SetupFlow(model, showDemoChoice = false)
         }
 
         PlatformSettingsSection(model.graph)
@@ -287,23 +296,9 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         }
 
         Group(stringResource(R.string.settings_updates)) {
-            var repo by remember { mutableStateOf(settings.updateRepo) }
-            var token by remember { mutableStateOf(model.updateToken) }
-            OutlinedTextField(repo, { repo = it }, label = { Text(stringResource(R.string.settings_repo)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(
-                token, { token = it }, label = { Text(stringResource(R.string.settings_token)) }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            SwitchRow(stringResource(R.string.settings_check_weekly), stringResource(R.string.settings_check_weekly_help), settings.autoUpdateCheck) { on ->
-                model.updateSettings { it.copy(autoUpdateCheck = on) }
+            OutlinedButton(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android/releases") }) {
+                Text(stringResource(R.string.settings_github_releases))
             }
-            FilledTonalButton(onClick = {
-                model.updateSettings { it.copy(updateRepo = repo.trim()) }
-                model.updateToken = token
-                model.checkForUpdates()
-            }) { Text(stringResource(R.string.settings_check_now)) }
-            Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodySmall)
         }
 
         Group(stringResource(R.string.settings_notice_log)) {
@@ -323,10 +318,13 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         }
 
         Group(stringResource(R.string.settings_about)) {
-            Text(
-                stringResource(R.string.settings_about_text),
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text(stringResource(R.string.settings_about_description), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.settings_about_unaffiliated), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android") }) {
+                Text(stringResource(R.string.settings_project_help))
+            }
+            Text(stringResource(R.string.settings_protocol_attribution), style = MaterialTheme.typography.bodySmall)
         }
     }
 

@@ -102,6 +102,6 @@ class LightThemeConfirmationTest {
         tab(R.string.tab_settings)
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().performClick()
         ui.waitUntil { ui.graph.sessions.released.value }
-        ui.compose.onNodeWithText(ui.s(R.string.feature_take_back)).assertIsDisplayed()
+        ui.compose.onNodeWithText(ui.s(R.string.feature_take_back)).performScrollTo().assertIsDisplayed()
     }
 }

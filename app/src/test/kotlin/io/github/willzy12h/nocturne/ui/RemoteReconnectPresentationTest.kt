@@ -57,7 +57,7 @@ class RemoteReconnectPresentationTest {
             replacement.clock = Clock.fixed(Instant.parse("2026-10-25T22:30:00Z"), ZoneOffset.UTC)
             ReflectionHelpers.setField(app, "graph", replacement)
             runBlocking { replacement.repository.updateSettings {
-                it.copy(demoMode = true, fahrenheit = false, themeMode = ThemeMode.DARK, autoUpdateCheck = false)
+                it.copy(demoMode = true, fahrenheit = false, themeMode = ThemeMode.DARK)
             } }
             replacement.scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 replacement.actions.outcomes.collect { outcomes += it }

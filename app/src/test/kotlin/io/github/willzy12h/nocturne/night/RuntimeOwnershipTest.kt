@@ -452,17 +452,16 @@ class RuntimeOwnershipTest {
             graph.repository.history.value.first { it.id == n.recordId }.events.last().kind)
     }
     @Test fun diagnosticsExcludeTokenButIncludeBoundedEventsAndLink() = runBlocking {
-        graph.repository.updateToken = "TOP_SECRET_TOKEN"
+        context.getSharedPreferences("secrets", Context.MODE_PRIVATE).edit().putString("updateToken", "TOP_SECRET_TOKEN").commit()
         start()
         val diagnostics = graph.actions.diagnostics()
         assertFalse(diagnostics.contains("TOP_SECRET_TOKEN")); assertFalse(diagnostics.contains("updateToken"))
         assertTrue(diagnostics.contains("READY")); assertTrue(diagnostics.contains("activeNight"))
     }
-    @Test fun handoverWaitsForWholeTransactionAndPeerDeclinesBusy() = runBlocking {
+    @Test fun manualReleaseWaitsForWholeTransaction() = runBlocking {
         val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
         beforeSend = { if (it[0] == 0x40.toByte()) { entered.complete(Unit); release.await() } }
         val start = async { graph.actions.perform(NightActions.Command.START_NIGHT) }; entered.await()
-        assertEquals(OutcomeKind.REFUSED, graph.actions.releaseForOtherPhone(declineIfBusy = true).kind)
         val handover = async { graph.actions.releaseForOtherPhone() }; yield()
         val waited = !handover.isCompleted
         val notReleasedEarly = !graph.sessions.released.value

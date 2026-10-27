@@ -535,7 +535,7 @@ class RepositoryTest {
     fun aValidImportKeepsTheDeviceTokenAndNight() = runBlocking {
         val repo = repository()
         repo.updateSettings { it.copy(demoMode = true, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
-        repo.updateToken = "ghp_secret"
+        context.getSharedPreferences("secrets", Context.MODE_PRIVATE).edit().putString("updateToken", "ghp_secret").commit()
         val night = ActiveNight("night-1", "preset-summer", now.toString(), now.plusHours(8).toString(), false, 2, now.plusHours(7).toString(), now.plusHours(9).toString())
         repo.setActiveNight(night)
         repo.recordOriginalSlot("ble:AA:BB:CC:DD:EE:FF", 2, program)
@@ -547,7 +547,7 @@ class RepositoryTest {
         assertEquals(0, repo.settings.value.workingSlot)
         assertTrue(repo.settings.value.demoMode)
         assertEquals("ble:AA:BB:CC:DD:EE:FF", repo.settings.value.targetDevice)
-        assertEquals("ghp_secret", repo.updateToken)
+        assertEquals("ghp_secret", context.getSharedPreferences("secrets", Context.MODE_PRIVATE).getString("updateToken", null))
         assertEquals(night, repo.activeNight.value)
         assertEquals(listOf("n1"), repo.history.value.map { it.id })
         assertEquals(SlotBackup("ble:AA:BB:CC:DD:EE:FF", 2, program, now.toString()), repo.originalSlot("ble:AA:BB:CC:DD:EE:FF", 2))
@@ -1151,9 +1151,21 @@ class RepositoryTest {
     // Secrets
 
     @Test
-    fun theUpdateTokenIsNeverExportedOrSnapshotted() = runBlocking {
+    fun removingTheUpdaterDeletesItsLegacyTokenAndSchedule() {
+        val secrets = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
+        val updates = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
+        secrets.edit().putString("updateToken", "legacy-private-repository-token").putString("unrelated", "keep").commit()
+        updates.edit().putLong("lastCheck", 123L).commit()
+        repository()
+        assertFalse("Removed updater credentials must not remain on the phone", secrets.contains("updateToken"))
+        assertFalse("Removed updater schedule must not remain on the phone", updates.contains("lastCheck"))
+        assertEquals("keep", secrets.getString("unrelated", null))
+    }
+
+    @Test
+    fun aLegacyUpdateTokenIsNeverExportedOrSnapshotted() = runBlocking {
         val repo = repository()
-        repo.updateToken = "ghp_secret"
+        context.getSharedPreferences("secrets", Context.MODE_PRIVATE).edit().putString("updateToken", "ghp_secret").commit()
         assertFalse(BackupCodec.encode(repo.bundle()).contains("ghp_secret"))
         repo.snapshotNow("Mine")
         val file = File(dir, "export.json")

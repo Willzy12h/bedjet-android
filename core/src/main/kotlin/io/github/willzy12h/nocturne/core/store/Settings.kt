@@ -48,9 +48,6 @@ data class Settings(
     val demoTargetMigrated: Boolean = false,
     /** Local supervised fan check for this exact real BedJet; never inferred from a backup. */
     val setupFanCheckedDevice: String? = null,
-    /** GitHub `owner/repo` whose latest release is checked for updates. The token is kept outside backups. */
-    val updateRepo: String = "Willzy12h/bedjet-android",
-    val autoUpdateCheck: Boolean = false,
     /** Alarms set by these apps move the wake-up; others (calendar reminders, timers) don't. */
     val alarmPackages: Set<String> = setOf("com.google.android.deskclock", "com.sec.android.app.clockpackage"),
     // Appearance. Defaults keep older saved settings and backups loading unchanged.

@@ -31,10 +31,4 @@ class PlatformPolicyTest {
         assertEquals(a.key("bedjet"), b.key("bedjet"))
         assertFalse(b.contains(a.expires))
     }
-    @Test fun handoverUsesPinnedLullDigestAndExactNameThroughNul() {
-        assertEquals("6848a73d-5ef5-5128-983c-919757a99fe9", PlatformPolicy.handoverUuid("BEDJET-DEMO").toString())
-        assertEquals(PlatformPolicy.handoverUuid("BEDJET-DEMO"), PlatformPolicy.handoverUuid("BEDJET-DEMO\u0000ignored"))
-        assertNotEquals(PlatformPolicy.handoverUuid("BEDJET-DEMO"), PlatformPolicy.handoverUuid("bedjet-demo"))
-        assertNotEquals(PlatformPolicy.handoverUuid("BEDJET-DEMO"), PlatformPolicy.handoverUuid("BEDJET-DEMO "))
-    }
 }

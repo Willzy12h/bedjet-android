@@ -89,7 +89,7 @@ internal class U06Fixture(
             runBlocking {
                 replacement.repository.updateSettings { it.copy(
                     demoMode = true, themeMode = look.theme, simpleView = look.simple,
-                    fahrenheit = false, autoUpdateCheck = false,
+                    fahrenheit = false,
                 ) }
                 replacement.repository.setActiveNight(null)
             }

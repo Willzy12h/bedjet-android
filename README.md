@@ -21,7 +21,7 @@ Bluetooth only: no account, no cloud. Not affiliated with BedJet LLC.
   phone can sleep. The first time a slot is overwritten, what was in it is saved and can be put back.
 - **Wake-up notification** with up to three buttons you choose: Snooze warm, Snooze cool, Extend warm, Extend cool,
   Off. It stays until the night ends.
-- **Remote**: mode, temperature, fan, timer, lights, beeps.
+- **Remote**: mode, temperature, fan and bounded custom run duration. Lights and Beeps are in Settings.
 - **Boost**: Turbo for its 10 minutes, then Heat for the rest (15 minutes by default).
 - **Widgets**:
   - "Nocturne controls" grows from one button to a row, a grid, then a scrolling list of every action and profile.
@@ -36,8 +36,8 @@ Bluetooth only: no account, no cloud. Not affiliated with BedJet LLC.
   - automatic snapshots on every change, plus daily (the last 20 are kept);
   - labelled manual snapshots, kept until you delete them;
   - export and import a backup file.
-- **Update check** against this repository's GitHub releases.
-- **Demo BedJet** to try everything without the hardware.
+- **Updates**: a Settings link opens this repository's GitHub Releases page in your browser.
+- **Try demo**: an isolated preview with a visible Exit demo action; it does not connect to a BedJet or alter real History, originals or backups.
 
 ## Install
 
@@ -48,8 +48,8 @@ Bluetooth only: no account, no cloud. Not affiliated with BedJet LLC.
 
 ## Updates
 
-Settings → Updates → **Check now** compares your version with the latest release here. This repository is private,
-so the check needs a GitHub token: a fine-grained token with read-only "Contents" access to this repository.
+Settings → Updates → **Check GitHub for a new APK** opens [Releases](https://github.com/Willzy12h/bedjet-android/releases)
+in your browser. Nocturne has no in-app update checker, repository token or internet permission.
 
 An update only installs over the old version when both are signed with the same key. Set up the release key once:
 
@@ -88,7 +88,7 @@ APK and CI verifies its signature, expected signer and increasing version code. 
 
 | Path | What it is |
 | --- | --- |
-| `core/` | Pure Kotlin: BedJet 3 protocol, plan compiler, wake resolution, night runner, demo BedJet, backups, update parsing |
+| `core/` | Pure Kotlin: BedJet 3 protocol, plan compiler, wake resolution, night runner, demo BedJet and backups |
 | `app/` | Android: Bluetooth transport, foreground service, alarms and notifications, Compose screens, Glance widgets |
 | `docs/superpowers/` | Design spec and implementation plan |
 

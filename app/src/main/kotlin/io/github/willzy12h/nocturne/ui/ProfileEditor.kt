@@ -126,6 +126,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
 
     Surface(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
+            DemoModePanel(model, showTryDemo = false)
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = leave) { Icon(Icons.Filled.Close, stringResource(R.string.feature_cancel)) }
                 Text(stringResource(R.string.editor_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))

@@ -45,7 +45,7 @@ class IdleProcessTimersTest {
             })
         }
         ReflectionHelpers.setField(app, "graph", graph)
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false) }
+        graph.repository.updateSettings { it.copy(demoMode = true) }
         idle()
         clock = CountingClock()
         graph.clock = clock

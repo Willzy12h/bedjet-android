@@ -16,7 +16,6 @@ class PlatformRuntime(private val graph: Graph) {
                 BedtimeReminders.sync(graph)
             }
         }
-        handover.watch()
     }
     suspend fun observe(status: io.github.willzy12h.nocturne.core.protocol.DeviceStatus,target:String?) {
         if (!graph.sessions.hasStatusDemand || target == null || graph.link.state.value != LinkState.READY) return

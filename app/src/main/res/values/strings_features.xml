@@ -59,13 +59,6 @@
     <string name="feature_export_failed">Could not save the history file.</string>
     <string name="feature_release">Release BedJet for another phone</string>
     <string name="feature_take_back">Take back</string>
-    <string name="feature_lull">Lull phone hand-over</string>
-    <string name="feature_lull_help">Uses the BedJet name to request a short hand-over. No shared night state is exchanged. Android may not see background iPhone advertisements. Foreground two-phone acceptance is pending.</string>
-    <string name="feature_request">Request BedJet from another phone</string>
-    <string name="feature_handover_name">Connect to the selected BedJet once to learn its name before requesting hand-over.</string>
-    <string name="feature_advertise_permission">Nearby-device advertising permission is needed for hand-over requests.</string>
-    <string name="feature_advertise_unavailable">This phone could not advertise a hand-over request.</string>
-    <string name="feature_handover_requested">Hand-over requested. This does not confirm that the other phone released the BedJet.</string>
     <string name="feature_saving_failed">Could not save this setting.</string>
     <string name="feature_result">BedJet action result</string>
     <string name="feature_widget_controls">Nocturne controls</string>

@@ -40,7 +40,6 @@ data class PlatformSettings(
     val healthSleepOverlay: Boolean = false,
     /** Separate explicit consent for writing completed, confirmed BedJet programme sessions. */
     val healthSleepExport: Boolean = false,
-    val lullHandover: Boolean = false,
     /** Null reads the legacy charging-only opt-in until its one-time local migration. */
     val autoStart: AutoStartSettings? = null,
 ) {

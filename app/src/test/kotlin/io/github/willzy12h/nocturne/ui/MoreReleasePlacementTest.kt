@@ -23,12 +23,12 @@ class MoreReleasePlacementTest {
 
     private fun checkMore(tracked: Boolean) {
         ui.compose.runOnUiThread { runBlocking {
-            ui.graph.repository.updateSettings { it.copy(platform = it.platform.copy(lullHandover = true)) }
             if (tracked) assertEquals(OutcomeKind.CONFIRMED, ui.graph.actions.execute(
                 ui.graph.actions.capture(NightActions.Command.START_NIGHT)).kind)
         } }
-        ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).performScrollTo().performClick()
-        ui.compose.onNodeWithText(ui.s(R.string.feature_request)).assertIsDisplayed().assertHasClickAction()
+        if (tracked) ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).performScrollTo().performClick()
+        else ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).assertDoesNotExist()
+        ui.compose.onNodeWithText("Request BedJet from another phone").assertDoesNotExist()
         if (tracked) ui.compose.onNodeWithText(ui.s(R.string.recovery_recheck_alarm)).assertIsDisplayed().assertHasClickAction()
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).assertDoesNotExist()
         ui.compose.onNodeWithText(ui.s(R.string.feature_take_back)).assertDoesNotExist()
@@ -36,13 +36,12 @@ class MoreReleasePlacementTest {
         assertFalse("Opening More must not release the connection", ui.graph.sessions.released.value)
     }
 
-    @Test fun idleMoreKeepsTheRequestActionButNoLongerContainsRelease() = checkMore(tracked = false)
+    @Test fun idleHasNoPeerRequestOrReleaseMenu() = checkMore(tracked = false)
 
-    @Test fun trackedMoreKeepsRecheckAndRequestButNoLongerContainsRelease() = checkMore(tracked = true)
+    @Test fun trackedMoreKeepsRecheckButNoPeerRequestOrRelease() = checkMore(tracked = true)
 
     @Test fun idleWithoutHandoverDoesNotOfferAnEmptyMoreMenu() {
         assertNull(ui.graph.repository.activeNight.value)
-        assertFalse(ui.graph.repository.settings.value.platform.lullHandover)
         ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).assertDoesNotExist()
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().assertIsDisplayed()

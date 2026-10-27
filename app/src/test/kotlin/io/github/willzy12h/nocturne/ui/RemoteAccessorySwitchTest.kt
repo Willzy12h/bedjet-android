@@ -44,7 +44,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.concurrent.CopyOnWriteArrayList
 
-/** Remote's visible labels, literal commands and confirmation predicates must agree in both directions. */
+/** Settings' device switches keep the independently verified wire directions and receipt-only confirmation. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class RemoteAccessorySwitchTest {
@@ -60,7 +60,7 @@ class RemoteAccessorySwitchTest {
             ReflectionHelpers.setField(app, "graph", replacement)
             runBlocking {
                 replacement.repository.updateSettings {
-                    it.copy(demoMode = true, themeMode = ThemeMode.DARK, autoUpdateCheck = false)
+                    it.copy(demoMode = true, themeMode = ThemeMode.DARK)
                 }
             }
             replacement.scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -96,6 +96,8 @@ class RemoteAccessorySwitchTest {
         unrelatedFlags: String, matchingFlags: String, confirmedMessage: String) {
         compose.runOnUiThread { link.publish(initialFlags) }
         compose.onNode(hasText("Remote") and hasClickAction()).performClick()
+        switch(label).assertDoesNotExist()
+        compose.onNode(hasText("Settings") and hasClickAction()).performClick()
         waitUntil { switchHasState(label, initiallyOn) }
         switch(label).performScrollTo().assertIsDisplayed().assertHasClickAction().performClick()
         waitUntil { link.writes.isNotEmpty() }

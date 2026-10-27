@@ -29,7 +29,7 @@ class BluetoothLifecycleTest {
         val app = RuntimeEnvironment.getApplication() as App
         val graph = graphs.fresh { Graph(app) }
         ReflectionHelpers.setField(app, "graph", graph)
-        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", autoUpdateCheck = false) }
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
         val adapter = app.getSystemService(BluetoothManager::class.java).adapter
         shadowOf(adapter).setEnabled(false)

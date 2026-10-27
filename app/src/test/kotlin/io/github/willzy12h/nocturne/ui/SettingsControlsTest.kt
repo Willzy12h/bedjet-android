@@ -75,14 +75,14 @@ class SettingsControlsTest {
         compose.onNodeWithText(s(R.string.settings_diagnostics_help)).assertExists()
         val file = temp.newFile("diagnostics.json")
         val model = ViewModelProvider(compose.activity)[AppViewModel::class.java]
-        model.updateToken = "secret-xyz-token"
+        graph.context.getSharedPreferences("secrets", 0).edit().putString("updateToken", "secret-xyz-token").commit()
         try {
             compose.runOnUiThread { model.exportDiagnostics(Uri.fromFile(file)) }
             waitUntil { compose.onAllNodesWithText(s(R.string.settings_diagnostics_saved)).fetchSemanticsNodes().isNotEmpty() }
             val text = file.readText()
             assertTrue(text, text.contains("\"linkState\""))
             assertFalse("the update token never leaves the phone", text.contains("secret-xyz-token"))
-        } finally { model.updateToken = "" }
+        } finally { graph.context.getSharedPreferences("secrets", 0).edit().remove("updateToken").commit() }
     }
 
     @Test fun aFileThatCannotBeOpenedIsReportedAsNotSaved() {

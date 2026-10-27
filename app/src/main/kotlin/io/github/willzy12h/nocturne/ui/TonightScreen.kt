@@ -54,7 +54,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
@@ -95,7 +94,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val running by model.activeNight.collectAsState()
     val alarm by model.nextAlarm.collectAsState()
     val busy by model.busy.collectAsState()
-    val release by model.release.collectAsState()
     val nightStatus by model.nightStatus.collectAsState()
     val runtime by model.runtime.collectAsState()
     var now by remember { mutableStateOf(model.now()) }
@@ -153,7 +151,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     }
 
     Column(modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        DemoModePanel(model, showTryDemo = false)
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.Top) {
             Text(stringResource(R.string.tonight_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(.4f).padding(top = 4.dp).semantics { heading() })
@@ -173,7 +170,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             .testTag("tonight-content").padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             AlarmExplanationLine(explanation, openExplanation)
             BusyIndicator(model)
-            BluetoothBanner(model)
             QuickControls(model, settings, guard)
             TonightSections(settings,
                 onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } },
@@ -270,14 +266,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
         }
     }
-    release?.let { latest ->
-        val uri = LocalUriHandler.current
-        AlertDialog(onDismissRequest = model::dismissRelease,
-            title = { Text(stringResource(R.string.notify_update_title, latest.tag)) },
-            text = { Text(latest.notes.ifBlank { stringResource(R.string.tonight_release_text) }) },
-            confirmButton = { TextButton(onClick = { uri.openUri(latest.apkUrl ?: latest.pageUrl); model.dismissRelease() }) { Text(stringResource(R.string.tonight_release_download)) } },
-            dismissButton = { TextButton(onClick = model::dismissRelease) { Text(stringResource(R.string.tonight_release_later)) } })
-    }
+
 }
 
 /** What the command owner is doing: the running command and how many wait behind it, from any origin (U07). */

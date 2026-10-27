@@ -40,7 +40,6 @@ object Notifications {
     const val WORKING_ID = 1
     private const val WAKE_ID = 2
     private const val ERROR_ID = 3
-    private const val UPDATE_ID = 4
     private const val INFO_ID = 5
     private const val BLUETOOTH_OFF_ID = 8
     /** Repeated background taps or alarm deliveries share one notice during this window. */
@@ -218,22 +217,6 @@ object Notifications {
         if (check != null) builder.addAction(Notification.Action.Builder(null,
             context.getString(R.string.runtime_command_check_bedjet), check).build())
         context.getSystemService(NotificationManager::class.java).notify(id, builder.build())
-    }
-
-    /** Opens the release page: the APK link itself needs signing in when the repository is private. */
-    fun showUpdate(context: Context, tag: String, pageUrl: String) {
-        val title = context.getString(R.string.notify_update_title, tag)
-        log(context, NoticeKind.UPDATE, title, pageUrl)
-        if (!canPost(context)) return
-        val open = PendingIntent.getActivity(context, 0, Intent(Intent.ACTION_VIEW, Uri.parse(pageUrl)), PendingIntent.FLAG_IMMUTABLE)
-        val notification = Notification.Builder(context, CHANNEL_ALERTS)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
-            .setContentText(context.getString(R.string.notify_update_text))
-            .setContentIntent(open)
-            .setAutoCancel(true)
-            .build()
-        context.getSystemService(NotificationManager::class.java).notify(UPDATE_ID, notification)
     }
 
     fun title(context: Context, action: WakeAction, settings: Settings): String = when (action) {

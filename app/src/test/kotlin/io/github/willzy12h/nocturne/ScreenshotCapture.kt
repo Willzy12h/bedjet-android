@@ -104,18 +104,15 @@ class ScreenshotCapture {
     @Test fun featureViews() {
         compose.runOnUiThread { runBlocking {
             graph.repository.updateSettings {
-                it.copy(demoMode = true, themeMode = ThemeMode.DARK,
-                    platform = it.platform.copy(lullHandover = true))
+                it.copy(demoMode = true, themeMode = ThemeMode.DARK)
             }
             graph.repository.setActiveNight(null)
         } }
         settle()
-        compose.onAllNodesWithText("More")[0].performScrollTo().performClick()
-        settle()
-        shot("features-01-idle-handover")
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        settle()
         compose.onAllNodesWithText("Settings")[0].performClick()
+        compose.onNodeWithText("Release BedJet for another phone").performScrollTo()
+        settle()
+        shot("features-01-manual-connection-release")
         compose.onAllNodesWithText("Bedtime reminder")[0].performScrollTo()
         settle()
         shot("features-02-platform-settings")

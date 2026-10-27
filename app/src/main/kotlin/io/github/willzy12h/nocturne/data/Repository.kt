@@ -8,6 +8,7 @@ import android.system.Os
 import android.system.OsConstants
 import android.util.Log
 import androidx.core.util.AtomicFile
+import androidx.core.content.edit
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.plan.Presets
@@ -171,6 +172,9 @@ class Repository(
     // Publication signal, not persisted state: equal-value restores must still reconcile side effects.
     private val _settingsPublication = MutableStateFlow(0L)
     internal val settingsPublication: StateFlow<Long> = _settingsPublication.asStateFlow()
+    // Unlike demoMode, this cannot conflate an enter/exit round trip back to the same value.
+    private val _sessionRevision = MutableStateFlow(0L)
+    internal val sessionRevision: StateFlow<Long> = _sessionRevision.asStateFlow()
     private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now()))
     val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     private val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
@@ -253,6 +257,7 @@ class Repository(
         _restoreUnfinished.value = state.restoreUnfinished
         // Switch the transport only after every flow belongs to the incoming session.
         _settings.value = state.settings
+        _sessionRevision.value += 1
         _settingsPublication.value += 1
     }
 
@@ -356,14 +361,10 @@ class Repository(
         if (isDemoSession) throw IOException(context.getString(R.string.gpt12_demo_backup_unavailable))
     }
 
-    // Excluded from cloud backup and device transfer by res/xml/data_extraction_rules.xml and backup_rules.xml.
-    private val secrets = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
-    /** GitHub token for checking a private repository. Kept out of backups, exports and snapshots. */
-    var updateToken: String
-        get() = secrets.getString("updateToken", "").orEmpty()
-        set(value) = secrets.edit().putString("updateToken", value.trim()).apply()
-
     init {
+        // The removed updater no longer needs its local credential or last-check timestamp.
+        context.getSharedPreferences("secrets", Context.MODE_PRIVATE).edit { remove("updateToken") }
+        context.getSharedPreferences("updates", Context.MODE_PRIVATE).edit { remove("lastCheck") }
         // Moving the unreadable files aside and saving the report are writes, so they wait for the writer. Every
         // later write queues behind this one, so nothing can be written over an unreadable file before it is moved.
         if (toSetAside.isNotEmpty()) scope.launch(writer) { serially { setAsidePending() } }
@@ -617,7 +618,7 @@ class Repository(
 
     // Backups
 
-    /** Everything a backup holds. The update token is never part of it. */
+    /** Everything a real-session backup holds; private preferences are excluded. */
     fun bundle(): BackupBundle {
         requireRealSession()
         return BackupBundle(
@@ -645,7 +646,7 @@ class Repository(
      * Replaces profiles, settings and history with [bundle]'s, after saving what was there as a manual snapshot named
      * [label]. An invalid bundle is refused with [BackupException], listing every problem, before anything changes.
      *
-     * The chosen BedJet, demo mode, the update token and the night under way are kept: a restore changes what the app
+     * The chosen BedJet, local device associations and the night under way are kept: a restore changes what the app
      * knows, never which BedJet it talks to or what that BedJet is doing. Slot backups are merged, current ones
      * winning: an older bundle's backup of a slot may be one of the app's own programs, not the user's original.
      * Everything is written before anything is published; if a write fails the files already written are put back.
@@ -807,6 +808,7 @@ class Repository(
             BackupCodec.json.encodeToJsonElement(BackupBundle.serializer(), projected.copy(createdAt = "")),
             BackupCodec.json.encodeToJsonElement(ActiveNight.serializer().nullable, _activeNight.value),
             BackupCodec.json.encodeToJsonElement(RuntimeState.serializer(), _runtime.value),
+            JsonPrimitive(_sessionRevision.value),
             JsonPrimitive(originalsIntegrityBlocked), JsonPrimitive(originalsLossAcceptedAt),
             JsonArray(_unreadable.value.map(::JsonPrimitive)),
         ))
@@ -836,9 +838,12 @@ class Repository(
         return true
     }
 
-    suspend fun exportTo(uri: Uri) = serially {
-        requireRealSession()
-        val bytes = BackupCodec.encode(bundle()).toByteArray()
+    suspend fun exportTo(uri: Uri) {
+        val bytes = serially {
+            requireRealSession()
+            BackupCodec.encode(bundle()).toByteArray(Charsets.UTF_8)
+        }
+        // A document provider may wait indefinitely; only capturing the real data needs the night writer.
         withContext(Dispatchers.IO) {
             openOutput(uri)?.use { it.write(bytes) } ?: throw IOException(context.getString(R.string.runtime_export_open_failed))
         }
@@ -848,9 +853,9 @@ class Repository(
      * Reads a backup file; throws [BackupException] when it isn't one or is over [BackupValidator.MAX_BYTES]. Check it
      * with [restore], which validates it before changing anything.
      */
-    suspend fun importFrom(uri: Uri): BackupBundle = serially {
-        requireRealSession()
-        withContext(Dispatchers.IO) {
+    suspend fun importFrom(uri: Uri): BackupBundle {
+        serially { requireRealSession() }
+        return withContext(Dispatchers.IO) {
             openInput(uri)?.use { importFrom(it) } ?: throw IOException(context.getString(R.string.runtime_import_open_failed))
         }
     }

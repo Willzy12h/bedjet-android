@@ -107,7 +107,7 @@ class TemporaryActionBoundariesTest {
             }
         }
         installGraph(Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC))
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false,
+        graph.repository.updateSettings { it.copy(demoMode = true,
             alarmPackages = setOf("approved.clock"), acceptUnknownAlarmSource = false) }
     }
 

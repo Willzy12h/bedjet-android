@@ -70,8 +70,8 @@ internal fun importSections(current: BackupBundle, incoming: BackupBundle, resul
         return buildMap {
             encoded.forEach { (key, value) ->
                 if (key == "platform" && value is JsonObject) value.forEach { (name, child) ->
-                    if (name != "lullHandover") put("platform.$name", child)
-                } else if (key !in setOf("updateRepo", "autoUpdateCheck")) put(key, value)
+                    put("platform.$name", child)
+                } else put(key, value)
             }
         }
     }

@@ -137,7 +137,7 @@ internal fun showTemporaryActionDialog(
 /** Shortcut activities are translucent; their window theme is not a readable dialog palette. */
 internal fun nativeActionDialogContext(activity: Activity, graph: Graph): Context {
     val systemDark = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-    val dark = graph.repository.settings.value.isDarkTheme(graph.now(), systemDark)
+    val dark = nativeThemeIsDark(activity, graph.repository.settings.value, graph.now(), systemDark)
     return ContextThemeWrapper(activity, if (dark) android.R.style.Theme_Material_Dialog_Alert
         else android.R.style.Theme_Material_Light_Dialog_Alert)
 }

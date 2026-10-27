@@ -62,22 +62,10 @@ class PlatformAdapterTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
         ChargerJobs.sync(graph)
         assertNull(scheduler.getPendingJob(ChargerJobs.ID))
     }
-    @Test fun oldPeerRequestCannotReleaseNewTarget() = runBlocking {
-        val graph=fresh { Graph(context,DemoBedJet()) }
-        val old="ble:AA:BB:CC:DD:EE:FF"
-        graph.repository.updateSettings {it.copy(targetDevice="ble:11:22:33:44:55:66")}
-        assertEquals(OutcomeKind.STALE,graph.platform.handover.peerRequest(old).kind)
-        assertFalse(graph.sessions.released.value)
-    }
-    @Test fun handoverUsesCoordinatorSuspendResumeAndDeclinesBusyTransaction() = runBlocking {
+    @Test fun manualHandoverUsesCoordinatorSuspendResume() = runBlocking {
         lateinit var graph:Graph
         graph=fresh { Graph(context,DemoBedJet(now={graph.now()})) }
         graph.repository.updateSettings {it.copy(demoMode=true)}
-        val entered=CompletableDeferred<Unit>();val release=CompletableDeferred<Unit>()
-        val operation=async {graph.actions.exclusive {entered.complete(Unit);release.await()}}
-        entered.await()
-        try {assertEquals(OutcomeKind.REFUSED,graph.platform.handover.peerRequest().kind);assertFalse(graph.sessions.released.value)}
-        finally {release.complete(Unit);operation.await()}
         assertEquals(OutcomeKind.LOCAL,graph.platform.handover.release().kind)
         assertTrue(graph.sessions.released.value)
         assertEquals(OutcomeKind.LOCAL,graph.platform.handover.takeBack().kind)

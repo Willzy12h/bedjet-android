@@ -19,6 +19,7 @@ import io.github.willzy12h.nocturne.night.CommandRequest
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.ui.captureQuickAction
 import io.github.willzy12h.nocturne.ui.showTemporaryActionDialog
+import io.github.willzy12h.nocturne.ui.nativeActionDialogContext
 import kotlinx.coroutines.launch
 
 /** A direct widget PendingIntent opens only this translucent, excluded confirmation overlay. */
@@ -43,10 +44,7 @@ class WidgetConfirmationActivity : ComponentActivity() {
             original.copy(profileId = graph.repository.tonightsProfile()?.id) else original
         val current = graph.repository.activeNight.value
         if (!widgetNeedsConfirmation(request, current)) { finish(); return }
-        val settings = graph.repository.settings.value
-        val dark = settings.isDarkTheme(graph.now(), resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES)
-        val dialogContext = ContextThemeWrapper(this, if (dark) android.R.style.Theme_Material_Dialog_Alert
-            else android.R.style.Theme_Material_Light_Dialog_Alert)
+        val dialogContext = nativeActionDialogContext(this, graph)
         val quick = captureQuickAction(graph, request)
         if (quick != null) {
             showTemporaryActionDialog(this, graph, quick, R.string.feature_cancel, dialogContext = dialogContext) { selected ->

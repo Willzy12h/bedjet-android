@@ -1749,15 +1749,13 @@ class NightActions(private val graph: Graph) {
             CommandOutcome(OutcomeKind.CONFIRMED, text(R.string.runtime_fan_checked))
         }
     }
-    suspend fun releaseForOtherPhone(untilMs: Long? = null, declineIfBusy: Boolean = false): CommandOutcome {
-        if (declineIfBusy && lock.isLocked) return refused(R.string.runtime_busy).copy(origin = CommandOrigin.PEER)
-        return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId(),
-            origin = if (declineIfBusy) CommandOrigin.PEER else null) {
+    suspend fun releaseForOtherPhone(): CommandOutcome {
+        return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId()) {
             // Handover invalidates queued commands, but an existing recovery reason and
             // short-lived resume offer remain meaningful when this phone releases the link.
             repo.updateRuntime { it.copy(generation = it.generation + 1,
                 resumeOffer = validResumeOffer(it)?.copy(commandVersion = it.generation + 1)) }
-            graph.sessions.suspendAutoConnect(untilMs).join()
+            graph.sessions.suspendAutoConnect(null).join()
             CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_released))
         }
     }
@@ -1781,6 +1779,39 @@ class NightActions(private val graph: Graph) {
             CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_taken_back))
         }
     }
+    /** A reviewed runtime keeps its target/night through both dialogues and rechecks the live mode's limit. */
+    suspend fun remoteDuration(label: String, request: CommandRequest): CommandOutcome =
+        owned(label, request.deviceId, MIN_BUDGET_MS, origin = request.origin) {
+            if (request.expected != repo.activeNight.value?.identity) return@owned stale()
+            val preset = request.actionPreset ?: return@owned refused(R.string.remote_custom_invalid)
+            connected {
+                val current = graph.link.latestSourcedStatus()?.takeIf { it.isFrom(request.deviceId) }?.status
+                    ?: return@connected refused(R.string.remote_custom_changed)
+                if (current.mode != preset.mode || preset.minutes !in 1..manualRuntimeMaximum(current))
+                    return@connected refused(R.string.remote_custom_changed)
+                val leaveProgramme = request.expected != null || (current.extra?.programStep ?: 0) > 0
+                if (leaveProgramme && (current.targetTemperature != preset.temperature || current.fanPercent != preset.fanPercent))
+                    return@connected refused(R.string.remote_custom_changed)
+                // runManual applies the mode's protocol range. Refuse rather than change the reviewed live setpoint.
+                if (leaveProgramme && preset.mode.usesTemperature && preset.temperature !in preset.mode.temperatureRange)
+                    return@connected refused(R.string.remote_custom_temperature)
+                advanceGeneration(preserveOffer = repo.activeNight.value?.trackingManual != false)
+                var sentAt = elapsedMs()
+                manualChange(label, endsNight = true, affectsProgramme = true, confirms = { report ->
+                    val elapsedSeconds = (elapsedMs() - sentAt).coerceAtLeast(0) / 1_000
+                    val remaining = (preset.minutes * 60L - elapsedSeconds).coerceAtLeast(0)
+                    report.mode == preset.mode && report.remainingSeconds.toLong() in (remaining - 5).coerceAtLeast(0)..remaining &&
+                        (!leaveProgramme || (report.extra?.programStep == 0 &&
+                            (!preset.mode.usesTemperature || report.targetTemperature == preset.temperature) &&
+                            (!preset.mode.usesFan || report.fanPercent == preset.fanPercent)))
+                }) {
+                    sentAt = elapsedMs()
+                    if (leaveProgramme) graph.controller().runManual(preset.mode, preset.temperature, (preset.fanPercent / 5) - 1, preset.minutes)
+                    else graph.controller().setRuntime(preset.minutes)
+                }.let { if (it.kind == OutcomeKind.ACCEPTED) it.copy(kind = OutcomeKind.UNKNOWN) else it }
+            }
+        }
+
     /** A Remote-screen change. [confirms] says which BedJet report shows it took effect; without one it is only sent. */
     suspend fun remote(label: String, endsNight: Boolean = false, affectsProgramme: Boolean = false,
         target: String? = repo.settings.value.deviceId(), expected: NightIdentity? = repo.activeNight.value?.identity,

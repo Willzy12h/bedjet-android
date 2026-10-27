@@ -211,13 +211,21 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         toggleTwice(s(R.string.settings_simple_view)) { graph.repository.settings.value.simpleView }
         toggleTwice(s(R.string.settings_show_f)) { graph.repository.settings.value.fahrenheit }
         toggleTwice(s(R.string.settings_quiet_title)) { graph.repository.settings.value.quietNightNotification }
-        toggleTwice(s(R.string.settings_check_weekly)) { graph.repository.settings.value.autoUpdateCheck }
-        toggleTwice(s(R.string.settings_demo)) { graph.repository.settings.value.demoMode }
+        fixture.control(s(R.string.settings_github_releases))
+        fixture.control(s(R.string.settings_project_help))
+        fixture.control(s(R.string.gpt12_exit_demo), scroll = false).performClick()
+        fixture.waitUntil { !graph.repository.settings.value.demoMode }
+        fixture.tab(s(R.string.tab_settings))
+        fixture.snackbar() // The mode boundary disposes the old session and its SnackbarHost.
+        fixture.control(s(R.string.setup_use_demo)).performClick()
+        fixture.waitUntil { graph.repository.settings.value.demoMode }
+        fixture.snackbar()
+        fixture.control(s(R.string.gpt12_exit_demo), scroll = false)
     }
 
-    @Test fun remoteRowsAreSingleToggleableTargets() {
+    @Test fun deviceRowsInSettingsAreSingleToggleableTargets() {
         fixture.waitUntil { graph.link.state.value == LinkState.READY && graph.link.status.value?.extra != null }
-        fixture.tab(s(R.string.tab_remote))
+        fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
         toggleTwice(s(R.string.remote_lights)) { graph.link.status.value!!.extra!!.ledEnabled }
         toggleTwice(s(R.string.remote_beeps)) { !graph.link.status.value!!.extra!!.beepsMuted }
@@ -229,7 +237,6 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.snackbar()
         toggleTwice(s(R.string.feature_reminders)) { graph.repository.settings.value.platform.bedtimeReminder }
         toggleTwice(s(R.string.feature_charger)) { graph.repository.settings.value.platform.chargerAutoStart }
-        toggleTwice(s(R.string.feature_lull)) { graph.repository.settings.value.platform.lullHandover }
         // Disabling is a real supported action without a Health Connect provider or permission activity.
         switchRow(s(R.string.feature_health_title), true).assertIsEnabled().performClick()
         fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepOverlay }

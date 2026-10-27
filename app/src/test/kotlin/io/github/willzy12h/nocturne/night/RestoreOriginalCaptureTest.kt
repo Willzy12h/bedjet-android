@@ -68,7 +68,7 @@ class RestoreOriginalCaptureTest {
         } }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC)
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false) }
+        graph.repository.updateSettings { it.copy(demoMode = true) }
         assertTrue(graph.repository.originalsBlocked.value)
         graph.repository.dismissUnreadable(acceptLostOriginals = true)
         previewed = graph.repository.recordOriginalSlot("demo", 0, programmeA)

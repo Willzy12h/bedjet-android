@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.widget
 
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -26,7 +27,8 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.lifecycle.lifecycleScope
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.ui.NocturneTheme
-import io.github.willzy12h.nocturne.ui.rememberThemeNow
+import io.github.willzy12h.nocturne.ui.rememberThemePresentation
+import io.github.willzy12h.nocturne.ui.ThemeDuePrompt
 import kotlinx.coroutines.launch
 
 /** Picks what a single-button widget does. */
@@ -36,12 +38,13 @@ class SingleActionConfigActivity : ComponentActivity() {
         val widgetId = intent?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             ?: AppWidgetManager.INVALID_APPWIDGET_ID
         setResult(RESULT_CANCELED, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
-        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return }
+        if (widgetId <= 0 || AppWidgetManager.getInstance(this).getAppWidgetInfo(widgetId)?.provider !=
+            ComponentName(this, SingleActionReceiver::class.java)) { finish(); return }
         val actions = widgetActions(this)
         setContent {
             val settings by graph.repository.settings.collectAsState()
-            val now = rememberThemeNow(settings, graph::now)
-            NocturneTheme(settings, now) {
+            val theme = rememberThemePresentation(settings, graph::now)
+            NocturneTheme(settings, theme.at, theme.dark) {
                 Surface(Modifier.fillMaxSize()) {
                     Column(
                         Modifier.systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -53,6 +56,7 @@ class SingleActionConfigActivity : ComponentActivity() {
                         }
                     }
                 }
+                ThemeDuePrompt(theme)
             }
         }
     }

@@ -41,7 +41,7 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
     }
     val resumeSaved = stringResource(R.string.guard_resume_saved)
     val resumePrevious = stringResource(R.string.guard_resume_previous)
-    val hasMore = night != null || settings.platform.lullHandover
+    val hasMore = night != null
     var more by remember(hasMore) { mutableStateOf(false) }
     var stopTracking by remember { mutableStateOf<CommandRequest?>(null) }
     Column {
@@ -73,7 +73,6 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
                 more = false
                 model.recheckAlarm()
             })
-            PhoneHandoverMenuItems(model.graph, onOutcome = model::report, includeRelease = false) { more = false }
         }
     }
     stopTracking?.let { request ->

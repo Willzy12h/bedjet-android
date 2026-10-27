@@ -89,7 +89,7 @@ class TemporaryNativeLayoutTest : PlatformGraphFixture() {
         graph = fresh { Graph(app, link) }
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
         ReflectionHelpers.setField(app, "graph", graph)
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false, themeMode = ThemeMode.DARK) }
+        graph.repository.updateSettings { it.copy(demoMode = true, themeMode = ThemeMode.DARK) }
         graph.actions.confirmMs = 20
         graph.actions.freshStatusMs = 20
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(Command.START_NIGHT)).kind)
