@@ -29,10 +29,14 @@ class ProfileEditorInteractionTest {
 
     @Test fun profilePreviewsStayPassiveUntilTheirEditorIsOpened() {
         tab(R.string.tab_profiles)
-        val preview = ui.compose.onAllNodesWithTag("night-curve")[0]
+        val previewTag = "profile-timeline-${ui.graph.repository.profiles.value.first().id}"
+        val preview = ui.compose.onNodeWithTag(previewTag)
         val semantics = preview.fetchSemanticsNode().config
         assertFalse("A profile preview must not offer a phase click action", semantics.contains(SemanticsActions.OnClick))
         assertFalse("A profile preview must not offer phase actions", semantics.contains(SemanticsActions.CustomActions))
+        ui.compose.onAllNodes(hasAnyAncestor(hasTestTag(previewTag)) and hasClickAction()).assertCountEquals(0)
+        ui.compose.onAllNodes(hasAnyAncestor(hasTestTag(previewTag)) and
+            SemanticsMatcher.keyIsDefined(SemanticsActions.CustomActions)).assertCountEquals(0)
         preview.performTouchInput { click(); longClick() }
         ui.compose.onNodeWithTag("curve-phase-detail").assertDoesNotExist()
         ui.compose.onNodeWithTag("editor-phase-START-0").assertDoesNotExist()

@@ -32,10 +32,20 @@ Bluetooth only: no account, no cloud. Not affiliated with BedJet LLC.
   run them too.
 - **Seasonal presets**: Summer Cool, Winter Warm, Spring/Autumn, Hot Sleeper, Warm Start Cool Night.
 - **History** of every night (plan and changes), kept for 60 days.
+- **Auto-start**: choose a profile and either a fixed time or a time before the next accepted alarm, with the
+  profile's wake time as the fallback. Charging is optional. One scheduled attempt uses an exact alarm when
+  permission is already held, or a stated 15-minute window; Android may delay the job. The outcome reports
+  confirmed, failed, unknown or skipped, and a claimed attempt is never replayed.
+- **Optional Health Connect export**, off by default: completed, confirmed programmes can be written with
+  explicit permission as “BedJet programme ran”. This describes programme activity, not verified sleep.
+  Equipment tests, demo, incomplete and uncertain nights are excluded. **Sync now** retries unmarked exports
+  using stable record identities, and History shows the acknowledged export marker.
 - **Backups**:
   - automatic snapshots on every change, plus daily (the last 20 are kept);
   - labelled manual snapshots, kept until you delete them;
-  - export and import a backup file.
+  - export a backup file, and review an import before applying it;
+  - the review explains additions, replacements, preserved items and device associations. Imports preserve
+    local originals and refuse pending hardware commands; strict input validation and rollback remain in place.
 - **Updates**: a Settings link opens this repository's GitHub Releases page in your browser.
 - **Try demo**: an isolated preview with a visible Exit demo action; it does not connect to a BedJet or alter real History, originals or backups.
 
@@ -69,11 +79,14 @@ Before creating a version tag, also set these Actions repository variables:
 
 - `NOCTURNE_RELEASE_CERT_SHA256`: the SHA-256 certificate digest of the established release key, as printed by `apksigner verify --print-certs`.
 - `NOCTURNE_RELEASE_VERSION_CODE`: the integer code for this release.
-- `NOCTURNE_PREVIOUS_VERSION_CODE`: the last published release code; the new code must be greater.
+
+CI reads the published release APKs and metadata and requires this release's version code to exceed the
+highest code in that history. It does not use a manually supplied previous-version-code variable.
 
 Keep the `.jks` file safe: losing it means uninstalling to update (export a backup first).
 
-Local `assembleRelease` builds a minified, unsigned APK unless all four `NOCTURNE_*` signing values are set.
+Local `assembleRelease` builds a minified, unsigned APK unless `NOCTURNE_KEYSTORE` (the keystore file path),
+`NOCTURNE_KEYSTORE_PASSWORD`, `NOCTURNE_KEY_ALIAS` and `NOCTURNE_KEY_PASSWORD` are set.
 An incomplete or invalid signing configuration fails the build; it never substitutes the debug key. Pull requests
 build an unsigned inspection APK. A version tag such as `v0.2.0` publishes only after the configured key signs the
 APK and CI verifies its signature, expected signer and increasing version code. Keep the production key outside Git and backed up securely.

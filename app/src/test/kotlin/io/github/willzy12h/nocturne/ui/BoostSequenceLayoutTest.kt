@@ -47,7 +47,7 @@ class BoostSequenceLayoutTest(look: U06Look) {
 
     @Test fun remoteShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent() {
         ui.tab(ui.s(R.string.tab_remote))
-        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_lights)).fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil { ui.compose.onAllNodes(hasText(ui.s(R.string.mode_heat)) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
         everyDuration(quick = false)
     }
 }

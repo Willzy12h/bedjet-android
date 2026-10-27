@@ -230,9 +230,11 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                 Section(stringResource(R.string.mode_turbo)) {
                     SwitchRow(
                         stringResource(R.string.editor_repeat_turbo),
-                        stringResource(R.string.editor_repeat_turbo_help),
+                        null,
                         profile.turboChain == TurboChain.REPEAT_TURBO,
                     ) { profile = profile.copy(turboChain = if (it) TurboChain.REPEAT_TURBO else TurboChain.TURBO_THEN_HEAT) }
+                    Text(stringResource(R.string.editor_repeat_turbo_help), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

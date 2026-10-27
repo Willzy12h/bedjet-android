@@ -9,6 +9,8 @@ import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.BackupBundle
 import io.github.willzy12h.nocturne.core.store.BackupCodec
+import io.github.willzy12h.nocturne.core.store.BackupException
+import io.github.willzy12h.nocturne.core.store.BackupFailure
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.OutcomeKind
@@ -158,6 +160,27 @@ class DemoImportPreviewInvalidationTest {
 
         assertNull("A conflated enter/exit cannot revive the pre-demo import request", model.importPreview.value)
         assertFalse(model.importApplying.value)
+        assertRealDataUnchanged()
+    }
+
+    @Test fun aRepositoryApplyTokenCannotSurviveADemoRoundTripWithIdenticalRealData() {
+        val repo = graph.repository
+        val reviewed = runBlocking { repo.previewImport(BackupCodec.decode(input)) }
+        assertTrue(reviewed.canApply)
+        val runtimeBefore = repo.runtime.value
+        val activeBefore = repo.activeNight.value
+
+        // Use the public session boundaries without giving Main an intermediate demo emission.
+        // A raw repository caller bypasses AppViewModel's token check and cancellation observer.
+        demo(true)
+        demo(false)
+        assertRealDataUnchanged()
+        assertEquals("The real runtime is restored exactly", runtimeBefore, repo.runtime.value)
+        assertEquals(activeBefore, repo.activeNight.value)
+
+        val failure = runBlocking { runCatching { repo.applyImport(reviewed) }.exceptionOrNull() }
+        assertTrue("An unchanged real bundle cannot revive a review from before demo: $failure", failure is BackupException)
+        assertEquals(BackupFailure.CHANGED, (failure as BackupException).failure)
         assertRealDataUnchanged()
     }
 

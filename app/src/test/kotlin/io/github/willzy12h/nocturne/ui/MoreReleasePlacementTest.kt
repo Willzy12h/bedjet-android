@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 /** Moving connection release into Settings leaves Tonight's other recovery actions reachable. */
 @RunWith(RobolectricTestRunner::class)
@@ -65,7 +66,7 @@ class MoreReleasePlacementTest {
             runBlocking {
                 ui.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target) }
             }
-            DeviceNames(ui.graph.context) { target }.display(target, rememberedName)
+            ReflectionHelpers.getField<DeviceNames>(ui.graph.bleLink, "names").display(target, rememberedName)
         }
         ui.waitUntil {
             !ui.model.settings.value.demoMode && ui.model.bedJetName() == rememberedName &&

@@ -8,6 +8,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import io.github.willzy12h.nocturne.App
+import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.graph
@@ -35,6 +36,7 @@ import java.time.ZoneOffset
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class SettingsControlsTest {
     private val compose = createAndroidComposeRule<MainActivity>()
+    private val graphs = GraphLifecycle()
     private val fixture = TestRule { base, _ -> object : Statement() {
         override fun evaluate() {
             val graph = (RuntimeEnvironment.getApplication() as App).graph
@@ -44,7 +46,7 @@ class SettingsControlsTest {
             try { base.evaluate() } finally { graph.clock = previous }
         }
     } }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(fixture).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(graphs).around(fixture).around(compose)
     @get:Rule val temp = TemporaryFolder()
     private val graph get() = compose.activity.graph
     private fun s(id: Int, vararg args: Any) = compose.activity.getString(id, *args)

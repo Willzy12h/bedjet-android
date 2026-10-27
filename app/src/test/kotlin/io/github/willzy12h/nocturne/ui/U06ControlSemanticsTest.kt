@@ -14,6 +14,7 @@ import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.TurboChain
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ActionPreset
+import io.github.willzy12h.nocturne.core.store.AutoStartSettings
 import io.github.willzy12h.nocturne.platform.PlatformNotifications
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -61,13 +62,14 @@ internal class U06ControlSemanticsTest(look: U06Look) {
             if (platformRows) {
                 f.graph.repository.updateSettings {
                     it.copy(demoMode = false, targetDevice = TARGET,
-                        platform = it.platform.copy(healthSleepOverlay = true))
+                        platform = it.platform.copy(healthSleepOverlay = true, healthSleepExport = true,
+                            autoStart = AutoStartSettings(profileId = Presets.summerCool.id, deviceId = TARGET)))
                 }
             }
         }
         if (platformRows) {
             val app: Application = RuntimeEnvironment.getApplication()
-            shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.BLUETOOTH_ADVERTISE)
+            shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
             PlatformNotifications.channel(app)
         }
     }
@@ -236,17 +238,23 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
         toggleTwice(s(R.string.feature_reminders)) { graph.repository.settings.value.platform.bedtimeReminder }
-        toggleTwice(s(R.string.feature_charger)) { graph.repository.settings.value.platform.chargerAutoStart }
+        toggleTwice(s(R.string.auto_start_title)) { graph.repository.settings.value.platform.autoStart?.enabled == true }
+        toggleTwice(s(R.string.auto_start_only_charging)) { graph.repository.settings.value.platform.autoStart?.onlyIfCharging == true }
+        switchRow(s(R.string.health_export_title), true).assertIsEnabled().performClick()
+        fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepExport }
+        switchRow(s(R.string.health_export_title), false)
         // Disabling is a real supported action without a Health Connect provider or permission activity.
         switchRow(s(R.string.feature_health_title), true).assertIsEnabled().performClick()
         fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepOverlay }
         switchRow(s(R.string.feature_health_title), false)
     }
 
-    @Test fun chargerRowKeepsItsExplainedDisabledStateInDemo() {
+    @Test fun automaticFeatureRowsKeepTheirExplainedDisabledStateInDemo() {
         fixture.tab(s(R.string.tab_settings))
-        switchRow(s(R.string.feature_charger), false).assertIsNotEnabled()
-        compose.onNodeWithText(s(R.string.feature_select_device)).performScrollTo().assertIsDisplayed()
+        switchRow(s(R.string.auto_start_title), false).assertIsNotEnabled()
+        switchRow(s(R.string.auto_start_only_charging), false).assertIsNotEnabled()
+        switchRow(s(R.string.health_export_title), false).assertIsNotEnabled()
+        compose.onAllNodesWithText(s(R.string.platform_demo_unavailable)).onFirst().performScrollTo().assertIsDisplayed()
     }
 
     private fun openEditor() {
@@ -291,6 +299,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         switchRow(s(R.string.editor_wake_with_alarm), false)
         switchRow(s(R.string.editor_repeat_turbo), false).performClick()
         switchRow(s(R.string.editor_repeat_turbo), true)
+        fixture.checkLayout(compose.onNodeWithText(s(R.string.editor_repeat_turbo_help)), "Repeat Turbo explanation")
         fixture.control(s(R.string.editor_save), scroll = false).performClick()
         fixture.waitUntil {
             graph.repository.profiles.value.first { it.id == Presets.summerCool.id }.let {

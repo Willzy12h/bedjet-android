@@ -58,11 +58,13 @@ class BackupStrictValidationTest {
 
     @Test fun directDecodeEnforcesTheFileSizeLimitToo() {
         val text = encoded(extra = ",\"oversized\":\"${"x".repeat(BackupValidator.MAX_BYTES)}\"")
-        assertThrows<BackupException> { BackupCodec.decode(text) }
+        val failure = assertThrows<BackupException> { BackupCodec.decode(text) }
+        assertEquals(BackupFailure.TOO_LARGE, failure.failure)
     }
 
     @Test fun rejectsExcessiveNestingBeforeRecursiveDecoding() {
-        assertThrows<BackupException> { BackupCodec.decode(encoded(extra = ",\"deep\":" + "[".repeat(80) + "0" + "]".repeat(80))) }
+        val failure = assertThrows<BackupException> { BackupCodec.decode(encoded(extra = ",\"deep\":" + "[".repeat(80) + "0" + "]".repeat(80))) }
+        assertEquals("BACKUP_DEPTH_LIMIT", failure.message)
     }
 
     @Test fun rejectsBlankOrOversizedIdentityAndDisplayFields() {
@@ -77,7 +79,11 @@ class BackupStrictValidationTest {
         rejected(good.copy(profiles = List(129) { profile.copy(id = "p$it") }))
         rejected(good.copy(profiles = listOf(profile.copy(start = List(65) { profile.start.first() }))))
         rejected(good.copy(history = List(2049) { night.copy(id = "n$it") }))
-        rejected(good.copy(slotBackups = List(385) { SlotBackup("ble:$it", 0, null, at) }))
+        val originals = List(385) { index ->
+            SlotBackup("ble:AA:BB:CC:DD:%02X:%02X".format(index / 256, index % 256), 0, null, at)
+        }
+        assertEquals(emptyList<String>(), BackupValidator.validate(good.copy(slotBackups = originals.take(384))))
+        rejected(good.copy(slotBackups = originals))
         rejected(good.copy(history = listOf(night.copy(temperatures = List(4097) { TempSample(at, 50, 50) }))))
     }
 

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.text.TextLayoutResult
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.GraphLifecycle
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.plan.Middle
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Profile
@@ -90,6 +91,9 @@ class NightTimelineLayoutTest {
     private fun assertTimes(theme: ThemeMode, simple: Boolean) {
         val graph = graph
         compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(themeMode = theme, simpleView = simple) } } }
+        if (theme == ThemeMode.LIGHT) {
+            compose.onNodeWithText(compose.activity.getString(R.string.theme_switch_now)).performClick()
+        }
         compose.waitUntil(10_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             if (simple) compose.onAllNodesWithText("23:00", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()

@@ -98,8 +98,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                         Text(describe(profile), style = MaterialTheme.typography.bodySmall)
                         model.previewPlan(profile).getOrNull()?.let {
                             NightTimeline(it, wake.origin, settings.fahrenheit,
-                                modifier = Modifier.testTag("profile-timeline-${profile.id}"),
-                                onEditPhase = { onEdit(profile) })
+                                modifier = Modifier.testTag("profile-timeline-${profile.id}"))
                         }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = { model.updateSettings { it.chooseTonight(profile.id, model.now()) } }) { Text(stringResource(R.string.profiles_use_tonight)) }

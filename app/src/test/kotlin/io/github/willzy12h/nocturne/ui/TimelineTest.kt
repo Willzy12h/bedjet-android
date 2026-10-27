@@ -9,7 +9,7 @@ import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.ZonedDateTime
 
@@ -65,7 +65,7 @@ class TimelineTest {
         val old = """{"workingSlot":1,"fahrenheit":true}"""
         val settings = BackupCodec.json.decodeFromString(Settings.serializer(), old)
         assertEquals(ThemeMode.SYSTEM, settings.themeMode)
-        assertFalse(settings.simpleView)
+        assertTrue("A save without an appearance choice adopts the current Simple default", settings.simpleView)
         assertEquals(1, settings.workingSlot)
         val round = BackupCodec.json.decodeFromString(Settings.serializer(), BackupCodec.json.encodeToString(Settings.serializer(), settings.copy(themeMode = ThemeMode.LIGHT, simpleView = true)))
         assertEquals(ThemeMode.LIGHT, round.themeMode)

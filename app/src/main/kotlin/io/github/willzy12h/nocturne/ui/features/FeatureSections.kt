@@ -44,7 +44,6 @@ import kotlinx.coroutines.launch
     val prefs=settings.platform
     val scope=rememberCoroutineScope()
     var message by remember {mutableStateOf<String?>(null)}
-    var notificationChoice by remember {mutableStateOf<String?>(null)}
     fun change(transform:(PlatformSettings)->PlatformSettings) {
         scope.launch {
             try { graph.repository.updateSettings { it.copy(platform=transform(it.platform)) } }
@@ -61,12 +60,12 @@ import kotlinx.coroutines.launch
             } catch (_: Exception) { message = graph.context.getString(R.string.feature_saving_failed) }
         }
     }
-    fun enableNotificationFeature(which:String) {
+    fun enableReminder() {
         if (!PlatformNotifications.available(graph.context)) {message=graph.context.getString(R.string.feature_notification_permission);return}
-        change {if(which=="charger") it.copy(chargerAutoStart=true,chargerDevice=settings.targetDevice) else it.copy(bedtimeReminder=true)}
+        change {it.copy(bedtimeReminder=true)}
     }
     val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {granted->
-        if(granted) notificationChoice?.let(::enableNotificationFeature) else message=graph.context.getString(R.string.feature_notification_permission)
+        if(granted) enableReminder() else message=graph.context.getString(R.string.feature_notification_permission)
     }
     val healthPermission=rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) {granted->
         if (!graph.repository.settings.value.demoMode) {
@@ -74,23 +73,20 @@ import kotlinx.coroutines.launch
             if(!granted.containsAll(AndroidSleepSource.PERMISSIONS)) message=graph.context.getString(R.string.feature_health_permission)
         }
     }
-    fun notificationToggle(which:String,enabled:Boolean) {
-        if(!enabled) {change {if(which=="charger") it.copy(chargerAutoStart=false) else it.copy(bedtimeReminder=false)};return}
-        notificationChoice=which
+    fun reminderToggle(enabled:Boolean) {
+        if(!enabled) {change {it.copy(bedtimeReminder=false)};return}
         if(Build.VERSION.SDK_INT>=33 && graph.context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        else enableNotificationFeature(which)
+        else enableReminder()
     }
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        FeatureSwitch(stringResource(R.string.feature_reminders),prefs.bedtimeReminder) {notificationToggle("reminder",it)}
+        FeatureSwitch(stringResource(R.string.feature_reminders),prefs.bedtimeReminder) {reminderToggle(it)}
         if(prefs.bedtimeReminder) Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             Text(androidx.compose.ui.res.pluralStringResource(R.plurals.feature_reminder_minutes,prefs.reminderMinutes,prefs.reminderMinutes),Modifier.weight(1f))
             TextButton({change {it.copy(reminderMinutes=(it.reminderMinutes+5).coerceAtMost(120))}}) {Text(stringResource(R.string.feature_earlier))}
             TextButton({change {it.copy(reminderMinutes=(it.reminderMinutes-5).coerceAtLeast(0))}}) {Text(stringResource(R.string.feature_later))}
         }
-        FeatureSwitch(stringResource(R.string.feature_charger),prefs.chargerAutoStart,!settings.demoMode && settings.targetDevice!=null) {notificationToggle("charger",it)}
-        Text(stringResource(R.string.feature_charger_help),style=MaterialTheme.typography.bodySmall)
-        if(settings.demoMode || settings.targetDevice==null) Text(stringResource(R.string.feature_select_device),style=MaterialTheme.typography.bodySmall)
+        AutoStartSettingsSection(graph)
         FeatureSwitch(stringResource(R.string.feature_health_title),prefs.healthSleepOverlay, !settings.demoMode) {enabled->
             if (!graph.repository.settings.value.demoMode) {
                 if(!enabled) changeHealthOverlay(false)
@@ -99,6 +95,7 @@ import kotlinx.coroutines.launch
             }
         }
         Text(stringResource(R.string.feature_health_privacy),style=MaterialTheme.typography.bodySmall)
+        HealthExportSettingsSection(graph)
         message?.let {Text(it,color=MaterialTheme.colorScheme.error)}
     }
 }

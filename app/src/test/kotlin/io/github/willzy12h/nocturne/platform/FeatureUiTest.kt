@@ -3,12 +3,17 @@ import android.Manifest
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertIsOff
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
@@ -38,13 +43,19 @@ import java.util.concurrent.atomic.AtomicReference
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[34])
 class FeatureUiTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixture() {
     @get:Rule val compose=createComposeRule()
-    @Test fun settingsExplainsBestEffortAndSupervisedAcceptance() {
+    @Test fun settingsExplainsAutoStartTimingAndOptionalHealthExport() {
         val graph=(RuntimeEnvironment.getApplication() as Context).graph
-        compose.setContent { MaterialTheme { PlatformSettingsSection(graph) } }
-        compose.onNodeWithText("Charger auto-start").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Charger auto-start").assertIsDisplayed()
-        compose.onNodeWithText("Supervised acceptance pending",substring=true).assertIsDisplayed()
-        compose.onNodeWithText("after restoring",substring=true).assertIsDisplayed()
+        org.robolectric.shadows.ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        compose.setContent { MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
+            PlatformSettingsSection(graph)
+        } } }
+        compose.onNodeWithText("Auto-start").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Auto-start").assertIsDisplayed().assertIsOff()
+        compose.onNodeWithText("Skip if a night is already running", substring=true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Only if the phone is charging").performScrollTo().assertIsDisplayed().assertIsOff()
+        compose.onNodeWithText("15-minute window", substring=true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Export BedJet programmes").performScrollTo().assertIsDisplayed().assertIsOff()
+        compose.onNodeWithText("not verified sleep", substring=true).performScrollTo().assertIsDisplayed()
     }
     @Test fun historyExportRequiresExplicitDeviceIdentifierChoice() {
         val graph=(RuntimeEnvironment.getApplication() as Context).graph
