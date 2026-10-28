@@ -147,7 +147,7 @@ class WakeFeedbackTest {
         val before = graph.repository.profiles.value
         compose.onNodeWithText("Profiles").performClick()
         compose.onNodeWithText("New profile").performClick()
-        compose.onNodeWithText("Summer Cool (summer)").performClick()
+        compose.onNode(hasText("Summer Cool") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         waitFor("Edit profile")
         compose.onNode(hasSetTextAction()).performTextReplacement("Never saved")
         compose.onNodeWithContentDescription("Cancel").performClick()

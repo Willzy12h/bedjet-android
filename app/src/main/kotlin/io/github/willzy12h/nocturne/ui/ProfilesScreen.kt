@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,8 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -73,6 +74,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     var pinning by remember { mutableStateOf<PinRequest?>(null) }
     var pinSlot by remember { mutableStateOf(0) }
     val activeNight by model.activeNight.collectAsState()
+    val tokens = paletteTokens
 
     Box(modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -80,15 +82,18 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             items(profiles, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }
                 val copyName = stringResource(R.string.profiles_copy_name, profile.name)
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        contentColor = MaterialTheme.colorScheme.onSurface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(profile.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            if (settings.resolveTonightChoice(model.now())?.profileId == profile.id) Text(stringResource(R.string.profiles_tonight), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelLarge)
-                        }
+                val selected = settings.resolveTonightChoice(model.now())?.profileId == profile.id
+                StripeTile(
+                    stripe = tokens.stepColor(profile.middle.mode, profile.middle.tempStart),
+                    title = profile.name,
+                    subtitle = null,
+                    modifier = Modifier.fillMaxWidth().testTag("profile-card-${profile.id}")
+                        .then(if (selected) Modifier.border(1.dp, tokens.accent, RoundedCornerShape(12.dp)) else Modifier),
+                    headerModifier = Modifier.heightIn(min = 48.dp).testTag("profile-open-${profile.id}")
+                        .clickable(role = Role.Button) { onEdit(profile) },
+                    trailing = if (selected) ({ Text(stringResource(R.string.profiles_tonight),
+                        color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelLarge) }) else null,
+                ) {
                         val wake = model.wakePreview(profile)
                         Text(
                             if (wake.fromAlarm) stringResource(R.string.profiles_wake_alarm, Format.clock(wake.time))
@@ -104,22 +109,23 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                             TextButton(onClick = { model.updateSettings { it.chooseTonight(profile.id, model.now()) } }) { Text(stringResource(R.string.profiles_use_tonight)) }
                             TextButton(onClick = { onEdit(profile) }) { Text(stringResource(R.string.action_edit)) }
                             TextButton(onClick = { more = true }) { Text(stringResource(R.string.recovery_more)) }
-                            DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                                DropdownMenuItem(text = { Text(stringResource(R.string.pin_menu)) }, onClick = {
+                            DropdownMenu(expanded = more, onDismissRequest = { more = false },
+                                modifier = Modifier.testTag("profile-menu"),
+                                containerColor = tokens.menu, border = BorderStroke(1.dp, tokens.hairline)) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.pin_menu), color = tokens.ink) }, onClick = {
                                     more = false
                                     val at = model.now()
                                     pinning = PinRequest(profile, settings.deviceId(), settings.workingSlot, at,
                                         NightPreview.forStartNow(profile, at, null, settings = settings))
                                     pinSlot = (0..2).first { it != settings.workingSlot }
                                 })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.profiles_copy)) }, onClick = {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.profiles_copy), color = tokens.ink) }, onClick = {
                                     more = false
                                     model.saveProfile(profile.copy(id = UUID.randomUUID().toString(), name = copyName))
                                 })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.profiles_delete)) }, onClick = { more = false; deleting = profile })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.profiles_delete), color = tokens.ink) }, onClick = { more = false; deleting = profile })
                             }
                         }
-                    }
                 }
             }
             item { Box(Modifier.padding(40.dp)) }
@@ -132,12 +138,17 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             onDismissRequest = { adding = false },
             title = { Text(stringResource(R.string.profiles_start_from)) },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Presets.all.forEach { preset ->
-                        TextButton(onClick = {
-                            adding = false
-                            onEdit(preset.copy(id = UUID.randomUUID().toString(), name = preset.name))
-                        }) { Text("${preset.name} (${stringResource(seasonName(preset.season))})") }
+                        StripeTile(
+                            stripe = tokens.stepColor(preset.middle.mode, preset.middle.tempStart),
+                            title = preset.name,
+                            subtitle = stringResource(seasonName(preset.season)),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable {
+                                adding = false
+                                onEdit(preset.copy(id = UUID.randomUUID().toString(), name = preset.name))
+                            },
+                        )
                     }
                 }
             },

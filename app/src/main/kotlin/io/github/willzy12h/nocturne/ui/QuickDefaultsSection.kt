@@ -2,21 +2,31 @@ package io.github.willzy12h.nocturne.ui
 
 import android.content.Context
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.LinkState
@@ -27,6 +37,15 @@ import io.github.willzy12h.nocturne.core.store.QuickDefaults
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlin.math.roundToInt
+
+private fun quickModeIcon(mode: Mode): ImageVector = when (mode) {
+    Mode.TURBO -> Icons.Default.Speed
+    Mode.HEAT, Mode.EXTENDED_HEAT -> Icons.Default.LocalFireDepartment
+    Mode.COOL -> Icons.Default.AcUnit
+    Mode.DRY -> Icons.Default.WaterDrop
+    Mode.STANDBY -> Icons.Default.PowerSettingsNew
+    Mode.WAIT -> Icons.Default.Schedule
+}
 
 internal fun quickModeLabel(context: Context, preset: ActionPreset, fahrenheit: Boolean): String {
     val name = context.getString(Format.modeNameRes(preset.mode))
@@ -67,37 +86,39 @@ internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: Ni
     val evidence = status.takeIf { live && link == LinkState.READY && runtime.slotWrite == null && owner.runningLabel == null &&
         (it?.mode == Mode.STANDBY || night == null || (night?.trackingManual == true &&
             night?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED)) }
-    val colours = nocturneColors
+    val tokens = paletteTokens
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         (QuickDefaults.modes + Mode.STANDBY).chunked(2).forEach { pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 pair.forEach { mode ->
                     val preset = if (mode == Mode.STANDBY) null else QuickDefaults.resolve(settings, mode)
                     val valid = preset == null || QuickDefaults.valid(preset)
-                    val label = preset?.let { quickModeLabel(context, it, settings.fahrenheit) } ?: stringResource(R.string.mode_off)
+                    val label = stringResource(Format.modeNameRes(mode))
                     val active = if (preset == null) evidence?.mode == Mode.STANDBY else matchesQuick(evidence, preset)
                     val description = if (!valid) stringResource(R.string.uat_quick_invalid)
                         else preset?.let { presetDetail(context, it, settings.fahrenheit) } ?: label
-                    OutlinedButton(onClick = {
+                    val subtitle = preset?.takeIf { valid }?.let {
+                        val duration = durationText(it.minutes)
+                        if (it.mode.usesTemperature) stringResource(R.string.quick_tile_detail, tempText(it.temperature, settings.fahrenheit), duration)
+                        else duration
+                    }
+                    StripeTile(stripe = tokens.stepColor(mode, preset?.temperature ?: 0), title = label,
+                        subtitle = subtitle,
+                        icon = { Icon(quickModeIcon(mode), contentDescription = null, modifier = Modifier.size(16.dp),
+                            tint = tokens.stepColor(mode, preset?.temperature ?: 0)) },
+                        trailing = { if (active) ActiveIndicator(tokens.stepColor(mode, preset?.temperature ?: 0), true,
+                            Modifier.testTag("quick-active-${mode.name}")) },
+                        modifier = Modifier.weight(1f).heightIn(min = 72.dp).testTag("quick-mode-${mode.name}")
+                            .semantics { contentDescription = description }
+                            .border(quickButtonBorder(MaterialTheme.colorScheme), RoundedCornerShape(12.dp))
+                            .clickable(role = Role.Button) {
                         if (preset == null) guard.confirm(context.getString(R.string.guard_turn_off)) { model.run(Command.OFF) }
                         else {
                             val captured = captureModeQuick(model, preset)
                             guard.confirm(context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(mode))),
                                 captured.temporary) { model.runCaptured(captured.end) }
                         }
-                    },
-                        modifier = Modifier.weight(1f).heightIn(min = 72.dp).testTag("quick-mode-${mode.name}")
-                            .semantics { contentDescription = description },
-                        shape = RoundedCornerShape(16.dp), contentPadding = PaddingValues(8.dp),
-                        border = quickButtonBorder(MaterialTheme.colorScheme),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            contentColor = MaterialTheme.colorScheme.onSurface)) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            ActiveIndicator(colours.mode(mode), active,
-                                if (active) Modifier.testTag("quick-active-${mode.name}") else Modifier)
-                            Text(label, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
-                        }
-                    }
+                    })
                 }
             }
         }
@@ -113,17 +134,15 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
     var editing by remember { mutableStateOf<ActionPreset?>(null) }
     QuickDefaults.modes.forEach { mode ->
         val preset = QuickDefaults.resolve(settings, mode)
-        Card(Modifier.fillMaxWidth().testTag("quick-default-${mode.name}")) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(quickModeLabel(context, preset, settings.fahrenheit), style = MaterialTheme.typography.titleSmall)
-                Text(stringResource(R.string.uat_quick_summary, tempText(preset.temperature, settings.fahrenheit),
-                    preset.fanPercent, preset.minutes), style = MaterialTheme.typography.bodySmall)
+        StripeTile(stripe = paletteTokens.stepColor(preset.mode, preset.temperature),
+            title = quickModeLabel(context, preset, settings.fahrenheit),
+            subtitle = stringResource(R.string.uat_quick_summary, tempText(preset.temperature, settings.fahrenheit),
+                preset.fanPercent, preset.minutes), modifier = Modifier.fillMaxWidth().testTag("quick-default-${mode.name}")) {
                 if (!QuickDefaults.valid(preset)) Text(stringResource(R.string.uat_quick_invalid),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                 TextButton(onClick = { editing = preset }) {
                     Text(stringResource(R.string.uat_quick_edit, stringResource(Format.modeNameRes(mode))))
                 }
-            }
         }
     }
     Text(stringResource(R.string.uat_quick_off_help), style = MaterialTheme.typography.bodySmall)

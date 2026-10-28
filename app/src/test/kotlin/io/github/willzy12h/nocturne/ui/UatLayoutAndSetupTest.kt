@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
+import io.github.willzy12h.nocturne.R
+
 import android.Manifest
 import android.app.AlarmManager
 import android.bluetooth.BluetoothAdapter
@@ -159,12 +161,22 @@ class UatLayoutAndSetupTest {
         modes.forEach { mode ->
             val node = compose.onNodeWithTag("quick-mode-${mode.name}")
             node.performScrollTo().assertIsDisplayed().assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
-            val label = if (mode == Mode.STANDBY) app.getString(Format.modeNameRes(mode))
-                else quickModeLabel(app, QuickDefaults.resolve(settings, mode), false)
-            val results = mutableListOf<TextLayoutResult>()
-            compose.onNodeWithText(label, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
-            assertTrue(label, results.isNotEmpty())
-            assertFalse("No clipped label: $label; size=${results.single().size}; lines=${results.single().lineCount}; width=${results.single().didOverflowWidth}; height=${results.single().didOverflowHeight}", results.single().hasVisualOverflow)
+            fun checkText(text: String) {
+                val results = mutableListOf<TextLayoutResult>()
+                compose.onNode(hasText(text) and hasAnyAncestor(hasTestTag("quick-mode-${mode.name}")), useUnmergedTree = true)
+                    .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+                assertTrue(text, results.isNotEmpty())
+                assertFalse("No clipped label: $text; size=${results.single().size}; lines=${results.single().lineCount}; width=${results.single().didOverflowWidth}; height=${results.single().didOverflowHeight}", results.single().hasVisualOverflow)
+            }
+            checkText(app.getString(Format.modeNameRes(mode)))
+            if (mode != Mode.STANDBY) {
+                val preset = QuickDefaults.resolve(settings, mode)
+                val words = Format.Words { id, args -> app.getString(id, *args) }
+                val duration = Format.duration(preset.minutes, words)
+                val subtitle = if (mode.usesTemperature) app.getString(R.string.quick_tile_detail,
+                    Format.temp(preset.temperature, false, words), duration) else duration
+                checkText(subtitle)
+            }
         }
         compose.onNodeWithTag("quick-mode-TURBO").performScrollTo()
         val left = compose.onNodeWithTag("quick-mode-TURBO").getUnclippedBoundsInRoot()

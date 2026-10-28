@@ -1,6 +1,9 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
@@ -18,6 +21,24 @@ import java.time.ZonedDateTime
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class NightCurveAlternativeTest : ComposeActivityFixture() {
+    @Test fun timelineEmphasisesCurrentStepAndWakeInDarkPalette() {
+        val start = ZonedDateTime.parse("2026-10-22T22:30Z")
+        val plan = Plan(start, start.plusHours(1), listOf(
+            PlannedStep(Block.MIDDLE, ProgramStep(Mode.COOL, 7, 44, 1, 0), start, 60)))
+        setContent { NocturneTheme(io.github.willzy12h.nocturne.core.store.ThemeMode.DARK) {
+            NightTimeline(plan, io.github.willzy12h.nocturne.core.night.WakeOrigin.PROFILE_DEFAULT, false, now = start.plusMinutes(10))
+        } }
+        fun layout(text: String): TextLayoutResult {
+            val results = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(text, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+            return results.single()
+        }
+        assertEquals(FontWeight.SemiBold, layout("Cool").layoutInput.style.fontWeight)
+        val wake = layout("Wake time").layoutInput.style
+        assertEquals(FontWeight.SemiBold, wake.fontWeight)
+        assertEquals(io.github.willzy12h.nocturne.core.store.Palette.MIDNIGHT_INK.tokens.accent, wake.color)
+    }
     @Test fun temporaryPrefixIsNamedInTheCurveAlternative() {
         val start = ZonedDateTime.parse("2026-10-22T22:30Z")
         val plan = Plan(start, start.plusMinutes(20), listOf(

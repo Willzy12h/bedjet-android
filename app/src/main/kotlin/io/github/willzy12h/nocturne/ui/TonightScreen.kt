@@ -166,6 +166,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
             .testTag("tonight-content").padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            val largeText = LocalConfiguration.current.fontScale >= 1.5f
+            if (!largeText) HomeReading(model, settings)
             SetupChecklistCard(model)
             // Long fallback explanations must remain readable without consuming the controls' viewport.
             headline.reason?.let {
@@ -174,6 +176,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             AlarmExplanationLine(explanation, openExplanation)
+            if (largeText) HomeReading(model, settings)
             QuickControls(model, settings, guard)
             TonightSections(settings,
                 onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } },
@@ -272,6 +275,36 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     }
 
     BusyIndicator(model)
+    }
+}
+
+/** The large reading and its context are based only on the current BedJet receipt. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HomeReading(model: AppViewModel, settings: Settings) {
+    val status by model.status.collectAsState()
+    val live by model.hasLiveStatus.collectAsState()
+    val link by model.linkState.collectAsState()
+    val reading = status.takeIf { live && link == LinkState.READY }
+    if (reading == null) {
+        Text(stringResource(R.string.home_reading_unavailable),
+            modifier = Modifier.testTag("home-reading-context"), color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium)
+    } else {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(tempText(reading.actualTemperature, settings.fahrenheit),
+                modifier = Modifier.testTag("home-temperature"), fontSize = 48.sp, lineHeight = 56.sp,
+                fontWeight = FontWeight.Light)
+            Column {
+                Text(stringResource(R.string.home_air_from_bedjet), modifier = Modifier.testTag("home-reading-context"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Text(if (reading.mode == Mode.STANDBY) stringResource(R.string.home_idle) else modeName(reading.mode),
+                    style = MaterialTheme.typography.bodyMedium)
+                if (reading.mode.usesFan) Text(stringResource(R.string.timeline_fan, reading.fanPercent),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 }
 

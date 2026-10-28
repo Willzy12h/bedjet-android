@@ -3,9 +3,11 @@ package io.github.willzy12h.nocturne
 import android.os.Looper
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.core.store.ThemeMode
@@ -68,8 +70,9 @@ class AppearanceTest {
         compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } } }
         waitFor(hasText("Wake time") or hasText("Your alarm"))
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Turbo 10m")
+        compose.onNodeWithTag("quick-mode-TURBO")
             .performScrollTo().assertIsDisplayed()
+            .assertTextContains("Turbo").assertTextContains("10 min")
     }
 
     @Test

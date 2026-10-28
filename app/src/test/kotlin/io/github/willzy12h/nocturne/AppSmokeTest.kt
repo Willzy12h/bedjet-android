@@ -286,6 +286,7 @@ class AppSmokeTest {
             confirmStopNight()
             waitForText("Start night now", controller.get())
             compose.onNodeWithText("History").performClick()
+            waitForText("Morning check-in", controller.get())
             compose.onNodeWithText("Morning check-in").performScrollTo().performClick()
             compose.onNodeWithText("Just right").performClick()
             waitForText("Morning check-in: Just right")

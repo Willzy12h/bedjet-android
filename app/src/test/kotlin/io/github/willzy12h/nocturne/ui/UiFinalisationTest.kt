@@ -50,7 +50,7 @@ class UiFinalisationTest {
         val originalIds = graph.repository.profiles.value.map { it.id }.toSet()
         compose.onNodeWithText("Profiles").performClick()
         compose.onNodeWithText("New profile").performClick()
-        compose.onNodeWithText("Summer Cool (summer)").performClick()
+        compose.onNode(hasText("Summer Cool") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         waitFor("Edit profile")
         assertEquals(originalIds, graph.repository.profiles.value.map { it.id }.toSet())
         compose.onNode(hasSetTextAction() and hasText("Summer Cool")).performTextReplacement("Recreated new profile")

@@ -65,4 +65,8 @@
     <string name="pin_duration_help">The BedJet stores these durations as a fixed programme. It does not follow later alarm or profile changes. The existing slot is saved first so you can restore it from Settings.</string>
     <string name="pin_confirm">Keep on slot %1$d</string>
     <plurals name="pin_step_count"><item quantity="one">%d step</item><item quantity="other">%d steps</item></plurals>
+    <string name="home_air_from_bedjet">Air from the BedJet</string>
+    <string name="home_reading_unavailable">No reading while the BedJet is out of reach</string>
+    <string name="home_idle">Idle</string>
+    <string name="quick_tile_detail">%1$s · %2$s</string>
 </resources>

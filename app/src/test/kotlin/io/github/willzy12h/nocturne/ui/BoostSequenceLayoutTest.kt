@@ -47,7 +47,8 @@ class BoostSequenceLayoutTest(look: U06Look) {
         for (minutes in listOf(10, 15, 20, 25, 30)) {
             ui.compose.runOnUiThread { runBlocking { ui.graph.repository.updateSettings { it.copy(boostMinutes = minutes) } } }
             val node = ui.compose.onNodeWithTag("quick-mode-TURBO")
-            node.assertTextContains("Turbo 10m")
+            node.assertTextContains("Turbo")
+            node.assertTextContains("10 min")
             node.assertContentDescriptionEquals("Turbo · fan 100% · 10 min")
             ui.checkControl(node, "Turbo ten-minute Quick")
         }

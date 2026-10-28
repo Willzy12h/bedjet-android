@@ -127,7 +127,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 val h = (kotlin.math.abs(level) * (mid - 4)).coerceAtLeast(3f)
                 val top = if (level >= 0) mid - h else mid
                 val color = tokens.stepColor(step.step.mode, step.step.temperature)
-                drawRoundRect(color, Offset(x + 1, top), Size(w - 2, h), CornerRadius(4.dp.toPx()))
+                drawRoundRect(color, Offset(x + 1, top), Size(w - 2, h), CornerRadius(2.dp.toPx()))
             }
             val wakeX = Duration.between(plan.start, plan.wake).toMinutes() / total * size.width
             if (end == null) drawLine(wakeColor, Offset(wakeX, 0f), Offset(wakeX, size.height), 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
@@ -265,14 +265,13 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
                 detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words)) else entry.detail(fahrenheit, words),
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 bold = current,
-                last = false,
                 active = current,
                 onEdit = onEditPhase?.let { edit -> { edit(entry) } },
             )
         }
         if (end != null) {
             TimelineRow(time = Format.clock(end.at), dot = colors.idle, title = end.label, detail = null,
-                titleColor = MaterialTheme.colorScheme.onSurface, bold = true, last = true)
+                titleColor = MaterialTheme.colorScheme.onSurface, bold = true)
             return@Column
         }
         TimelineRow(
@@ -285,7 +284,6 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
             },
             titleColor = if (tokens.dark) colors.accent else tokens.ink,
             bold = true,
-            last = true,
             active = now != null && after.any { !now.isBefore(it.startsAt) && now.isBefore(it.endsAt) },
             onEdit = after.firstOrNull()?.let { entry -> onEditPhase?.let { edit -> { edit(entry) } } },
         )
@@ -295,23 +293,16 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 private fun TimelineRow(time: String, dot: Color, title: String, detail: String?, titleColor: Color, bold: Boolean,
-    last: Boolean, active: Boolean = false, onEdit: (() -> Unit)? = null) {
+    active: Boolean = false, onEdit: (() -> Unit)? = null) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val editLabel = stringResource(R.string.ux_edit_phase)
     // One node for TalkBack: "23:10, Cool, easing off, 7 h · fan 75% → 40%".
-    Row(Modifier.fillMaxWidth().heightIn(min = if (onEdit == null) 0.dp else 48.dp).height(IntrinsicSize.Min)
+    StripeTile(stripe = dot, title = title, subtitle = detail, titleColor = titleColor,
+        titleFontWeight = if (bold) FontWeight.SemiBold else null, modifier = Modifier.fillMaxWidth()
         .then(if (onEdit == null) Modifier else Modifier.combinedClickable(role = Role.Button,
             onClickLabel = editLabel, onLongClickLabel = editLabel, onClick = onEdit, onLongClick = onEdit))
-        .semantics(mergeDescendants = true) {}) {
-        Text(time, style = MaterialTheme.typography.labelLarge, color = muted, softWrap = false, maxLines = 1,
-            modifier = Modifier.widthIn(min = 52.dp).width(IntrinsicSize.Max).padding(top = 2.dp))
-        Column(Modifier.width(24.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-            ActiveIndicator(dot, active, Modifier.padding(top = 4.dp).then(if (active) Modifier.testTag("night-active-phase") else Modifier), sizeDp = 12)
-            if (!last) Box(Modifier.width(2.dp).weight(1f).background(MaterialTheme.colorScheme.outlineVariant))
-        }
-        Column(Modifier.weight(1f).padding(start = 8.dp, bottom = if (last) 0.dp else 16.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = titleColor, fontWeight = if (bold) FontWeight.SemiBold else null)
-            detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = muted) }
-        }
-    }
+        .semantics(mergeDescendants = true) {},
+        icon = { ActiveIndicator(dot, active, if (active) Modifier.testTag("night-active-phase") else Modifier, sizeDp = 12) },
+        trailing = { Text(time, style = MaterialTheme.typography.labelLarge, color = muted,
+            softWrap = false, maxLines = 1, modifier = Modifier.widthIn(min = 52.dp).width(IntrinsicSize.Max)) })
 }
