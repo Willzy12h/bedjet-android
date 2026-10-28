@@ -82,4 +82,22 @@
     <string name="parity_add_link">+ Add a step</string>
     <string name="parity_runs">Runs %1$s – %2$s</string>
     <string name="parity_save">Save</string>
+    <string name="parity_settings_bedjet_named">BedJet 3 · %1$s</string>
+    <string name="parity_settings_slot">%1$s · slot %2$d</string>
+    <string name="parity_settings_demo">Demo</string>
+    <string name="parity_settings_not_connected">Not connected</string>
+    <string name="parity_settings_night">%1$s · auto-start %2$s</string>
+    <string name="parity_settings_clock_alarm">Clock alarm</string>
+    <string name="parity_settings_alarm_ignored">Alarms ignored</string>
+    <string name="parity_settings_on">On</string>
+    <string name="parity_settings_off">Off</string>
+    <string name="parity_settings_all_allowed">All %1$d allowed</string>
+    <string name="parity_settings_some_allowed">%1$d of %2$d allowed</string>
+    <string name="parity_settings_backups">Export, import, snapshots</string>
+    <string name="parity_settings_no_notices">No notifications yet</string>
+    <plurals name="parity_settings_notices">
+        <item quantity="one">%d in the log</item>
+        <item quantity="other">%d in the log</item>
+    </plurals>
+    <string name="parity_settings_about">Version %1$s · updates on GitHub</string>
 </resources>

@@ -72,7 +72,7 @@ fun SetupChecks(showAll: Boolean = false) {
     }
 }
 
-private fun checks(context: Context, request: (Array<String>) -> Unit): List<SetupCheck> {
+internal fun checks(context: Context, request: (Array<String>) -> Unit): List<SetupCheck> {
     fun granted(permission: String) = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
     val bluetooth = io.github.willzy12h.nocturne.ble.BluetoothAvailability.permissions
     val power = context.getSystemService(PowerManager::class.java)

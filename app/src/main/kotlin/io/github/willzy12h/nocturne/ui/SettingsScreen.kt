@@ -1,5 +1,18 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import io.github.willzy12h.nocturne.core.link.LinkState
+import androidx.compose.material3.Icon
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -141,8 +154,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val settingsScroll = rememberScrollState()
     var settingsViewportHeight by remember { mutableStateOf(0) }
     Column(modifier.fillMaxSize().onSizeChanged { settingsViewportHeight = it.height }.verticalScroll(settingsScroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
-        if (page == "home") SettingsHome { page = it }
+        Text(stringResource(R.string.settings_title), color = paletteTokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        if (page == "home") SettingsHome(model) { page = it }
         else TextButton(onClick = { page = "home" }, modifier = Modifier.testTag("settings-back")) { Text(stringResource(R.string.settings_nav_back)) }
         if (page == "permissions") OutlinedButton(onClick = model::openSetupChecklist, modifier = Modifier.testTag("open-setup-checklist")) {
             Text(stringResource(R.string.uat_setup_title))
@@ -419,34 +432,74 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     }
 }
 
-private data class SettingsDestination(val id: String, @StringRes val label: Int, @StringRes val subtitle: Int)
+private data class SettingsDestination(val id: String, val label: String, val subtitle: String, val icon: Int,
+    val iconColor: Color? = null, val ok: Boolean = false)
 
 @Composable
-private fun SettingsHome(open: (String) -> Unit) {
+private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
+    val tokens = paletteTokens
+    val context = LocalContext.current
+    val settings by model.settings.collectAsState()
+    val name by model.selectedBedJetName.collectAsState()
+    val link by model.linkState.collectAsState()
+    val notices by model.notices.collectAsState()
+    var refresh by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
+    val checks = remember(refresh) { checks(context) { } }
+    val slot = settings.workingSlot + 1
+    val bedjetState = when {
+        settings.demoMode -> stringResource(R.string.parity_settings_demo)
+        link == LinkState.READY -> stringResource(R.string.parity_status_connected).replaceFirstChar { it.uppercase() }
+        else -> stringResource(R.string.parity_settings_not_connected)
+    }
+    val autoStart = settings.platform.autoStart?.enabled ?: settings.platform.chargerAutoStart
+    val palettes = when (settings.themeMode) {
+        ThemeMode.DARK -> stringResource(paletteName(settings.nightPalette))
+        ThemeMode.LIGHT -> stringResource(paletteName(settings.dayPalette))
+        else -> "${stringResource(paletteName(settings.nightPalette))} / ${stringResource(paletteName(settings.dayPalette))}"
+    }
+    val allowed = checks.count { it.ok }
+    val health = settings.platform.healthSleepOverlay || settings.platform.healthSleepExport
+    val green = if (tokens.dark) Color(0xFF4CD889) else Color(0xFF1F9D57)
     val groups = listOf(
-        listOf(SettingsDestination("bedjet", R.string.settings_nav_bedjet, R.string.settings_nav_bedjet_detail)),
-        listOf(SettingsDestination("night", R.string.settings_nav_night, R.string.settings_nav_night_detail),
-            SettingsDestination("appearance", R.string.settings_nav_appearance, R.string.settings_nav_appearance_detail),
-            SettingsDestination("permissions", R.string.settings_nav_permissions, R.string.settings_nav_permissions_detail)),
-        listOf(SettingsDestination("backups", R.string.settings_nav_backups, R.string.settings_nav_backups_detail),
-            SettingsDestination("notifications", R.string.settings_nav_notifications, R.string.settings_nav_notifications_detail),
-            SettingsDestination("health", R.string.settings_nav_health, R.string.settings_nav_health_detail)),
-        listOf(SettingsDestination("about", R.string.settings_nav_about, R.string.settings_nav_about_detail)),
+        listOf(SettingsDestination("bedjet", name?.let { stringResource(R.string.parity_settings_bedjet_named, it) } ?: stringResource(R.string.settings_nav_bedjet),
+            stringResource(R.string.parity_settings_slot, bedjetState, slot), R.drawable.ic_nc_bt, tokens.cool)),
+        listOf(SettingsDestination("night", stringResource(R.string.settings_nav_night),
+                stringResource(R.string.parity_settings_night,
+                    stringResource(if (settings.alarmPackages.isEmpty()) R.string.parity_settings_alarm_ignored else R.string.parity_settings_clock_alarm),
+                    stringResource(if (autoStart) R.string.parity_settings_on else R.string.parity_settings_off).lowercase()), R.drawable.ic_nc_alarm),
+            SettingsDestination("appearance", stringResource(R.string.settings_nav_appearance),
+                "${stringResource(themeName(settings.themeMode))} · $palettes", R.drawable.ic_nc_sun),
+            SettingsDestination("permissions", stringResource(R.string.settings_nav_permissions),
+                if (allowed == checks.size) stringResource(R.string.parity_settings_all_allowed, checks.size)
+                else stringResource(R.string.parity_settings_some_allowed, allowed, checks.size),
+                R.drawable.ic_nc_shield, if (allowed == checks.size) green else tokens.warn, ok = allowed == checks.size)),
+        listOf(SettingsDestination("backups", stringResource(R.string.settings_nav_backups), stringResource(R.string.parity_settings_backups), R.drawable.ic_nc_box),
+            SettingsDestination("notifications", stringResource(R.string.settings_nav_notifications),
+                if (notices.isEmpty()) stringResource(R.string.parity_settings_no_notices)
+                else pluralStringResource(R.plurals.parity_settings_notices, notices.size, notices.size), R.drawable.ic_nc_bell),
+            SettingsDestination("health", stringResource(R.string.settings_nav_health),
+                stringResource(if (health) R.string.parity_settings_on else R.string.parity_settings_off), R.drawable.ic_nc_heart)),
+        listOf(SettingsDestination("about", stringResource(R.string.settings_nav_about),
+            stringResource(R.string.parity_settings_about, model.version), R.drawable.ic_nc_info)),
     )
     groups.forEach { group ->
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = paletteTokens.surface),
-            border = BorderStroke(1.dp, paletteTokens.outline)) {
-            group.forEach { destination ->
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("settings-page-${destination.id}")
-                    .clickable(role = Role.Button) { open(destination.id) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(destination.label), style = MaterialTheme.typography.bodyLarge)
-                        Text(stringResource(destination.subtitle), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
+            .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)) {
+            group.forEachIndexed { index, destination ->
+                if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = tokens.hairline)
+                Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("settings-page-${destination.id}")
+                    .clickable(role = Role.Button) { open(destination.id) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(tokens.surface2), contentAlignment = Alignment.Center) {
+                        Icon(painterResource(destination.icon), null, Modifier.size(20.dp), tint = destination.iconColor ?: tokens.ink2)
                     }
-                    Text(stringResource(R.string.settings_nav_chevron), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f)) {
+                        Text(destination.label, color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(destination.subtitle, color = tokens.ink2, fontSize = 14.sp)
+                    }
+                    if (destination.ok) Icon(painterResource(R.drawable.ic_nc_check), null, Modifier.size(18.dp), tint = green)
+                    Text(stringResource(R.string.settings_nav_chevron), color = tokens.ink3, fontSize = 16.sp)
                 }
             }
         }
