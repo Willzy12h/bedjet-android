@@ -12,7 +12,7 @@ Completed. Base: `claude/nocturne-redesign-foundation` at
 - [x] P6: Guided setup, Help and about, Settings and History — `4a661f2c7c4dea53bd288886698366e65ce8cf75`
 - [x] P7: Widgets v2 — `bc6882ce908563a2a58b536c0fc0ffd9c39e82f7`
 - [x] P8: Polish and audit — `99111097a88effab237e57c417de427122280aef`
-- [x] Final: clean verification, debug APK and handover — `FINAL_VERIFICATION_COMMIT`
+- [x] Final: clean verification, debug APK and handover — `49ec2bd75e8b686830fc3f59780f3547de1a4172`
 
 ## Assumptions
 
