@@ -70,7 +70,7 @@ private fun BroadcastReceiver.local(context: Context, onTimeout: (() -> Unit)? =
         } catch (e: kotlinx.coroutines.CancellationException) { throw e
         } catch (e: Exception) {
             if (notifyFailures) io.github.willzy12h.nocturne.notify.Notifications.showError(context, context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed),
-                e.message ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))
+                e.planMessage(context) ?: context.getString(io.github.willzy12h.nocturne.R.string.runtime_failed))
         } finally { finish() }
     }.invokeOnCompletion { finish() }
 }

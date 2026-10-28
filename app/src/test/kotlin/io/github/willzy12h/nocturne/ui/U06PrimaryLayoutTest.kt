@@ -145,7 +145,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
         ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_run_for)).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("The Heat fixture must report its four-hour runtime ceiling", 240, graph.link.status.value?.maxRuntimeMinutes)
         withAndWithoutFeedback {
-            listOf(R.string.mode_cool, R.string.mode_heat, R.string.mode_gentle_heat,
+            listOf(R.string.mode_cool, R.string.mode_heat, R.string.mode_long_heat,
                 R.string.mode_turbo, R.string.mode_dry, R.string.mode_off).forEach { ui.control(ui.s(it)) }
             listOf(15, 30).forEach { ui.control(ui.s(R.string.minutes_short, it)) }
             listOf(1, 2, 4).forEach { ui.control(ui.s(R.string.duration_hours, it)) }

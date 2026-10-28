@@ -365,8 +365,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val start = if (startNow) now else WakeResolver.nextBedtime(profile, now)
         PlanCompiler.compile(profile, start, WakeResolver.resolve(profile, start, nextAlarm.value?.takeIf { it.counts }?.time).time)
     }.recoverCatching { cause ->
-        if (cause is NightDurationException)
-            throw PlanException(cause.planMessage(getApplication()).orEmpty()).also { it.initCause(cause) }
+        val message = cause.planMessage(getApplication())
+        if (cause is NightDurationException || (cause is PlanException && message != cause.message))
+            throw PlanException(message.orEmpty()).also { it.initCause(cause) }
         throw cause
     }
 

@@ -79,7 +79,7 @@ class ProfileEditorInteractionTest {
     @Test fun modeChoicesShowModelMaximumsWithoutReplacingTheirNames() {
         open()
         ui.compose.onNodeWithTag("editor-phase-START-0").performScrollTo().performClick()
-        listOf("Heat" to "max 40°C", "Turbo" to "max 43°C", "Gentle heat" to "max 33.5°C", "Cool" to "max 31°C").forEach { (mode, maximum) ->
+        listOf("Heat" to "max 40°C", "Turbo" to "max 43°C", "Long heat" to "max 33.5°C", "Cool" to "max 31°C").forEach { (mode, maximum) ->
             ui.compose.onNode(hasText(mode) and hasText(maximum) and hasClickAction() and
                 hasAnyAncestor(hasTestTag("editor-phase-controls-START-0"))).performScrollTo().assertIsDisplayed()
         }

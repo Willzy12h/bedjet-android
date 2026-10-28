@@ -192,6 +192,7 @@ data class TimelineEntry(
     val fanEnd: Int,
     val tempStart: Int,
     val tempEnd: Int,
+    val fanPath: List<Int> = listOf(fanStart, fanEnd).distinct(),
 ) {
     val endsAt: ZonedDateTime get() = startsAt.plusMinutes(minutes.toLong())
 
@@ -202,10 +203,12 @@ data class TimelineEntry(
     val title: String get() = title(null)
 
     /** "Cool, easing off": the mode, and which way the step is heading when it changes. */
-    fun title(words: Format.Words?): String {
+    fun title(words: Format.Words?, middle: io.github.willzy12h.nocturne.core.plan.Middle? = null): String {
         val trend = when {
             heats && tempEnd > tempStart -> words?.text(R.string.timeline_warming_up) ?: "warming up"
             heats && tempEnd < tempStart -> words?.text(R.string.timeline_easing_off) ?: "easing off"
+            middle?.fanShape == io.github.willzy12h.nocturne.core.plan.FanShape.QUIET_MIDDLE && block == Block.MIDDLE -> null
+            fanPath.zipWithNext().map { (a, b) -> b.compareTo(a) }.distinct().size > 1 -> null
             fanEnd < fanStart -> words?.text(R.string.timeline_easing_off) ?: "easing off"
             fanEnd > fanStart -> words?.text(R.string.timeline_building) ?: "building"
             else -> null
@@ -215,13 +218,27 @@ data class TimelineEntry(
     }
 
     /** "7 h · fan 75% → 40%", with the temperature first for modes that heat. English unless [words] is given. */
-    fun detail(fahrenheit: Boolean, words: Format.Words? = null): String {
+    fun detail(fahrenheit: Boolean, words: Format.Words? = null, middle: io.github.willzy12h.nocturne.core.plan.Middle? = null): String {
         val parts = mutableListOf(Format.duration(minutes, words))
         if (heats) {
             parts += if (tempStart == tempEnd) Format.temp(tempStart, fahrenheit, words)
                 else "${Format.temp(tempStart, fahrenheit, words)} → ${Format.temp(tempEnd, fahrenheit, words)}"
         }
-        if (mode != Mode.STANDBY && mode != Mode.WAIT) parts += if (fanStart == fanEnd) words?.text(R.string.timeline_fan, fanStart) ?: "fan $fanStart%"
+        val quiet = middle?.quietFan?.takeIf { block == Block.MIDDLE && middle.fanShape == io.github.willzy12h.nocturne.core.plan.FanShape.QUIET_MIDDLE }
+        val quietSpeeds = quiet?.let { listOf(it.settle, it.asleep, it.rise) }
+        val stageNames = if (quietSpeeds != null && quietSpeeds.distinct().size == 3 && fanPath.all { it in quietSpeeds }) {
+            fanPath.map { fan ->
+                when (fan) {
+                    quiet!!.settle -> words?.text(R.string.timeline_quiet_settle, fan) ?: "settle $fan%"
+                    quiet.asleep -> words?.text(R.string.timeline_quiet_asleep, fan) ?: "asleep $fan%"
+                    else -> words?.text(R.string.timeline_quiet_rise, fan) ?: "rise $fan%"
+                }
+            }.joinToString(" → ")
+        } else null
+        if (quiet != null && stageNames == null) parts += words?.text(R.string.fan_shape_quiet) ?: "Quiet middle"
+        if (mode != Mode.STANDBY && mode != Mode.WAIT) parts += if (stageNames != null) words?.text(R.string.timeline_fan_stages, stageNames) ?: "fan $stageNames"
+            else if (quiet != null || fanPath.zipWithNext().map { (a, b) -> b.compareTo(a) }.distinct().size > 1) words?.text(R.string.timeline_fan_stages, fanPath.joinToString(" → ") { "$it%" }) ?: "fan ${fanPath.joinToString(" → ") { "$it%" }}"
+            else if (fanStart == fanEnd) words?.text(R.string.timeline_fan, fanStart) ?: "fan $fanStart%"
             else words?.text(R.string.timeline_fan_range, fanStart, fanEnd) ?: "fan $fanStart% → $fanEnd%"
         return parts.joinToString(" · ")
     }
@@ -235,7 +252,8 @@ fun timelineEntries(plan: Plan): List<TimelineEntry> {
         val last = entries.lastOrNull()
         entries += if (last != null && last.block == planned.block && last.mode == planned.step.mode) {
             entries.removeAt(entries.lastIndex)
-            last.copy(minutes = last.minutes + planned.minutes, fanEnd = fan, tempEnd = planned.step.temperature)
+            last.copy(minutes = last.minutes + planned.minutes, fanEnd = fan, tempEnd = planned.step.temperature,
+                fanPath = if (last.fanPath.last() == fan) last.fanPath else last.fanPath + fan)
         } else {
             TimelineEntry(planned.block, planned.step.mode, planned.startsAt, planned.minutes, fan, fan, planned.step.temperature, planned.step.temperature)
         }
@@ -249,7 +267,7 @@ fun timelineEntries(plan: Plan): List<TimelineEntry> {
  */
 @Composable
 fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier: Modifier = Modifier,
-    now: ZonedDateTime? = null, end: PlanEnd? = null, onEditPhase: ((TimelineEntry) -> Unit)? = null) {
+    now: ZonedDateTime? = null, end: PlanEnd? = null, middle: io.github.willzy12h.nocturne.core.plan.Middle? = null, onEditPhase: ((TimelineEntry) -> Unit)? = null) {
     val entries = timelineEntries(plan)
     val (before, after) = entries.partition { it.block != Block.AFTER_WAKE }
     val colors = nocturneColors
@@ -261,8 +279,8 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
             TimelineRow(
                 time = Format.clock(entry.startsAt),
                 dot = tokens.stepColor(entry.mode, entry.tempStart),
-                title = if (entry.block == Block.TEMPORARY) stringResource(R.string.temporary_timeline_title, entry.title(words)) else entry.title(words),
-                detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words)) else entry.detail(fahrenheit, words),
+                title = if (entry.block == Block.TEMPORARY) stringResource(R.string.temporary_timeline_title, entry.title(words, middle)) else entry.title(words, middle),
+                detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words, middle)) else entry.detail(fahrenheit, words, middle),
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 bold = current,
                 active = current,

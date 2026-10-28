@@ -251,7 +251,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                         val turnOff = stringResource(R.string.guard_turn_off)
                         BigButton(stringResource(R.string.tonight_end_night), onClick = { guard.confirm(turnOff) { model.run(Command.END_NIGHT) } })
                         val end = manualLabel?.let { label -> runCatching { PlanEnd(label, ZonedDateTime.parse(night.endsAt)) }.getOrNull() }
-                        plan?.let { PlanCard(it, settings, night.wakeOrigin, now = now.takeIf { confirmed }, end = end,
+                        plan?.let { PlanCard(it, settings, night.wakeOrigin, now = now.takeIf { confirmed }, end = end, middle = night.profile?.middle,
                             onEditPhase = if (profile == null) null else editPhase) }
                     } else {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -263,7 +263,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                             profile?.let { TextButton(onClick = { onEdit(it) }) { Text(stringResource(R.string.action_edit)) } }
                         }
                         profile?.let { selected ->
-                            plan?.let { PlanCard(it, settings, preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null, onEditPhase = editPhase) }
+                            plan?.let { PlanCard(it, settings, preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null, middle = profile?.middle, onEditPhase = editPhase) }
                                 ?: Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.onSurface)
                             BigButton(stringResource(R.string.tonight_start_now), enabled = !busy && plan != null,
                                 onClick = { model.run(Command.START_NIGHT, selected.id) })
@@ -331,11 +331,11 @@ fun wakeOriginLabel(origin: WakeOrigin, style: WakeLabelStyle): String {
 /** The night itself: the bar curve, or in simple view the step list. */
 @Composable
 private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: ZonedDateTime?, end: PlanEnd? = null,
-    onEditPhase: ((Block, ZonedDateTime) -> Unit)? = null) {
+    middle: io.github.willzy12h.nocturne.core.plan.Middle? = null, onEditPhase: ((Block, ZonedDateTime) -> Unit)? = null) {
     Card(Modifier.fillMaxWidth(), colors = surfaceCard(), border = cardBorder()) {
         Column(Modifier.padding(16.dp)) {
             if (settings.simpleView) {
-                NightTimeline(plan, origin, settings.fahrenheit, now = now, end = end,
+                NightTimeline(plan, origin, settings.fahrenheit, now = now, end = end, middle = middle,
                     onEditPhase = onEditPhase?.let { edit -> { entry -> edit(entry.block, entry.startsAt) } })
             } else {
                 Text(stringResource(R.string.tonight_the_night), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))

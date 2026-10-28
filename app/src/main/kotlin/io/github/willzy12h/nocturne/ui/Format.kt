@@ -54,7 +54,7 @@ object Format {
         Mode.STANDBY -> R.string.mode_off
         Mode.HEAT -> R.string.mode_heat
         Mode.TURBO -> R.string.mode_turbo
-        Mode.EXTENDED_HEAT -> R.string.mode_gentle_heat
+        Mode.EXTENDED_HEAT -> R.string.mode_long_heat
         Mode.COOL -> R.string.mode_cool
         Mode.DRY -> R.string.mode_dry
         Mode.WAIT -> R.string.mode_pause
@@ -65,7 +65,7 @@ object Format {
         Mode.STANDBY -> "Off"
         Mode.HEAT -> "Heat"
         Mode.TURBO -> "Turbo"
-        Mode.EXTENDED_HEAT -> "Gentle heat"
+        Mode.EXTENDED_HEAT -> "Long heat"
         Mode.COOL -> "Cool"
         Mode.DRY -> "Dry"
         Mode.WAIT -> "Pause"

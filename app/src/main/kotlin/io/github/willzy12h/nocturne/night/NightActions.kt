@@ -681,7 +681,7 @@ class NightActions(private val graph: Graph) {
             val reason = when (e) {
                 is TimeoutCancellationException -> text(R.string.runtime_operation_timeout)
                 is CancellationException -> text(R.string.runtime_interrupted)
-                else -> e.message ?: text(R.string.runtime_failed)
+                else -> e.planMessage(context) ?: text(R.string.runtime_failed)
             }
             try {
                 // Confirmation and its fresh fallback belong to the transaction too. Repair only this still-pending
@@ -1601,7 +1601,7 @@ class NightActions(private val graph: Graph) {
             repo.updateRuntime { it.copy(slotWrite = intent.copy(confidence = Confidence.CONFIRMED)) }
             return CommandOutcome(OutcomeKind.CONFIRMED, label)
         } catch (e: Exception) {
-            val reason = if (e is TimeoutCancellationException) text(R.string.runtime_operation_timeout) else e.message
+            val reason = if (e is TimeoutCancellationException) text(R.string.runtime_operation_timeout) else e.planMessage(context)
             withContext(NonCancellable) {
                 if (!writing) {
                     // IR-05/IR-06: nothing reached the BedJet after a backup failure. Keep the error message, but leave
@@ -1617,7 +1617,7 @@ class NightActions(private val graph: Graph) {
             if (e is SlotBackupsUnreadable) return refused(R.string.runtime_slot_backups_unreadable)
             // The write reports its own outcome: a write that may have reached the BedJet is UNKNOWN (IR-06).
             recordError("$label: ${e.message.orEmpty()}")
-            return CommandOutcome(if (writing) OutcomeKind.UNKNOWN else OutcomeKind.FAILED, e.message ?: text(R.string.runtime_failed))
+            return CommandOutcome(if (writing) OutcomeKind.UNKNOWN else OutcomeKind.FAILED, e.planMessage(context) ?: text(R.string.runtime_failed))
         }
     }
     /** The user has checked the BedJet: a slot write in question no longer holds anything back (IR-06). Local only. */

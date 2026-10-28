@@ -61,6 +61,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import io.github.willzy12h.nocturne.core.plan.FanShape
+import io.github.willzy12h.nocturne.core.plan.QuietFan
+import io.github.willzy12h.nocturne.core.plan.Middle
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.res.stringResource
@@ -89,6 +92,8 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     val settings by model.settings.collectAsState()
     val f = settings.fahrenheit
     val preview = model.previewPlan(profile)
+    val validDurations = (profile.start + profile.wake + profile.afterWake).all { it.minutes in 1..720 }
+    var fanShape by remember(original.id) { mutableStateOf(profile.middle.fanShape) }
     var focusedPhase by remember(original.id) { mutableStateOf(initialPhase) }
     var focusRequest by remember(original.id) { mutableIntStateOf(0) }
     val middleFocus = remember { BringIntoViewRequester() }
@@ -136,7 +141,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         applyTonightTo = model.graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)
                             .copy(expected = night?.identity)
                     } else { model.saveProfile(profile); onDone() }
-                }, enabled = plan.isSuccess && profile.name.isNotBlank()) { Text(stringResource(R.string.editor_save)) }
+                }, enabled = plan.isSuccess && profile.name.isNotBlank() && validDurations) { Text(stringResource(R.string.editor_save)) }
             }
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -159,6 +164,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     },
                     onFailure = { Text(it.message.orEmpty(), color = MaterialTheme.colorScheme.onSurface) },
                 )
+                if (!validDurations) Text(stringResource(R.string.editor_invalid_phase_duration), color = MaterialTheme.colorScheme.onSurface)
                 OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }) }
@@ -190,7 +196,10 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan_limits),
                             spokenRange(spokenPercent(limits.minFan), spokenPercent(limits.maxFan))),
                         value = limits.minFan.toFloat()..limits.maxFan.toFloat(),
-                        onValueChange = { profile = profile.copy(limits = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())) },
+                        onValueChange = {
+                            val next = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())
+                            profile = profile.copy(limits = next, middle = profile.middle.withFanLimits(next))
+                        },
                         valueRange = 5f..100f, steps = 18,
                     )
                     Text(stringResource(R.string.editor_temp_limits, tempText(limits.minTemp, f), tempText(limits.maxTemp, f)))
@@ -201,7 +210,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         onValueChange = { profile = profile.copy(limits = limits.copy(minTemp = it.start.roundToInt(), maxTemp = it.endInclusive.roundToInt())) },
                         valueRange = 38f..86f, steps = 47,
                     )
-                    TextButton(onClick = { profile = profile.copy(limits = ProfileLimits()) }) { Text(stringResource(R.string.editor_reset_limits)) }
+                    TextButton(onClick = { profile = profile.copy(limits = ProfileLimits(), middle = profile.middle.withFanLimits(ProfileLimits())) }) { Text(stringResource(R.string.editor_reset_limits)) }
                 }
 
                 PhaseList(Block.START, stringResource(R.string.editor_start_help), profile.start, f, preview.getOrNull(), focusedPhase, focusRequest) { profile = profile.copy(start = it) }
@@ -211,8 +220,44 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     val m = profile.middle
                     ModeChips(m.mode) { profile = profile.copy(middle = m.copy(mode = it, tempStart = it.clampTemp(m.tempStart), tempEnd = it.clampTemp(m.tempEnd))) }
                     if (m.mode.usesFan) {
-                        Labelled(stringResource(R.string.editor_fan_start, m.fanStart)) { FanSlider(m.fanStart, stringResource(R.string.slider_fan_start)) { profile = profile.copy(middle = m.copy(fanStart = it)) } }
-                        Labelled(stringResource(R.string.editor_fan_end, m.fanEnd)) { FanSlider(m.fanEnd, stringResource(R.string.slider_fan_end)) { profile = profile.copy(middle = m.copy(fanEnd = it)) } }
+                        Text(stringResource(R.string.editor_fan_shape))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(FanShape.STEADY to R.string.fan_shape_steady, FanShape.EASE to R.string.fan_shape_ease,
+                                FanShape.QUIET_MIDDLE to R.string.fan_shape_quiet).forEach { (shape, label) ->
+                                FilterChip(fanShape == shape, onClick = {
+                                    val start = m.quietFan?.settle ?: m.fanStart
+                                    val clamp: (Int) -> Int = { legalFan(it, profile.limits) }
+                                    val next = when (shape) {
+                                        FanShape.STEADY -> m.copy(fanStart = clamp(start), fanEnd = clamp(start), quietFan = null)
+                                        FanShape.EASE -> m.copy(fanStart = clamp(start), fanEnd = clamp(m.fanEnd), quietFan = null)
+                                        FanShape.QUIET_MIDDLE -> {
+                                            val q = m.quietFan ?: QuietFan(clamp(50), 30, clamp(25), clamp(45), 40)
+                                            m.copy(fanStart = q.settle, fanEnd = q.rise, quietFan = q)
+                                        }
+                                    }
+                                    fanShape = shape
+                                    profile = profile.copy(middle = next)
+                                }, label = { Text(stringResource(label)) }, modifier = Modifier.heightIn(min = 48.dp))
+                            }
+                        }
+                        val limits = profile.limits
+                        when (fanShape) {
+                            FanShape.STEADY -> Labelled(stringResource(R.string.editor_fan_start, m.fanStart)) {
+                                FanSlider(m.fanStart, stringResource(R.string.slider_fan_start), limits) { profile = profile.copy(middle = m.copy(fanStart = it, fanEnd = it, quietFan = null)) }
+                            }
+                            FanShape.EASE -> {
+                                Labelled(stringResource(R.string.editor_fan_start, m.fanStart)) { FanSlider(m.fanStart, stringResource(R.string.slider_fan_start), limits) { profile = profile.copy(middle = m.copy(fanStart = it, quietFan = null)) } }
+                                Labelled(stringResource(R.string.editor_fan_end, m.fanEnd)) { FanSlider(m.fanEnd, stringResource(R.string.slider_fan_end), limits) { profile = profile.copy(middle = m.copy(fanEnd = it, quietFan = null)) } }
+                            }
+                            FanShape.QUIET_MIDDLE -> m.quietFan?.let { q ->
+                                fun updateQuiet(next: QuietFan) { profile = profile.copy(middle = m.copy(fanStart = next.settle, fanEnd = next.rise, quietFan = next)) }
+                                Labelled(stringResource(R.string.editor_settle_speed, q.settle)) { FanSlider(q.settle, stringResource(R.string.slider_settle_speed), limits) { updateQuiet(q.copy(settle = it)) } }
+                                Labelled(stringResource(R.string.editor_settle_minutes, q.settleMinutes)) { MinuteSlider(q.settleMinutes, stringResource(R.string.slider_settle_minutes), 0) { updateQuiet(q.copy(settleMinutes = it)) } }
+                                Labelled(stringResource(R.string.editor_asleep_speed, q.asleep)) { FanSlider(q.asleep, stringResource(R.string.slider_asleep_speed), limits) { updateQuiet(q.copy(asleep = it)) } }
+                                Labelled(stringResource(R.string.editor_rise_speed, q.rise)) { FanSlider(q.rise, stringResource(R.string.slider_rise_speed), limits) { updateQuiet(q.copy(rise = it)) } }
+                                Labelled(stringResource(R.string.editor_rise_minutes, q.riseMinutes)) { MinuteSlider(q.riseMinutes, stringResource(R.string.slider_rise_minutes), 0) { updateQuiet(q.copy(riseMinutes = it)) } }
+                            }
+                        }
                     }
                     if (m.mode.usesTemperature) {
                         Labelled(stringResource(R.string.editor_temp_start, tempText(m.tempStart, f))) { TempSlider(m.mode, m.tempStart, stringResource(R.string.slider_temp_start), f) { profile = profile.copy(middle = m.copy(tempStart = it)) } }
@@ -294,16 +339,18 @@ private fun PhaseList(block: Block, hint: String, phases: List<Phase>, f: Boolea
                     fun update(value: Phase) = onChange(phases.mapIndexed { i, old -> if (i == index) value else old })
                     phaseStart?.let { at -> Text(stringResource(R.string.ux_phase_timeframe, Format.clock(at),
                         Format.clock(at.plusMinutes(phase.minutes.toLong()))), style = MaterialTheme.typography.labelLarge) }
-                    ModeChips(phase.mode) { update(phase.copy(mode = it, temperature = it.clampTemp(phase.temperature))) }
+                    ModeChips(phase.mode) { update(if (it == Mode.TURBO && phase.mode != Mode.TURBO) phase.copy(mode = it, temperature = 86, minutes = 10) else phase.copy(mode = it, temperature = it.clampTemp(phase.temperature))) }
                     if (phase.mode.usesTemperature) Labelled(stringResource(R.string.label_temperature, tempText(phase.temperature, f))) {
                         TempSlider(phase.mode, phase.temperature, stringResource(R.string.slider_temp), f) { update(phase.copy(temperature = it)) }
                     }
-                    if (phase.mode.usesFan) Labelled(stringResource(R.string.label_fan, phase.fanPercent)) {
+                    if (phase.mode.usesFan && phase.mode != Mode.TURBO) Labelled(stringResource(R.string.label_fan, phase.fanPercent)) {
                         FanSlider(phase.fanPercent, stringResource(R.string.slider_fan)) { update(phase.copy(fanPercent = it)) }
                     }
-                    Labelled(stringResource(R.string.editor_length, durationText(phase.minutes))) {
-                        Slider(phase.minutes.toFloat(), { update(phase.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..240f,
-                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_length), spokenMinutes(phase.minutes)))
+                    if (phase.mode != Mode.TURBO) Labelled(stringResource(R.string.editor_length, durationText(phase.minutes))) {
+                        MinuteSlider(phase.minutes, stringResource(R.string.slider_length), 1) { update(phase.copy(minutes = it)) }
+                    } else {
+                        Text(stringResource(R.string.label_temperature, tempText(phase.temperature, f)))
+                        Text(stringResource(R.string.editor_length, durationText(phase.minutes)))
                     }
                     TextButton(onClick = {
                         expanded = expanded.mapNotNull { if (it < index) it else if (it > index) it - 1 else null }.toSet()
@@ -345,10 +392,44 @@ private fun ModeChips(selected: Mode, onSelect: (Mode) -> Unit) {
     }
 }
 
+private fun legalFan(value: Int, limits: ProfileLimits): Int {
+    val low = ((limits.minFan + 4) / 5) * 5
+    val high = (limits.maxFan / 5) * 5
+    return if (low <= high) ((value / 5f).roundToInt() * 5).coerceIn(low, high) else value
+}
+
+private fun Middle.withFanLimits(limits: ProfileLimits): Middle {
+    val quiet = quietFan?.let {
+        it.copy(settle = legalFan(it.settle, limits), asleep = legalFan(it.asleep, limits), rise = legalFan(it.rise, limits))
+    }
+    return copy(
+        fanStart = quiet?.settle ?: legalFan(fanStart, limits),
+        fanEnd = quiet?.rise ?: legalFan(fanEnd, limits),
+        quietFan = quiet,
+    )
+}
+
 @Composable
-private fun FanSlider(value: Int, label: String, onChange: (Int) -> Unit) =
-    Slider(value.toFloat(), { onChange(it.round5()) }, valueRange = 5f..100f, steps = 18,
-        modifier = Modifier.sliderSemantics(label, spokenPercent(value)))
+private fun FanSlider(value: Int, label: String, limits: ProfileLimits = ProfileLimits(), onChange: (Int) -> Unit) {
+    val low = ((limits.minFan + 4) / 5) * 5
+    val high = (limits.maxFan / 5) * 5
+    val hasRange = low < high
+    val display = if (low <= high) legalFan(value, limits) else value.coerceIn(5, 100)
+    Slider(
+        display.toFloat(),
+        { onChange(legalFan(it.roundToInt(), limits)) },
+        valueRange = if (hasRange) low.toFloat()..high.toFloat() else 5f..100f,
+        enabled = hasRange,
+        steps = if (hasRange) (high - low) / 5 - 1 else 18,
+        modifier = Modifier.sliderSemantics(label, spokenPercent(value)),
+    )
+}
+
+@Composable
+private fun MinuteSlider(value: Int, label: String, minimum: Int, onChange: (Int) -> Unit) =
+    Slider(value.coerceIn(minimum, 720).toFloat(), { onChange(it.roundToInt().coerceIn(minimum, 720)) },
+        valueRange = minimum.toFloat()..720f, steps = 720 - minimum - 1,
+        modifier = Modifier.sliderSemantics(label, spokenMinutes(value)))
 
 @Composable
 private fun TempSlider(mode: Mode, value: Int, label: String, fahrenheit: Boolean, onChange: (Int) -> Unit) {

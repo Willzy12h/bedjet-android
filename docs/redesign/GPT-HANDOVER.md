@@ -6,8 +6,8 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
 ## Phase checklist
 
 - [x] P2: Theme wiring and Appearance — `283719032dda55f414e437205c258f79ecb0ba3d`
-- [x] P3: Side-stripe tiles, Home / Tonight and Profiles — published hash recorded in the next phase entry
-- [ ] P4: Profile editor, step editor and fan shapes
+- [x] P3: Side-stripe tiles, Home / Tonight and Profiles — `a5933a9446b65ab5f91d18deaff68cfe3c934f67`
+- [x] P4: Profile editor, step editor and fan shapes — published hash recorded in the next phase entry
 - [ ] P5: Cooldown
 - [ ] P6: Guided setup, Help and about, Settings and History
 - [ ] P7: Widgets v2
@@ -50,6 +50,19 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
   published through the connected GitHub service with the expected parent SHA and no force.
   Each resulting source tree is compared with the checked local tree before advancing the
   local branch to that same commit. No signing or release configuration changes are needed.
+- Existing saved Turbo chains keep their actual stored duration and temperature when opened;
+  selecting Turbo for another phase sets 10 minutes / 43°C and exposes no sliders. This avoids
+  silently shortening a previously saved chain. The existing chain policy and compiler remain
+  intact. Review can introduce an explicit migration if legacy chains should change.
+- The applied plan carries no fan-shape metadata. Quiet middle timeline labels use the captured
+  active-night profile, never a later editable profile, and show only speeds present in the plan.
+  Equal or clamped speeds can make stage identity ambiguous: those entries name Quiet middle
+  and show the actual fan path without guessing settle/asleep/rise. Legacy plans without a
+  captured shape retain a neutral actual path. Profile summaries and check-in proposals have
+  the full model and describe all three speeds.
+- Choosing Ease down can temporarily retain equal endpoints; the second slider stays available
+  during editing. The protected model derives Steady when those equal endpoints are saved and
+  reopened. No new persisted shape field or backup schema change is introduced.
 
 ## Verification and APK
 
@@ -252,6 +265,93 @@ Pending. Toolchain restored into temporary build storage; no signing changes.
   (bounded wait for History's check-in button; all assertions retained)
 - `docs/redesign/GPT-HANDOVER.md`
 - `docs/redesign/BUG-LOG.md`
+
+### P4 evidence
+
+- Initial RED observed missing fan controls, the old five-minute minimum, Turbo retaining the
+  prior duration, enabled Save for an invalid zero-minute phase, missing actual middle fan
+  speed in the timeline, old History wording, old mode wording and the old Hot Sleeper shape.
+- `P4EditorBehaviourTest` covers all three shapes, independent temperature shaping, Quiet
+  compatibility endpoints, speed/minute bounds, Turbo text-only controls, accepted 1/720-minute
+  steps and rejected 0/721-minute drafts. A review added RED tests for non-multiple imported
+  limits and changing limits after choosing Quiet middle. Editor speeds now use the legal 5%
+  increments within the limits; explicit limit edits reconcile all three speeds without changing
+  timings. Opening a saved profile alone does not rewrite it.
+- `QuietMiddleDescriptionTest`, `QuietMiddleTimelineDescriptionTest` and
+  `QuietMiddleEdgeDescriptionTest` cover profile summaries, retained actual fan paths, captured
+  shortened stages, legacy unknown shape, ambiguous equal speeds and neutral nonmonotonic
+  descriptions. The profile test initially matched a timeline rather than the summary; its
+  selector was corrected and a genuine summary failure observed before the summary changed.
+- `QuietMiddleCheckInSuggestionTest` verifies all three proposed speeds, no mutation before
+  confirmation, and application through the existing `shiftFan` path.
+- `RedesignLongHeatLabelTest`, `RedesignCapturedLongHeatTest` and `LongHeatMessageTest` cover
+  shared UI labels, captured confirmations, typed duration errors, the known compiler refusal,
+  unchanged arbitrary text and editor preview error projection. Core enum names, diagnostic
+  strings and `Mode.displayName` remain unchanged. The compiler's exact canonical refusal is
+  mapped only at known plan-message boundaries; arbitrary text is never globally replaced.
+- `PresetsTest.hotSleeperUsesQuietMiddleWithCompatibleEndpoints` checks the specified
+  50%/30-minute, 25%, 45%/40-minute Quiet shape. The existing all-presets test still verifies
+  compilation within 32 steps, and the foundation fan-shape tests remain unchanged.
+- Existing `WidgetModeNameTest`, `RemoteModeLimitsTest`, `ProfileEditorInteractionTest` and
+  `U06PrimaryLayoutTest` change only the intended Gentle heat → Long heat label/resource
+  expectations. Their original mode limits, semantics and layout assertions remain.
+- `EditorPhaseSelection.kt` already maps source phases correctly. `CustomRunDuration.kt`
+  governs Remote manual runs, whose safety limits are separate from profile steps; neither
+  file needs to change to support 1–720-minute profile phases.
+- Full P4 gate passed: 309 core tests; 1,652 app cases, zero failures and 38 existing opt-in
+  screenshot skips; lint zero errors and 21 warnings (the additional warning is the now-unused
+  `mode_gentle_heat` resource, to be removed in P8). All JUnit XML is readable.
+  `BUILD SUCCESSFUL in 13m 8s`; 43 actionable tasks: 5 executed, 38 up-to-date.
+  This complete gate used two app workers recycled after 50 classes and the existing external
+  report-format workaround. No tests were removed or disabled.
+- Focused verification passed 12 core cases and 83 of 84 app cases with zero lint errors;
+  the sole expected RED was the newly added editor-preview wording test, run with its mapping
+  deliberately held back. The mapping was then restored for the full check. All nine editor
+  behaviour tests, timeline/proposal cases and existing selected layout checks passed.
+- A four-worker full run stopped advancing after partial output and was interrupted; it is
+  not a passing result. The complete gate was rerun with the established two-worker
+  configuration. An external per-test event log now supplements Gradle's buffered output;
+  no repository build configuration or test assertions changed for this diagnostic.
+- The subsequent full run executed 309 core cases successfully and all 1,652 app cases,
+  with 11 failures and 38 existing skips. Ten failures were Compose idling timeouts in
+  editor and stripe-tile tests; one was the existing paused-Tonight alarm refresh check.
+  This run had no fresh lint result or complete Gradle footer and is not a passing gate.
+  The new preview-message test was missing ViewModel/Graph lifecycle cleanup; it now uses
+  the same cleanup as `NightDurationResourcesTest`. The timeout cause is not established.
+  Verification subsequently passed with two workers recycled after 50 classes to bound shared
+  Robolectric state. Every case and assertion remains enabled; this configuration changes
+  process sharing. The pass does not establish stability with long-lived workers or prove the
+  cause of the earlier timeouts. The separate paused-Tonight alarm refresh test also passed.
+
+### P4 changed files
+
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/night/CapturedActionPreset.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/night/NightActions.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/night/PlanMessages.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/night/Receivers.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/AppViewModel.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/Format.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/HistoryScreen.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/NightCurve.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ProfileEditor.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ProfilesScreen.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/night/LongHeatMessageTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/night/RedesignCapturedLongHeatTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P4EditorBehaviourTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ProfileEditorInteractionTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/QuietMiddleCheckInSuggestionTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/QuietMiddleDescriptionTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/QuietMiddleEdgeDescriptionTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/RedesignLongHeatLabelTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/RemoteModeLimitsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/U06PrimaryLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetModeNameTest.kt`
+- `core/src/main/kotlin/io/github/willzy12h/nocturne/core/plan/Presets.kt`
+- `core/src/test/kotlin/io/github/willzy12h/nocturne/core/plan/PresetsTest.kt`
+- `docs/redesign/BUG-LOG.md`
+- `docs/redesign/GPT-HANDOVER.md`
 
 ## Not done / limits
 

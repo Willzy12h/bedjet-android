@@ -103,7 +103,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                         Text(describe(profile), style = MaterialTheme.typography.bodySmall)
                         model.previewPlan(profile).getOrNull()?.let {
                             NightTimeline(it, wake.origin, settings.fahrenheit,
-                                modifier = Modifier.testTag("profile-timeline-${profile.id}"))
+                                modifier = Modifier.testTag("profile-timeline-${profile.id}"), middle = profile.middle)
                         }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = { model.updateSettings { it.chooseTonight(profile.id, model.now()) } }) { Text(stringResource(R.string.profiles_use_tonight)) }
@@ -229,7 +229,10 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
 private fun describe(profile: Profile): String {
     val nothing = stringResource(R.string.profiles_nothing)
     val start = profile.start.map { stringResource(R.string.profiles_phase_short, modeName(it.mode), it.minutes) }.joinToString(" → ").ifEmpty { nothing }
-    val middle = stringResource(R.string.profiles_middle_short, modeName(profile.middle.mode), profile.middle.fanStart, profile.middle.fanEnd)
+    val quiet = profile.middle.quietFan
+    val middle = if (profile.middle.fanShape == io.github.willzy12h.nocturne.core.plan.FanShape.QUIET_MIDDLE && quiet != null)
+        stringResource(R.string.profiles_quiet_middle_short, modeName(profile.middle.mode), quiet.settle, quiet.asleep, quiet.rise)
+    else stringResource(R.string.profiles_middle_short, modeName(profile.middle.mode), profile.middle.fanStart, profile.middle.fanEnd)
     val wake = profile.wake.map { stringResource(R.string.profiles_phase_short, modeName(it.mode), it.minutes) }.joinToString(" → ").ifEmpty { nothing }
     return stringResource(R.string.profiles_summary, start, middle, wake)
 }

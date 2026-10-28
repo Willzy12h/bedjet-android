@@ -145,8 +145,17 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                                 // Cool or Dry: more fan when too hot, less when too cold.
                                 Text(stringResource(R.string.checkin_change_intro_fan, name,
                                     stringResource(if (proposal.comfort == MorningComfort.TOO_HOT) R.string.checkin_raise else R.string.checkin_lower)))
-                                Text(stringResource(R.string.checkin_fan_start_change, proposal.expectedMiddle.fanStart, proposal.proposedMiddle.fanStart))
-                                Text(stringResource(R.string.checkin_fan_end_change, proposal.expectedMiddle.fanEnd, proposal.proposedMiddle.fanEnd))
+                                val oldQuiet = proposal.expectedMiddle.quietFan
+                                val newQuiet = proposal.proposedMiddle.quietFan
+                                if (proposal.expectedMiddle.fanShape == io.github.willzy12h.nocturne.core.plan.FanShape.QUIET_MIDDLE && oldQuiet != null && newQuiet != null) {
+                                    val delta = newQuiet.settle - oldQuiet.settle
+                                    Text(stringResource(R.string.checkin_all_fan_change, if (delta >= 0) "+" else "−", kotlin.math.abs(delta)))
+                                    Text(stringResource(R.string.checkin_quiet_fan_change, oldQuiet.settle, newQuiet.settle,
+                                        oldQuiet.asleep, newQuiet.asleep, oldQuiet.rise, newQuiet.rise))
+                                } else {
+                                    Text(stringResource(R.string.checkin_fan_start_change, proposal.expectedMiddle.fanStart, proposal.proposedMiddle.fanStart))
+                                    Text(stringResource(R.string.checkin_fan_end_change, proposal.expectedMiddle.fanEnd, proposal.proposedMiddle.fanEnd))
+                                }
                             } else {
                                 Text(stringResource(R.string.checkin_change_intro, name,
                                     stringResource(if (proposal.comfort == MorningComfort.TOO_HOT) R.string.checkin_lower else R.string.checkin_raise)))

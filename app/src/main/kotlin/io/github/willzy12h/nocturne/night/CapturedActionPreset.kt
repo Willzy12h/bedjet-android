@@ -35,7 +35,7 @@ internal fun timedPresetRefusal(context: Context, preset: ActionPreset): String?
 internal fun capturedPresetMessage(context: Context, preset: ActionPreset): String {
     val mode = context.getString(when (preset.mode) {
         Mode.HEAT -> R.string.mode_heat
-        Mode.EXTENDED_HEAT -> R.string.mode_gentle_heat
+        Mode.EXTENDED_HEAT -> R.string.mode_long_heat
         Mode.COOL -> R.string.mode_cool
         Mode.DRY -> R.string.mode_dry
         Mode.TURBO -> R.string.mode_turbo
