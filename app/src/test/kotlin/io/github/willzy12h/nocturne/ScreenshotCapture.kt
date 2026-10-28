@@ -167,8 +167,7 @@ class ScreenshotCapture {
         tab("Profiles")
         val profileId = graph.repository.profiles.value.first().id
         compose.onNode(hasScrollToKeyAction()).performScrollToKey(profileId)
-        compose.onNode(hasText(s(R.string.recovery_more)) and hasClickAction() and
-            hasAnyAncestor(hasTestTag("profile-card-$profileId"))).performScrollTo().performClick()
+        compose.onNodeWithTag("profile-more-$profileId", useUnmergedTree = true).performScrollTo().performClick()
         settle()
         tap(s(R.string.pin_menu), scroll = false)
         compose.onNodeWithText(compose.activity.getString(R.string.pin_slot_help, graph.repository.settings.value.workingSlot + 1)).assertExists()

@@ -112,4 +112,14 @@
     <string name="parity_history_tonight">Tonight</string>
     <string name="parity_history_last_night">Last night</string>
     <string name="parity_history_alarm">Woken by an alarm</string>
+    <string name="parity_setup_allowed">Allowed</string>
+    <string name="parity_setup_choose">Choose</string>
+    <string name="parity_setup_chosen">Chosen</string>
+    <string name="parity_mid_at">At %1$s</string>
+    <string name="parity_mid_by">By %1$s</string>
+    <string name="parity_mid_how">How should it get there?</string>
+    <string name="parity_mid_shape_stay">Stay</string>
+    <string name="parity_mid_shape_once">Once</string>
+    <string name="parity_mid_shape_twice">Twice</string>
+    <string name="parity_mid_shape_gently">Gently</string>
 </resources>

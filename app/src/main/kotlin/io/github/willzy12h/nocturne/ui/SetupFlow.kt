@@ -1,6 +1,21 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,9 +49,12 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false, showDemoChoice: 
     val settings by model.settings.collectAsState()
     val found by model.foundBedJets.collectAsState()
     val discovering by model.discovering.collectAsState()
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = paletteTokens.surface)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.setup_choose_title), style = MaterialTheme.typography.titleMedium)
+    val tokens = paletteTokens
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
+        .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          ProvideTextStyle(TextStyle(color = tokens.ink2, fontSize = 14.sp, lineHeight = 20.sp)) {
+            Text(stringResource(R.string.setup_choose_title), color = tokens.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             if (!compact) Text(stringResource(R.string.setup_choose_help), style = MaterialTheme.typography.bodySmall)
             if (settings.demoMode) {
                 Text(stringResource(R.string.gpt12_demo_pair_help), style = MaterialTheme.typography.bodySmall)
@@ -55,9 +73,21 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false, showDemoChoice: 
                     val name = found.firstOrNull { DeviceId.ble(it.address) == target }?.name
                         ?: model.graph.bleLink.deviceNameFor(target)
                         ?: stringResource(R.string.setup_unit_fallback)
-                    OutlinedButton(onClick = { model.selectBedJet(address) },
-                        modifier = Modifier.fillMaxWidth().sideStripe(paletteTokens.cool, paletteTokens)) {
-                        Text(stringResource(R.string.setup_choose_unit, name, address))
+                    val chosen = settings.targetDevice == target
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tokens.tint(tokens.cool))
+                        .sideStripe(tokens.cool, tokens).clickable(role = Role.Button, onClickLabel = stringResource(R.string.setup_choose_unit, name, address)) {
+                            model.selectBedJet(address)
+                        }.padding(start = 16.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(painterResource(R.drawable.ic_nc_bt), null, Modifier.size(18.dp), tint = tokens.cool)
+                        Column(Modifier.weight(1f)) {
+                            Text(name, color = tokens.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                            Text(address, color = tokens.ink2, fontSize = 12.5.sp)
+                        }
+                        Text(stringResource(if (chosen) R.string.parity_setup_chosen else R.string.parity_setup_choose),
+                            Modifier.clip(RoundedCornerShape(50)).background(if (chosen) tokens.surface2 else tokens.ink)
+                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                            color = if (chosen) tokens.ink2 else tokens.ground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -76,6 +106,7 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false, showDemoChoice: 
                 TextButton(onClick = { samsung = !samsung }) { Text(stringResource(R.string.setup_samsung_title)) }
                 if (samsung) Text(stringResource(R.string.setup_samsung_help), style = MaterialTheme.typography.bodySmall)
             }
+          }
         }
     }
 }
