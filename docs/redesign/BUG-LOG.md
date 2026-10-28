@@ -163,3 +163,21 @@ recovery or motion assertion is removed. The follow-up and full P8 gate are reco
 Focused follow-up passed all routing, permission, recovery and selector cases. The final
 marker fixture passes all nine active-indicator cases. The complete P8 rerun passed: 311 core tests, 1,704 app cases with zero failures/errors and
 41 opt-in capture skips, zero lint errors and 24 warnings; BUILD SUCCESSFUL in 21m 1s.
+
+## Final bounded review — committed redesign
+
+Reviewed the committed diff from `42e6ba2` to `99111097a88effab237e57c417de427122280aef`
+against the brief and handover, focusing on runtime outcomes, receipt truth, navigation,
+editor and widget callbacks, accessibility and backup preservation. No additional concrete
+regression was established in this static pass. Protected Profile, PlanCompiler, HeatScale,
+Palettes and backup codec implementations have no diff; Settings adds the defaulted P5
+cooldown-answer field. Full P8 gate passed 311 core tests and 1,704 app cases with zero
+failures and 41 opt-in skips; lint reported zero errors and 24 warnings. The 41 opt-in
+captures also passed on the verified source. Clean final verification subsequently passed. This review
+ran no build and did not verify hardware, device or accessibility-service behaviour.
+
+The clean Final command passed on source `99111097a88effab237e57c417de427122280aef`: 311 core
+tests and 1,704 app cases, zero failures/errors, 41 opt-in capture skips; debug APK assembled;
+lint zero errors and 24 warnings. `BUILD SUCCESSFUL in 23m 16s`; all 62 tasks executed.
+All 41 opt-in captures passed separately. No unresolved finding from these bounded reviews
+or verification runs remains. No device, Samsung, hardware or TalkBack claim is made.

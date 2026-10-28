@@ -1,6 +1,6 @@
 # Nocturne redesign handover
 
-Work in progress. Base: `claude/nocturne-redesign-foundation` at
+Completed. Base: `claude/nocturne-redesign-foundation` at
 `42e6ba2aa26d4de8b26441d961eed7ae664f7e47`. Branch: `gpt/nocturne-redesign`.
 
 ## Phase checklist
@@ -11,8 +11,8 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
 - [x] P5: Cooldown — `0dcf66c9abb2867933736c1e2e1a222696853d2a`
 - [x] P6: Guided setup, Help and about, Settings and History — `4a661f2c7c4dea53bd288886698366e65ce8cf75`
 - [x] P7: Widgets v2 — `bc6882ce908563a2a58b536c0fc0ffd9c39e82f7`
-- [x] P8: Polish and audit — phase commit recorded in Final handover
-- [ ] Final: clean verification, debug APK and handover
+- [x] P8: Polish and audit — `99111097a88effab237e57c417de427122280aef`
+- [x] Final: clean verification, debug APK and handover — `FINAL_VERIFICATION_COMMIT`
 
 ## Assumptions
 
@@ -94,7 +94,52 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
 
 ## Verification and APK
 
-Pending. Toolchain restored into temporary build storage; no signing changes.
+The clean full check passed on 28 October 2026 from committed source
+`99111097a88effab237e57c417de427122280aef`. There were no source changes after P8;
+Final commits only complete this handover and the review log. No signing changes.
+
+Required task sequence:
+
+```sh
+./gradlew clean :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
+```
+
+This environment used `--no-daemon --max-workers=3 -I docs/redesign/verification.init.gradle`
+for the documented three-worker, fresh-JVM-per-class isolation, with the installed toolchain
+and offline dependency cache. No test-class filter or screenshot opt-in was set for this run.
+All 62 Gradle tasks executed after `clean`.
+
+- Core: 311 tests, zero failures/errors/skips.
+- App: 1,704 cases, zero failures/errors and 41 opt-in capture skips: 1,663 executed tests.
+- Total executed tests: 1,974. Every JUnit report was readable.
+- The 41 opt-in capture cases passed separately on the same source, with zero skips.
+- Lint: zero errors, 24 warnings. The warning categories are OldTargetApi (1),
+  SpecifyJobSchedulerIdRange (1), ModifierParameter (1), DiscouragedApi (2),
+  PluralsCandidate (1), ObsoleteSdkInt (1), UnusedResources (6), and UseKtx (11).
+- Debug APK builds. No hardware, Samsung, TalkBack or on-device verification is claimed.
+
+```text
+:core:test — 311 tests, 0 failed, 0 skipped
+:app:testDebugUnitTest — 1704 tests, 0 failed, 41 skipped
+:app:assembleDebug
+:app:lintDebug — 0 errors, 24 warnings
+BUILD SUCCESSFUL in 23m 16s
+62 actionable tasks: 62 executed
+```
+
+The test-count and lint lines above summarise the readable JUnit/lint reports; the final two
+lines are copied from Gradle's console. The full task command completed with exit code 0.
+
+APK:
+
+- Build path: `app/build/outputs/apk/debug/app-debug.apk`.
+- Delivered directly as `nocturne-redesign-debug.apk`; no draft PR was needed or opened.
+- Size: **68,168,175 bytes** (65.01 MiB).
+- SHA-256: `9e1aa74f54f41c0b5aebf997401014d9ad9ba45966dccca9280f46f85d49e37e`.
+- The APK is not committed. The delivered copy matches the build output byte for byte.
+
+If Android reports a package/signature conflict, export a backup in Settings first, then
+uninstall the current test app and install this APK. Production signing was not changed.
 
 ### P2 evidence
 
@@ -578,7 +623,7 @@ Pending. Toolchain restored into temporary build storage; no signing changes.
 
 ## Not done / limits
 
-- All unticked phases remain outstanding.
+- No requested implementation phase remains outstanding. The 24 lint warnings are recorded above.
 - No on-device, BedJet hardware, Samsung or TalkBack verification.
 - The backup schema/strict-parser compatibility policy remains for Claude’s review, as the
   brief requires. Older backups load with defaults in the new app; older app versions may
@@ -659,7 +704,7 @@ was removed after use. This is host test evidence, not an on-device result.
 The corrected native captures cover all eight requested areas in both palettes; see
 `P8-AUDIT.md` for the reviewed states and limitations. The repository uses opt-in capture
 tests, not approved pixel goldens; no golden baseline was weakened or replaced.
-The full P8 gate passed; final capture regeneration uses the same tested source.
+The full P8 gate passed; all 41 opt-in captures also passed on the same tested source.
 
 ### P8 changed files and test-class inventory
 
@@ -791,3 +836,16 @@ Zero failures/errors/skips; `BUILD SUCCESSFUL in 1m 12s`; 31 tasks: 1 executed,
 Independent review of the refreshed captures found no obvious text clipping, overlap or
 unreadable enabled text in the inspected normal and 320dp/200% viewports in Midnight Ink
 and Overcast. This is bounded host capture review, not full-scroll, device or TalkBack evidence.
+
+## Final phase files and review
+
+- Changed `docs/redesign/GPT-HANDOVER.md` and `docs/redesign/BUG-LOG.md` only.
+- No new behaviour, tests, production source, resources, signing or release configuration
+  changed in Final. No new RED test was needed for documentation and verification.
+- An independent bounded review compared the full committed diff from foundation
+  `42e6ba2aa26d4de8b26441d961eed7ae664f7e47` to P8
+  `99111097a88effab237e57c417de427122280aef`, covering receipt truth, navigation, editor/widget
+  callbacks, accessibility and protected foundations. No additional concrete regression
+  was established. The clean full check then passed as recorded above.
+- A final metadata-only commit records the Final verification commit hash in this file;
+  neither documentation commit changes the tested app or its APK.
