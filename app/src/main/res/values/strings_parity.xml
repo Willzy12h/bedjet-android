@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="parity_status_line">%1$s · %2$s</string>
+    <string name="parity_status_connected">connected</string>
+    <string name="parity_status_connecting">connecting…</string>
+    <string name="parity_status_offline">offline</string>
+    <string name="parity_status_running">%1$s · running</string>
+    <string name="parity_status_sending">Sending…</string>
+    <string name="parity_status_demo">Demo · no BedJet connected</string>
+    <string name="parity_remote_link">Remote ›</string>
+    <string name="parity_back">‹ %1$s</string>
+    <string name="parity_tonight_label">Tonight · %1$s</string>
+    <string name="parity_change">Change</string>
+    <string name="parity_choose_profile">Tonight\'s profile</string>
+    <string name="parity_bed">Bed %1$s</string>
+    <string name="parity_wake">Wake %1$s</string>
+    <string name="parity_now">Now %1$s</string>
+    <string name="parity_summary_range">%1$s %2$s → %3$s</string>
+    <string name="parity_summary_single">%1$s %2$s</string>
+    <string name="tonight_start_at">Start at %1$s</string>
+    <string name="parity_quick_presets">Quick presets</string>
+    <string name="parity_fan_step">Fan %1$d%% · step %2$d of %3$d</string>
+    <string name="parity_next">Next: %1$s %2$s at %3$s</string>
+    <string name="parity_change_wake">Change wake</string>
+    <string name="parity_end_night">End night</string>
+    <string name="parity_show_detail">Show the night in detail</string>
+</resources>

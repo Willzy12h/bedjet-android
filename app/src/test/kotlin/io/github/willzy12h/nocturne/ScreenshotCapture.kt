@@ -249,7 +249,13 @@ class ScreenshotCapture {
         settle()
         compose.onNodeWithText(compose.activity.getString(R.string.tonight_start_now)).assertIsDisplayed()
         shot("$look-01b-tonight-lower")
-        for ((tab, name) in listOf("Profiles" to "02-profiles", "Remote" to "03-remote", "History" to "04-history", "Settings" to "05-settings")) {
+        // Remote is a Tonight sub-page opened from the status line.
+        compose.onNodeWithTag("open-remote").performScrollTo().performClick()
+        settle()
+        shot("$look-03-remote")
+        compose.onNodeWithTag("remote-back").performClick()
+        settle()
+        for ((tab, name) in listOf("Profiles" to "02-profiles", "History" to "04-history", "Settings" to "05-settings")) {
             if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription(tab))[0].performClick()
             else compose.onAllNodesWithText(tab)[0].performClick()
             settle()
@@ -264,7 +270,7 @@ class ScreenshotCapture {
             // Stop remains available while a request is pending; its label alone does not prove a running night.
             graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED &&
                 graph.actions.status.value.confidence == Confidence.CONFIRMED && graph.actions.busy.value.runningLabel == null &&
-                compose.onAllNodes(hasText(compose.activity.getString(R.string.tonight_end_night))).fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodes(hasText(compose.activity.getString(R.string.parity_end_night))).fetchSemanticsNodes().isNotEmpty()
         }
         settle(6_000) // let the confirmation message bar time out
         assertEquals("Running capture needs a confirmed night", Confidence.CONFIRMED, graph.repository.activeNight.value?.confidence)
