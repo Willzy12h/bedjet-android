@@ -24,13 +24,16 @@ class ProfileEditorInteractionTest {
     }
     private fun open() {
         tab(R.string.tab_profiles)
-        ui.compose.onAllNodes(hasText(ui.s(R.string.action_edit)) and hasClickAction())[0].performClick()
+        val tag = "profile-open-${ui.graph.repository.profiles.value.first().id}"
+        ui.compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasTestTag(tag))
+        ui.compose.onNodeWithTag(tag).performClick()
     }
 
     @Test fun profilePreviewsStayPassiveUntilTheirEditorIsOpened() {
         tab(R.string.tab_profiles)
         val previewTag = "profile-timeline-${ui.graph.repository.profiles.value.first().id}"
-        val preview = ui.compose.onNodeWithTag(previewTag)
+        ui.compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasTestTag(previewTag))
+        val preview = ui.compose.onNodeWithTag(previewTag).performScrollTo()
         val semantics = preview.fetchSemanticsNode().config
         assertFalse("A profile preview must not offer a phase click action", semantics.contains(SemanticsActions.OnClick))
         assertFalse("A profile preview must not offer phase actions", semantics.contains(SemanticsActions.CustomActions))
@@ -40,7 +43,9 @@ class ProfileEditorInteractionTest {
         preview.performTouchInput { click(); longClick() }
         ui.compose.onNodeWithTag("curve-phase-detail").assertDoesNotExist()
         ui.compose.onNodeWithTag("editor-phase-START-0").assertDoesNotExist()
-        ui.compose.onAllNodes(hasText(ui.s(R.string.action_edit)) and hasClickAction())[0].performClick()
+        ui.compose.onNode(hasText(ui.s(R.string.action_edit)) and hasClickAction() and
+            hasAnyAncestor(hasTestTag("profile-card-${ui.graph.repository.profiles.value.first().id}")))
+            .performScrollTo().performClick()
         ui.compose.onNodeWithTag("editor-phase-START-0").assertExists()
     }
 

@@ -79,6 +79,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     Box(modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text(stringResource(R.string.profiles_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
+            if (!settings.cooldownOfferAnswered) item { CooldownOfferCard(model, profiles, settings.fahrenheit) }
             items(profiles, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }
                 val copyName = stringResource(R.string.profiles_copy_name, profile.name)
@@ -146,7 +147,8 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                             subtitle = stringResource(seasonName(preset.season)),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable {
                                 adding = false
-                                onEdit(preset.copy(id = UUID.randomUUID().toString(), name = preset.name))
+                                onEdit(preset.copy(id = UUID.randomUUID().toString(), name = preset.name,
+                                    afterWake = listOf(io.github.willzy12h.nocturne.core.plan.Phase(io.github.willzy12h.nocturne.core.protocol.Mode.COOL, 44, 30, 10))))
                             },
                         )
                     }

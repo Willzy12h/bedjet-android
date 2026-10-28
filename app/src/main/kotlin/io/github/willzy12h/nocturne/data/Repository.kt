@@ -13,9 +13,11 @@ import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Middle
 import io.github.willzy12h.nocturne.core.plan.ProfileLimits
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.BackupBundle
 import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.BackupException
@@ -398,6 +400,35 @@ class Repository(
         if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it } else list + profile
     }
 
+    suspend fun answerCooldownOffer(expected: Map<String, List<Phase>>, expectedSessionRevision: Long = sessionRevision.value): Boolean {
+        val admission = operationAdmission.tryCommand() ?: throw importBusy()
+        try {
+            return serially {
+                if (expectedSessionRevision != _sessionRevision.value || _settings.value.cooldownOfferAnswered) return@serially false
+                if (SETTINGS in _unreadable.value || (expected.isNotEmpty() && PROFILES in _unreadable.value)) return@serially false
+                if (expected.any { (id, afterWake) -> _profiles.value.firstOrNull { it.id == id }?.afterWake != afterWake }) return@serially false
+                val settings = _settings.value.copy(cooldownOfferAnswered = true)
+                if (expected.isEmpty()) {
+                    writeValue(SETTINGS, Settings.serializer(), settings)
+                    _settings.value = settings
+                    _settingsPublication.value += 1
+                } else {
+                    val profiles = _profiles.value.map { profile ->
+                        if (profile.id in expected) profile.copy(afterWake = listOf(Phase(Mode.COOL, 44, 30, 10))) else profile
+                    }
+                    writeAllOrNone(listOf(
+                        Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)) { _profiles.value = profiles },
+                        Write(SETTINGS, encode(Settings.serializer(), _settings.value), encode(Settings.serializer(), settings)) {
+                            _settings.value = settings
+                            _settingsPublication.value += 1
+                        },
+                    ))
+                }
+                true
+            }
+        } finally { admission.close() }
+    }
+
     suspend fun deleteProfile(id: String) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list -> list.filterNot { it.id == id } }
 
     suspend fun updateSettings(change: (Settings) -> Settings) = update(_settings, SETTINGS, Settings.serializer()) {
@@ -761,6 +792,7 @@ class Repository(
             Write(SETTINGS, encode(Settings.serializer(), _settings.value), encode(Settings.serializer(), settings)) {
                 _settings.value = settings
                 _settingsPublication.value += 1
+                _sessionRevision.value += 1
             },
             Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)) {
                 _history.value = history

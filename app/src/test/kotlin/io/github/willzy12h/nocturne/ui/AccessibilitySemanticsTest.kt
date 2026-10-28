@@ -57,7 +57,8 @@ class AccessibilitySemanticsTest {
     @Test fun editorSlidersSayWhatTheySetInWhichUnitAndTheirValue() {
         val profile = graph.repository.profiles.value.first()
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodes(hasText("Edit"))[0].performClick()
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(profile.id)
+        compose.onNodeWithTag("profile-open-${profile.id}").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Edit profile").fetchSemanticsNodes().isNotEmpty() }
         val middle = profile.middle
         if (middle.mode.usesFan) {

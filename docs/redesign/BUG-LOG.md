@@ -50,3 +50,53 @@ Gate 2 did not produce a fresh lint result or full Gradle success footer. These 
 are not established as hardware or production defects.
 
 P4 gate 3 exited successfully: 309 core tests passed with no skips; 1,652 app cases had zero failures and 38 existing skips; lint reported zero errors and 21 warnings. All XML was valid. Build successful in 13m 8s; 43 tasks, five executed and 38 up-to-date. The long-lived-worker idling cause remains an unproven tooling limitation, not an established application defect.
+
+## Pass 6 — P5 cooldown review
+
+Bounded static review of the in-progress offer, profile creation, repository transaction,
+and view-model bridge established no new concrete regression. The offer changes profiles
+only on Add, declines through a settings-only write, checks selected after-wake snapshots
+and session revision, and labels the change as future nights only. Checkbox rows have a
+48dp minimum. Copy retains the source profile; the new-preset path applies the default.
+No build, device or accessibility-service verification was performed in this pass.
+
+## Pass 7 — P5 transaction and session re-review
+
+Reviewed the latest repository and UI paths plus transaction and session tests. No new
+concrete finding was established: Add uses the existing journalled multi-file write,
+selected after-wake snapshots and session revision are checked under serialization,
+and the tests cover stale selections, restore, demo round trips and write failure.
+This was a static review; tests were not run in this pass.
+
+## Pass 8 — completed-phase review during P5 verification
+
+- P2/P3 state and palette-consent review established no concrete regression; no code or tests
+  were changed in that review.
+- P4-004 (open for P8): an imported/legacy Turbo phase can retain a stored temperature other
+  than 86 half-degrees. `ProfileEditor.kt` displays that stored value, while
+  `PlanCompiler.phaseSteps` compiles Turbo at the protocol's fixed 43°C. Add a failing display
+  regression and show the effective fixed temperature. Preserve legacy chained durations and
+  their existing chain policy; do not rewrite the protected compiler or silently migrate data.
+  Static evidence only at this point; P5 source is frozen for its full gate.
+
+## P5 gate follow-up
+
+The first full gate executed 311 core tests and 1,663 app cases (38 existing skips).
+Seven app failures were navigation selectors assuming an initially visible profile Edit
+button; those selectors now scroll by profile ID. Seven were `P4EditorBehaviourTest`
+Compose idling timeouts. No fresh lint result or success footer was available.
+All 33 focused follow-up cases passed, including the nine unchanged P4 editor cases.
+An experimental bounded frame-settling helper did not resolve the timeouts and was removed.
+The second full gate had seven failures: six idling timeouts and one backup/demo fixture
+race. That fixture now holds only the staged import Job, rather than an arbitrary graph
+dispatch; its four checks pass in the subsequent UI run. All editor checks passed there too,
+but two theme-confirmation idling checks and a paused-Tonight alarm refresh timed out.
+Temporary diagnostics were removed. The next full gate uses a fresh JVM per test class;
+no assertions or timeouts changed. The exact shared-worker idling cause remains unconfirmed;
+attempted attach diagnostics did not capture usable thread stacks.
+
+Verification resolved under class isolation: all 311 core and 1,663 app cases passed with
+38 existing screenshot skips. A follow-up of the complete task command retained those
+up-to-date results, ran lint successfully (zero errors, 21 warnings) and produced the
+success footer. The portable init script is committed for reproducibility. The cause of
+the earlier shared-worker timeouts remains a limitation, not a proven application defect.

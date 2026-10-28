@@ -7,8 +7,8 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
 
 - [x] P2: Theme wiring and Appearance — `283719032dda55f414e437205c258f79ecb0ba3d`
 - [x] P3: Side-stripe tiles, Home / Tonight and Profiles — `a5933a9446b65ab5f91d18deaff68cfe3c934f67`
-- [x] P4: Profile editor, step editor and fan shapes — published hash recorded in the next phase entry
-- [ ] P5: Cooldown
+- [x] P4: Profile editor, step editor and fan shapes — `9c1f682d25a20be48b0333048a0daf8213b1c03c`
+- [x] P5: Cooldown — included in the P5 commit containing this checklist; hash recorded in the next phase
 - [ ] P6: Guided setup, Help and about, Settings and History
 - [ ] P7: Widgets v2
 - [ ] P8: Polish and audit
@@ -63,6 +63,10 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
 - Choosing Ease down can temporarily retain equal endpoints; the second slider stays available
   during editing. The protected model derives Steady when those equal endpoints are saved and
   reopened. No new persisted shape field or backup schema change is introduced.
+- New drafts created from presets receive the specified 22°C Cooldown; copying an existing
+  profile preserves its after-wake content. Import and demo seed profiles are not mutated.
+  The offer applies to future plans; it does not alter a running night's captured plan.
+  To give copies the default too, change the Copy callback in `ProfilesScreen.kt` explicitly.
 
 ## Verification and APK
 
@@ -352,6 +356,88 @@ Pending. Toolchain restored into temporary build storage; no signing changes.
 - `core/src/test/kotlin/io/github/willzy12h/nocturne/core/plan/PresetsTest.kt`
 - `docs/redesign/BUG-LOG.md`
 - `docs/redesign/GPT-HANDOVER.md`
+
+### P5 evidence
+
+- `CooldownOfferSettingsTest` observed RED for both the missing default and strict import of
+  the new field. The added default is false; the backup schema and parser remain unchanged.
+- The behaviour RED ran against a refusing repository stub and absent UI: eight of nine app
+  cases failed, while the stale-demo negative case already passed. A separate restore test
+  failed with the session revision increment held back, then passed after it was restored.
+  An imported profile retaining its ID and after-wake content cannot reuse an earlier offer.
+- `CooldownOfferTest` covers default selections, explicit replacement, decline, persistence and
+  the new-profile draft. `CooldownOfferLayoutTest` checks the offer's targets at large text.
+  `RepositoryCooldownTest` covers selected updates, stale selections and failed writes;
+  `RepositoryCooldownSessionTest` covers session changes and unreadable-data guards. Selected
+  changes and the answer are saved together; stale or unsafe requests leave the offer open.
+- The 167-case profile regression run reported 18 failures after the offer was inserted.
+  The offer moves existing profile controls below the initial viewport.
+  `NavigationRestoreTest`, `ProfileEditorInteractionTest` and `WakeFeedbackTest` now scroll to
+  the intended profile controls by ID rather than assuming a visible Edit action. Their existing
+  draft, save, navigation and running-night assertions remain. All 167 follow-up cases pass,
+  with zero lint errors and 21 warnings.
+- The first full P5 gate ran 311 core cases successfully and all 1,663 app cases, with
+  14 failures and 38 existing skips. Seven failures exposed the same initial-viewport
+  assumption in `AppSmokeTest`, `SaveOrderingTest`, `AccessibilitySemanticsTest` and
+  `EditorTrackingTruthTest`; these now scroll to the intended profile ID before opening it.
+  Their original save, command, unit-label and tracked-night truth assertions remain.
+  Seven `P4EditorBehaviourTest` cases reported Compose idling timeouts. No fresh lint result
+  or success footer was produced; this is not a passing gate. The idling cause is being
+  investigated separately from the navigation corrections. All 33 focused cases then passed,
+  including all nine unchanged editor cases, with zero lint errors and 21 warnings; the
+  timeout did not reproduce in that smaller run. An experimental bounded frame-settling
+  helper did not resolve the full-suite timeouts and was removed; the P4 editor test is
+  unchanged from its committed P4 version.
+- The second full gate executed all 311 core and 1,663 app cases: seven app failures,
+  38 existing skips, and no fresh lint result. Six failures were Compose idling timeouts
+  in editor and stripe-tile tests. The other exposed an existing backup/demo fixture whose
+  dispatcher held whichever graph coroutine happened to dispatch next. It now targets the
+  staged import Job, preserving every admission, stale-review and real-data assertion.
+- A 597-case UI run then passed all nine P4 editor, all seven profile interaction and all
+  four backup/demo invalidation cases. It had three different existing failures: two
+  theme-confirmation idling timeouts and a paused-Tonight alarm-refresh timeout; 24 opt-in
+  captures were skipped, and lint reported zero errors and 21 warnings. Temporary diagnostic
+  rules were removed. The full gate was repeated with a fresh JVM per app test class
+  to eliminate state shared between classes. No cases, assertions or timeouts are disabled
+  or relaxed. The exact cause of the shared-worker timeouts remains unproven.
+- The complete isolated run passed all 311 core and 1,663 app cases (zero failures,
+  38 existing screenshot skips) in 1,443.7 seconds. Gradle exited zero, but its captured
+  log omitted the final lint task/footer. The identical full task command was then rerun
+  using the portable init script below: tests were up-to-date with those passing results,
+  lint reported zero errors and 21 warnings, and all JUnit XML was readable.
+  `BUILD SUCCESSFUL in 12s`; 43 actionable tasks: 1 executed, 42 up-to-date.
+- `docs/redesign/verification.init.gradle` records the checked app-test settings: two
+  workers, a fresh JVM per class, JUnit XML without embedded captured output, and no HTML
+  test report. It does not filter cases or change assertions/timeouts. Its configuration
+  was checked and the complete task command above used it successfully. Reproduce a phase
+  gate with `./gradlew --no-daemon --max-workers=2 -I docs/redesign/verification.init.gradle
+  :core:test :app:testDebugUnitTest :app:lintDebug`. The local runner also used a 2 GB Gradle
+  heap, in-process Kotlin compilation and cached dependencies; these are environment settings,
+  not changes to signing or release configuration.
+
+### P5 changed files
+
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/data/Repository.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/AppViewModel.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/CooldownOfferCard.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ProfilesScreen.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/AppSmokeTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/data/SaveOrderingTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/data/RepositoryCooldownSessionTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/data/RepositoryCooldownTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/CooldownOfferLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/CooldownOfferTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/AccessibilitySemanticsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/EditorTrackingTruthTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/DemoImportPreviewInvalidationTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/NavigationRestoreTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ProfileEditorInteractionTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/WakeFeedbackTest.kt`
+- `core/src/main/kotlin/io/github/willzy12h/nocturne/core/store/Settings.kt`
+- `core/src/test/kotlin/io/github/willzy12h/nocturne/core/store/CooldownOfferSettingsTest.kt`
+- `docs/redesign/verification.init.gradle`
+- `docs/redesign/BUG-LOG.md` and `docs/redesign/GPT-HANDOVER.md`
 
 ## Not done / limits
 

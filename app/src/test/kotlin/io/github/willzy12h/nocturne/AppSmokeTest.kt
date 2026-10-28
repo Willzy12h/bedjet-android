@@ -10,6 +10,8 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasScrollToKeyAction
+import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -371,7 +373,9 @@ class AppSmokeTest {
     @Test
     fun profileEditorOpensAndSaves() {
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodes(hasText("Edit"))[0].performClick()
+        val profileId = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(profileId)
+        compose.onNodeWithTag("profile-open-$profileId").performScrollTo().performClick()
         compose.onNodeWithText("Edit profile").assertIsDisplayed()
         compose.onNodeWithText("Save").performClick()
         compose.onNodeWithText("New profile").assertIsDisplayed()

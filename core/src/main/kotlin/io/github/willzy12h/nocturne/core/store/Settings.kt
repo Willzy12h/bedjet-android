@@ -76,6 +76,7 @@ data class Settings(
     /** Stable section IDs; unknown, repeated and missing IDs are normalised when displayed. */
     val tonightSectionOrder: List<String> = listOf("night", "wake", "connection"),
     val quietNightNotification: Boolean = false,
+    val cooldownOfferAnswered: Boolean = false,
     val platform: PlatformSettings = PlatformSettings(),
 ) {
     fun normalisedRememberedBedJets(): List<String> = (listOfNotNull(targetDevice) + rememberedBedJets)

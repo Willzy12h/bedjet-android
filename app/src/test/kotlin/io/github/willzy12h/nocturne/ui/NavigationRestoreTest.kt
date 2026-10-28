@@ -114,7 +114,9 @@ class NavigationRestoreTest {
 
     private fun editFirstProfile() {
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodesWithText("Edit")[0].performClick()
+        val id = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(id)
+        compose.onNodeWithTag("profile-open-$id").performScrollTo().performClick()
         compose.onNodeWithText("Edit profile").assertExists()
     }
 
@@ -162,7 +164,9 @@ class NavigationRestoreTest {
         launch()
         val savedProfiles = graph.repository.profiles.value
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodesWithText("Edit")[0].performClick()
+        val id = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(id)
+        compose.onNodeWithTag("profile-open-$id").performScrollTo().performClick()
         renameDraft("Unsaved existing draft")
 
         openTonight()
@@ -213,7 +217,9 @@ class NavigationRestoreTest {
         launch()
         val originals = graph.repository.profiles.value
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodesWithText("Edit")[0].performClick()
+        val id = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(id)
+        compose.onNodeWithTag("profile-open-$id").performScrollTo().performClick()
         renameDraft("Parcel existing draft")
 
         restore()

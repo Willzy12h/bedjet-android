@@ -516,6 +516,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // Saving happens off the main thread; the screens update once it is on disk.
 
+    val cooldownOfferSessionRevision = repo.sessionRevision
+    private val _cooldownOfferSaving = MutableStateFlow(false)
+    val cooldownOfferSaving = _cooldownOfferSaving.asStateFlow()
+
+    fun answerCooldownOffer(expected: Map<String, List<io.github.willzy12h.nocturne.core.plan.Phase>>, expectedSessionRevision: Long) {
+        if (_cooldownOfferSaving.value) return
+        _cooldownOfferSaving.value = true
+        save {
+            try {
+                if (!repo.answerCooldownOffer(expected, expectedSessionRevision))
+                    _messages.tryEmit(text(R.string.cooldown_offer_changed))
+            } finally {
+                _cooldownOfferSaving.value = false
+            }
+        }
+    }
+
     fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
     /** "Next night": saved for later nights only; the running night keeps its snapshot, and the person is told so (U10). */
     fun saveProfileForNextNight(profile: Profile) = save {

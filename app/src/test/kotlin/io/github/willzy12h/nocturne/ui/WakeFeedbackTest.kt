@@ -133,7 +133,7 @@ class WakeFeedbackTest {
         val graph = graph
         val running = graph.repository.activeNight.value!!
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodes(hasText("Edit"))[graph.repository.profiles.value.indexOfFirst { it.id == running.profileId }].performClick()
+        compose.onNodeWithTag("profile-open-${running.profileId}").performScrollTo().performClick()
         waitFor("Edit profile")
         compose.onNode(hasSetTextAction()).performTextReplacement("Next night name")
         compose.onNodeWithText("Save").performClick()

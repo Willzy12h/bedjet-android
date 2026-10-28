@@ -94,4 +94,14 @@
     <string name="checkin_quiet_fan_change">Settle: %1$d%% → %2$d%% · asleep: %3$d%% → %4$d%% · rise: %5$d%% → %6$d%%</string>
     <string name="runtime_long_heat_limits">Long heat cannot honour this profile\'s temperature limits</string>
     <string name="runtime_program_too_long">Your BedJet won\'t run a phase this long. Shorten the Heat phases or use Long heat.</string>
+    <string name="cooldown_offer_title">Add a 10-minute Cooldown after waking?</string>
+    <string name="cooldown_offer_empty">No after-wake steps</string>
+    <string name="cooldown_offer_replace">Replaces: %1$s</string>
+    <string name="cooldown_offer_add">Add</string>
+    <string name="cooldown_offer_decline">No thanks</string>
+    <string name="cooldown_offer_changed">Profiles changed. Review your selection and try again.</string>
+    <string name="cooldown_offer_future_only">This changes future nights only.</string>
+    <string name="cooldown_offer_phase_temp">%1$s · %2$s · %3$s · fan %4$d%%</string>
+    <string name="cooldown_offer_phase_fan">%1$s · %2$s · fan %3$d%%</string>
+    <string name="cooldown_offer_phase_simple">%1$s · %2$s</string>
 </resources>

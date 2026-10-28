@@ -193,6 +193,7 @@ class DemoImportPreviewInvalidationTest {
     private fun holdSelectedFileRead(): Job {
         holdReadCompletion = true
         val staged = stageFile()
+        pausedCompletion.target(staged)
         until { pausedCompletion.isHeld }
         assertFalse(staged.isCompleted)
         assertNull(model.importPreview.value)
@@ -230,13 +231,15 @@ class DemoImportPreviewInvalidationTest {
 
     private class PausedCompletion : CoroutineDispatcher() {
         private var armed = false
+        private var targetJob: Job? = null
         @Volatile private var held: Pair<CoroutineContext, Runnable>? = null
         val isHeld: Boolean get() = held != null
         @Synchronized fun arm() { armed = true }
+        @Synchronized fun target(job: Job) { targetJob = job }
 
         override fun dispatch(context: CoroutineContext, block: Runnable) {
             synchronized(this) {
-                if (armed) {
+                if (armed && context[Job] === targetJob) {
                     armed = false
                     check(held == null)
                     held = context to block
