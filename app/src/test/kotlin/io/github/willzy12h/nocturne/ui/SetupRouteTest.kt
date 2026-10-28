@@ -59,7 +59,7 @@ class SetupRouteTest {
     }
 
     @Test fun remoteRoutesToChoosingABedJet() {
-        compose.onNodeWithText("Remote").performClick()
+        compose.openRemote()
         compose.onNodeWithText(s(R.string.setup_choose_title)).assertIsDisplayed()
         compose.onNodeWithText(s(R.string.setup_find)).assertIsDisplayed()
         assertTrue(compose.onAllNodesWithText("Connect to your BedJet to use the remote.").fetchSemanticsNodes().isEmpty())

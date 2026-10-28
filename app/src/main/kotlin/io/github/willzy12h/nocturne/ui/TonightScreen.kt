@@ -222,7 +222,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     Tick(if (night != null) Format.clock(p.start) else stringResource(R.string.parity_bed, Format.clock(p.start)), tick, TextAlign.Start)
                     Tick(if (night != null && confirmed) stringResource(R.string.parity_now, Format.clock(now)) else summary.orEmpty(),
                         tick, TextAlign.Center)
-                    Tick(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: if (night != null) wakeTime else stringResource(R.string.parity_wake, wakeTime),
+                    // The wake source stays visible under the time: alarm, tonight-only or the profile's fallback.
+                    Tick(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: ((if (night != null) wakeTime else stringResource(R.string.parity_wake, wakeTime)) +
+                        "\n" + stringResource(headline.label)),
                         tick.testTag("tonight-fixed-wake").then(if (overridable) Modifier.clickable(onClick = pickWake) else Modifier), TextAlign.End)
                 }
                 if (showDetail) PlanCard(p, settings, night?.wakeOrigin ?: preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT,

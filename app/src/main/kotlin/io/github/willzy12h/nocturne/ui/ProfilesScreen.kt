@@ -121,7 +121,8 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                 val selected = (activeNight?.profileId ?: settings.resolveProfile(profiles, model.now())?.id) == profile.id
                 val stripe = tokens.stepColor(profile.middle.mode, profile.middle.tempStart)
                 val shape = RoundedCornerShape(18.dp)
-                Column(Modifier.fillMaxWidth().testTag("profile-card-${profile.id}").clip(shape).background(tokens.surface)
+                Box(Modifier.fillMaxWidth().testTag("profile-card-${profile.id}")) {
+                Column(Modifier.fillMaxWidth().testTag("profile-open-${profile.id}").clip(shape).background(tokens.surface)
                     .sideStripe(stripe, tokens, width = 5.dp, level = TintLevel.PROFILE)
                     .then(when {
                         selected -> Modifier.border(1.5.dp, tokens.accent, shape)
@@ -131,7 +132,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                     .clickable(role = Role.Button) { onEdit(profile) }
                     .padding(start = 18.dp, end = 10.dp, top = 10.dp, bottom = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("profile-open-${profile.id}"),
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("profile-header-${profile.id}"),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Icon(painterResource(R.drawable.ic_nc_fav), null, Modifier.size(20.dp), tint = tokens.accent)
                         Text(profile.name, Modifier.weight(1f), color = tokens.ink, fontSize = 17.sp,
@@ -187,6 +188,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                             color = tokens.ink2, fontSize = 15.sp)
                         WeekdayDots(profile.days)
                     }
+                }
                 }
             }
             if (!settings.cooldownOfferAnswered) item { CooldownOfferCard(model, profiles, settings.fahrenheit) }

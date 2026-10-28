@@ -1,11 +1,26 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import io.github.willzy12h.nocturne.core.plan.PlannedStep
 import android.app.TimePickerDialog
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -14,7 +29,6 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.stateDescription
 import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
 import androidx.activity.compose.BackHandler
@@ -64,8 +78,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
@@ -227,26 +239,53 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     Text(stringResource(R.string.editor_middle_help), style = MaterialTheme.typography.bodySmall)
                     val m = profile.middle
                     ModeChips(m.mode) { profile = profile.copy(middle = m.copy(mode = it, tempStart = it.clampTemp(m.tempStart), tempEnd = it.clampTemp(m.tempEnd))) }
-                    if (m.mode.usesFan) {
-                        Text(stringResource(R.string.editor_fan_shape))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(FanShape.STEADY to R.string.fan_shape_steady, FanShape.EASE to R.string.fan_shape_ease,
-                                FanShape.QUIET_MIDDLE to R.string.fan_shape_quiet).forEach { (shape, label) ->
-                                FilterChip(fanShape == shape, onClick = {
-                                    val start = m.quietFan?.settle ?: m.fanStart
-                                    val clamp: (Int) -> Int = { legalFan(it, profile.limits) }
-                                    val next = when (shape) {
-                                        FanShape.STEADY -> m.copy(fanStart = clamp(start), fanEnd = clamp(start), quietFan = null)
-                                        FanShape.EASE -> m.copy(fanStart = clamp(start), fanEnd = clamp(m.fanEnd), quietFan = null)
-                                        FanShape.QUIET_MIDDLE -> {
-                                            val q = m.quietFan ?: QuietFan(clamp(50), 30, clamp(25), clamp(45), 40)
-                                            m.copy(fanStart = q.settle, fanEnd = q.rise, quietFan = q)
-                                        }
-                                    }
-                                    fanShape = shape
-                                    profile = profile.copy(middle = next)
-                                }, label = { Text(stringResource(label)) }, modifier = Modifier.heightIn(min = 48.dp))
+                    if (m.mode.usesTemperature) {
+                        val ends = preview.getOrNull()?.steps?.filter { it.block == Block.MIDDLE }
+                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TempStepper(m.mode, m.tempStart, stringResource(R.string.parity_mid_at, ends?.firstOrNull()?.startsAt?.let(Format::clock).orEmpty()).trim(),
+                                stringResource(R.string.slider_temp_start), f, "middle-temp-start", Modifier.weight(1f)) {
+                                profile = profile.copy(middle = m.copy(tempStart = it))
                             }
+                            Text("→", color = tokens.ink3, fontSize = 18.sp)
+                            TempStepper(m.mode, m.tempEnd, stringResource(R.string.parity_mid_by, ends?.lastOrNull()?.let { Format.clock(it.startsAt.plusMinutes(it.minutes.toLong())) }.orEmpty()).trim(),
+                                stringResource(R.string.slider_temp_end), f, "middle-temp-end", Modifier.weight(1f)) {
+                                profile = profile.copy(middle = m.copy(tempEnd = it))
+                            }
+                        }
+                        SectionLabel(stringResource(R.string.parity_mid_how))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(1 to R.string.parity_mid_shape_stay, 2 to R.string.parity_mid_shape_once,
+                                3 to R.string.parity_mid_shape_twice, 6 to R.string.parity_mid_shape_gently).forEach { (count, label) ->
+                                val on = if (count == 6) m.rampSteps >= 4 else m.rampSteps == count
+                                ShapeCard(count, stringResource(label), on, tokens.stepColor(m.mode, m.tempStart), Modifier.weight(1f)) {
+                                    profile = profile.copy(middle = m.copy(rampSteps = count))
+                                }
+                            }
+                        }
+                        ends?.takeIf { it.isNotEmpty() }?.let { MiddleBars(it, f) }
+                    }
+                    Labelled(stringResource(R.string.editor_steps, m.rampSteps)) {
+                        Slider(m.rampSteps.toFloat(), { profile = profile.copy(middle = m.copy(rampSteps = it.roundToInt())) }, valueRange = 1f..8f, steps = 6,
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_steps), pluralStringResource(R.plurals.a11y_steps, m.rampSteps, m.rampSteps)))
+                    }
+                    if (m.mode.usesFan) {
+                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            SectionLabel(stringResource(R.string.editor_fan_shape), Modifier.weight(1f))
+                        }
+                        Segmented(listOf(FanShape.STEADY to stringResource(R.string.fan_shape_steady), FanShape.EASE to stringResource(R.string.fan_shape_ease),
+                            FanShape.QUIET_MIDDLE to stringResource(R.string.fan_shape_quiet)), fanShape, tag = "middle-fan-shape") { shape ->
+                            val start = m.quietFan?.settle ?: m.fanStart
+                            val clamp: (Int) -> Int = { legalFan(it, profile.limits) }
+                            val next = when (shape) {
+                                FanShape.STEADY -> m.copy(fanStart = clamp(start), fanEnd = clamp(start), quietFan = null)
+                                FanShape.EASE -> m.copy(fanStart = clamp(start), fanEnd = clamp(m.fanEnd), quietFan = null)
+                                FanShape.QUIET_MIDDLE -> {
+                                    val q = m.quietFan ?: QuietFan(clamp(50), 30, clamp(25), clamp(45), 40)
+                                    m.copy(fanStart = q.settle, fanEnd = q.rise, quietFan = q)
+                                }
+                            }
+                            fanShape = shape
+                            profile = profile.copy(middle = next)
                         }
                         val limits = profile.limits
                         when (fanShape) {
@@ -266,14 +305,6 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                                 Labelled(stringResource(R.string.editor_rise_minutes, q.riseMinutes)) { MinuteSlider(q.riseMinutes, stringResource(R.string.slider_rise_minutes), 0) { updateQuiet(q.copy(riseMinutes = it)) } }
                             }
                         }
-                    }
-                    if (m.mode.usesTemperature) {
-                        Labelled(stringResource(R.string.editor_temp_start, tempText(m.tempStart, f))) { TempSlider(m.mode, m.tempStart, stringResource(R.string.slider_temp_start), f) { profile = profile.copy(middle = m.copy(tempStart = it)) } }
-                        Labelled(stringResource(R.string.editor_temp_end, tempText(m.tempEnd, f))) { TempSlider(m.mode, m.tempEnd, stringResource(R.string.slider_temp_end), f) { profile = profile.copy(middle = m.copy(tempEnd = it)) } }
-                    }
-                    Labelled(stringResource(R.string.editor_steps, m.rampSteps)) {
-                        Slider(m.rampSteps.toFloat(), { profile = profile.copy(middle = m.copy(rampSteps = it.roundToInt())) }, valueRange = 1f..8f, steps = 6,
-                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_steps), pluralStringResource(R.plurals.a11y_steps, m.rampSteps, m.rampSteps)))
                     }
                 }
 
@@ -421,6 +452,80 @@ private fun Section(title: String, modifier: Modifier = Modifier, content: @Comp
 @Composable
 private fun Labelled(label: String, content: @Composable () -> Unit) {
     Column { Text(label, style = MaterialTheme.typography.bodyMedium); content() }
+}
+
+/** "AT 23:10 − 32° +": an adjustable temperature, so screen readers can still set it directly. */
+@Composable
+private fun TempStepper(mode: Mode, value: Int, caption: String, label: String, fahrenheit: Boolean, tag: String,
+    modifier: Modifier = Modifier, onChange: (Int) -> Unit) {
+    val tokens = paletteTokens
+    val range = mode.temperatureRange
+    val shown = value.coerceIn(range)
+    val spoken = spokenTemp(shown, fahrenheit)
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(caption.uppercase(), color = tokens.ink2, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            RoundStep("−", stringResource(R.string.parity_cooler), 40, shown > range.first, "$tag-down") { onChange(shown - 1) }
+            Text(tempText(shown, fahrenheit), color = tokens.stepColor(mode, shown), fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, modifier = Modifier.testTag(tag).semantics {
+                    contentDescription = label
+                    stateDescription = spoken
+                    progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat(), range.first.toFloat()..range.last.toFloat(),
+                        (range.last - range.first - 1).coerceAtLeast(0))
+                    setProgress { target -> onChange(target.roundToInt().coerceIn(range)); true }
+                })
+            RoundStep("+", stringResource(R.string.parity_warmer), 40, shown < range.last, "$tag-up") { onChange(shown + 1) }
+        }
+    }
+}
+
+/** One of Stay / Once / Twice / Gently, drawn as falling bars. */
+@Composable
+private fun ShapeCard(count: Int, label: String, selected: Boolean, color: Color, modifier: Modifier, onClick: () -> Unit) {
+    val tokens = paletteTokens
+    val shape = RoundedCornerShape(16.dp)
+    Column(modifier.clip(shape).background(if (selected) tokens.tint(color) else tokens.surface2)
+        .then(if (selected) Modifier.border(2.dp, color, shape) else Modifier)
+        .clickable(role = Role.RadioButton, onClick = onClick).semantics { this.selected = selected }
+        .testTag("middle-shape-$count").padding(vertical = 12.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.height(30.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            repeat(count) { i ->
+                val fraction = if (count == 1) 1f else 1f - i * (.6f / (count - 1))
+                Box(Modifier.width(if (count == 1) 56.dp else (44 / count + 4).dp).fillMaxHeight(fraction)
+                    .clip(RoundedCornerShape(3.dp)).background(color.copy(alpha = 1f - i * .08f)))
+            }
+        }
+        Text(label, color = tokens.ink, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
+/** The middle's steps as bars sized by length and temperature, with their start times beneath. */
+@Composable
+private fun MiddleBars(steps: List<PlannedStep>, fahrenheit: Boolean) {
+    val tokens = paletteTokens
+    val temps = steps.map { it.step.temperature }
+    val low = temps.min()
+    val high = temps.max()
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp).clearAndSetSemantics { }) {
+        Row(Modifier.fillMaxWidth().height(120.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            steps.forEach { step ->
+                val fraction = if (high == low) 1f else .55f + .45f * (step.step.temperature - low) / (high - low).toFloat()
+                Box(Modifier.weight(step.minutes.coerceAtLeast(1).toFloat()).fillMaxHeight(fraction).clip(RoundedCornerShape(8.dp))
+                    .background(tokens.stepColor(step.step.mode, step.step.temperature)).padding(8.dp)) {
+                    Text(tempText(step.step.temperature, fahrenheit), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            steps.forEachIndexed { index, step ->
+                Row(Modifier.weight(step.minutes.coerceAtLeast(1).toFloat())) {
+                    Text(Format.clock(step.startsAt), color = tokens.ink3, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                    if (index == steps.lastIndex) Text(Format.clock(step.startsAt.plusMinutes(step.minutes.toLong())), color = tokens.ink3, fontSize = 12.sp, maxLines = 1)
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

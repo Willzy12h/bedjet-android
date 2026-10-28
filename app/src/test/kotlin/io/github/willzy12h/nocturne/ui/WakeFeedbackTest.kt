@@ -78,7 +78,7 @@ class WakeFeedbackTest {
     @Test fun theNoAlarmNoteDoesNotContradictATonightOnlyWake() {
         waitFor("Start night now")
         setOverride(graph.now().plusHours(8))
-        waitFor(s(R.string.wake_origin_override))
+        waitFor(s(R.string.gpt12_wake_override), substring = true)
         assertFalse(has("No alarm set, so the profile's wake time is used."))
     }
 
@@ -146,14 +146,14 @@ class WakeFeedbackTest {
     @Test fun discardingAnUnsavedNewProfileAddsNothing() {
         val before = graph.repository.profiles.value
         compose.onNodeWithText("Profiles").performClick()
-        compose.onNodeWithText("New profile").performClick()
+        compose.onNodeWithTag("profiles-new", useUnmergedTree = true).performClick()
         compose.onNode(hasText("Summer Cool") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         waitFor("Edit profile")
         compose.onNode(hasSetTextAction()).performTextReplacement("Never saved")
         compose.onNodeWithContentDescription("Cancel").performClick()
         compose.onNodeWithText("Discard changes?").assertIsDisplayed()
         compose.onNodeWithText("Discard").performClick()
-        waitFor("New profile")
+        waitUntil { compose.onAllNodesWithTag("profiles-new", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(before, graph.repository.profiles.value)
         assertFalse(has("Never saved"))
     }

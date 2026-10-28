@@ -63,7 +63,7 @@ class RemoteMalformedReportSecurityTest {
     @get:Rule val rules = RuleChain.outerRule(graphs).around(fixture).around(compose)
 
     @Test fun reversedSelectedStatusDoesNotCrashRemoteOrCreateAConfirmation() {
-        compose.onAllNodesWithText("Remote")[0].performClick()
+        compose.openRemote()
         compose.waitForIdle()
         compose.onNodeWithTag("temperature-tick-0").assertExists()
         val receipt = link.latestSourcedStatus()
