@@ -11,6 +11,8 @@ import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.ui.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.core.plan.Presets
+import io.github.willzy12h.nocturne.core.plan.Block
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.night.NightActions
 import android.graphics.Bitmap
@@ -255,6 +257,7 @@ class ScreenshotCapture {
         shot("$look-03-remote")
         compose.onNodeWithTag("remote-back").performClick()
         settle()
+        seedHistory()
         for ((tab, name) in listOf("Profiles" to "02-profiles", "History" to "04-history", "Settings" to "05-settings")) {
             if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription(tab))[0].performClick()
             else compose.onAllNodesWithText(tab)[0].performClick()
@@ -289,6 +292,40 @@ class ScreenshotCapture {
     }
 
     /** The editor, one step's sheet and the Add a step sheet, then back to Profiles. */
+    /** A few finished nights so History shows the design's cards; only added once per run. */
+    private fun seedHistory() {
+        if (graph.repository.history.value.any { it.id.startsWith("capture-") }) return
+        fun night(id: String, daysAgo: Long, name: String, steps: List<Triple<Mode, Int, Int>>,
+            comfort: MorningComfort?, errors: Int) {
+            val start = graph.now().minusDays(daysAgo).withHour(22).withMinute(31 + daysAgo.toInt() * 7 % 29)
+            var at = start
+            val recorded = steps.mapIndexed { index, (mode, temp, minutes) ->
+                val block = when (index) { 0, 1 -> Block.START; steps.lastIndex -> Block.AFTER_WAKE; else -> Block.MIDDLE }
+                RecordedStep(block, mode, temp, 40, at.toString(), minutes).also { at = at.plusMinutes(minutes.toLong()) }
+            }
+            val end = at
+            val events = buildList {
+                add(HistoryEvent(start.toString(), EventKind.STARTED, "Started"))
+                repeat(errors) { add(HistoryEvent(start.plusHours(3).toString(), EventKind.ERROR, "A change didn't send")) }
+                add(HistoryEvent(end.toString(), EventKind.ENDED, "Ended"))
+                comfort?.let { add(HistoryEvent(end.plusMinutes(10).toString(), EventKind.MORNING_FEEDBACK, it.name, it)) }
+            }
+            runBlocking { graph.repository.addRecord(NightRecord(id, "capture-$id", name, start.toString(), end.toString(), true,
+                steps = recorded, events = events)) }
+        }
+        compose.runOnUiThread {
+            night("capture-1", 1, "Summer comfort", listOf(Triple(Mode.COOL, 40, 30), Triple(Mode.COOL, 44, 400), Triple(Mode.HEAT, 60, 40), Triple(Mode.COOL, 44, 20)),
+                MorningComfort.JUST_RIGHT, 0)
+            night("capture-2", 2, "Winter warm", listOf(Triple(Mode.TURBO, 86, 15), Triple(Mode.HEAT, 80, 30), Triple(Mode.HEAT, 64, 400), Triple(Mode.HEAT, 70, 30), Triple(Mode.COOL, 44, 15)),
+                MorningComfort.TOO_HOT, 0)
+            night("capture-3", 3, "Winter warm", listOf(Triple(Mode.TURBO, 86, 15), Triple(Mode.HEAT, 80, 30), Triple(Mode.HEAT, 64, 200), Triple(Mode.WAIT, 0, 30),
+                Triple(Mode.HEAT, 66, 170), Triple(Mode.HEAT, 72, 40)), null, 1)
+            night("capture-4", 9, "Summer comfort", listOf(Triple(Mode.COOL, 44, 480)), null, 0)
+            night("capture-5", 12, "Summer comfort", listOf(Triple(Mode.COOL, 44, 480)), null, 0)
+        }
+        settle()
+    }
+
     private fun themeMode(mode: ThemeMode) {
         compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(themeMode = mode) } } }
         settle()

@@ -104,4 +104,12 @@
     <string name="parity_settings_alarm_source">Alarm source</string>
     <string name="parity_settings_details">How alarms are found</string>
     <string name="parity_settings_hide_details">Hide details</string>
+    <string name="parity_history_earlier">Earlier nights</string>
+    <plurals name="parity_history_earlier_count">
+        <item quantity="one">%d more night</item>
+        <item quantity="other">%d more nights</item>
+    </plurals>
+    <string name="parity_history_tonight">Tonight</string>
+    <string name="parity_history_last_night">Last night</string>
+    <string name="parity_history_alarm">Woken by an alarm</string>
 </resources>
