@@ -159,7 +159,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         if (page == "appearance") Group(stringResource(R.string.settings_appearance)) {
             Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ThemeMode.entries.forEach { mode ->
+                // The design's order; the enum's order is stored data and stays as it is.
+                listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SCHEDULED).forEach { mode ->
                     FilterChip(settings.themeMode == mode, {
                         if (settings.themeMode != mode) chooseAppearance(settings.copy(themeMode = mode))
                     }, label = { Text(stringResource(themeName(mode))) })
@@ -322,6 +323,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 OutlinedButton(enabled = !settings.demoMode && !importApplying, onClick = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }) { Text(stringResource(R.string.settings_export_file)) }
                 OutlinedButton(enabled = !settings.demoMode && !importApplying, onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text(stringResource(R.string.settings_restore_from_file)) }
             }
+            Text(stringResource(R.string.settings_export_compat), style = MaterialTheme.typography.bodySmall)
             snapshots.forEach { snap ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Column {
@@ -372,6 +374,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             OutlinedButton(onClick = { openSourceCode(context) }) {
                 Text(stringResource(R.string.settings_source_code))
             }
+            Text(stringResource(R.string.settings_source_code_detail), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.settings_protocol_attribution), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { licencesOpen = true }) { Text(stringResource(R.string.settings_licences)) }
         }
@@ -433,7 +436,7 @@ private fun SettingsHome(open: (String) -> Unit) {
     groups.forEach { group ->
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = paletteTokens.surface),
-            border = BorderStroke(1.dp, paletteTokens.hairline)) {
+            border = BorderStroke(1.dp, paletteTokens.outline)) {
             group.forEach { destination ->
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("settings-page-${destination.id}")
                     .clickable(role = Role.Button) { open(destination.id) }.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -462,7 +465,7 @@ private fun themeName(mode: ThemeMode) = when (mode) {
 private fun Group(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = paletteTokens.surface),
-        border = BorderStroke(1.dp, paletteTokens.hairline)) {
+        border = BorderStroke(1.dp, paletteTokens.outline)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, modifier = modifier.semantics { heading() })
             content()
@@ -477,7 +480,7 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, quickC
     val context = LocalContext.current
     val timedRefusal = timedPresetRefusal(context, preset)
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = paletteTokens.surface2),
-        border = BorderStroke(1.dp, paletteTokens.hairline)) {
+        border = BorderStroke(1.dp, paletteTokens.outline)) {
         Column(Modifier.padding(12.dp)) {
             // Timed Snooze/Extend and the Quick buttons which share Extend presets have distinct policies.
             if (timedRefusal != null) {

@@ -153,6 +153,7 @@
     <string name="settings_snapshot_now">Snapshot now</string>
     <string name="settings_export_file">Export file</string>
     <string name="settings_restore_from_file">Restore from file</string>
+    <string name="settings_export_compat">Files exported from this version may not import into older versions of Nocturne.</string>
     <string name="settings_automatic">Automatic</string>
     <string name="settings_restore">Restore</string>
     <string name="settings_delete">Delete</string>

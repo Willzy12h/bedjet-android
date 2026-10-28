@@ -70,10 +70,11 @@ class ContrastTest {
         assertEquals(tokens.hairline, tokens.materialScheme().outline)
     }
 
-    @Test fun overcastDecorativeOutlinesFollowPaletteHairline() {
+    // R9: Overcast's dividers use the 12% hairline; component outlines use its separate #AAB0BA edge.
+    @Test fun overcastDividersUseHairlineAndOutlinesUseEdge() {
         val tokens = Palette.OVERCAST.tokens
         assertEquals(tokens.hairline, tokens.materialScheme().outlineVariant)
-        assertEquals(tokens.hairline, tokens.materialScheme().outline)
+        assertEquals(tokens.edge, tokens.materialScheme().outline)
     }
 
     @Test fun stepTextContrastsWithEveryTemperatureTint() {
@@ -83,9 +84,12 @@ class ContrastTest {
             val tokens = palette.tokens
             Mode.entries.forEach { mode ->
                 listOf(56, 64, 72, 82).forEach { temperature ->
-                    val background = tokens.tint(tokens.stepColor(mode, temperature)).compositeOver(tokens.ground)
-                    check("$palette $mode label", tokens.ink, background, 4.5)
-                    check("$palette $mode subtitle", tokens.ink2, background, 4.5)
+                    TintLevel.entries.forEach { level ->
+                        val background = tokens.tint(tokens.stepColor(mode, temperature), level)
+                            .compositeOver(tokens.surface.compositeOver(tokens.ground))
+                        check("$palette $mode $level label", tokens.ink, background, 4.5)
+                        check("$palette $mode $level subtitle", tokens.ink2, background, 4.5)
+                    }
                 }
             }
         }

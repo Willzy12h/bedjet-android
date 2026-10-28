@@ -72,10 +72,19 @@ class CooldownOfferTest {
         offer().assertDoesNotExist()
     }
 
-    @Test fun newProfileFromPresetStartsWithCooldown() {
+    @Test fun newProfileFromPresetKeepsItsOwnAfterWake() {
         profiles()
         ui.compose.onNode(hasText(ui.s(R.string.profiles_new)) and hasClickAction()).performClick()
-        val preset = Presets.all.first()
+        val preset = Presets.summerCool
+        ui.compose.onNode(hasText(preset.name) and hasClickAction() and hasAnyAncestor(isDialog())).performScrollTo().performClick()
+        ui.compose.onNodeWithTag("editor-phase-AFTER_WAKE-0").performScrollTo().assertTextContains("20 min", substring = true)
+            .assertTextContains("40%", substring = true)
+    }
+
+    @Test fun newProfileFromPresetWithoutAfterWakeStartsWithCooldown() {
+        profiles()
+        ui.compose.onNode(hasText(ui.s(R.string.profiles_new)) and hasClickAction()).performClick()
+        val preset = Presets.springAutumn
         ui.compose.onNode(hasText(preset.name) and hasClickAction() and hasAnyAncestor(isDialog())).performScrollTo().performClick()
         ui.compose.onNodeWithTag("editor-phase-AFTER_WAKE-0").performScrollTo().assertTextContains("10 min", substring = true)
             .assertTextContains("22°C", substring = true).assertTextContains("30%", substring = true)

@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -80,6 +81,10 @@ data class NocturneColors(
 fun PaletteTokens.materialScheme(): ColorScheme {
     val scheme = if (dark) darkColorScheme() else lightColorScheme()
     fun contrastOn(color: Color) = if (color.luminance() > 0.179f) Color.Black else Color.White
+    // Material draws these roles for menus, the busy overlay and other floating surfaces, so they must be opaque:
+    // the translucent glass tokens over the ground read the same in flow and don't let content show through.
+    val surface = surface.compositeOver(ground)
+    val surface2 = surface2.compositeOver(ground)
     return scheme.copy(
         primary = primary, onPrimary = onPrimary,
         primaryContainer = surface2, onPrimaryContainer = ink,
@@ -92,7 +97,7 @@ fun PaletteTokens.materialScheme(): ColorScheme {
         background = ground, onBackground = ink,
         surface = surface, onSurface = ink,
         surfaceVariant = surface2, onSurfaceVariant = ink2,
-        surfaceTint = primary, outline = hairline, outlineVariant = hairline,
+        surfaceTint = primary, outline = this.outline, outlineVariant = hairline,
         inverseSurface = ink, inverseOnSurface = ground, inversePrimary = ground,
         scrim = Color.Black,
         surfaceBright = surface2, surfaceDim = ground,

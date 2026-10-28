@@ -31,7 +31,7 @@ class MigrationsTest {
     @Test
     fun version1BundleMigratesToTheCurrentSchema() {
         val bundle = BackupCodec.decode(v1)
-        assertEquals(2, BackupCodec.SCHEMA)
+        assertEquals(3, BackupCodec.SCHEMA)
         assertEquals(BackupCodec.SCHEMA, bundle.schema)
         assertEquals(listOf(SlotBackup("unknown", 0, program, "2026-10-20T22:30Z", empty = false, uncertain = true)), bundle.slotBackups)
         assertEquals("unknown", bundle.history.single().deviceId)
@@ -52,7 +52,7 @@ class MigrationsTest {
     fun migratedBundleRoundTrips() {
         val migrated = BackupCodec.decode(v1)
         val text = BackupCodec.encode(migrated)
-        assertTrue(text.contains("\"schema\": 2"))
+        assertTrue(text.contains("\"schema\": 3"))
         assertEquals(migrated, BackupCodec.decode(text))
     }
 
@@ -76,5 +76,18 @@ class MigrationsTest {
         val text = BackupCodec.json.encodeToString(ListSerializer(SlotBackup.serializer()), backups)
         assertEquals(backups, Migrations.decodeSlotBackups(text))
         assertTrue(backups.first().empty)
+    }
+
+    @Test fun schemaTwoBundlesLoadAsThreeWithDefaults() {
+        val bundle = BackupCodec.decode("""{"schema":2,"createdAt":"2026-10-27T12:00Z","profiles":[],"settings":{"workingSlot":1}}""")
+        assertEquals(3, bundle.schema)
+        assertEquals(1, bundle.settings.workingSlot)
+        assertEquals(Palette.MIDNIGHT_INK, bundle.settings.nightPalette)
+        assertFalse(bundle.settings.cooldownOfferAnswered)
+    }
+
+    @Test fun exportsCarryTheNewSchemaSoOlderVersionsAskForAnUpdate() {
+        val bundle = BackupCodec.decode("""{"schema":2,"createdAt":"2026-10-27T12:00Z","profiles":[],"settings":{}}""")
+        assertTrue(BackupCodec.encode(bundle).contains("\"schema\": 3"))
     }
 }

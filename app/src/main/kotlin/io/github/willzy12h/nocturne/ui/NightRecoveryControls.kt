@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -68,8 +69,9 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
                 OutlinedButton(onClick = { guard.resume(resumePrevious) { model.run(Command.RESUME, replacementConfirmed = true) } }) { Text(stringResource(R.string.recovery_resume_previous)) }
             }
         }
-        DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-            if (night != null) DropdownMenuItem(text = { Text(stringResource(R.string.recovery_recheck_alarm)) }, onClick = {
+        DropdownMenu(expanded = more, onDismissRequest = { more = false },
+            containerColor = paletteTokens.menu, border = BorderStroke(1.dp, paletteTokens.outline)) {
+            if (night != null) DropdownMenuItem(text = { Text(stringResource(R.string.recovery_recheck_alarm), color = paletteTokens.ink) }, onClick = {
                 more = false
                 model.recheckAlarm()
             })

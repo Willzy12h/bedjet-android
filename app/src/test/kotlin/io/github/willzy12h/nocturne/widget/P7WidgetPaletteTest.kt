@@ -2,6 +2,7 @@ package io.github.willzy12h.nocturne.widget
 
 import android.content.Context
 import android.content.res.Configuration
+import androidx.compose.ui.graphics.compositeOver
 import io.github.willzy12h.nocturne.core.store.Palette
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.ThemeMode
@@ -33,7 +34,8 @@ class P7WidgetPaletteTest {
         val colours = widgetColors(settings, at)
         val context = context(systemDark)
         assertEquals(expected.tokens.ground, colours.background.getColor(context))
-        assertEquals(expected.tokens.surface, colours.surface.getColor(context))
+        // Material surface roles are the glass composited over the ground, so widgets and menus are opaque.
+        assertEquals(expected.tokens.surface.compositeOver(expected.tokens.ground), colours.surface.getColor(context))
         assertEquals(expected.tokens.ink, colours.onSurface.getColor(context))
         assertEquals(expected.tokens.primary, colours.primary.getColor(context))
         assertEquals(expected.tokens.onPrimary, colours.onPrimary.getColor(context))
