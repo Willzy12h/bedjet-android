@@ -5,13 +5,14 @@ import android.content.SharedPreferences
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.edit
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.Settings
+import io.github.willzy12h.nocturne.core.store.Palette
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
 import java.time.Instant
@@ -22,7 +23,12 @@ import java.util.WeakHashMap
 private fun themePreferences(context: Context): SharedPreferences =
     context.applicationContext.getSharedPreferences("appearance-consent", Context.MODE_PRIVATE)
 
-private fun Settings.themeSelection() = "$themeMode:$scheduledDarkMinute:$scheduledLightMinute"
+private fun Settings.themeSelection() = "$themeMode:$scheduledDarkMinute:$scheduledLightMinute:$nightPalette:$dayPalette"
+
+/** Pre-palette versions saved only the mode and times. Their hold still applies to the default pair. */
+private fun Settings.matchesHold(selection: String?): Boolean = selection == themeSelection() ||
+    (nightPalette == Palette.MIDNIGHT_INK && dayPalette == Palette.OVERCAST &&
+        selection == "$themeMode:$scheduledDarkMinute:$scheduledLightMinute")
 
 private data class ConsentState(
     val lastDark: Boolean? = null,
@@ -80,10 +86,10 @@ private class ConsentScope(context: Context, private val displayedDemoMode: Bool
 
 /** Native command confirmations stay calm while the main screen still owes a light-theme choice. */
 internal fun nativeThemeIsDark(context: Context, settings: Settings, at: ZonedDateTime, systemDark: Boolean): Boolean {
-    if (settings.isDarkTheme(at, systemDark)) return true
+    if (settings.palette(at, systemDark).tokens.dark) return true
     val memory = ConsentScope(context, settings.demoMode).read()
     return memory.lastDark == true ||
-        (memory.holdSelection == settings.themeSelection() && (memory.holdUntil ?: 0L) > at.toInstant().toEpochMilli())
+        (settings.matchesHold(memory.holdSelection) && (memory.holdUntil ?: 0L) > at.toInstant().toEpochMilli())
 }
 
 /** A confirmed choice may publish asynchronously; retain its precise selection until that publication arrives. */
@@ -97,6 +103,7 @@ internal fun approveLightSelection(context: Context, settings: Settings, at: Zon
 internal data class ThemePresentation(
     val at: ZonedDateTime,
     val dark: Boolean,
+    val palette: Palette,
     val lightDue: Boolean,
     val switchNow: () -> Unit,
     val stayDark: () -> Unit,
@@ -120,28 +127,34 @@ internal fun rememberThemePresentation(settings: Settings, now: () -> ZonedDateT
     val memory = consent.demo?.state ?: remember(preferences, revision) { preferences.readConsent() }
     val holdUntil = memory.holdUntil?.let(Instant::ofEpochMilli)
     val at = rememberThemeNow(settings, now, holdUntil)
-    val requestedDark = settings.isDarkTheme(at, isSystemInDarkTheme())
+    val requestedPalette = settings.palette(at, isSystemInDarkTheme())
+    val requestedDark = requestedPalette.tokens.dark
     val selection = settings.themeSelection()
     val lastDark = memory.lastDark
-    val held = memory.holdSelection == selection && holdUntil?.isAfter(at.toInstant()) == true
+    val held = settings.matchesHold(memory.holdSelection) && holdUntil?.isAfter(at.toInstant()) == true
+    val migrateHold = held && memory.holdSelection != selection
     val approved = memory.approvedSelection == selection &&
         (memory.approvedUntil ?: 0L) > at.toInstant().toEpochMilli()
     val lightDue = !requestedDark && !held && !approved && lastDark == true
     val dark = requestedDark || held || lightDue
     SideEffect {
-        val expiredHold = holdUntil != null && (!held && (memory.holdSelection != selection || !holdUntil.isAfter(at.toInstant())))
+        val expiredHold = holdUntil != null && (!held && (!settings.matchesHold(memory.holdSelection) || !holdUntil.isAfter(at.toInstant())))
         val expiredApproval = memory.approvedUntil != null && memory.approvedUntil <= at.toInstant().toEpochMilli()
-        if (lastDark != dark || expiredHold || expiredApproval || (approved && !requestedDark)) {
+        if (lastDark != dark || expiredHold || expiredApproval || migrateHold || (approved && !requestedDark)) {
             consent.update {
                 it.copy(lastDark = dark,
                     holdUntil = if (expiredHold) null else it.holdUntil,
-                    holdSelection = if (expiredHold) null else it.holdSelection,
+                    holdSelection = if (expiredHold) null else if (migrateHold) selection else it.holdSelection,
                     approvedUntil = if (expiredApproval || (approved && !requestedDark)) null else it.approvedUntil,
                     approvedSelection = if (expiredApproval || (approved && !requestedDark)) null else it.approvedSelection)
             }
         }
     }
-    return ThemePresentation(at, dark, lightDue,
+    // While a light palette waits for consent, retain the other dark choice; if neither
+    // slot is dark, Midnight Ink provides a safe dark fallback.
+    val palette = if (!dark || requestedDark) requestedPalette else
+        listOf(settings.nightPalette, settings.dayPalette).firstOrNull { it.tokens.dark } ?: Palette.MIDNIGHT_INK
+    return ThemePresentation(at, dark, palette, lightDue,
         switchNow = {
             consent.update { ConsentState(lastDark = false) }
         },

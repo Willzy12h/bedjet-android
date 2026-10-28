@@ -32,16 +32,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
+import io.github.willzy12h.nocturne.ui.NocturneButton as Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -261,7 +261,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                         }
                         profile?.let { selected ->
                             plan?.let { PlanCard(it, settings, preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT, now = null, onEditPhase = editPhase) }
-                                ?: Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.error)
+                                ?: Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.onSurface)
                             BigButton(stringResource(R.string.tonight_start_now), enabled = !busy && plan != null,
                                 onClick = { model.run(Command.START_NIGHT, selected.id) })
                         }
@@ -324,7 +324,7 @@ private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true
         enabled = enabled,
         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
         shape = RoundedCornerShape(16.dp),
-    ) { Text(text, style = MaterialTheme.typography.titleMedium) }
+    ) { Text(text, style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)) }
 }
 
 @Composable

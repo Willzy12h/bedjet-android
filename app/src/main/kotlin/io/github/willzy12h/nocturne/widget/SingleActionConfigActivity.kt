@@ -44,8 +44,8 @@ class SingleActionConfigActivity : ComponentActivity() {
         setContent {
             val settings by graph.repository.settings.collectAsState()
             val theme = rememberThemePresentation(settings, graph::now)
-            NocturneTheme(settings, theme.at, theme.dark) {
-                Surface(Modifier.fillMaxSize()) {
+            NocturneTheme(settings, theme.at, paletteOverride = theme.palette) {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Column(
                         Modifier.systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),

@@ -10,6 +10,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
+import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -143,7 +145,7 @@ import kotlin.math.roundToInt
         if (config.onlyIfCharging) Text(stringResource(R.string.auto_start_charging_grace), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(if (AutoStartSchedule.exact(graph)) R.string.auto_start_exact else R.string.auto_start_inexact), style = MaterialTheme.typography.bodySmall)
         plan?.let { Text(stringResource(R.string.auto_start_next, it.startAt.format(DateTimeFormatter.ofPattern("EEE HH:mm"))), style = MaterialTheme.typography.bodySmall) }
-        message?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        message?.let { Text(it, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodySmall) }
     }
     if (choosingProfile) AlertDialog(onDismissRequest = { choosingProfile = false },
         title = { Text(stringResource(R.string.auto_start_choose_profile)) }, text = {

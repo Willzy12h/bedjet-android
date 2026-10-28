@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
+import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,7 +103,7 @@ internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: Ni
         }
         if (QuickDefaults.modes.any { !QuickDefaults.valid(QuickDefaults.resolve(settings, it)) })
             Text(stringResource(R.string.uat_quick_invalid), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error)
+                color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -117,7 +119,7 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
                 Text(stringResource(R.string.uat_quick_summary, tempText(preset.temperature, settings.fahrenheit),
                     preset.fanPercent, preset.minutes), style = MaterialTheme.typography.bodySmall)
                 if (!QuickDefaults.valid(preset)) Text(stringResource(R.string.uat_quick_invalid),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                 TextButton(onClick = { editing = preset }) {
                     Text(stringResource(R.string.uat_quick_edit, stringResource(Format.modeNameRes(mode))))
                 }
@@ -133,7 +135,7 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(presetDetail(context, draft, settings.fahrenheit))
-                    if (!valid) Text(stringResource(R.string.uat_quick_invalid), color = MaterialTheme.colorScheme.error)
+                    if (!valid) Text(stringResource(R.string.uat_quick_invalid), color = MaterialTheme.colorScheme.onSurface)
                     if (draft.mode.usesTemperature) {
                         val range = draft.mode.temperatureRange
                         Text(stringResource(R.string.slider_temp))

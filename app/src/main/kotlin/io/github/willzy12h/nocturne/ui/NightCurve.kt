@@ -73,6 +73,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
     val wakeColor = nocturneColors.accent
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
+    val tokens = paletteTokens
     val fahrenheit = LocalTemperatureFahrenheit.current
     var selected by remember(plan, phaseInteraction) { mutableStateOf<Int?>(null) }
     val currentEdit by rememberUpdatedState(onEditPhase)
@@ -125,7 +126,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 val level = level(step.step.mode, step.step.temperature, (step.step.fanStep + 1) * 5)
                 val h = (kotlin.math.abs(level) * (mid - 4)).coerceAtLeast(3f)
                 val top = if (level >= 0) mid - h else mid
-                val color = colors.curveMode(step.step.mode, step.block == Block.AFTER_WAKE)
+                val color = tokens.stepColor(step.step.mode, step.step.temperature)
                 drawRoundRect(color, Offset(x + 1, top), Size(w - 2, h), CornerRadius(4.dp.toPx()))
             }
             val wakeX = Duration.between(plan.start, plan.wake).toMinutes() / total * size.width
@@ -141,7 +142,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
         }
         now?.let(plan::stepAt)?.second?.let { step ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActiveIndicator(colors.mode(step.step.mode), true, Modifier.testTag("night-active-phase"))
+                ActiveIndicator(tokens.stepColor(step.step.mode, step.step.temperature), true, Modifier.testTag("night-active-phase"))
                 Text(stringResource(R.string.ux_current_phase, blockName(step.block)), style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -149,7 +150,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Text(Format.clock(plan.start), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f))
             Text(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake, Format.clock(plan.wake)), style = MaterialTheme.typography.labelSmall,
-                color = if (end == null) wakeColor else muted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                color = if (end == null && tokens.dark) wakeColor else muted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text(Format.clock(plan.end), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
         if (legend) {
@@ -252,13 +253,14 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
     val entries = timelineEntries(plan)
     val (before, after) = entries.partition { it.block != Block.AFTER_WAKE }
     val colors = nocturneColors
+    val tokens = paletteTokens
     val words = rememberWords()
     Column(modifier) {
         before.forEach { entry ->
             val current = now != null && !now.isBefore(entry.startsAt) && now.isBefore(entry.endsAt)
             TimelineRow(
                 time = Format.clock(entry.startsAt),
-                dot = colors.mode(entry.mode),
+                dot = tokens.stepColor(entry.mode, entry.tempStart),
                 title = if (entry.block == Block.TEMPORARY) stringResource(R.string.temporary_timeline_title, entry.title(words)) else entry.title(words),
                 detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words)) else entry.detail(fahrenheit, words),
                 titleColor = MaterialTheme.colorScheme.onSurface,
@@ -281,7 +283,7 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
                 stringResource(R.string.timeline_then, rest.map { stringResource(R.string.timeline_after_item, modeName(it.mode).lowercase(), durationText(it.minutes)) }
                     .joinToString(", "))
             },
-            titleColor = colors.accent,
+            titleColor = if (tokens.dark) colors.accent else tokens.ink,
             bold = true,
             last = true,
             active = now != null && after.any { !now.isBefore(it.startsAt) && now.isBefore(it.endsAt) },

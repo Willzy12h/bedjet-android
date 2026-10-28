@@ -20,11 +20,11 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.link.DeviceId
@@ -94,10 +95,11 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     var pendingTheme by remember { mutableStateOf<Settings?>(null) }
     fun saveAppearance(requested: Settings) {
         model.updateSettings { it.copy(themeMode = requested.themeMode,
-            scheduledDarkMinute = requested.scheduledDarkMinute, scheduledLightMinute = requested.scheduledLightMinute) }
+            scheduledDarkMinute = requested.scheduledDarkMinute, scheduledLightMinute = requested.scheduledLightMinute,
+            nightPalette = requested.nightPalette, dayPalette = requested.dayPalette) }
     }
     fun chooseAppearance(requested: Settings) {
-        if (!requested.isDarkTheme(model.now(), systemDark)) pendingTheme = requested
+        if (!requested.palette(model.now(), systemDark).tokens.dark) pendingTheme = requested
         else saveAppearance(requested)
     }
     var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
@@ -118,7 +120,9 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             dismissButton = { TextButton(onClick = { pendingTheme = null }) { Text(stringResource(R.string.feature_cancel)) } })
     }
 
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val settingsScroll = rememberScrollState()
+    var settingsViewportHeight by remember { mutableStateOf(0) }
+    Column(modifier.fillMaxSize().onSizeChanged { settingsViewportHeight = it.height }.verticalScroll(settingsScroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
         OutlinedButton(onClick = model::openSetupChecklist, modifier = Modifier.testTag("open-setup-checklist")) {
             Text(stringResource(R.string.uat_setup_title))
@@ -150,6 +154,14 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                     if (minute != settings.scheduledLightMinute) chooseAppearance(settings.copy(scheduledLightMinute = minute))
                 }
             }
+            PalettePicker(stringResource(R.string.settings_night_palette), settings.nightPalette, "night") { palette ->
+                if (settings.isDarkTheme(model.now(), systemDark)) chooseAppearance(settings.copy(nightPalette = palette))
+                else saveAppearance(settings.copy(nightPalette = palette))
+            }
+            PalettePicker(stringResource(R.string.settings_day_palette), settings.dayPalette, "day") { palette ->
+                if (!settings.isDarkTheme(model.now(), systemDark)) chooseAppearance(settings.copy(dayPalette = palette))
+                else saveAppearance(settings.copy(dayPalette = palette))
+            }
             SwitchRow(stringResource(R.string.settings_simple_view), stringResource(R.string.settings_simple_view_help), settings.simpleView) { on ->
                 model.updateSettings { it.copy(simpleView = on) }
             }
@@ -157,7 +169,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
 
         Group(stringResource(R.string.settings_bedjet)) {
             Text(stringResource(R.string.settings_connected_unit, if (settings.demoMode) stringResource(R.string.status_demo_device) else selectedName ?: stringResource(R.string.settings_none_yet)), style = MaterialTheme.typography.bodyMedium)
-            DeviceControls(model)
+            DeviceControls(model, settingsScroll, settingsViewportHeight)
             DemoModePanel(model, showBanner = false)
             Text(stringResource(R.string.settings_slot_title), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.settings_slot_help), style = MaterialTheme.typography.bodySmall)
@@ -399,15 +411,15 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, quickC
             // Timed Snooze/Extend and the Quick buttons which share Extend presets have distinct policies.
             if (timedRefusal != null) {
                 Text(title, style = MaterialTheme.typography.bodyMedium)
-                Text(stringResource(R.string.settings_preset_unsupported), color = MaterialTheme.colorScheme.error)
-                Text(timedRefusal, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.settings_preset_unsupported), color = MaterialTheme.colorScheme.onSurface)
+                Text(timedRefusal, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
             } else {
                 Text(if (preset.mode.usesTemperature) stringResource(R.string.settings_preset_summary_temp, title, modeName(preset.mode),
                     tempText(preset.temperature, f), preset.fanPercent, preset.minutes)
                     else stringResource(R.string.settings_preset_summary, title, modeName(preset.mode), preset.fanPercent, preset.minutes), style = MaterialTheme.typography.bodyMedium)
                 if (quickCommand != null && !validCapturedPreset(quickCommand, preset)) {
                     Text(stringResource(R.string.settings_preset_quick_unsupported, NightActions.commandLabel(context, quickCommand)),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

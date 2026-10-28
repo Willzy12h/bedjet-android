@@ -22,9 +22,9 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -87,7 +87,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(profile.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            if (settings.resolveTonightChoice(model.now())?.profileId == profile.id) Text(stringResource(R.string.profiles_tonight), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                            if (settings.resolveTonightChoice(model.now())?.profileId == profile.id) Text(stringResource(R.string.profiles_tonight), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelLarge)
                         }
                         val wake = model.wakePreview(profile)
                         Text(

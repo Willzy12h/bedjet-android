@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by model.settings.collectAsState()
             val theme = rememberThemePresentation(settings, model::now)
-            val dark = theme.dark
+            val dark = theme.palette.tokens.dark
             // The bars are drawn over the app, so their icons follow the app's theme, not the phone's.
             LaunchedEffect(dark) {
                 val transparent = android.graphics.Color.TRANSPARENT
@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
                     navigationBarStyle = if (dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent),
                 )
             }
-            NocturneTheme(settings, theme.at, dark) {
+            NocturneTheme(settings, theme.at, paletteOverride = theme.palette) {
                 NocturneApp(model, tonightRequest)
                 ThemeDuePrompt(theme)
             }
@@ -198,7 +198,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         bottomBar = {
             Column {
                 if (parkedDrafts.isNotEmpty()) {
-                    androidx.compose.material3.TextButton(onClick = {
+                    NocturneTextButton(onClick = {
                         // Resume the oldest parked editor first; later drafts remain available after Save or Discard.
                         draftJson = parkedDrafts.first()
                         parkedDrafts = parkedDrafts.drop(1)

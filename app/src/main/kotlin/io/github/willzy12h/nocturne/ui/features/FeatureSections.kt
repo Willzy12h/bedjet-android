@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.*
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
+import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -97,7 +99,7 @@ import kotlinx.coroutines.launch
         }
         Text(stringResource(R.string.feature_health_privacy),style=MaterialTheme.typography.bodySmall)
         HealthExportSettingsSection(graph)
-        message?.let {Text(it,color=MaterialTheme.colorScheme.error)}
+        message?.let {Text(it,color=MaterialTheme.colorScheme.onSurface)}
     }
 }
 

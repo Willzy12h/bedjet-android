@@ -32,7 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
+import io.github.willzy12h.nocturne.ui.NocturneButton as Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -45,7 +45,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -124,7 +124,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
         )
     }
 
-    Surface(Modifier.fillMaxSize()) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             DemoModePanel(model, showTryDemo = false)
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -146,7 +146,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     Text(
                         stringResource(R.string.editor_running_tonight),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
                 preview.fold(
@@ -157,7 +157,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                             focusRequest++
                         })
                     },
-                    onFailure = { Text(it.message.orEmpty(), color = MaterialTheme.colorScheme.error) },
+                    onFailure = { Text(it.message.orEmpty(), color = MaterialTheme.colorScheme.onSurface) },
                 )
                 OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -358,8 +358,8 @@ private fun TempSlider(mode: Mode, value: Int, label: String, fahrenheit: Boolea
 }
 
 @Composable
-fun SwitchRow(title: String, detail: String?, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+fun SwitchRow(title: String, detail: String?, checked: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+    Row(modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
         .semantics { contentDescription = title }, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)

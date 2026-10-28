@@ -10,11 +10,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import io.github.willzy12h.nocturne.ui.NocturneButton as Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,7 +52,7 @@ fun ImportPreviewDialog(preview: ImportPreview, applying: Boolean, onApply: () -
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (!preview.canApply) {
-                    Text(stringResource(R.string.import_incompatible), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.import_incompatible), color = MaterialTheme.colorScheme.onSurface)
                 } else {
                     Text(stringResource(R.string.import_review_help))
                     Text(stringResource(R.string.import_created_at, readableImportTime(preview.createdAt)), style = MaterialTheme.typography.bodySmall)

@@ -2,7 +2,7 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
 import androidx.compose.foundation.layout.Arrangement

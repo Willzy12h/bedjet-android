@@ -1,4 +1,13 @@
 <resources>
+    <string name="settings_night_palette">Night palette</string>
+    <string name="settings_day_palette">Day palette</string>
+    <string name="palette_midnight_ink">Midnight Ink</string>
+    <string name="palette_forest">Forest</string>
+    <string name="palette_graphite">Graphite OLED</string>
+    <string name="palette_plum">Plum</string>
+    <string name="palette_autumn_rust">Autumn · Rust</string>
+    <string name="palette_winter_storm">Winter · Storm</string>
+    <string name="palette_overcast">Overcast</string>
     <string name="app_name">Nocturne</string>
     <string name="widget_quick_description">Start a night, Turbo, Boost, Cool, Warm and Off. Shows more buttons when you make it bigger.</string>
     <string name="widget_single_description">One button: a profile, Turbo, Boost, Cool, Warm or Off.</string>
