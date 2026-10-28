@@ -48,7 +48,7 @@ class FinalSettingsCleanupTest {
             ui.checkLayout(ui.compose.onNodeWithText(it), it)
         }
         ui.checkLayout(ui.compose.onNodeWithText(ui.model.version, substring = true), "Installed version")
-        ui.control("Project and help on GitHub").performClick()
+        ui.control("Source code on GitHub").performClick()
         val intent = shadowOf(ui.compose.activity).nextStartedActivity
         assertEquals(Intent.ACTION_VIEW, intent.action)
         assertEquals("https://github.com/Willzy12h/bedjet-android", intent.dataString)

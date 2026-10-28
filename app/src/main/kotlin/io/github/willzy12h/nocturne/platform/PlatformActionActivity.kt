@@ -17,17 +17,21 @@ import io.github.willzy12h.nocturne.night.*
 import io.github.willzy12h.nocturne.service.BedJetService
 import io.github.willzy12h.nocturne.ui.captureQuickAction
 import io.github.willzy12h.nocturne.ui.showTemporaryActionDialog
+import io.github.willzy12h.nocturne.ui.nativeActionDialogContext
+import io.github.willzy12h.nocturne.ui.nativeDialogPalette
+import io.github.willzy12h.nocturne.ui.styleNativeDialog
 import java.time.format.DateTimeFormatter
 
 /** Private, explicit widget/reminder preview. Existing-night identity comes from the rendered widget intent. */
 class PlatformActionActivity : ComponentActivity() {
+    private fun AlertDialog.Builder.showPalette(): AlertDialog = show().also { styleNativeDialog(it, nativeDialogPalette(this@PlatformActionActivity, graph)) }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val command=intent.getStringExtra("command")?.let { runCatching { NightActions.Command.valueOf(it) }.getOrNull() } ?: NightActions.Command.START_NIGHT
         val profileId=intent.getStringExtra("profile")
         val repo=graph.repository
         if (profileId != null && repo.profile(profileId) == null) {
-            AlertDialog.Builder(this).setMessage(R.string.feature_deleted_profile).setPositiveButton(android.R.string.ok){_,_->finish()}.setOnCancelListener{finish()}.show()
+            AlertDialog.Builder(nativeActionDialogContext(this, graph)).setMessage(R.string.feature_deleted_profile).setPositiveButton(android.R.string.ok){_,_->finish()}.setOnCancelListener{finish()}.showPalette()
             return
         }
         val dynamic=command == NightActions.Command.START_NIGHT && profileId == null
@@ -39,11 +43,11 @@ class PlatformActionActivity : ComponentActivity() {
         val preview=profile?.let { NightPreview.forStartNow(it,now,alarm?.time,settings.resolveWakeOverride(now),settings,alarm?.creator) }
         if (command in setOf(NightActions.Command.OFF, NightActions.Command.END_NIGHT) && repo.activeNight.value != null) {
             // Retained widget PendingIntents still enter this activity after the P4 widget upgrade.
-            AlertDialog.Builder(this).setTitle(R.string.widget_confirm_off).setMessage(R.string.runtime_confirm_stop)
+            AlertDialog.Builder(nativeActionDialogContext(this, graph)).setTitle(R.string.widget_confirm_off).setMessage(R.string.runtime_confirm_stop)
                 .setNegativeButton(R.string.feature_cancel) { _, _ -> finish() }
                 .setNeutralButton(R.string.feature_open_tonight) { _, _ -> startActivity(NightTileService.openIntent(this)); finish() }
                 .setPositiveButton(NightActions.commandLabel(this, command)) { _, _ -> runRequest(request, true) }
-                .setOnCancelListener { finish() }.show()
+                .setOnCancelListener { finish() }.showPalette()
             return
         }
         val replacement=ReplacementPolicy.decide(command,repo.activeNight.value).needsConfirmation
@@ -68,14 +72,14 @@ class PlatformActionActivity : ComponentActivity() {
             NightActions.Command.WARM -> R.string.feature_warm
             else -> R.string.feature_continue
         })
-        val dialog=AlertDialog.Builder(this).setTitle(if (replacement) R.string.feature_replace else R.string.feature_preview)
+        val dialog=AlertDialog.Builder(nativeActionDialogContext(this, graph)).setTitle(if (replacement) R.string.feature_replace else R.string.feature_preview)
             .setMessage(description).setNegativeButton(R.string.feature_cancel){_,_->finish()}
             .setNeutralButton(R.string.feature_open_tonight){_,_->startActivity(NightTileService.openIntent(this));finish()}
             .setOnCancelListener{finish()}
         if (command != NightActions.Command.START_NIGHT || preview?.plan != null) dialog.setPositiveButton(R.string.feature_continue) {_,_->
             runRequest(request, replacement)
         }
-        dialog.show()
+        dialog.showPalette()
     }
     private fun runRequest(request: CommandRequest, replacement: Boolean) {
             val admission = graph.repository.operationAdmission.tryCommand()
@@ -83,8 +87,8 @@ class PlatformActionActivity : ComponentActivity() {
                 showResult(getString(R.string.import_command_blocked))
                 return
             }
-            val progress=AlertDialog.Builder(this).setMessage(R.string.feature_working)
-                .setOnCancelListener{finish()}.show()
+            val progress=AlertDialog.Builder(nativeActionDialogContext(this, graph)).setMessage(R.string.feature_working)
+                .setOnCancelListener{finish()}.showPalette()
             val job = lifecycleScope.launch {
                 try {
                 val message = try {
@@ -109,9 +113,9 @@ class PlatformActionActivity : ComponentActivity() {
             job.invokeOnCompletion { admission.close() }
     }
     private fun showResult(message: String) {
-        AlertDialog.Builder(this).setTitle(R.string.feature_result).setMessage(message)
+        AlertDialog.Builder(nativeActionDialogContext(this, graph)).setTitle(R.string.feature_result).setMessage(message)
             .setPositiveButton(android.R.string.ok){_,_->finish()}
-            .setOnCancelListener{finish()}.show()
+            .setOnCancelListener{finish()}.showPalette()
     }
     companion object {
         fun intent(context: Context, request: CommandRequest) = Intent(context,PlatformActionActivity::class.java)

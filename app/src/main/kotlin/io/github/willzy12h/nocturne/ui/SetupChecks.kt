@@ -52,19 +52,21 @@ fun SetupChecks(showAll: Boolean = false) {
     val shown = if (showAll) checks else checks.filterNot { it.ok }
     if (shown.isEmpty()) return
     Card(
-        colors = if (showAll) CardDefaults.cardColors() else CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        colors = CardDefaults.cardColors(containerColor = paletteTokens.surface),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(if (showAll) R.string.settings_phone_setup else R.string.setup_checks_finish), style = MaterialTheme.typography.titleMedium)
             shown.forEach { check ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text((if (check.ok) "✓ " else "• ") + check.title, style = MaterialTheme.typography.bodyLarge)
-                        Text(check.why, style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (!check.ok) FilledTonalButton(onClick = check.fix) { Text(stringResource(R.string.setup_checks_fix)) }
-                }
+                StripeTile(
+                    stripe = if (check.ok) paletteTokens.accent else paletteTokens.cool,
+                    title = (if (check.ok) "✓ " else "• ") + check.title,
+                    subtitle = check.why,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailing = {
+                        if (!check.ok) FilledTonalButton(onClick = check.fix) { Text(stringResource(R.string.setup_checks_fix)) }
+                    },
+                )
             }
         }
     }

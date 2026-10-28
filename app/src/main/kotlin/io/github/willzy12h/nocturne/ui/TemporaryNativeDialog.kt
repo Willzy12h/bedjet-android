@@ -6,6 +6,10 @@ import android.content.Context
 import android.content.res.Configuration
 import android.util.TypedValue
 import android.view.ContextThemeWrapper
+import android.graphics.drawable.GradientDrawable
+import android.content.res.ColorStateList
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.compositeOver
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -96,6 +100,8 @@ internal fun showTemporaryActionDialog(
     if (openTonight != null) builder.setNeutralButton(R.string.feature_open_tonight) { _, _ -> openTonight() }
     dialog = builder.create()
     dialog.show()
+    styleNativeDialog(dialog, nativeDialogPalette(activity, graph))
+    listOf(running, details, duration, planned, explanation, refusal).forEach { it.setTextColor(nativeDialogPalette(activity, graph).tokens.ink.toArgb()) }
     val choices = dialog.listView
     val originalAdapter = choices.adapter
     choices.adapter = object : ListAdapter by originalAdapter {
@@ -140,4 +146,44 @@ internal fun nativeActionDialogContext(activity: Activity, graph: Graph): Contex
     val dark = nativeThemeIsDark(activity, graph.repository.settings.value, graph.now(), systemDark)
     return ContextThemeWrapper(activity, if (dark) android.R.style.Theme_Material_Dialog_Alert
         else android.R.style.Theme_Material_Light_Dialog_Alert)
+}
+
+internal fun nativeDialogPalette(activity: Activity, graph: Graph): io.github.willzy12h.nocturne.core.store.Palette {
+    val settings = graph.repository.settings.value
+    val now = graph.now()
+    val systemDark = activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    val requested = settings.palette(now, systemDark)
+    return if (!nativeThemeIsDark(activity, settings, now, systemDark) || requested.tokens.dark) requested
+        else listOf(settings.nightPalette, settings.dayPalette).firstOrNull { it.tokens.dark }
+            ?: io.github.willzy12h.nocturne.core.store.Palette.MIDNIGHT_INK
+}
+
+/** Apply the chosen surface to native alert panels without altering choice or disabled-state controls. */
+internal fun styleNativeDialog(dialog: AlertDialog, palette: io.github.willzy12h.nocturne.core.store.Palette) {
+    styleNativeDialog(dialog, palette.tokens)
+}
+
+internal fun styleNativeDialog(dialog: AlertDialog, tokens: PaletteTokens) {
+    val window = dialog.window ?: return
+    fun background() = GradientDrawable().apply { setColor(tokens.sheet.toArgb()); cornerRadius = 12 * dialog.context.resources.displayMetrics.density }
+    val root = window.decorView
+    fun tint(view: View) {
+        val left = view.paddingLeft; val top = view.paddingTop
+        val right = view.paddingRight; val bottom = view.paddingBottom
+        val drawable = view.background?.mutate() ?: background()
+        drawable.setTint(tokens.sheet.toArgb())
+        view.background = drawable
+        view.setPadding(left, top, right, bottom)
+    }
+    tint(root)
+    val panelId = root.resources.getIdentifier("parentPanel", "id", "android")
+    if (panelId != 0) root.findViewById<View>(panelId)?.let(::tint)
+    val titleId = root.resources.getIdentifier("alertTitle", "id", "android")
+    if (titleId != 0) root.findViewById<TextView>(titleId)?.setTextColor(tokens.ink.toArgb())
+    root.findViewById<TextView>(android.R.id.message)?.setTextColor(tokens.ink.toArgb())
+    val buttonColors = ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+        intArrayOf(tokens.ink.copy(alpha = .38f).compositeOver(tokens.sheet).toArgb(), tokens.ink.toArgb()))
+    listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL).forEach { id ->
+        dialog.getButton(id)?.setTextColor(buttonColors)
+    }
 }

@@ -91,8 +91,8 @@ fun PaletteTokens.materialScheme(): ColorScheme {
         inverseSurface = ink, inverseOnSurface = ground, inversePrimary = ground,
         scrim = Color.Black,
         surfaceBright = surface2, surfaceDim = ground,
-        surfaceContainerLowest = ground, surfaceContainerLow = surface,
-        surfaceContainer = surface, surfaceContainerHigh = surface2, surfaceContainerHighest = surface2,
+        surfaceContainerLowest = ground, surfaceContainerLow = sheet,
+        surfaceContainer = surface, surfaceContainerHigh = sheet, surfaceContainerHighest = surface2,
     )
 }
 

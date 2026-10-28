@@ -100,3 +100,23 @@ Verification resolved under class isolation: all 311 core and 1,663 app cases pa
 up-to-date results, ran lint successfully (zero errors, 21 warnings) and produced the
 success footer. The portable init script is committed for reproducibility. The cause of
 the earlier shared-worker timeouts remains a limitation, not a proven application defect.
+
+## Pass 9 — P6 review and verification
+
+Static review of setup, Settings, History, palette changes and the cumulative runtime
+paths found no additional concrete regression. Setup callbacks/order remain intact;
+History labels ERROR events neutrally and retains their details. Native styling adds
+no recurring work. No device or accessibility-service verification was performed.
+
+| ID | Severity | Evidence / file | Reproduction or test | Status | Verified fix evidence |
+| --- | --- | --- | --- | --- | --- |
+| P6-001 | Moderate | The initial native styling used `setTextColor(int)`, flattening enabled/disabled button colours. | `P6NativeButtonStateTest` observed RED through the actual Temporary shortcut's End → unavailable Temporary → End choices. | Resolved. | Stateful colours pass the focused run and full P6 gate. |
+| P6-002 | Moderate | Initial RED confirmed Forest shortcut and Midnight picker sheet colour mismatches; replacing native backgrounds then caused four existing 200%-text clipping failures. | `P6NativePaletteTest` and unchanged `TemporaryNativeLayoutTest` cover colour, callbacks, layout and contrast. | Resolved. | Tinting native drawables preserves their geometry/padding; all native checks pass in the full P6 gate. |
+| P6-003 | Moderate | `U06PrimaryLayoutTest.settingsSlotAndBackupActionsHaveCompleteLabelsAndTargets` detected Slot 3 clipping in all four looks after new card padding. | Slot chips now wrap in a `FlowRow`, preserving actions and labels. | Resolved. | All four variants pass in the 47-case follow-up and full P6 gate. |
+| P6-004 | Moderate | `U06ControlSemanticsTest.settingsRowsAreSingleToggleableTargets` detected an overly tall Quiet night status description in all four looks after new card padding. | The shared single-toggle row gives its description the full width below the title/switch header. | Resolved. | All four variants pass in the 47-case follow-up and full P6 gate. |
+
+The 141-case focused run passed 133 and failed eight (P6-003/004 in four looks).
+The follow-up passed all 47 selected cases, with zero skips and zero lint errors.
+The complete P6 gate passed 311 core tests and 1,674 app cases with zero failures,
+38 existing opt-in screenshot skips, zero lint errors and 25 warnings.
+`BUILD SUCCESSFUL in 24m 15s`; no open blocking P6 findings.

@@ -106,6 +106,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     }
     val guard = rememberNightGuard(model)
     val context = LocalContext.current
+    val pickerTokens = paletteTokens
     val choiceId = settings.resolveTonightChoice(now)?.profileId
     val scheduleWindow = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
     var chosen by remember(choiceId, scheduleWindow, profiles) { mutableStateOf(settings.resolveProfile(profiles, now)) }
@@ -122,9 +123,10 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             val current = model.now()
             val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse) ?: plannedWake ?: current
             val expectedNight = night?.identity
-            TimePickerDialog(context, { _, hour, minute ->
+            val themed = android.view.ContextThemeWrapper(context, if (pickerTokens.dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
+            TimePickerDialog(themed, { _, hour, minute ->
                 model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()), expectedNight)
-            }, initial.hour, initial.minute, true).show()
+            }, initial.hour, initial.minute, true).apply { show(); styleNativeDialog(this, pickerTokens) }
         }
     }
     val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, night, runtime, nightStatus, previewWake = preview?.wake)

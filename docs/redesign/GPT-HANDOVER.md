@@ -8,8 +8,8 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
 - [x] P2: Theme wiring and Appearance — `283719032dda55f414e437205c258f79ecb0ba3d`
 - [x] P3: Side-stripe tiles, Home / Tonight and Profiles — `a5933a9446b65ab5f91d18deaff68cfe3c934f67`
 - [x] P4: Profile editor, step editor and fan shapes — `9c1f682d25a20be48b0333048a0daf8213b1c03c`
-- [x] P5: Cooldown — included in the P5 commit containing this checklist; hash recorded in the next phase
-- [ ] P6: Guided setup, Help and about, Settings and History
+- [x] P5: Cooldown — `0dcf66c9abb2867933736c1e2e1a222696853d2a`
+- [x] P6: Guided setup, Help and about, Settings and History — this phase commit (hash recorded in the next phase)
 - [ ] P7: Widgets v2
 - [ ] P8: Polish and audit
 - [ ] Final: clean verification, debug APK and handover
@@ -67,6 +67,15 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
   profile preserves its after-wake content. Import and demo seed profiles are not mutated.
   The offer applies to future plans; it does not alter a running night's captured plan.
   To give copies the default too, change the Copy callback in `ProfilesScreen.kt` explicitly.
+- History's generic `ERROR` events include uncertain writes and unconfirmed outcomes.
+  Its warning chip therefore says “1 issue” / “N issues” and retains the original detail,
+  rather than claiming a command did not send. A future “didn't send” label needs a
+  structured event that proves no write occurred. The supplied History design itself
+  asks that its suggestion be checked against the app's recorded evidence.
+- P6 retains the existing setup steps and Settings features. The design's additional
+  profile-creation wizard and update-check service are not existing working flows;
+  no simulated controls or status are added. The existing project link becomes the
+  explicitly requested “Source code on GitHub” action at the same destination.
 
 ## Verification and APK
 
@@ -439,6 +448,78 @@ Pending. Toolchain restored into temporary build storage; no signing changes.
 - `docs/redesign/verification.init.gradle`
 - `docs/redesign/BUG-LOG.md` and `docs/redesign/GPT-HANDOVER.md`
 
+### P6 evidence
+
+- Initial RED ran eight new cases: five failures for the absent GitHub row, absent History
+  warning chip, missing setup stripe and the two stock Material dialog/sheet surfaces.
+  Setup order/demo behaviour, truthful unknown-history detail and the missing-browser
+  refusal control already passed. A separate RED checked that the refusal also shows
+  “Could not open a browser.” The link now uses `ACTION_VIEW` and the exact repository URL.
+- `P6SetupStyleTest` verifies rendered stripes in Midnight Ink and Overcast and retains
+  setup order/demo action coverage. `P6SettingsHistoryTest` verifies the actual link,
+  both missing/blocked-browser exceptions, warning colour and uncertain-event wording.
+  `P6SheetPaletteTest` captures actual Compose dialog/sheet pixels and text colours.
+- Native RED found the stock Forest shortcut surface and Midnight time-picker surface.
+  The picker fixture first required a real layout traversal before capture; a zero-sized
+  bitmap failure was not treated as a palette RED. The picker then failed on sheet colour.
+  `P6NativePaletteTest` also checks the picker callback and cancellation without a service.
+- Review caught a new native styling mistake: assigning one button text colour removed
+  its disabled state. `P6NativeButtonStateTest` reproduced it through the actual Temporary
+  shortcut's End → unavailable Temporary → End choices. The helper now uses stateful colours.
+  The first native regression run also found four existing 200%-text clipping failures
+  after replacing Android's background drawable. The correction retains its native
+  drawable geometry/padding and applies the sheet colour. All native palette, state,
+  layout, contrast and command cases passed in the next focused run.
+- Existing `FinalSettingsCleanupTest` and `U06ControlSemanticsTest` change only the expected
+  GitHub label to the wording required by P6. Their intent, attribution and target assertions
+  remain. New test fixtures use unmerged chip semantics and dispatch native callbacks before
+  checking their effects; the existing native layout and command tests are unchanged.
+- That 141-case run passed 133 cases and found two new Settings layout regressions in
+  each of four display variants: the slot chips clipped after the card padding narrowed
+  their row, and the Quiet night status description became taller than the viewport.
+  Slot chips now wrap in a `FlowRow`; the shared single-toggle `SwitchRow` keeps its title
+  and switch together and gives its full description the width below. Text, state,
+  callbacks and existing layout assertions remain. Lint had zero errors and 25 warnings.
+- The follow-up passed all 47 selected cases with no skips, including the two regressions
+  in every display variant, the remaining control-semantics checks and all eleven P6 cases.
+  Lint reported zero errors and 25 warnings; `BUILD SUCCESSFUL in 3m 26s`, 41 tasks:
+  12 executed and 29 up-to-date.
+- The complete P6 gate passed: 311 core tests; 1,674 app cases with zero failures,
+  zero errors and 38 existing opt-in screenshot skips. Lint reported zero errors and
+  25 warnings. `BUILD SUCCESSFUL in 24m 15s`; 43 actionable tasks: 2 executed,
+  41 up-to-date. All JUnit XML was readable. The committed verification init script
+  ran the full unfiltered app suite with a fresh JVM per class and two workers.
+- Independent static review found no additional concrete status, callback or lifecycle
+  regression. Native styling adds no recurring work and preserves command capture/confirmation.
+  This is code review, not a device or battery measurement.
+
+### P6 changed files
+
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/platform/AndroidSleepSource.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/platform/PlatformActionActivity.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/HistoryScreen.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ProfileEditor.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SettingsScreen.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SetupChecklistCard.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SetupChecks.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SetupFlow.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ShortcutActivity.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SourceCodeLink.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TemporaryNativeDialog.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/Theme.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/WidgetConfirmationActivity.kt`
+- `app/src/main/res/values/strings.xml`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/platform/P6NativeButtonStateTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/FinalSettingsCleanupTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P6NativePaletteTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P6SettingsHistoryTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P6SetupStyleTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P6SheetPaletteTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/U06ControlSemanticsTest.kt`
+- `docs/redesign/BUG-LOG.md`
+- `docs/redesign/GPT-HANDOVER.md`
+
 ## Not done / limits
 
 - All unticked phases remain outstanding.
@@ -452,4 +533,8 @@ Pending. Toolchain restored into temporary build storage; no signing changes.
 
 ## Foundation changes
 
-None.
+No protected foundation changes: `QuietFan`, `FanShape`, `shiftFan`, compiler splitting,
+`HeatScale`, the `Palette` enum, `Settings.palette()` and `ui/Palettes.kt` are unchanged.
+The backup schema, codec and strict parser are unchanged. The required Hot Sleeper preset
+and defaulted Cooldown-answer setting are recorded in P4 and P5; neither rewrites those
+protected implementations.

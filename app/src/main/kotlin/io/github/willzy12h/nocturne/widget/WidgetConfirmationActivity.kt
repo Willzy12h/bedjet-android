@@ -20,6 +20,8 @@ import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.ui.captureQuickAction
 import io.github.willzy12h.nocturne.ui.showTemporaryActionDialog
 import io.github.willzy12h.nocturne.ui.nativeActionDialogContext
+import io.github.willzy12h.nocturne.ui.nativeDialogPalette
+import io.github.willzy12h.nocturne.ui.styleNativeDialog
 import kotlinx.coroutines.launch
 
 /** A direct widget PendingIntent opens only this translucent, excluded confirmation overlay. */
@@ -75,6 +77,7 @@ class WidgetConfirmationActivity : ComponentActivity() {
                 }
             }.setOnCancelListener { finish() }.create()
         dialog.show()
+        styleNativeDialog(dialog, nativeDialogPalette(this, graph))
         val height = (56 * resources.displayMetrics.density).toInt()
         for (button in listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE)) {
             dialog.getButton(button).apply { minimumHeight = height; setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f) }

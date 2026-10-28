@@ -10,6 +10,10 @@ import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.ui.nativeActionDialogContext
+import io.github.willzy12h.nocturne.ui.nativeDialogPalette
+import io.github.willzy12h.nocturne.ui.styleNativeDialog
 import java.time.Duration
 import java.time.Instant
 
@@ -49,7 +53,8 @@ class AndroidSleepWriter(context: Context) : SleepSessionWriter {
 class HealthRationaleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AlertDialog.Builder(this).setTitle(R.string.feature_health_title).setMessage(R.string.health_data_rationale)
+        AlertDialog.Builder(nativeActionDialogContext(this, graph)).setTitle(R.string.feature_health_title).setMessage(R.string.health_data_rationale)
             .setPositiveButton(android.R.string.ok){_,_->finish()}.setOnCancelListener{finish()}.show()
+            .also { styleNativeDialog(it, nativeDialogPalette(this, graph)) }
     }
 }

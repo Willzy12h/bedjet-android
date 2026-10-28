@@ -1,6 +1,14 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.AlertDialog
 import io.github.willzy12h.nocturne.ui.NocturneButton as Button
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +56,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
     val profiles by model.profiles.collectAsState()
     val settings by model.settings.collectAsState()
     val activeNight by model.activeNight.collectAsState()
+    val tokens = paletteTokens
     LazyColumn(modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text(stringResource(R.string.history_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
         item { HistoryExportButton(model.graph) }
@@ -59,10 +70,21 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
             val completed = night.events.any { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED }
             val checkedIn = night.events.any { it.kind == EventKind.MORNING_FEEDBACK }
             val availableSuggestion = if (checkedIn) model.morningCheckIn(night.id)?.suggestion else suggestion
-            Card(Modifier.fillMaxWidth().clickable { open = !open }) {
+            Card(Modifier.fillMaxWidth().clickable { open = !open }, shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = tokens.surface), border = BorderStroke(1.dp, tokens.hairline)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val day = runCatching { ZonedDateTime.parse(night.startedAt).format(DateTimeFormatter.ofPattern("EEE d MMM")) }.getOrDefault("")
                     Text("$day · ${night.profileName}", style = MaterialTheme.typography.titleMedium)
+                    val issues = night.events.count { it.kind == EventKind.ERROR }
+                    if (issues > 0) Surface(modifier = Modifier.testTag("history-issues-${night.id}"),
+                        shape = RoundedCornerShape(50), color = tokens.surface2, border = BorderStroke(1.dp, tokens.warn)) {
+                        Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(8.dp).background(tokens.warn, RoundedCornerShape(50)))
+                            Text(pluralStringResource(R.plurals.history_issues, issues, issues),
+                                style = MaterialTheme.typography.labelMedium, color = tokens.ink)
+                        }
+                    }
                     Text(stringResource(if (night.wakeFromAlarm) R.string.history_times_alarm else R.string.history_times, Format.clock(night.startedAt), Format.clock(night.wakeAt)))
                     historyPlan(night)?.let { NightCurve(it) }
                     HealthSleepOverlay(model.graph, night)

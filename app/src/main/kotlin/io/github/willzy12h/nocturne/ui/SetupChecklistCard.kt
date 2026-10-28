@@ -139,21 +139,24 @@ internal fun SetupChecklistCard(model: AppViewModel) {
             }
         }
     }
-    Card(Modifier.fillMaxWidth().testTag("setup-checklist")) {
+    Card(Modifier.fillMaxWidth().testTag("setup-checklist"), colors = CardDefaults.cardColors(containerColor = paletteTokens.surface)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.uat_setup_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() })
             if (snapshot.requiredComplete) Text(stringResource(R.string.uat_setup_complete), style = MaterialTheme.typography.bodySmall)
             shown.forEach { item ->
                 val title = stringResource(setupItemTitle(item))
-                Column(Modifier.fillMaxWidth().testTag("setup-${item.key}")) {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                StripeTile(
+                    stripe = paletteTokens.cool,
+                    title = title,
+                    subtitle = null,
+                    modifier = Modifier.fillMaxWidth().testTag("setup-${item.key}"),
+                    trailing = {
                         OutlinedButton(onClick = { fix(item) }, modifier = Modifier.heightIn(min = 48.dp)) {
                             Text(stringResource(R.string.uat_setup_fix))
                         }
-                    }
+                    },
+                ) {
                     if (!item.required) {
                         val dismiss = stringResource(R.string.uat_setup_dismiss_item, title)
                         TextButton(onClick = { model.updateSettings { it.copy(setupDismissedOptional = it.setupDismissedOptional + item.key) } },
@@ -167,7 +170,7 @@ internal fun SetupChecklistCard(model: AppViewModel) {
             if (forced) TextButton(onClick = model::closeSetupChecklist) { Text(stringResource(R.string.uat_setup_done)) }
         }
     }
-    if (pairDialog) AlertDialog(onDismissRequest = { pairDialog = false },
+    if (pairDialog) AlertDialog(containerColor = paletteTokens.sheet, onDismissRequest = { pairDialog = false },
         title = { Text(stringResource(R.string.uat_setup_pair)) },
         text = { Column(Modifier.verticalScroll(rememberScrollState())) { SetupFlow(model, showDemoChoice = false) } },
         confirmButton = { TextButton(onClick = { pairDialog = false; refresh++ }) { Text(stringResource(R.string.uat_setup_done)) } })

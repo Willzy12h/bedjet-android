@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +34,7 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false, showDemoChoice: 
     val settings by model.settings.collectAsState()
     val found by model.foundBedJets.collectAsState()
     val discovering by model.discovering.collectAsState()
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = paletteTokens.surface)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.setup_choose_title), style = MaterialTheme.typography.titleMedium)
             if (!compact) Text(stringResource(R.string.setup_choose_help), style = MaterialTheme.typography.bodySmall)
@@ -54,7 +55,8 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false, showDemoChoice: 
                     val name = found.firstOrNull { DeviceId.ble(it.address) == target }?.name
                         ?: model.graph.bleLink.deviceNameFor(target)
                         ?: stringResource(R.string.setup_unit_fallback)
-                    OutlinedButton(onClick = { model.selectBedJet(address) }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { model.selectBedJet(address) },
+                        modifier = Modifier.fillMaxWidth().sideStripe(paletteTokens.cool, paletteTokens)) {
                         Text(stringResource(R.string.setup_choose_unit, name, address))
                     }
                 }

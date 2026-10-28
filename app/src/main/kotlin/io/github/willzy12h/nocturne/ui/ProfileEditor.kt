@@ -440,23 +440,27 @@ private fun TempSlider(mode: Mode, value: Int, label: String, fahrenheit: Boolea
 
 @Composable
 fun SwitchRow(title: String, detail: String?, checked: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
-    Row(modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
-        .semantics { contentDescription = title }, verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+    Column(modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+        .semantics { contentDescription = title }) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Switch(checked, onCheckedChange = null, enabled = enabled)
         }
-        Switch(checked, onCheckedChange = null, enabled = enabled)
+        detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     }
 }
 
 @Composable
 fun TimeRow(label: String, minuteOfDay: Int, onChange: (Int) -> Unit) {
     val context = LocalContext.current
+    val tokens = paletteTokens
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         TextButton(onClick = {
-            TimePickerDialog(context, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, true).show()
+            val themed = android.view.ContextThemeWrapper(context, if (tokens.dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
+            TimePickerDialog(themed, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, true).apply {
+                show(); styleNativeDialog(this, tokens)
+            }
         }) { Text(Format.clockOfDay(minuteOfDay)) }
     }
 }

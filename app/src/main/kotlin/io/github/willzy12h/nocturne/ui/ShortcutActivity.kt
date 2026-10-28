@@ -10,6 +10,7 @@ import android.app.AlertDialog
 import android.os.Bundle
 import android.util.TypedValue
 import android.widget.TextView
+import androidx.compose.ui.graphics.toArgb
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.night.NightActions
@@ -58,6 +59,7 @@ class ShortcutActivity : Activity() {
             .setCustomTitle(TextView(dialogContext).apply {
                 setText(title)
                 setTextAppearance(android.R.style.TextAppearance_Material_Title)
+                setTextColor(nativeDialogPalette(this@ShortcutActivity, graph).tokens.ink.toArgb())
                 setPadding(padding, padding, padding, 0)
                 isAccessibilityHeading = true
             })
@@ -76,6 +78,7 @@ class ShortcutActivity : Activity() {
             .create()
         dialog.setTitle(title)
         dialog.show()
+        styleNativeDialog(dialog, nativeDialogPalette(this, graph))
         val minimumTarget = (48 * resources.displayMetrics.density).toInt()
         for (id in listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE)) {
             dialog.getButton(id).apply {

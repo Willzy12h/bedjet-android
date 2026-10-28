@@ -2,6 +2,8 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -173,7 +176,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             DemoModePanel(model, showBanner = false)
             Text(stringResource(R.string.settings_slot_title), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.settings_slot_help), style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 (0..2).forEach { slot -> FilterChip(settings.workingSlot == slot, { model.updateSettings { it.copy(workingSlot = slot) } }, label = { Text(stringResource(R.string.settings_slot, slot + 1)) }) }
             }
             slotBackups.filter { it.deviceId == settings.deviceId() }.forEach { backup ->
@@ -348,8 +351,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             Text(stringResource(R.string.settings_about_description), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.settings_about_unaffiliated), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android") }) {
-                Text(stringResource(R.string.settings_project_help))
+            OutlinedButton(onClick = { openSourceCode(context) }) {
+                Text(stringResource(R.string.settings_source_code))
             }
             Text(stringResource(R.string.settings_protocol_attribution), style = MaterialTheme.typography.bodySmall)
         }
@@ -395,9 +398,14 @@ private fun themeName(mode: ThemeMode) = when (mode) {
 
 @Composable
 private fun Group(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    HorizontalDivider()
-    Text(title, style = MaterialTheme.typography.titleMedium, modifier = modifier.semantics { heading() })
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = paletteTokens.surface),
+        border = BorderStroke(1.dp, paletteTokens.hairline)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = modifier.semantics { heading() })
+            content()
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -406,7 +414,8 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, quickC
     onChange: (ActionPreset) -> Unit) {
     val context = LocalContext.current
     val timedRefusal = timedPresetRefusal(context, preset)
-    Card(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = paletteTokens.surface2),
+        border = BorderStroke(1.dp, paletteTokens.hairline)) {
         Column(Modifier.padding(12.dp)) {
             // Timed Snooze/Extend and the Quick buttons which share Extend presets have distinct policies.
             if (timedRefusal != null) {

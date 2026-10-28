@@ -214,7 +214,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         toggleTwice(s(R.string.settings_show_f)) { graph.repository.settings.value.fahrenheit }
         toggleTwice(s(R.string.settings_quiet_title)) { graph.repository.settings.value.quietNightNotification }
         fixture.control(s(R.string.settings_github_releases))
-        fixture.control(s(R.string.settings_project_help))
+        fixture.control(s(R.string.settings_source_code))
         fixture.control(s(R.string.gpt12_exit_demo), scroll = false).performClick()
         fixture.waitUntil { !graph.repository.settings.value.demoMode }
         fixture.tab(s(R.string.tab_settings))
