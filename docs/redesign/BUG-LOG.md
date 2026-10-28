@@ -120,3 +120,21 @@ The follow-up passed all 47 selected cases, with zero skips and zero lint errors
 The complete P6 gate passed 311 core tests and 1,674 app cases with zero failures,
 38 existing opt-in screenshot skips, zero lint errors and 25 warnings.
 `BUILD SUCCESSFUL in 24m 15s`; no open blocking P6 findings.
+
+## Pass 10 — P7 widget review
+
+| ID | Severity | Evidence / file | Reproduction or test | Status | Verified fix evidence |
+| --- | --- | --- | --- | --- | --- |
+| P7-001 | Moderate | Initial widget focused run found the Overcast navigation chevron below 4.5:1 contrast; 96 of 97 widget cases passed. | Navigation and Open app now use surface2 and ink. | Resolved. | All 97 focused widget cases and the complete P7 gate pass. |
+
+Static review found the existing widget request capture and confirmation branch retained;
+settings and time now feed both parent colours and rows. No additional concrete action or
+update-cadence regression was established. Initial RED also recorded three custom-palette
+and one stripe expectation failures before implementation. No builds or device verification
+were performed in this review.
+
+P7 full gate passed with three workers and a fresh JVM per class: 311 core tests;
+1,679 app cases, zero failures and 38 existing opt-in skips; lint zero errors and
+25 warnings. The fresh suite took 1,162.35 seconds. A repeat of the complete task
+command confirmed lint and the success footer with the same passing results up-to-date.
+No open blocking P7 findings.

@@ -8,6 +8,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.Button
@@ -26,9 +28,11 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.color.ColorProviders
+import androidx.glance.color.ColorProvider
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
+import androidx.glance.layout.Box
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
@@ -42,16 +46,19 @@ import androidx.glance.semantics.semantics
 import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.ThemeMode
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.night.compactBoostLabel
-import io.github.willzy12h.nocturne.ui.DaylightScheme
 import io.github.willzy12h.nocturne.ui.MainActivity
-import io.github.willzy12h.nocturne.ui.MidnightInkScheme
+import io.github.willzy12h.nocturne.ui.PaletteTokens
+import io.github.willzy12h.nocturne.ui.materialScheme
+import io.github.willzy12h.nocturne.ui.tokens
 
 /** One command, resolved through the service and the shared command owner. */
 data class WidgetAction(val label: String, val command: Command, val profileId: String? = null)
@@ -76,8 +83,12 @@ fun widgetBedJetName(context: Context, settings: Settings): String =
         ?: context.getString(R.string.widget_bedjet_fallback)
 
 fun widgetColors(settings: Settings, at: java.time.ZonedDateTime): ColorProviders =
-    if (settings.themeMode == ThemeMode.SYSTEM) materialColors(light = DaylightScheme, dark = MidnightInkScheme)
-    else materialColors(if (settings.isDarkTheme(at, systemDark = false)) MidnightInkScheme else DaylightScheme)
+    if (settings.themeMode == ThemeMode.SYSTEM) materialColors(light = settings.dayPalette.tokens.materialScheme(), dark = settings.nightPalette.tokens.materialScheme())
+    else materialColors(settings.palette(at, systemDark = false).tokens.materialScheme())
+
+private fun widgetColor(settings: Settings, at: java.time.ZonedDateTime, color: (PaletteTokens) -> Color): ColorProvider =
+    if (settings.themeMode == ThemeMode.SYSTEM) ColorProvider(day = color(settings.dayPalette.tokens), night = color(settings.nightPalette.tokens))
+    else ColorProvider(color(settings.palette(at, false).tokens))
 
 internal enum class WidgetLayout(val size: DpSize, val capacity: Int) {
     COMPACT(DpSize(200.dp, 128.dp), 1), MEDIUM(DpSize(280.dp, 180.dp), 2), LARGE(DpSize(340.dp, 240.dp), 3);
@@ -100,19 +111,25 @@ private fun MainValue(text: String, modifier: GlanceModifier = GlanceModifier, c
 }
 
 @Composable
-private fun ActionButton(context: Context, action: WidgetAction, kind: String, id: GlanceId, modifier: GlanceModifier) {
+private fun ActionButton(context: Context, action: WidgetAction, kind: String, id: GlanceId, modifier: GlanceModifier,
+    settings: Settings, at: java.time.ZonedDateTime) {
     val active by context.graph.repository.activeNight.collectAsState()
     val request = widgetRequest(context, action)
+    fun stripe(tokens: PaletteTokens): Color = request.actionPreset?.let { tokens.stepColor(it.mode, it.temperature) }
+        ?: if (action.command == Command.OFF || action.command == Command.END_NIGHT) tokens.stepColor(Mode.STANDBY, 0) else tokens.accent
+    val stripeColor = widgetColor(settings, at, ::stripe)
+    val tintColor = widgetColor(settings, at) { tokens -> tokens.tint(stripe(tokens)).compositeOver(tokens.surface.compositeOver(tokens.ground)) }
     val click = if (widgetNeedsConfirmation(request, active))
         actionStartActivity(WidgetConfirmationActivity.intent(context, request, id, kind))
         else actionRunCallback<WidgetActionCallback>(widgetParameters(request, kind))
-    Button(text = action.label,
+    Row(modifier.height(56.dp).background(tintColor).cornerRadius(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(GlanceModifier.width(4.dp).height(56.dp).background(stripeColor)) { }
+        Button(text = action.label,
         onClick = click,
-        modifier = modifier.height(56.dp).padding(horizontal = 0.dp, vertical = 0.dp).semantics { contentDescription = widgetActionDescription(context, action, request) },
+        modifier = GlanceModifier.defaultWeight().height(56.dp).padding(horizontal = 0.dp, vertical = 0.dp).semantics { contentDescription = widgetActionDescription(context, action, request) },
         style = TextStyle(fontSize = 16.sp), maxLines = if (context.resources.configuration.fontScale > 1.3f) 1 else 2,
-        colors = if (action.command == Command.OFF) ButtonDefaults.buttonColors(
-            backgroundColor = GlanceTheme.colors.secondaryContainer, contentColor = GlanceTheme.colors.onSecondaryContainer,
-        ) else ButtonDefaults.buttonColors())
+        colors = ButtonDefaults.buttonColors(backgroundColor = tintColor, contentColor = GlanceTheme.colors.onSurface))
+    }
 }
 
 @Composable
@@ -121,14 +138,17 @@ private fun PageButton(context: Context, previous: Boolean, page: WidgetPage) {
         onClick = actionRunCallback<WidgetPageCallback>(actionParametersOf(WidgetPageCallback.PAGE to page.key)),
         modifier = GlanceModifier.width(56.dp).height(56.dp).padding(horizontal = 0.dp, vertical = 0.dp).semantics {
             contentDescription = context.getString(if (previous) R.string.widget_previous_page else R.string.widget_next_page, page.label)
-        }, style = TextStyle(fontSize = 16.sp))
+        }, style = TextStyle(fontSize = 16.sp), colors = ButtonDefaults.buttonColors(
+            backgroundColor = GlanceTheme.colors.surfaceVariant, contentColor = GlanceTheme.colors.onSurface))
 }
 
 @Composable
 private fun OpenAppButton(context: Context, modifier: GlanceModifier) {
     Button(context.getString(R.string.widget_open_app),
         actionStartActivity(Intent(context, MainActivity::class.java)), modifier.height(56.dp).padding(horizontal = 4.dp, vertical = 0.dp),
-        style = TextStyle(fontSize = 16.sp), maxLines = if (context.resources.configuration.fontScale > 1.3f) 1 else 2)
+        style = TextStyle(fontSize = 16.sp), maxLines = if (context.resources.configuration.fontScale > 1.3f) 1 else 2,
+        colors = ButtonDefaults.buttonColors(backgroundColor = GlanceTheme.colors.surfaceVariant,
+            contentColor = GlanceTheme.colors.onSurface))
 }
 
 /** A compact symbol never replaces the complete state, command and outcome description. */
@@ -204,7 +224,8 @@ class QuickControlsWidget : GlanceAppWidget() {
             val pages = widgetPages(context, if (largeText) 1 else layout.capacity, profiles)
             val selected = selectedWidgetPage(pages, prefs[KEY_PAGE])
             val page = pages[selected]
-            GlanceTheme(colors = widgetColors(settings, context.graph.now())) {
+            val appearanceAt = context.graph.now()
+            GlanceTheme(colors = widgetColors(settings, appearanceAt)) {
                 Column(GlanceModifier.fillMaxSize().background(GlanceTheme.colors.background).cornerRadius(16.dp)
                     .padding(horizontal = 8.dp, vertical = if (largeText && layout == WidgetLayout.LARGE) 4.dp else 8.dp)) {
                     Row(GlanceModifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -223,7 +244,7 @@ class QuickControlsWidget : GlanceAppWidget() {
                         if (page.opensApp) OpenAppButton(context, GlanceModifier.fillMaxWidth())
                         else page.actions.forEachIndexed { index, action ->
                             if (index > 0) Spacer(GlanceModifier.width(4.dp))
-                            ActionButton(context, action, WidgetActionCallback.QUICK, id, GlanceModifier.defaultWeight())
+                            ActionButton(context, action, WidgetActionCallback.QUICK, id, GlanceModifier.defaultWeight(), settings, appearanceAt)
                         }
                     }
                 }
@@ -253,7 +274,8 @@ class SingleActionWidget : GlanceAppWidget() {
                 prefs[KEY_LABEL] ?: context.getString(R.string.feature_start_tonight), prefs[KEY_PROFILE])
             val layout = WidgetLayout.forSize(LocalSize.current)
             val largeText = context.resources.configuration.fontScale > 1.3f
-            GlanceTheme(colors = widgetColors(settings, context.graph.now())) {
+            val appearanceAt = context.graph.now()
+            GlanceTheme(colors = widgetColors(settings, appearanceAt)) {
                 Column(GlanceModifier.fillMaxSize().background(GlanceTheme.colors.background).cornerRadius(16.dp)
                     .padding(horizontal = 8.dp, vertical = if (largeText && layout == WidgetLayout.LARGE) 4.dp else 8.dp)) {
                     Row(GlanceModifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -268,7 +290,7 @@ class SingleActionWidget : GlanceAppWidget() {
                     }
                     Details(context, layout, largeText, observed.observed, active, runtime)
                     Spacer(GlanceModifier.defaultWeight())
-                    ActionButton(context, configured, WidgetActionCallback.SINGLE, id, GlanceModifier.fillMaxWidth())
+                    ActionButton(context, configured, WidgetActionCallback.SINGLE, id, GlanceModifier.fillMaxWidth(), settings, appearanceAt)
                 }
             }
         }

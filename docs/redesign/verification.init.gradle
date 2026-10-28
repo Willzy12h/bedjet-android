@@ -2,7 +2,7 @@
 allprojects {
     tasks.withType(Test).configureEach {
         if (project.name == 'app') {
-            maxParallelForks = 2
+            maxParallelForks = 3
             forkEvery = 1
             reports.junitXml.includeSystemOutLog.set(false)
             reports.junitXml.includeSystemErrLog.set(false)

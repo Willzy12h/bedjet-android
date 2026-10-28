@@ -9,8 +9,8 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
 - [x] P3: Side-stripe tiles, Home / Tonight and Profiles — `a5933a9446b65ab5f91d18deaff68cfe3c934f67`
 - [x] P4: Profile editor, step editor and fan shapes — `9c1f682d25a20be48b0333048a0daf8213b1c03c`
 - [x] P5: Cooldown — `0dcf66c9abb2867933736c1e2e1a222696853d2a`
-- [x] P6: Guided setup, Help and about, Settings and History — this phase commit (hash recorded in the next phase)
-- [ ] P7: Widgets v2
+- [x] P6: Guided setup, Help and about, Settings and History — `4a661f2c7c4dea53bd288886698366e65ce8cf75`
+- [x] P7: Widgets v2 — this phase commit (hash recorded in the next phase)
 - [ ] P8: Polish and audit
 - [ ] Final: clean verification, debug APK and handover
 
@@ -76,6 +76,12 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
   profile-creation wizard and update-check service are not existing working flows;
   no simulated controls or status are added. The existing project link becomes the
   explicitly requested “Source code on GitHub” action at the same destination.
+- Widgets retain their existing one/two/three-action size budgets and overflow pages,
+  including profile starts, Stop tracking and Open app. The mock's four-action shortlist
+  is not used to remove working controls. Each existing action gains a side-stripe row;
+  its stripe describes the captured preset, with a neutral Off stripe or accent for
+  actions without a preset. It does not indicate a confirmed BedJet state. The existing
+  status/receipt labels and refresh cadence remain authoritative.
 
 ## Verification and APK
 
@@ -519,6 +525,47 @@ Pending. Toolchain restored into temporary build storage; no signing changes.
 - `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/U06ControlSemanticsTest.kt`
 - `docs/redesign/BUG-LOG.md`
 - `docs/redesign/GPT-HANDOVER.md`
+
+### P7 evidence
+
+- `P7WidgetPaletteTest` observed RED in fixed, System and Scheduled modes: custom Forest
+  still resolved to the old fixed Midnight Ink pair. It checks actual Glance colour
+  providers for ground, surface, ink, primary and on-primary, including reversed slots.
+- `P7WidgetStripeTest` observed RED for the missing 4dp stripe and adjacent flat tint.
+  It renders actual RemoteViews for both widget types with Warm, Turbo and Off in
+  Midnight Ink, Forest and Overcast, retaining labelled-target checks. The row tint uses
+  the protected `tokens.tint()` over the palette's surface and ground; no gradient is added.
+- Widget actions retain the same captured request for both their stripe and click. Fixed
+  and scheduled colours use `Settings.palette()`; System keeps Glance's separate day/night
+  providers. Each render shares its settings/time with action rows. Existing action capture,
+  confirmation, paging and update mechanisms are unchanged.
+- The 97-case widget regression run passed 96 cases and observed the additional expected
+  contrast RED: Overcast's small chevron text on primary blue was below 4.5:1. Navigation
+  and Open app now use surface/ink colours while retaining their 16sp labels and 56dp targets.
+  The test samples actual rendered button fill and text.
+  Lint reported zero errors and 25 warnings in that regression run.
+- Focused GREEN passed all 97 widget cases with no skips, including action, confirmation,
+  paging, freshness, update-cadence and 200%-text checks. Lint reported zero errors and
+  25 warnings. `BUILD SUCCESSFUL in 4m 42s`; 41 tasks: 12 executed, 29 up-to-date.
+- The complete P7 gate passed 311 core tests and all 1,679 app cases with zero failures,
+  zero errors and 38 existing opt-in skips. The fresh suite finished in 1,162.35 seconds;
+  its captured console omitted the final lint task/footer. Repeating the same full task
+  command retained those verified up-to-date results, observed lint (zero errors,
+  25 warnings), and produced `BUILD SUCCESSFUL in 14s`; 43 tasks: 1 executed,
+  42 up-to-date. All JUnit XML was readable.
+- P7 uses three workers with the same fresh-JVM-per-class isolation. This environment
+  has an eight-core CPU quota and 8 GiB memory; the portable verification init now records
+  the passing three-worker setting. No test case, assertion or timeout changed. Reproduce
+  the current gate with `./gradlew --no-daemon --max-workers=3 -I
+  docs/redesign/verification.init.gradle :core:test :app:testDebugUnitTest :app:lintDebug`.
+
+### P7 changed files
+
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/widget/Widgets.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/P7WidgetPaletteTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/P7WidgetStripeTest.kt`
+- `docs/redesign/verification.init.gradle`
+- `docs/redesign/BUG-LOG.md` and `docs/redesign/GPT-HANDOVER.md`
 
 ## Not done / limits
 
