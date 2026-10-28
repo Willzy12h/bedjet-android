@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.plan.Block
@@ -72,11 +73,13 @@ internal fun SectionLabel(text: String, modifier: Modifier = Modifier) = Text(te
 
 /** A text link in the accent colour (600, 11.5), with a 48 dp touch target. */
 @Composable
-internal fun AccentLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Int? = null) {
-    Row(modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 4.dp),
+internal fun AccentLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Int? = null,
+    enabled: Boolean = true, fontSize: TextUnit = 11.5.sp) {
+    Row(modifier.heightIn(min = 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 4.dp)
+        .alpha(if (enabled) 1f else .4f),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         icon?.let { Icon(painterResource(it), null, Modifier.size(12.dp), tint = paletteTokens.accent) }
-        Text(text, color = paletteTokens.accent, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+        Text(text, color = paletteTokens.accent, fontSize = fontSize, fontWeight = FontWeight.SemiBold)
     }
 }
 

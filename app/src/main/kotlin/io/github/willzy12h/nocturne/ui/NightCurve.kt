@@ -66,7 +66,9 @@ import java.time.ZonedDateTime
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = null, legend: Boolean = false,
-    end: PlanEnd? = null, phaseInteraction: Boolean = false, onEditPhase: ((PlannedStep) -> Unit)? = null) {
+    end: PlanEnd? = null, phaseInteraction: Boolean = false, onEditPhase: ((PlannedStep) -> Unit)? = null,
+    /** The editor's design: bottom-aligned rounded bars whose height follows temperature, no centre line. */
+    stepped: Boolean = false) {
     val total = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1).toFloat()
     val outline = MaterialTheme.colorScheme.outlineVariant
     val nowColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -98,7 +100,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
             }
         }.joinToString("; "))
     Column(modifier) {
-        Canvas(Modifier.fillMaxWidth().height(110.dp).testTag("night-curve")
+        Canvas(Modifier.fillMaxWidth().height(if (stepped) 64.dp else 110.dp).testTag("night-curve")
             .then(if (!phaseInteraction) Modifier else Modifier.pointerInput(plan) {
                 fun phaseAt(x: Float): Int? {
                     val minute = (x / size.width.coerceAtLeast(1) * total).coerceIn(0f, total)
@@ -118,6 +120,19 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                     customActions = details.mapIndexed { index, detail -> CustomAccessibilityAction(detail) { selected = index; true } }
                 }
             }) {
+            if (stepped) {
+                for (step in plan.steps) {
+                    val x = Duration.between(plan.start, step.startsAt).toMinutes() / total * size.width
+                    val w = (step.minutes / total * size.width).coerceAtLeast(6.dp.toPx())
+                    val temp = if (step.step.mode == Mode.TURBO) 86 else step.step.temperature
+                    val share = if (step.step.mode.usesTemperature || step.step.mode == Mode.TURBO)
+                        .3f + .7f * ((temp - 40) / 46f).coerceIn(0f, 1f) else .25f
+                    val h = size.height * share
+                    drawRoundRect(tokens.stepColor(step.step.mode, step.step.temperature), Offset(x + 1.dp.toPx(), size.height - h),
+                        Size((w - 2.dp.toPx()).coerceAtLeast(2f), h), CornerRadius(6.dp.toPx()))
+                }
+                return@Canvas
+            }
             val mid = size.height / 2
             drawLine(outline, Offset(0f, mid), Offset(size.width, mid), 1.dp.toPx())
             for (step in plan.steps) {
@@ -146,7 +161,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 Text(stringResource(R.string.ux_current_phase, blockName(step.block)), style = MaterialTheme.typography.bodySmall)
             }
         }
-        Row(Modifier.fillMaxWidth()) {
+        if (!stepped) Row(Modifier.fillMaxWidth()) {
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Text(Format.clock(plan.start), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f))
             Text(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake, Format.clock(plan.wake)), style = MaterialTheme.typography.labelSmall,

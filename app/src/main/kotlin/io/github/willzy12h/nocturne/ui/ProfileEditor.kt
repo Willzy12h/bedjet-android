@@ -46,6 +46,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -66,6 +68,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Box
 import io.github.willzy12h.nocturne.core.plan.FanShape
 import io.github.willzy12h.nocturne.core.plan.QuietFan
 import io.github.willzy12h.nocturne.core.plan.Middle
@@ -135,64 +141,87 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
         )
     }
 
-    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    var addingTo by remember(original.id) { mutableStateOf<Block?>(null) }
+    val wake = model.wakePreview(profile)
+    val tokens = paletteTokens
+    val save = {
+        if (trackingTonight && profile != original) {
+            applyTonightTo = model.graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)
+                .copy(expected = night?.identity)
+        } else { model.saveProfile(profile); onDone() }
+    }
+    fun phasesOf(block: Block) = when (block) { Block.START -> profile.start; Block.WAKE -> profile.wake; else -> profile.afterWake }
+    fun setPhases(block: Block, phases: List<Phase>) {
+        profile = when (block) { Block.START -> profile.copy(start = phases); Block.WAKE -> profile.copy(wake = phases); else -> profile.copy(afterWake = phases) }
+    }
+
+    addingTo?.let { block ->
+        ModalBottomSheet(onDismissRequest = { addingTo = null }, containerColor = paletteTokens.sheet,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            AddStepContent(block, f, onCancel = { addingTo = null }) { target, phase ->
+                val list = phasesOf(target)
+                setPhases(target, list + phase)
+                addingTo = null
+                focusedPhase = EditorPhaseSelection(target, list.size)
+                focusRequest++
+            }
+        }
+    }
+
+    Surface(Modifier.fillMaxSize(), color = tokens.ground) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             DemoModePanel(model, showTryDemo = false)
-            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = leave) { Icon(Icons.Filled.Close, stringResource(R.string.feature_cancel)) }
-                Text(stringResource(R.string.editor_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                val plan = preview
-                Button(onClick = {
-                    if (trackingTonight && profile != original) {
-                        applyTonightTo = model.graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)
-                            .copy(expected = night?.identity)
-                    } else { model.saveProfile(profile); onDone() }
-                }, enabled = plan.isSuccess && profile.name.isNotBlank() && validDurations) { Text(stringResource(R.string.editor_save)) }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                AccentLink(stringResource(R.string.parity_back, stringResource(R.string.profiles_title)), leave,
+                    Modifier.testTag("editor-back"), fontSize = 15.sp)
+                Box(Modifier.weight(1f))
+                AccentLink(stringResource(R.string.editor_save), save, Modifier.testTag("editor-save"),
+                    enabled = preview.isSuccess && profile.name.isNotBlank() && validDurations, fontSize = 15.sp)
             }
             Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp).padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (trackingTonight) {
-                    Text(
-                        stringResource(R.string.editor_running_tonight),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-                Text(profile.name, style = MaterialTheme.typography.titleLarge)
+                Text(profile.name, color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                if (trackingTonight) Text(stringResource(R.string.editor_running_tonight), color = tokens.ink2, fontSize = 13.sp)
                 preview.fold(
                     onSuccess = { plan ->
-                        Text(stringResource(R.string.editor_preview, Format.clock(plan.start), plan.steps.size), style = MaterialTheme.typography.labelLarge)
-                        NightCurve(plan, phaseInteraction = true, onEditPhase = { step ->
+                        NightCurve(plan, phaseInteraction = true, stepped = true, onEditPhase = { step ->
                             focusedPhase = editorPhaseSelection(profile, plan, step.block, step.startsAt)
                             focusRequest++
                         })
+                        Row(Modifier.fillMaxWidth()) {
+                            val tick: @Composable (String, TextAlign) -> Unit = { text, align ->
+                                Text(text, Modifier.weight(1f), color = tokens.ink3, fontSize = 12.sp, textAlign = align)
+                            }
+                            tick(stringResource(R.string.parity_bed, Format.clock(plan.start)), TextAlign.Start)
+                            tick(if (wake.fromAlarm) stringResource(R.string.parity_wake_alarm, Format.clock(plan.wake))
+                                else stringResource(R.string.parity_wake, Format.clock(plan.wake)), TextAlign.Center)
+                            tick(stringResource(R.string.parity_off, Format.clock(plan.end)), TextAlign.End)
+                        }
                     },
-                    onFailure = { Text(it.message.orEmpty(), color = MaterialTheme.colorScheme.onSurface) },
+                    onFailure = { Text(it.message.orEmpty(), color = tokens.ink) },
                 )
-                if (!validDurations) Text(stringResource(R.string.editor_invalid_phase_duration), color = MaterialTheme.colorScheme.onSurface)
-                PhaseList(Block.START, stringResource(R.string.editor_start_help), profile.start, f, preview.getOrNull(), focusedPhase, focusRequest) { profile = profile.copy(start = it) }
+                if (!validDurations) Text(stringResource(R.string.editor_invalid_phase_duration), color = tokens.ink)
+                PhaseList(Block.START, stringResource(R.string.parity_group_start), profile.start, f, preview.getOrNull(), focusedPhase, focusRequest,
+                    profile.limits, onAdd = { addingTo = Block.START }) { profile = profile.copy(start = it) }
 
-                Section(stringResource(R.string.editor_through_night), Modifier.bringIntoViewRequester(middleFocus)) {
+                Column(Modifier.bringIntoViewRequester(middleFocus), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val middle = profile.middle
-                    val title = if (middle.mode.usesTemperature) stringResource(R.string.editor_middle_temperatures,
+                    val middleMinutes = preview.getOrNull()?.steps?.filter { it.block == Block.MIDDLE }?.sumOf { it.minutes }
+                    EditorGroupHeader(stringResource(R.string.parity_group_night), middleMinutes?.let { compactDuration(it) })
+                    val title = if (middle.mode.usesTemperature && middle.tempStart == middle.tempEnd) "${modeName(middle.mode)} ${tempText(middle.tempStart, f)}"
+                        else if (middle.mode.usesTemperature) stringResource(R.string.editor_middle_temperatures,
                         modeName(middle.mode), tempText(middle.tempStart, f), tempText(middle.tempEnd, f)) else modeName(middle.mode)
-                    val fan = middle.quietFan?.let {
-                        stringResource(R.string.profiles_quiet_middle_short, stringResource(R.string.fan_shape_quiet), it.settle, it.asleep, it.rise)
-                    } ?: stringResource(if (middle.fanShape == FanShape.STEADY) R.string.fan_shape_steady else R.string.fan_shape_ease)
-                    StripeTile(stripe = paletteTokens.stepColor(middle.mode, middle.tempStart),
-                        title = title, level = TintLevel.STEP, subtitle = listOf(fan, stringResource(R.string.editor_steps, middle.rampSteps)).joinToString(" · "),
-                        modifier = Modifier.fillMaxWidth().testTag("editor-middle-summary").clickable { middleOpen = true },
-                        trailing = { Icon(Icons.Default.ExpandMore, null) })
+                    MiddleCard(middle, title, Modifier.testTag("editor-middle-summary")) { middleOpen = true }
                 }
                 if (middleOpen) ModalBottomSheet(onDismissRequest = { middleOpen = false }, containerColor = paletteTokens.sheet,
                     sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
                     Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.8f).dp).testTag("editor-middle-sheet").verticalScroll(rememberScrollState()).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.editor_through_night), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = { middleOpen = false }) { Text(stringResource(R.string.uat_setup_done)) }
+                        Text(stringResource(R.string.editor_through_night), Modifier.weight(1f), color = tokens.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        AccentLink(stringResource(R.string.uat_setup_done), { middleOpen = false }, fontSize = 15.sp)
                     }
                     Text(stringResource(R.string.editor_middle_help), style = MaterialTheme.typography.bodySmall)
                     val m = profile.middle
@@ -248,8 +277,10 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                 }
 
                 }
-                PhaseList(Block.WAKE, stringResource(R.string.editor_wake_help), profile.wake, f, preview.getOrNull(), focusedPhase, focusRequest) { profile = profile.copy(wake = it) }
-                PhaseList(Block.AFTER_WAKE, stringResource(R.string.editor_after_wake_help), profile.afterWake, f, preview.getOrNull(), focusedPhase, focusRequest) { profile = profile.copy(afterWake = it) }
+                PhaseList(Block.WAKE, stringResource(if (wake.fromAlarm) R.string.parity_group_wake_alarm else R.string.parity_group_wake), profile.wake, f,
+                    preview.getOrNull(), focusedPhase, focusRequest, profile.limits, onAdd = { addingTo = Block.WAKE }) { profile = profile.copy(wake = it) }
+                PhaseList(Block.AFTER_WAKE, stringResource(R.string.parity_group_after), profile.afterWake, f, preview.getOrNull(), focusedPhase, focusRequest,
+                    profile.limits, onAdd = { addingTo = Block.AFTER_WAKE }) { profile = profile.copy(afterWake = it) }
 
                 OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -315,90 +346,65 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun PhaseList(block: Block, hint: String, phases: List<Phase>, f: Boolean, plan: Plan?,
-    focus: EditorPhaseSelection?, focusRequest: Int, onChange: (List<Phase>) -> Unit) {
-    var expanded by remember(block) { mutableStateOf(emptySet<Int>()) }
-    var addedFocus by remember(block) { mutableStateOf<Int?>(null) }
+private fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boolean, plan: Plan?,
+    focus: EditorPhaseSelection?, focusRequest: Int, limits: ProfileLimits, onAdd: () -> Unit, onChange: (List<Phase>) -> Unit) {
+    var open by remember(block) { mutableStateOf<Int?>(null) }
     val requested = focus?.takeIf { it.block == block }?.index
-    LaunchedEffect(requested, focusRequest) { requested?.takeIf { it in phases.indices }?.let { expanded = expanded + it } }
+    LaunchedEffect(requested, focusRequest) { requested?.let { open = it } }
     val start = when (block) {
         Block.START -> plan?.start
         Block.WAKE -> plan?.wake?.minusMinutes(phases.sumOf { it.minutes }.toLong())
         Block.AFTER_WAKE -> plan?.wake
         Block.MIDDLE, Block.TEMPORARY -> null
     }
-    Section(blockName(block)) {
-        Text(hint, style = MaterialTheme.typography.bodySmall)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        EditorGroupHeader(label, phases.takeIf { it.isNotEmpty() }?.let { list -> compactDuration(list.sumOf { it.minutes }) })
         phases.forEachIndexed { index, phase ->
-            val open = index in expanded
             val requester = remember(block, index) { BringIntoViewRequester() }
-            LaunchedEffect(requested, focusRequest, addedFocus) {
-                if (requested == index || addedFocus == index) { withFrameNanos { }; requester.bringIntoView() }
+            LaunchedEffect(requested, focusRequest) {
+                if (requested == index) { withFrameNanos { }; requester.bringIntoView() }
             }
             val phaseStart = start?.plusMinutes(phases.take(index).sumOf { it.minutes }.toLong())
-            val editLabel = stringResource(R.string.ux_edit_phase)
-            val state = stringResource(if (open) R.string.ux_expanded else R.string.ux_collapsed)
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val effectiveTemperature = if (phase.mode == Mode.TURBO) 86 else phase.temperature
-                val detail = buildList {
-                    add(phaseStart?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time))
-                    add(durationText(phase.minutes))
-                    if (phase.mode.usesTemperature || phase.mode == Mode.TURBO) add(tempText(effectiveTemperature, f))
-                    if (phase.mode.usesFan) add(stringResource(R.string.timeline_fan, phase.fanPercent))
-                }.joinToString(" · ")
-                StripeTile(
-                    stripe = paletteTokens.stepColor(phase.mode, effectiveTemperature),
-                    title = modeName(phase.mode),
-                    subtitle = detail,
-                    level = TintLevel.STEP,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("editor-phase-${block.name}-$index")
-                        .bringIntoViewRequester(requester)
-                        .combinedClickable(role = Role.Button, onClickLabel = editLabel, onLongClickLabel = editLabel,
-                            onClick = { expanded = if (open) expanded - index else expanded + index },
-                            onLongClick = { expanded = expanded + index })
-                        .semantics { stateDescription = state },
-                    trailing = { Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null) },
-                )
-                if (open) ModalBottomSheet(onDismissRequest = { expanded = expanded - index }, containerColor = paletteTokens.sheet,
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-                  Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.8f).dp).testTag("editor-phase-controls-${block.name}-$index")
-                    .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.editor_step_title, modeName(phase.mode), index + 1), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = { expanded = expanded - index }) { Text(stringResource(R.string.uat_setup_done)) }
-                    }
-                    fun update(value: Phase) = onChange(phases.mapIndexed { i, old -> if (i == index) value else old })
-                    phaseStart?.let { at -> Text(stringResource(R.string.ux_phase_timeframe, Format.clock(at),
-                        Format.clock(at.plusMinutes(phase.minutes.toLong()))), style = MaterialTheme.typography.labelLarge) }
-                    ModeChips(phase.mode) { update(if (it == Mode.TURBO && phase.mode != Mode.TURBO) phase.copy(mode = it, temperature = 86, minutes = 10) else phase.copy(mode = it, temperature = it.clampTemp(phase.temperature))) }
-                    if (phase.mode.usesTemperature) Labelled(stringResource(R.string.label_temperature, tempText(phase.temperature, f))) {
-                        TempSlider(phase.mode, phase.temperature, stringResource(R.string.slider_temp), f) { update(phase.copy(temperature = it)) }
-                    }
-                    if (phase.mode.usesFan && phase.mode != Mode.TURBO) Labelled(stringResource(R.string.label_fan, phase.fanPercent)) {
-                        FanSlider(phase.fanPercent, stringResource(R.string.slider_fan)) { update(phase.copy(fanPercent = it)) }
-                    }
-                    if (phase.mode != Mode.TURBO) Labelled(stringResource(R.string.editor_length, durationText(phase.minutes))) {
-                        MinuteSlider(phase.minutes, stringResource(R.string.slider_length), 1) { update(phase.copy(minutes = it)) }
-                    } else {
-                        Text(stringResource(R.string.label_temperature, tempText(effectiveTemperature, f)))
-                        Text(stringResource(R.string.editor_length, durationText(phase.minutes)))
-                    }
-                    TextButton(onClick = {
-                        expanded = expanded.mapNotNull { if (it < index) it else if (it > index) it - 1 else null }.toSet()
-                        onChange(phases.filterIndexed { i, _ -> i != index })
-                    }) { Text(stringResource(R.string.editor_remove)) }
-                  }
+            val effectiveTemperature = if (phase.mode == Mode.TURBO) 86 else phase.temperature
+            val lastOff = block == Block.AFTER_WAKE && index == phases.lastIndex
+            val fan = stringResource(R.string.parity_fan_sub, phase.fanPercent)
+            val title = when {
+                phase.mode == Mode.TURBO -> modeName(phase.mode)
+                lastOff && phase.mode.usesFan -> "${modeName(phase.mode)} · ${fan.lowercase()}"
+                phase.mode.usesTemperature -> "${modeName(phase.mode)} ${tempText(phase.temperature, f)}"
+                else -> modeName(phase.mode)
+            }
+            val subtitle = when {
+                phase.mode == Mode.TURBO -> stringResource(R.string.parity_turbo_sub)
+                lastOff -> stringResource(R.string.parity_then_off)
+                phase.mode.usesFan -> fan
+                else -> phaseStart?.let(Format::clock) ?: ""
+            }
+            fun move(by: Int) {
+                val to = index + by
+                if (to !in phases.indices) return
+                onChange(phases.toMutableList().apply { add(to, removeAt(index)) })
+            }
+            StepCard(phase, title, subtitle, compactDuration(phase.minutes),
+                Modifier.testTag("editor-phase-${block.name}-$index").bringIntoViewRequester(requester)
+                    .semantics { stateDescription = phaseStart?.let(Format::clock).orEmpty() },
+                canMoveUp = index > 0, canMoveDown = index < phases.lastIndex, onMove = ::move) { open = index }
+            if (open == index) ModalBottomSheet(onDismissRequest = { open = null }, containerColor = paletteTokens.sheet,
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+                Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp).verticalScroll(rememberScrollState())) {
+                    StepEditorContent(
+                        title = stringResource(R.string.editor_step_title, blockName(block), index + 1),
+                        phase = phase, fahrenheit = f,
+                        runs = phaseStart?.let { at -> stringResource(R.string.parity_runs, Format.clock(at), Format.clock(at.plusMinutes(phase.minutes.toLong()))) },
+                        tag = "editor-phase-controls-${block.name}-$index",
+                        fanSlider = { value, update -> FanSlider(value, stringResource(R.string.slider_fan), limits, update) },
+                        onDone = { open = null },
+                        onDelete = { open = null; onChange(phases.filterIndexed { i, _ -> i != index }) },
+                    ) { value -> onChange(phases.mapIndexed { i, old -> if (i == index) value else old }) }
                 }
             }
         }
-        TextButton(onClick = {
-            expanded = expanded + phases.size
-            addedFocus = phases.size
-            onChange(phases + Phase(Mode.COOL, 44, 40, 30))
-        }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("editor-add-${block.name}")) {
-            Icon(Icons.Default.Add, null)
-            Text(stringResource(R.string.editor_add_phase), modifier = Modifier.padding(start = 8.dp))
-        }
+        AccentLink(stringResource(R.string.parity_add_link), onAdd, Modifier.testTag("editor-add-${block.name}"), fontSize = 14.sp)
     }
 }
 
@@ -453,6 +459,7 @@ private fun FanSlider(value: Int, label: String, limits: ProfileLimits = Profile
         valueRange = if (hasRange) low.toFloat()..high.toFloat() else 5f..100f,
         enabled = hasRange,
         steps = if (hasRange) (high - low) / 5 - 1 else 18,
+        colors = SliderDefaults.colors(activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent),
         modifier = Modifier.sliderSemantics(label, spokenPercent(value)),
     )
 }

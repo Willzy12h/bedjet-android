@@ -417,11 +417,11 @@ private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: Zo
 
 /** The one primary action on the screen: full width, at least 56 dp, 16 dp corners. */
 @Composable
-private fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true) {
+internal fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier) {
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
         shape = RoundedCornerShape(16.dp),
     ) { Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
 }

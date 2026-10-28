@@ -260,6 +260,7 @@ class ScreenshotCapture {
             else compose.onAllNodesWithText(tab)[0].performClick()
             settle()
             shot("$look-$name")
+            if (tab == "Profiles") captureEditor(look)
         }
         if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription("Tonight"))[0].performClick()
         else compose.onAllNodesWithText("Tonight")[0].performClick()
@@ -284,6 +285,29 @@ class ScreenshotCapture {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
         Snapshot.sendApplyNotifications()
         compose.waitForIdle()
+    }
+
+    /** The editor, one step's sheet and the Add a step sheet, then back to Profiles. */
+    private fun captureEditor(look: String) {
+        compose.onAllNodes(hasTestTagPrefix("profile-open-"), useUnmergedTree = true)[0].performClick()
+        settle()
+        shot("$look-02b-editor")
+        compose.onNodeWithTag("editor-phase-START-0").performScrollTo().performClick()
+        settle()
+        shot("$look-02c-step-editor")
+        compose.onNodeWithTag("step-done").performClick()
+        settle()
+        compose.onNodeWithTag("editor-add-START").performScrollTo().performClick()
+        settle()
+        shot("$look-02d-add-step")
+        compose.onAllNodesWithText(compose.activity.getString(R.string.feature_cancel))[0].performClick()
+        settle()
+        compose.onNodeWithTag("editor-back").performClick()
+        settle()
+    }
+
+    private fun hasTestTagPrefix(prefix: String) = androidx.compose.ui.test.SemanticsMatcher("tag starts with $prefix") {
+        androidx.compose.ui.semantics.SemanticsProperties.TestTag in it.config && it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith(prefix)
     }
 
     private fun shot(name: String, windowView: android.view.View? = null) {
