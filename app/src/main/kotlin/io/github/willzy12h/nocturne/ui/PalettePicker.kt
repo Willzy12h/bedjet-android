@@ -68,7 +68,7 @@ fun PalettePicker(label: String, selected: Palette, tagPrefix: String, onSelect:
                             .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(palette) })
                             .semantics { contentDescription = name },
                     ) {
-                        drawCircle(if (swatch.dark) swatch.surface2 else swatch.ground, 15.dp.toPx())
+                        drawCircle(if (swatch.dark) swatch.glow else swatch.ground, 15.dp.toPx())
                         drawCircle(tokens.hairline, 15.dp.toPx(), style = Stroke(width = 1.dp.toPx()))
                         if (isSelected) drawCircle(tokens.accent, 19.dp.toPx(), style = Stroke(width = 2.dp.toPx()))
                     }

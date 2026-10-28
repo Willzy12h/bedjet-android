@@ -261,6 +261,7 @@ class ScreenshotCapture {
             settle()
             shot("$look-$name")
             if (tab == "Profiles") captureEditor(look)
+            if (tab == "Settings" && !look.startsWith("combined-")) captureSettingsPages(look)
         }
         if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription("Tonight"))[0].performClick()
         else compose.onAllNodesWithText("Tonight")[0].performClick()
@@ -288,6 +289,23 @@ class ScreenshotCapture {
     }
 
     /** The editor, one step's sheet and the Add a step sheet, then back to Profiles. */
+    private fun themeMode(mode: ThemeMode) {
+        compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(themeMode = mode) } } }
+        settle()
+    }
+
+    private fun captureSettingsPages(look: String) {
+        listOf("appearance", "night", "permissions", "backups", "notifications", "about").forEachIndexed { index, page ->
+            compose.onNodeWithTag("settings-page-$page").performScrollTo().performClick()
+            settle()
+            if (page == "appearance" && look == "dark") themeMode(ThemeMode.SCHEDULED)
+            shot("$look-05${'a' + index}-settings-$page")
+            if (page == "appearance" && look == "dark") themeMode(ThemeMode.DARK)
+            compose.onNodeWithTag("settings-back").performClick()
+            settle()
+        }
+    }
+
     private fun captureEditor(look: String) {
         compose.onAllNodes(hasTestTagPrefix("profile-open-"), useUnmergedTree = true)[0].performClick()
         settle()

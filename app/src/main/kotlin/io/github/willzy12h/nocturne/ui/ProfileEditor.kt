@@ -50,6 +50,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
@@ -482,11 +483,20 @@ fun SwitchRow(title: String, detail: String?, checked: Boolean, enabled: Boolean
     Column(modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
         .semantics { contentDescription = title }) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            Switch(checked, onCheckedChange = null, enabled = enabled)
+            Column(Modifier.weight(1f)) {
+                Text(title, color = paletteTokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                detail?.let { Text(it, color = paletteTokens.ink2, fontSize = 13.5.sp) }
+            }
+            Switch(checked, onCheckedChange = null, enabled = enabled, colors = nocturneSwitchColors())
         }
-        detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     }
+}
+
+/** The design's switch: the accent track when on, a quiet track when off. */
+@Composable
+internal fun nocturneSwitchColors() = paletteTokens.let { tokens ->
+    SwitchDefaults.colors(checkedThumbColor = tokens.onPrimary, checkedTrackColor = tokens.accent, checkedBorderColor = tokens.accent,
+        uncheckedThumbColor = tokens.ink2, uncheckedTrackColor = tokens.surface2, uncheckedBorderColor = tokens.surface2)
 }
 
 @Composable

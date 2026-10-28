@@ -100,4 +100,8 @@
         <item quantity="other">%d in the log</item>
     </plurals>
     <string name="parity_settings_about">Version %1$s · updates on GitHub</string>
+    <string name="parity_settings_night_from">Night from</string>
+    <string name="parity_settings_alarm_source">Alarm source</string>
+    <string name="parity_settings_details">How alarms are found</string>
+    <string name="parity_settings_hide_details">Hide details</string>
 </resources>
