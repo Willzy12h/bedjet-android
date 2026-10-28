@@ -26,4 +26,11 @@
     <string name="parity_show_detail">Show the night in detail</string>
     <string name="parity_sending">Sending</string>
     <string name="parity_waiting_bedjet">Waiting for the BedJet</string>
+    <string name="parity_import">Import</string>
+    <string name="parity_new">+ New</string>
+    <string name="parity_start">Start</string>
+    <string name="parity_duplicate">Duplicate</string>
+    <string name="parity_share_profile">Share profile</string>
+    <string name="parity_profile_shared">Profile saved. Send the file to share it.</string>
+    <string name="parity_profile_times">%1$s → %2$s</string>
 </resources>

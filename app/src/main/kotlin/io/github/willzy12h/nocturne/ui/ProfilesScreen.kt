@@ -1,6 +1,22 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -75,68 +91,114 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     val activeNight by model.activeNight.collectAsState()
     val tokens = paletteTokens
 
+    val importPreview by model.importPreview.collectAsState()
+    val importApplying by model.importApplying.collectAsState()
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
+    var sharing by remember { mutableStateOf<Profile?>(null) }
+    val sharer = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val profile = sharing; sharing = null
+        if (uri != null && profile != null) model.shareProfile(uri, profile.id)
+    }
+
     Column(modifier.fillMaxSize()) {
-        FlowRow(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween,
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.profiles_title), style = MaterialTheme.typography.headlineMedium)
-            Button(onClick = { adding = true }) { Text(stringResource(R.string.profiles_new)) }
+        // The design's title row: "Profiles", then Import and the primary "+ New" pill.
+        FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.profiles_title), Modifier.weight(1f).align(Alignment.CenterVertically),
+                fontSize = 26.sp, fontWeight = FontWeight.Bold, color = tokens.ink)
+            Pill(stringResource(R.string.parity_import), tokens.surface2, tokens.ink, R.drawable.ic_nc_import,
+                enabled = !settings.demoMode && !importApplying, tag = "profiles-import") {
+                importer.launch(arrayOf("application/json", "*/*"))
+            }
+            Pill(stringResource(R.string.parity_new), tokens.ink, tokens.ground, tag = "profiles-new",
+                description = stringResource(R.string.profiles_new)) { adding = true }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (!settings.cooldownOfferAnswered) item { CooldownOfferCard(model, profiles, settings.fahrenheit) }
             items(profiles, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }
                 val copyName = stringResource(R.string.profiles_copy_name, profile.name)
-                val selected = settings.resolveTonightChoice(model.now())?.profileId == profile.id
-                StripeTile(
-                    stripe = tokens.stepColor(profile.middle.mode, profile.middle.tempStart),
-                    title = profile.name,
-                    subtitle = null,
-                    modifier = Modifier.fillMaxWidth().testTag("profile-card-${profile.id}"),
-                    level = TintLevel.PROFILE,
-                    selectedBorder = tokens.accent.takeIf { selected },
-                    headerModifier = Modifier.heightIn(min = 48.dp).testTag("profile-open-${profile.id}")
-                        .clickable(role = Role.Button) { onEdit(profile) },
-                    trailing = if (selected) ({ Text(stringResource(R.string.profiles_tonight),
-                        color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelLarge) }) else null,
-                ) {
-                        val wake = model.wakePreview(profile)
-                        Text(
-                            if (wake.fromAlarm) stringResource(R.string.profiles_wake_alarm, Format.clock(wake.time))
-                            else stringResource(R.string.profiles_wake_default, Format.clock(wake.time), Format.clockOfDay(profile.wakeSource.defaultWakeMinute)),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(describe(profile), style = MaterialTheme.typography.bodySmall)
-                        model.previewPlan(profile).getOrNull()?.let {
-                            NightTimeline(it, wake.origin, settings.fahrenheit,
-                                modifier = Modifier.testTag("profile-timeline-${profile.id}"), middle = profile.middle)
+                // The profile Tonight shows: the running night's, else tonight's choice or the default for the day.
+                val selected = (activeNight?.profileId ?: settings.resolveProfile(profiles, model.now())?.id) == profile.id
+                val stripe = tokens.stepColor(profile.middle.mode, profile.middle.tempStart)
+                val shape = RoundedCornerShape(18.dp)
+                Column(Modifier.fillMaxWidth().testTag("profile-card-${profile.id}").clip(shape).background(tokens.surface)
+                    .sideStripe(stripe, tokens, width = 5.dp, level = TintLevel.PROFILE)
+                    .then(when {
+                        selected -> Modifier.border(1.5.dp, tokens.accent, shape)
+                        tokens.edge != null -> Modifier.border(1.dp, tokens.edge, shape)
+                        else -> Modifier
+                    })
+                    .clickable(role = Role.Button) { onEdit(profile) }
+                    .padding(start = 18.dp, end = 10.dp, top = 10.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("profile-open-${profile.id}"),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(painterResource(R.drawable.ic_nc_fav), null, Modifier.size(20.dp), tint = tokens.accent)
+                        Text(profile.name, Modifier.weight(1f), color = tokens.ink, fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold, maxLines = 2)
+                        if (selected) Pill(stringResource(R.string.profiles_tonight), tokens.ink, tokens.ground,
+                            tag = "profile-tonight-${profile.id}", compact = true) {}
+                        else Pill(stringResource(R.string.parity_start), tokens.surface2, tokens.ink2,
+                            tag = "profile-use-${profile.id}", compact = true,
+                            description = stringResource(R.string.profiles_use_tonight)) {
+                            model.updateSettings { it.chooseTonight(profile.id, model.now()) }
                         }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick = { model.updateSettings { it.chooseTonight(profile.id, model.now()) } }) { Text(stringResource(R.string.profiles_use_tonight)) }
-                            TextButton(onClick = { onEdit(profile) }) { Text(stringResource(R.string.action_edit)) }
-                            TextButton(onClick = { more = true }) { Text(stringResource(R.string.recovery_more)) }
+                        Box {
+                            val moreLabel = stringResource(R.string.recovery_more)
+                            Box(Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button) { more = true }
+                                .semantics { contentDescription = moreLabel }.testTag("profile-more-${profile.id}"),
+                                contentAlignment = Alignment.Center) {
+                                Text("⋯", color = tokens.ink3, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            }
                             DropdownMenu(expanded = more, onDismissRequest = { more = false },
-                                modifier = Modifier.testTag("profile-menu"),
+                                modifier = Modifier.testTag("profile-menu"), shape = RoundedCornerShape(16.dp),
                                 containerColor = tokens.menu, border = BorderStroke(1.dp, tokens.outline)) {
-                                DropdownMenuItem(text = { Text(stringResource(R.string.pin_menu), color = tokens.ink) }, onClick = {
+                                MenuRow(stringResource(R.string.action_edit), R.drawable.ic_nc_edit, tokens.ink) { more = false; onEdit(profile) }
+                                MenuRow(stringResource(R.string.parity_duplicate), R.drawable.ic_nc_copy, tokens.ink) {
+                                    more = false
+                                    model.saveProfile(profile.copy(id = UUID.randomUUID().toString(), name = copyName))
+                                }
+                                if (!settings.demoMode) MenuRow(stringResource(R.string.parity_share_profile), R.drawable.ic_nc_share, tokens.ink) {
+                                    more = false; sharing = profile
+                                    sharer.launch(profile.name.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "profile" } + ".json")
+                                }
+                                MenuRow(stringResource(R.string.pin_menu), R.drawable.ic_nc_box, tokens.ink) {
                                     more = false
                                     val at = model.now()
                                     pinning = PinRequest(profile, settings.deviceId(), settings.workingSlot, at,
                                         NightPreview.forStartNow(profile, at, null, settings = settings))
                                     pinSlot = (0..2).first { it != settings.workingSlot }
-                                })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.profiles_copy), color = tokens.ink) }, onClick = {
-                                    more = false
-                                    model.saveProfile(profile.copy(id = UUID.randomUUID().toString(), name = copyName))
-                                })
-                                DropdownMenuItem(text = { Text(stringResource(R.string.profiles_delete), color = tokens.ink) }, onClick = { more = false; deleting = profile })
+                                }
+                                MenuRow(stringResource(R.string.profiles_delete), R.drawable.ic_nc_trash,
+                                    if (tokens.dark) Color(0xFFFFB3A8) else tokens.bad) { more = false; deleting = profile }
                             }
                         }
+                    }
+                    val wake = model.wakePreview(profile)
+                    model.previewPlan(profile).getOrNull()?.let {
+                        NightBar(it, null, Modifier.testTag("profile-timeline-${profile.id}"), height = 22.dp)
+                    }
+                    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val times = stringResource(R.string.parity_profile_times, Format.clockOfDay(profile.bedtimeMinute), Format.clock(wake.time))
+                        val wakeText = if (wake.fromAlarm) stringResource(R.string.profiles_wake_alarm, Format.clock(wake.time))
+                            else stringResource(R.string.profiles_wake_default, Format.clock(wake.time), Format.clockOfDay(profile.wakeSource.defaultWakeMinute))
+                        Text(times, Modifier.weight(1f).align(Alignment.CenterVertically).semantics { contentDescription = "$times. $wakeText" },
+                            color = tokens.ink2, fontSize = 15.sp)
+                        WeekdayDots(profile.days)
+                    }
                 }
             }
+            if (!settings.cooldownOfferAnswered) item { CooldownOfferCard(model, profiles, settings.fahrenheit) }
             item { Box(Modifier.padding(8.dp)) }
         }
     }
 
+    importPreview?.let { preview ->
+        key(preview) {
+            ImportPreviewDialog(preview, importApplying, onApply = { model.confirmImport(preview) }, onCancel = model::cancelImport)
+        }
+    }
     if (adding) {
         AlertDialog(
             onDismissRequest = { adding = false },
@@ -228,6 +290,45 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             ) { Text(stringResource(R.string.pin_confirm, pinSlot + 1)) } },
             dismissButton = { TextButton(onClick = { pinning = null }) { Text(stringResource(R.string.feature_cancel)) } },
         )
+    }
+}
+
+/** A rounded pill button: the design's Import, "+ New", Tonight and Start. */
+@Composable
+private fun Pill(text: String, container: Color, content: Color, icon: Int? = null, enabled: Boolean = true,
+    tag: String, compact: Boolean = false, description: String? = null, onClick: () -> Unit) {
+    Row(Modifier.heightIn(min = if (compact) 36.dp else 48.dp).clip(RoundedCornerShape(50)).background(container)
+        .alpha(if (enabled) 1f else .5f).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
+        .testTag(tag).padding(horizontal = if (compact) 14.dp else 20.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        icon?.let { Icon(painterResource(it), null, Modifier.size(18.dp), tint = content) }
+        Text(text, color = content, fontSize = if (compact) 14.sp else 16.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun MenuRow(text: String, icon: Int, color: Color, onClick: () -> Unit) =
+    DropdownMenuItem(text = { Text(text, color = color, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
+        leadingIcon = { Icon(painterResource(icon), null, Modifier.size(20.dp), tint = color) },
+        modifier = Modifier.padding(horizontal = 6.dp), onClick = onClick)
+
+/** M T W T F S S: the days this profile is the default for, filled in the accent. */
+@Composable
+private fun WeekdayDots(days: Set<Int>) {
+    val tokens = paletteTokens
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        java.time.DayOfWeek.entries.forEach { day ->
+            val on = day.value in days
+            Box(Modifier.size(28.dp).clip(CircleShape)
+                .background(if (on) tokens.accent.copy(alpha = .38f) else tokens.surface2)
+                .semantics { contentDescription = day.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault()) +
+                    if (on) "" else " (off)" },
+                contentAlignment = Alignment.Center) {
+                Text(day.getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale.getDefault()),
+                    color = if (on) tokens.ink else tokens.ink3, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
     }
 }
 
