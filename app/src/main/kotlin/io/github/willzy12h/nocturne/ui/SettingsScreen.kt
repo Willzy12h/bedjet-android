@@ -323,6 +323,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 OutlinedButton(enabled = !settings.demoMode && !importApplying, onClick = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }) { Text(stringResource(R.string.settings_export_file)) }
                 OutlinedButton(enabled = !settings.demoMode && !importApplying, onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text(stringResource(R.string.settings_restore_from_file)) }
             }
+            Text(stringResource(R.string.settings_export_compat), style = MaterialTheme.typography.bodySmall)
             snapshots.forEach { snap ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Column {

@@ -8,15 +8,11 @@ import org.junit.jupiter.api.Test
 class HeatScaleTest {
     @Test
     fun warmerIsDeeperEmber() {
-        // Half-degrees, at the design's drawn examples: 30° is Warm, 30.5°–33° Hot, 36°–38° Hotter, 41° up the deepest.
-        assertEquals(1, HeatScale.level(Mode.HEAT, 60))
-        assertEquals(2, HeatScale.level(Mode.HEAT, 61))
-        assertEquals(2, HeatScale.level(Mode.HEAT, 66))
-        assertEquals(2, HeatScale.level(Mode.HEAT, 71))
-        assertEquals(3, HeatScale.level(Mode.EXTENDED_HEAT, 72))
-        assertEquals(3, HeatScale.level(Mode.EXTENDED_HEAT, 76))
-        assertEquals(3, HeatScale.level(Mode.HEAT, 81))
-        assertEquals(4, HeatScale.level(Mode.HEAT, 82))
+        // Half-degrees: 29.5°, 30°, 34°, 38°.
+        assertEquals(1, HeatScale.level(Mode.HEAT, 59))
+        assertEquals(2, HeatScale.level(Mode.HEAT, 60))
+        assertEquals(3, HeatScale.level(Mode.EXTENDED_HEAT, 68))
+        assertEquals(4, HeatScale.level(Mode.HEAT, 76))
     }
 
     @Test

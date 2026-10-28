@@ -150,8 +150,9 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                             subtitle = stringResource(seasonName(preset.season)),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable {
                                 adding = false
+                                // A preset's own after-wake steps are kept; the Cooldown only fills a preset that has none.
                                 onEdit(preset.copy(id = UUID.randomUUID().toString(), name = preset.name,
-                                    afterWake = listOf(io.github.willzy12h.nocturne.core.plan.Phase(io.github.willzy12h.nocturne.core.protocol.Mode.COOL, 44, 30, 10))))
+                                    afterWake = preset.afterWake.ifEmpty { listOf(io.github.willzy12h.nocturne.core.plan.Phase(io.github.willzy12h.nocturne.core.protocol.Mode.COOL, 44, 30, 10)) }))
                             },
                         )
                     }
