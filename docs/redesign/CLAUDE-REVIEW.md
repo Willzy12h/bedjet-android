@@ -44,3 +44,9 @@ the approved design (`reference/`), `BUILD-PACKETS.md`, `CODE-MAP.md` and `refer
 7. No hardware, Samsung or TalkBack testing before sign-off. Accepted on the assumption that BLE, alarms and accessibility behave as they did in previous versions.
 
 The final independent sign-off is still outstanding.
+
+## Verification
+
+- Full gate on 0feceab: 1707 app tests, 5 failed. Two tests asserted the old behaviour (translucent widget surface, Cooldown replacing a preset's after-wake) and were updated. `DemoImportPreviewInvalidationTest` failed under full-suite load and passed when re-run alone; it is timing-sensitive.
+- The three failing classes pass after the fix. `:app:assembleDebug` and `:app:lintDebug` pass: 0 errors, the same 24 warnings in the same categories as `GPT-HANDOVER.md`.
+- Left for Codex: the opt-in screenshot captures (`P8-AUDIT.md`) for Midnight Ink and Overcast, a test-only fix for the timing in `DemoImportPreviewInvalidationTest`, and one full-gate re-run.
