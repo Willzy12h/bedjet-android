@@ -1,5 +1,7 @@
 # Nocturne redesign handover
 
+> Latest review follow-up: implementation changes pushed, verification blocked by the missing build environment. Previous successful counts and APK below are historical, not results for Claude’s merged review.
+
 Completed. Base: `claude/nocturne-redesign-foundation` at
 `42e6ba2aa26d4de8b26441d961eed7ae664f7e47`. Branch: `gpt/nocturne-redesign`.
 
@@ -849,3 +851,31 @@ and Overcast. This is bounded host capture review, not full-scroll, device or Ta
   was established. The clean full check then passed as recorded above.
 - A final metadata-only commit records the Final verification commit hash in this file;
   neither documentation commit changes the tested app or its APK.
+
+
+## Claude review follow-up — verification blocked
+
+- Normal two-parent merge: `cf264f1b99ae76770d3c482b378d7ef159265267`, merging
+  `e6b1431ef10f47d2b4f6211ad29ff9bf5f99f3aa` into the prior `ca04ff1` tip.
+- Read `CLAUDE-REVIEW.md`; all listed user decisions remain final. Claude's schema 3,
+  preset after-wake preservation, palette, tint and wording changes are retained.
+- Test-only candidate fix in `DemoImportPreviewInvalidationTest`: queue initial dispatcher
+  submissions while registering the exact import Job, then replay them. Previously the IO
+  completion could arm/resume before `target(staged)` registered that Job. No production
+  source, test assertion, timeout, skip or disable was changed. This fix is NOT verified.
+- Workspace maintenance removed the old Gradle distribution, Android SDK and dependency
+  cache. Local restoration checks found no usable replacement; Library search did not locate
+  a toolchain archive. Download attempts cannot reach the distribution host.
+- Focused test, opt-in capture command with `SCREENSHOT_TAG=review`, and the exact requested
+  offline clean gate were attempted. Each exits 1 at Gradle wrapper bootstrap:
+  `java.net.SocketException: Network is unreachable`, downloading Gradle 8.14.3.
+  No tests executed; no current test counts, lint counts, screenshots or new APK are available.
+- Source inspection only: Material surfaces composite over ground; dark menus use #232740;
+  Overcast StripeTile uses its edge border; tint levels are .10/.24/.09/.08; Forest,
+  Graphite and Plum sheets are #171A2C. This is not rendered visual verification.
+- Still open: verify the test fix under full-suite load; run/review Midnight Ink and Overcast
+  captures for opacity, borders and all four tints; render the three inherited sheet colours;
+  run the full gate to zero failures and lint zero errors / at most 24 warnings.
+- Design request remains open for bespoke Forest/Graphite/Plum sheet colours; no replacement
+  was invented. Final independent sign-off remains outstanding and was not performed here.
+- No PR, release, signing change, main push or claude-branch push was made.

@@ -63,3 +63,14 @@ SCREENSHOT_TAG=review ./gradlew --no-daemon --max-workers=3 \
   --tests "*P8CaptureTest" --tests "*ScreenshotCapture" --tests "*U06NormalCaptureTest" \
   --tests "*U06LargeTextCaptureTest"
 ```
+
+
+## Claude review follow-up — pending rendered verification
+
+The preceding captures/counts predate Claude's review and do not verify its visual changes.
+The `SCREENSHOT_TAG=review` capture command was attempted after merging e6b1431; Gradle
+bootstrap failed with Network is unreachable because the distribution/cache were pruned.
+No new screenshots were reviewed. Opacity, Overcast edge borders, four tint strengths and
+Forest/Graphite/Plum #171A2C sheets remain to be checked in actual renders. Source values
+match the review decisions; no further production visual change was made. Bespoke sheet
+colours remain a request to design. Independent sign-off is still outstanding.

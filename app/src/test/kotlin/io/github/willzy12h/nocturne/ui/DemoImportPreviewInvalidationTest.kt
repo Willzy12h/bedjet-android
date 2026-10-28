@@ -192,8 +192,7 @@ class DemoImportPreviewInvalidationTest {
 
     private fun holdSelectedFileRead(): Job {
         holdReadCompletion = true
-        val staged = stageFile()
-        pausedCompletion.target(staged)
+        val staged = pausedCompletion.startTarget { stageFile() }
         until { pausedCompletion.isHeld }
         assertFalse(staged.isCompleted)
         assertNull(model.importPreview.value)
@@ -235,10 +234,30 @@ class DemoImportPreviewInvalidationTest {
         @Volatile private var held: Pair<CoroutineContext, Runnable>? = null
         val isHeld: Boolean get() = held != null
         @Synchronized fun arm() { armed = true }
-        @Synchronized fun target(job: Job) { targetJob = job }
+        private var registering = false
+        private val starting = mutableListOf<Pair<CoroutineContext, Runnable>>()
+
+        fun startTarget(start: () -> Job): Job {
+            // A loaded host can finish IO before stageFile returns its Job. Queue initial
+            // dispatches until that exact Job is registered, before allowing the read to start.
+            synchronized(this) { check(!registering); registering = true }
+            try {
+                return start().also { job -> synchronized(this) { targetJob = job } }
+            } finally {
+                val pending = synchronized(this) {
+                    registering = false
+                    starting.toList().also { starting.clear() }
+                }
+                pending.forEach { (context, block) -> dispatch(context, block) }
+            }
+        }
 
         override fun dispatch(context: CoroutineContext, block: Runnable) {
             synchronized(this) {
+                if (registering) {
+                    starting += context to block
+                    return
+                }
                 if (armed && context[Job] === targetJob) {
                     armed = false
                     check(held == null)
