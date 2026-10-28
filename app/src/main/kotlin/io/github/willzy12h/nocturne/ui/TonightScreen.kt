@@ -164,6 +164,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     var showDetail by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     var editingQuick by remember { mutableStateOf(false) }
+    val sending = rememberPresetSending(model)
     val tokens = paletteTokens
     val current = if (confirmed) plan?.stepAt(now) else null
     val profileName = profile?.name ?: night?.profile?.name ?: stringResource(R.string.tonights_night)
@@ -173,7 +174,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         .padding(horizontal = 16.dp).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         StatusLine(model, runningName = night?.let { profileName }, onRemote = onOpenRemote)
         BluetoothBanner(model)
-        HomeReading(model, settings, current?.let { (index, step) -> Triple(step, index + 1, plan?.steps?.size ?: 0) })
+        HomeReading(model, settings, current?.let { (index, step) -> Triple(step, index + 1, plan?.steps?.size ?: 0) }, sending.value)
         SetupChecklistCard(model)
 
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
@@ -279,7 +280,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         NightRecoveryControls(model, night, guard, now)
 
-        QuickPresets(model, guard) { editingQuick = true }
+        QuickPresets(model, guard, sending) { editingQuick = true }
 
         val unreadable by model.unreadable.collectAsState()
         val restoreUnfinished by model.restoreUnfinished.collectAsState()
@@ -331,7 +332,7 @@ private fun Tick(text: String, modifier: Modifier, align: TextAlign) = Text(text
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HomeReading(model: AppViewModel, settings: Settings,
-    step: Triple<io.github.willzy12h.nocturne.core.plan.PlannedStep, Int, Int>? = null) {
+    step: Triple<io.github.willzy12h.nocturne.core.plan.PlannedStep, Int, Int>? = null, sending: PresetSending? = null) {
     val status by model.status.collectAsState()
     val live by model.hasLiveStatus.collectAsState()
     val link by model.linkState.collectAsState()
@@ -352,7 +353,11 @@ private fun HomeReading(model: AppViewModel, settings: Settings,
             Column(Modifier.align(Alignment.CenterVertically)) {
                 Text(stringResource(R.string.home_air_from_bedjet), modifier = Modifier.testTag("home-reading-context"),
                     color = tokens.ink3, fontSize = 11.sp)
-                if (reading.mode == Mode.STANDBY) Text(stringResource(R.string.home_idle), color = tokens.ink2,
+                if (sending != null) {
+                    Text("${sending.title}…", modifier = Modifier.testTag("home-sending"), color = sending.color,
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.parity_waiting_bedjet), color = tokens.ink2, fontSize = 11.sp)
+                } else if (reading.mode == Mode.STANDBY) Text(stringResource(R.string.home_idle), color = tokens.ink2,
                     fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(painterResource(modeIcon(reading.mode)), null, Modifier.size(16.dp),
@@ -360,9 +365,9 @@ private fun HomeReading(model: AppViewModel, settings: Settings,
                     Text(modeName(reading.mode) + if (reading.mode.usesTemperature) " " + tempText(reading.targetTemperature, settings.fahrenheit) else "",
                     color = paletteTokens.stepColor(reading.mode, reading.targetTemperature), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
-                if (step != null) Text(stringResource(R.string.parity_fan_step, reading.fanPercent, step.second, step.third),
+                if (sending == null && step != null) Text(stringResource(R.string.parity_fan_step, reading.fanPercent, step.second, step.third),
                     color = tokens.ink2, fontSize = 11.sp)
-                else if (reading.mode.usesFan) Text(stringResource(R.string.timeline_fan, reading.fanPercent),
+                else if (sending == null && reading.mode.usesFan) Text(stringResource(R.string.timeline_fan, reading.fanPercent),
                     color = tokens.ink2, fontSize = 11.sp)
             }
         }

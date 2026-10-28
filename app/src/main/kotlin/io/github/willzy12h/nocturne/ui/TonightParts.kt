@@ -1,6 +1,17 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.foundation.Canvas
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -189,22 +200,53 @@ internal fun modeIcon(mode: Mode): Int = when (mode) {
     else -> R.drawable.ic_nc_off
 }
 
+/** The preset the person tapped, shown as "Heat… / Sending" until the BedJet has taken the command. */
+internal data class PresetSending(val key: String, val title: String, val color: Color)
+
+/** Holds [PresetSending] and clears it once the command queue has drained (or after 15 s if it never started). */
+@Composable
+internal fun rememberPresetSending(model: AppViewModel): MutableState<PresetSending?> {
+    val state = remember { mutableStateOf<PresetSending?>(null) }
+    val owner by model.commandBusy.collectAsState()
+    val busy = owner.runningLabel != null || owner.queuedCount > 0
+    var seenBusy by remember { mutableStateOf(false) }
+    LaunchedEffect(busy, state.value) {
+        if (state.value == null) seenBusy = false
+        else if (busy) seenBusy = true
+        else if (seenBusy) { state.value = null; seenBusy = false }
+    }
+    LaunchedEffect(state.value) { if (state.value != null) { delay(15_000); state.value = null } }
+    return state
+}
+
+/** The design's `.tile .pd`: a small amber dot that pulses while a command is on its way. */
+@Composable
+private fun SendingDot(tag: String) {
+    val alpha = if (rememberMotionAllowed()) rememberInfiniteTransition(label = "pd").animateFloat(1f, .35f,
+        infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pd").value else 1f
+    Box(Modifier.testTag(tag).alpha(alpha)) { Dot(paletteTokens.warn, 7) }
+}
+
 /** One `.tile`: stripe, icon and name on one line, the detail below. */
 @Composable
 private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?, active: Boolean, enabled: Boolean,
-    description: String, tag: String, modifier: Modifier, onClick: () -> Unit) {
-    StripeTile(stripe = stripe, title = title, subtitle = detail ?: " ",
-        level = if (active) TintLevel.ON else TintLevel.TILE, selectedBorder = if (active) stripe else null,
+    description: String, tag: String, modifier: Modifier, sending: Boolean = false, onClick: () -> Unit) {
+    StripeTile(stripe = stripe, title = if (sending) "$title…" else title,
+        subtitle = if (sending) stringResource(R.string.parity_sending) else detail ?: " ",
+        level = if (active || sending) TintLevel.ON else TintLevel.TILE, selectedBorder = if (active) stripe else null,
         titleFontWeight = FontWeight.Bold,
         icon = { Icon(painterResource(icon), null, Modifier.size(16.dp), tint = stripe) },
-        trailing = { if (active) Box(Modifier.testTag(tag.replace("quick-mode-", "quick-active-"))) { Dot(stripe, 7) } },
+        trailing = {
+            if (sending) SendingDot(tag.replace("quick-mode-", "quick-sending-"))
+            else if (active) Box(Modifier.testTag(tag.replace("quick-mode-", "quick-active-"))) { Dot(stripe, 7) }
+        },
         modifier = modifier.heightIn(min = 56.dp).alpha(if (enabled) 1f else .5f).testTag(tag)
             .semantics { contentDescription = description }.clickable(role = Role.Button, onClick = onClick))
 }
 
 /** The design's QUICK PRESETS: three columns of Turbo, Heat, Cool, Dry, Boost and Off. */
 @Composable
-internal fun QuickPresets(model: AppViewModel, guard: NightGuard, onEdit: () -> Unit) {
+internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit) {
     val context = LocalContext.current
     val settings by model.settings.collectAsState()
     val status by model.status.collectAsState()
@@ -221,7 +263,7 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, onEdit: () -> 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY).chunked(3).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, Modifier.weight(1f)) }
+                    row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f)) }
                 }
             }
         }
@@ -234,7 +276,7 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, onEdit: () -> 
 /** One preset; null is Boost. */
 @Composable
 private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?, evidence: DeviceStatus?, canControl: Boolean,
-    modifier: Modifier) {
+    sending: MutableState<PresetSending?>, modifier: Modifier) {
     val context = LocalContext.current
     val settings by model.settings.collectAsState()
     val tokens = paletteTokens
@@ -243,16 +285,22 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
             val startBoost = stringResource(R.string.guard_start_boost)
             PresetTile(BoostColor, R.drawable.ic_nc_ramp, stringResource(R.string.shortcut_boost),
                 stringResource(R.string.boost_label_turbo_then_heat_compact), false, canControl,
-                boostDescription(context, settings.boostMinutes), "quick-mode-BOOST", modifier) {
+                boostDescription(context, settings.boostMinutes), "quick-mode-BOOST", modifier,
+                sending.value?.key == "BOOST") {
                 val captured = model.quickAction(Command.BOOST)
-                guard.confirm(startBoost, captured.temporary) { model.runCaptured(captured.end) }
+                val title = context.getString(R.string.shortcut_boost)
+                guard.confirm(startBoost, captured.temporary) {
+                    sending.value = PresetSending("BOOST", title, BoostColor); model.runCaptured(captured.end)
+                }
             }
         }
         Mode.STANDBY -> {
             val label = stringResource(Format.modeNameRes(Mode.STANDBY))
             PresetTile(tokens.off, R.drawable.ic_nc_off, label, null, evidence?.mode == Mode.STANDBY, canControl,
-                label, "quick-mode-${Mode.STANDBY.name}", modifier) {
-                guard.confirm(context.getString(R.string.guard_turn_off)) { model.run(Command.OFF) }
+                label, "quick-mode-${Mode.STANDBY.name}", modifier, sending.value?.key == Mode.STANDBY.name) {
+                guard.confirm(context.getString(R.string.guard_turn_off)) {
+                    sending.value = PresetSending(Mode.STANDBY.name, label, tokens.off); model.run(Command.OFF)
+                }
             }
         }
         else -> {
@@ -266,9 +314,12 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
             }
             PresetTile(tokens.stepColor(mode, preset.temperature), modeIcon(mode), label, detail, quickMatches(evidence, preset),
                 canControl, if (valid) presetDetail(context, preset, settings.fahrenheit) else stringResource(R.string.uat_quick_invalid),
-                "quick-mode-${mode.name}", modifier) {
+                "quick-mode-${mode.name}", modifier, sending.value?.key == mode.name) {
                 val captured = captureModeQuick(model, preset)
-                guard.confirm(context.getString(R.string.guard_switch_to, label), captured.temporary) { model.runCaptured(captured.end) }
+                val color = tokens.stepColor(mode, preset.temperature)
+                guard.confirm(context.getString(R.string.guard_switch_to, label), captured.temporary) {
+                    sending.value = PresetSending(mode.name, label, color); model.runCaptured(captured.end)
+                }
             }
         }
     }

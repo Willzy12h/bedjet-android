@@ -24,4 +24,6 @@
     <string name="parity_change_wake">Change wake</string>
     <string name="parity_end_night">End night</string>
     <string name="parity_show_detail">Show the night in detail</string>
+    <string name="parity_sending">Sending</string>
+    <string name="parity_waiting_bedjet">Waiting for the BedJet</string>
 </resources>

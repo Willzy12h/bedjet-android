@@ -194,7 +194,7 @@ class UatLayoutAndSetupTest {
             NocturneTheme(settings, model.now()) { TonightScreen(model, Modifier, onEdit = {}) }
         }
         compose.onNodeWithTag("quick-controls").performScrollTo()
-        val tags = (QuickDefaults.modes + Mode.STANDBY).map { "quick-mode-${it.name}" }
+        val tags = listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST", "STANDBY").map { "quick-mode-$it" }
         val before = tags.associateWith { compose.onNodeWithTag(it).getUnclippedBoundsInRoot() }
         compose.onNodeWithTag("busy-overlay").assertDoesNotExist()
         val busy = ReflectionHelpers.getField<MutableStateFlow<Boolean>>(model, "_busy")
