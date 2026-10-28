@@ -104,7 +104,8 @@
     <string name="cooldown_offer_phase_temp">%1$s · %2$s · %3$s · fan %4$d%%</string>
     <string name="cooldown_offer_phase_fan">%1$s · %2$s · fan %3$d%%</string>
     <string name="cooldown_offer_phase_simple">%1$s · %2$s</string>
-    <string name="settings_source_code">Source code on GitHub</string>
+    <string name="settings_source_code">Nocturne on GitHub</string>
+    <string name="settings_source_code_detail">Project page and downloads</string>
     <string name="settings_source_url" translatable="false">https://github.com/Willzy12h/bedjet-android</string>
     <string name="settings_source_unavailable">Could not open a browser.</string>
     <plurals name="history_issues">

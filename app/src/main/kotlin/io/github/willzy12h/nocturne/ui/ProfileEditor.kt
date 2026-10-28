@@ -182,7 +182,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         stringResource(R.string.profiles_quiet_middle_short, stringResource(R.string.fan_shape_quiet), it.settle, it.asleep, it.rise)
                     } ?: stringResource(if (middle.fanShape == FanShape.STEADY) R.string.fan_shape_steady else R.string.fan_shape_ease)
                     StripeTile(stripe = paletteTokens.stepColor(middle.mode, middle.tempStart),
-                        title = title, subtitle = listOf(fan, stringResource(R.string.editor_steps, middle.rampSteps)).joinToString(" · "),
+                        title = title, level = TintLevel.STEP, subtitle = listOf(fan, stringResource(R.string.editor_steps, middle.rampSteps)).joinToString(" · "),
                         modifier = Modifier.fillMaxWidth().testTag("editor-middle-summary").clickable { middleOpen = true },
                         trailing = { Icon(Icons.Default.ExpandMore, null) })
                 }
@@ -350,6 +350,7 @@ private fun PhaseList(block: Block, hint: String, phases: List<Phase>, f: Boolea
                     stripe = paletteTokens.stepColor(phase.mode, effectiveTemperature),
                     title = modeName(phase.mode),
                     subtitle = detail,
+                    level = TintLevel.STEP,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("editor-phase-${block.name}-$index")
                         .bringIntoViewRequester(requester)
                         .combinedClickable(role = Role.Button, onClickLabel = editLabel, onLongClickLabel = editLabel,

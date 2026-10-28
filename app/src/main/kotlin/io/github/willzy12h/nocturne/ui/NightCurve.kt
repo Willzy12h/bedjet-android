@@ -315,7 +315,7 @@ private fun TimelineRow(time: String, dot: Color, title: String, detail: String?
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val editLabel = stringResource(R.string.ux_edit_phase)
     // One node for TalkBack: "23:10, Cool, easing off, 7 h · fan 75% → 40%".
-    StripeTile(stripe = dot, title = title, subtitle = detail, titleColor = titleColor,
+    StripeTile(stripe = dot, title = title, subtitle = detail, titleColor = titleColor, level = TintLevel.STEP,
         titleFontWeight = if (bold) FontWeight.SemiBold else null, modifier = Modifier.fillMaxWidth()
         .then(if (onEdit == null) Modifier else Modifier.combinedClickable(role = Role.Button,
             onClickLabel = editLabel, onLongClickLabel = editLabel, onClick = onEdit, onLongClick = onEdit))

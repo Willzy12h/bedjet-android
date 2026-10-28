@@ -1,7 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -92,8 +91,9 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                     stripe = tokens.stepColor(profile.middle.mode, profile.middle.tempStart),
                     title = profile.name,
                     subtitle = null,
-                    modifier = Modifier.fillMaxWidth().testTag("profile-card-${profile.id}")
-                        .then(if (selected) Modifier.border(1.dp, tokens.accent, RoundedCornerShape(12.dp)) else Modifier),
+                    modifier = Modifier.fillMaxWidth().testTag("profile-card-${profile.id}"),
+                    level = TintLevel.PROFILE,
+                    selectedBorder = tokens.accent.takeIf { selected },
                     headerModifier = Modifier.heightIn(min = 48.dp).testTag("profile-open-${profile.id}")
                         .clickable(role = Role.Button) { onEdit(profile) },
                     trailing = if (selected) ({ Text(stringResource(R.string.profiles_tonight),
@@ -116,7 +116,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                             TextButton(onClick = { more = true }) { Text(stringResource(R.string.recovery_more)) }
                             DropdownMenu(expanded = more, onDismissRequest = { more = false },
                                 modifier = Modifier.testTag("profile-menu"),
-                                containerColor = tokens.menu, border = BorderStroke(1.dp, tokens.hairline)) {
+                                containerColor = tokens.menu, border = BorderStroke(1.dp, tokens.outline)) {
                                 DropdownMenuItem(text = { Text(stringResource(R.string.pin_menu), color = tokens.ink) }, onClick = {
                                     more = false
                                     val at = model.now()

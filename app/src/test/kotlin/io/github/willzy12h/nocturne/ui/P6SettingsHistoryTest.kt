@@ -39,7 +39,7 @@ class P6SettingsHistoryTest {
     @Test fun sourceCodeRowOpensTheExactRepositoryInBrowser() {
         ui.tab("Settings")
         ui.compose.openSettingsPage("about")
-        ui.control("Source code on GitHub").performClick()
+        ui.control("Nocturne on GitHub").performClick()
         val intent = shadowOf(ui.compose.activity).nextStartedActivity
         assertEquals(Intent.ACTION_VIEW, intent.action)
         assertEquals("https://github.com/Willzy12h/bedjet-android", intent.dataString)

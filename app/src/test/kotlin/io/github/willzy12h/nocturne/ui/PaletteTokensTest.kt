@@ -38,6 +38,31 @@ class PaletteTokensTest {
         }
     }
 
+    // RECONCILIATION R7, R8, R9 and R2: the design's values.
+    @Test
+    fun darkPalettesUseTheDesignMenuAndErrorColours() {
+        Palette.entries.filter { it.dark }.forEach {
+            assertEquals(it.name, Color(0xFF232740), it.tokens.menu)
+            assertEquals(it.name, Color(0xFFFF9B91), it.tokens.bad)
+            assertEquals(it.name, null, it.tokens.edge)
+            assertTrue("${it.name} bad on ground", contrast(it.tokens.bad, it.tokens.ground) >= 4.5)
+        }
+    }
+
+    @Test
+    fun overcastSplitsDividerHairlineFromTileEdge() {
+        val t = Palette.OVERCAST.tokens
+        assertEquals(Color(0x1F14171D), t.hairline)
+        assertEquals(Color(0xFFAAB0BA), t.edge)
+        assertEquals(t.edge, t.outline)
+    }
+
+    @Test
+    fun tintStrengthsFollowTheDesign() {
+        assertEquals(listOf(0.10f, 0.24f, 0.09f, 0.08f), TintLevel.entries.map { it.alpha })
+        Palette.entries.forEach { assertEquals(0.10f, it.tokens.tint(it.tokens.cool).alpha, 0.005f) }
+    }
+
     private fun luminance(c: Color): Double {
         fun ch(v: Float) = if (v <= 0.03928f) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
         return 0.2126 * ch(c.red) + 0.7152 * ch(c.green) + 0.0722 * ch(c.blue)

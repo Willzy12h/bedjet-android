@@ -103,7 +103,7 @@ internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: Ni
                         else duration
                     }
                     StripeTile(stripe = tokens.stepColor(mode, preset?.temperature ?: 0), title = label,
-                        subtitle = subtitle,
+                        subtitle = subtitle, level = if (active) TintLevel.ON else TintLevel.TILE,
                         icon = { Icon(quickModeIcon(mode), contentDescription = null, modifier = Modifier.size(16.dp),
                             tint = tokens.stepColor(mode, preset?.temperature ?: 0)) },
                         trailing = { if (active) ActiveIndicator(tokens.stepColor(mode, preset?.temperature ?: 0), true,

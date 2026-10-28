@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -30,12 +31,20 @@ internal fun StripeTile(
     trailing: @Composable (() -> Unit)? = null,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     titleFontWeight: FontWeight? = null,
+    level: TintLevel = TintLevel.TILE,
+    /** A selected or running tile's 1.5dp border: the stripe colour, or the accent for a profile card. */
+    selectedBorder: Color? = null,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     val shape = RoundedCornerShape(12.dp)
     val tokens = paletteTokens
     Column(
-        modifier.clip(shape).background(tokens.surface).sideStripe(stripe, tokens)
+        modifier.clip(shape).background(tokens.surface).sideStripe(stripe, tokens, level = level)
+            .then(when {
+                selectedBorder != null -> Modifier.border(1.5.dp, selectedBorder, shape)
+                tokens.edge != null -> Modifier.border(1.dp, tokens.edge, shape)
+                else -> Modifier
+            })
             .heightIn(min = 48.dp).padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {

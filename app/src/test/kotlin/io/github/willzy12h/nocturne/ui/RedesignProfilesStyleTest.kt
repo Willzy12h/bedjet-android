@@ -60,12 +60,12 @@ class RedesignProfilesStyleTest {
             val pixel = Color(pixels.getPixel(x, y))
             if (close(pixel, tokens.menu)) background++
             if (close(pixel, tokens.ink)) ink++
-            if (close(pixel, tokens.hairline)) border++
+            if (close(pixel, tokens.outline)) border++
         }
         pixels.recycle()
         assertTrue("Menu must render its palette background", background > 100)
         assertTrue("Menu labels must render in palette ink", ink > 5)
-        assertTrue("Menu must render a palette hairline border", border > 5)
+        assertTrue("Menu must render the palette edge border", border > 5)
     }
 
     @Test fun tappingProfileHeaderOpensExistingEditor() {

@@ -71,7 +71,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
             val checkedIn = night.events.any { it.kind == EventKind.MORNING_FEEDBACK }
             val availableSuggestion = if (checkedIn) model.morningCheckIn(night.id)?.suggestion else suggestion
             Card(Modifier.fillMaxWidth().clickable { open = !open }, shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = tokens.surface), border = BorderStroke(1.dp, tokens.hairline)) {
+                colors = CardDefaults.cardColors(containerColor = tokens.surface), border = BorderStroke(1.dp, tokens.outline)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val day = runCatching { ZonedDateTime.parse(night.startedAt).format(DateTimeFormatter.ofPattern("EEE d MMM")) }.getOrDefault("")
                     Text("$day · ${night.profileName}", style = MaterialTheme.typography.titleMedium)
