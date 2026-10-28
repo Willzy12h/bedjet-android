@@ -1,7 +1,9 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,13 +36,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,7 +79,8 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0, alarmsRequest: Int = 0) {
+fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0, alarmsRequest: Int = 0,
+    onBackupsRequestHandled: (Int) -> Unit = {}, onAlarmsRequestHandled: (Int) -> Unit = {}) {
     val settings by model.settings.collectAsState()
     val selectedName by model.selectedBedJetName.collectAsState()
     val snapshots by model.snapshots.collectAsState()
@@ -85,10 +91,18 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val unreadable by model.unreadable.collectAsState()
     val restoreUnfinished by model.restoreUnfinished.collectAsState()
     val originalsBlocked by model.originalsBlocked.collectAsState()
+    var page by rememberSaveable { mutableStateOf("home") }
+    BackHandler(enabled = page != "home") { page = "home" }
     val backups = remember { BringIntoViewRequester() }
-    LaunchedEffect(backupsRequest) { if (backupsRequest > 0) { delay(100); backups.bringIntoView() } }
+    LaunchedEffect(backupsRequest) { if (backupsRequest > 0) {
+        try { page = "backups"; withFrameNanos { }; backups.bringIntoView() }
+        finally { onBackupsRequestHandled(backupsRequest) }
+    } }
     val alarms = remember { BringIntoViewRequester() }
-    LaunchedEffect(alarmsRequest) { if (alarmsRequest > 0) { delay(100); alarms.bringIntoView() } }
+    LaunchedEffect(alarmsRequest) { if (alarmsRequest > 0) {
+        try { page = "night"; withFrameNanos { }; alarms.bringIntoView() }
+        finally { onAlarmsRequestHandled(alarmsRequest) }
+    } }
     val alarm by model.nextAlarm.collectAsState()
     val alarmCheck by model.alarmCheck.collectAsState()
     val f = settings.fahrenheit
@@ -108,6 +122,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     var restoringSlot by remember { mutableStateOf<SlotBackup?>(null) }
     var snapshotLabel by remember { mutableStateOf("") }
     var quickDefaultsOpen by remember { mutableStateOf(false) }
+    var licencesOpen by remember { mutableStateOf(false) }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
     val diagnostics = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::exportDiagnostics) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
@@ -127,10 +142,12 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     var settingsViewportHeight by remember { mutableStateOf(0) }
     Column(modifier.fillMaxSize().onSizeChanged { settingsViewportHeight = it.height }.verticalScroll(settingsScroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
-        OutlinedButton(onClick = model::openSetupChecklist, modifier = Modifier.testTag("open-setup-checklist")) {
+        if (page == "home") SettingsHome { page = it }
+        else TextButton(onClick = { page = "home" }, modifier = Modifier.testTag("settings-back")) { Text(stringResource(R.string.settings_nav_back)) }
+        if (page == "permissions") OutlinedButton(onClick = model::openSetupChecklist, modifier = Modifier.testTag("open-setup-checklist")) {
             Text(stringResource(R.string.uat_setup_title))
         }
-        OutlinedButton(onClick = { quickDefaultsOpen = true }, modifier = Modifier.testTag("open-quick-defaults")) {
+        if (page == "bedjet") OutlinedButton(onClick = { quickDefaultsOpen = true }, modifier = Modifier.testTag("open-quick-defaults")) {
             Text(stringResource(R.string.uat_quick_defaults))
         }
         if (quickDefaultsOpen) AlertDialog(onDismissRequest = { quickDefaultsOpen = false },
@@ -139,7 +156,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 QuickDefaultsSection(model, settings)
             } }, confirmButton = { TextButton(onClick = { quickDefaultsOpen = false }) { Text(stringResource(R.string.uat_setup_done)) } })
 
-        Group(stringResource(R.string.settings_appearance)) {
+        if (page == "appearance") Group(stringResource(R.string.settings_appearance)) {
             Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeMode.entries.forEach { mode ->
@@ -165,12 +182,13 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 if (!settings.isDarkTheme(model.now(), systemDark)) chooseAppearance(settings.copy(dayPalette = palette))
                 else saveAppearance(settings.copy(dayPalette = palette))
             }
+            SwitchRow(stringResource(R.string.settings_show_f), null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
             SwitchRow(stringResource(R.string.settings_simple_view), stringResource(R.string.settings_simple_view_help), settings.simpleView) { on ->
                 model.updateSettings { it.copy(simpleView = on) }
             }
         }
 
-        Group(stringResource(R.string.settings_bedjet)) {
+        if (page == "bedjet") Group(stringResource(R.string.settings_bedjet)) {
             Text(stringResource(R.string.settings_connected_unit, if (settings.demoMode) stringResource(R.string.status_demo_device) else selectedName ?: stringResource(R.string.settings_none_yet)), style = MaterialTheme.typography.bodyMedium)
             DeviceControls(model, settingsScroll, settingsViewportHeight)
             DemoModePanel(model, showBanner = false)
@@ -190,14 +208,13 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                     TextButton(onClick = { restoringSlot = backup }) { Text(stringResource(R.string.settings_preview_put_back)) }
                 }
             }
-            SwitchRow(stringResource(R.string.settings_show_f), null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
             Text(stringResource(R.string.ux_release_help), style = MaterialTheme.typography.bodySmall)
             PhoneHandoverMenuItems(model.graph, onOutcome = model::report, asSettings = true) { }
             OutlinedButton(onClick = model::forgetBedJet) { Text(stringResource(R.string.settings_forget)) }
         }
 
         if (fromBackup.isNotEmpty()) {
-            Group(stringResource(R.string.settings_backup_originals_title)) {
+            if (page == "bedjet") Group(stringResource(R.string.settings_backup_originals_title)) {
                 Text(stringResource(R.string.settings_backup_originals_help), style = MaterialTheme.typography.bodySmall)
                 // Imported unknown/legacy originals must never be silently assigned to the selected BedJet.
                 // Keep these records read-only; matching originals use the existing guarded confirmation above.
@@ -222,7 +239,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             }
         }
 
-        Group(stringResource(R.string.settings_wake_notification)) {
+        if (page == "notifications") Group(stringResource(R.string.settings_wake_notification)) {
             Text(stringResource(R.string.settings_wake_buttons_help), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WakeAction.entries.forEach { action ->
@@ -251,7 +268,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)))
         }
 
-        Group(stringResource(R.string.settings_alarms), Modifier.bringIntoViewRequester(alarms)) {
+        if (page == "night") Group(stringResource(R.string.settings_alarms), Modifier.bringIntoViewRequester(alarms)) {
             val next = alarm
             Text(
                 if (next == null) stringResource(R.string.settings_no_alarm)
@@ -279,18 +296,19 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 modifier = Modifier.testTag("alarm-check-result")) }
         }
 
-        Group(stringResource(R.string.short_test_title)) {
+        if (page == "night") Group(stringResource(R.string.short_test_title)) {
             ShortTestControls(model)
         }
 
-        Group(stringResource(R.string.settings_phone_setup)) {
+        if (page == "permissions") Group(stringResource(R.string.settings_phone_setup)) {
             SetupChecks(showAll = true)
             SetupFlow(model, showDemoChoice = false)
         }
 
-        PlatformSettingsSection(model.graph)
+        if (page == "night") PlatformSettingsSection(model.graph)
+        if (page == "health") PlatformSettingsSection(model.graph, healthOnly = true)
 
-        Group(stringResource(R.string.settings_backups), Modifier.bringIntoViewRequester(backups)) {
+        if (page == "backups") Group(stringResource(R.string.settings_backups), Modifier.bringIntoViewRequester(backups)) {
             // The same calm banner as Tonight; the snapshots to restore from are listed just below it.
             UnreadableDataBanner(UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked),
                 onDismiss = model::dismissUnreadable, onRestore = null, onAcceptLoss = model::acceptLostOriginals)
@@ -318,20 +336,20 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             }
         }
 
-        Group(stringResource(R.string.settings_diagnostics_title)) {
+        if (page == "about") Group(stringResource(R.string.settings_diagnostics_title)) {
             Text(stringResource(R.string.settings_diagnostics_help), style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { diagnostics.launch("nocturne-diagnostics-${model.now().toLocalDate()}.json") }) {
                 Text(stringResource(R.string.settings_diagnostics_export))
             }
         }
 
-        Group(stringResource(R.string.settings_updates)) {
+        if (page == "about") Group(stringResource(R.string.settings_updates)) {
             OutlinedButton(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android/releases") }) {
                 Text(stringResource(R.string.settings_github_releases))
             }
         }
 
-        Group(stringResource(R.string.settings_notice_log)) {
+        if (page == "notifications") Group(stringResource(R.string.settings_notice_log)) {
             val notices by model.notices.collectAsState()
             var showAll by remember { mutableStateOf(false) }
             if (notices.isEmpty()) Text(stringResource(R.string.settings_notice_log_empty), style = MaterialTheme.typography.bodySmall)
@@ -347,7 +365,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             }
         }
 
-        Group(stringResource(R.string.settings_about)) {
+        if (page == "about") Group(stringResource(R.string.settings_about)) {
             Text(stringResource(R.string.settings_about_description), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.settings_about_unaffiliated), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodySmall)
@@ -355,7 +373,17 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 Text(stringResource(R.string.settings_source_code))
             }
             Text(stringResource(R.string.settings_protocol_attribution), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { licencesOpen = true }) { Text(stringResource(R.string.settings_licences)) }
         }
+    }
+
+    if (licencesOpen) {
+        val licences = stringResource(R.string.font_licences_text)
+        AlertDialog(onDismissRequest = { licencesOpen = false },
+            title = { Text(stringResource(R.string.settings_licences)) },
+            text = { Text(licences, modifier = Modifier.verticalScroll(rememberScrollState()),
+                style = MaterialTheme.typography.bodySmall) },
+            confirmButton = { TextButton(onClick = { licencesOpen = false }) { Text(stringResource(R.string.uat_setup_done)) } })
     }
 
     importPreview?.let { preview ->
@@ -385,6 +413,40 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             confirmButton = { TextButton(onClick = { model.restoreSlot(backup); restoringSlot = null }) { Text(stringResource(R.string.settings_put_original_back)) } },
             dismissButton = { TextButton(onClick = { restoringSlot = null }) { Text(stringResource(R.string.feature_cancel)) } },
         )
+    }
+}
+
+private data class SettingsDestination(val id: String, @StringRes val label: Int, @StringRes val subtitle: Int)
+
+@Composable
+private fun SettingsHome(open: (String) -> Unit) {
+    val groups = listOf(
+        listOf(SettingsDestination("bedjet", R.string.settings_nav_bedjet, R.string.settings_nav_bedjet_detail)),
+        listOf(SettingsDestination("night", R.string.settings_nav_night, R.string.settings_nav_night_detail),
+            SettingsDestination("appearance", R.string.settings_nav_appearance, R.string.settings_nav_appearance_detail),
+            SettingsDestination("permissions", R.string.settings_nav_permissions, R.string.settings_nav_permissions_detail)),
+        listOf(SettingsDestination("backups", R.string.settings_nav_backups, R.string.settings_nav_backups_detail),
+            SettingsDestination("notifications", R.string.settings_nav_notifications, R.string.settings_nav_notifications_detail),
+            SettingsDestination("health", R.string.settings_nav_health, R.string.settings_nav_health_detail)),
+        listOf(SettingsDestination("about", R.string.settings_nav_about, R.string.settings_nav_about_detail)),
+    )
+    groups.forEach { group ->
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = paletteTokens.surface),
+            border = BorderStroke(1.dp, paletteTokens.hairline)) {
+            group.forEach { destination ->
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("settings-page-${destination.id}")
+                    .clickable(role = Role.Button) { open(destination.id) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(destination.label), style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(destination.subtitle), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(stringResource(R.string.settings_nav_chevron), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
     }
 }
 

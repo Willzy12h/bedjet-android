@@ -67,6 +67,7 @@ class SetupRouteTest {
 
     @Test fun settingsPhoneSetupHasSamsungBatteryGuidance() {
         compose.onAllNodesWithText("Settings")[0].performClick()
+        compose.openSettingsPage("permissions")
         compose.onNodeWithText(s(R.string.setup_samsung_title)).performScrollTo().performClick()
         compose.onNodeWithText(s(R.string.setup_samsung_help)).assertExists()
     }

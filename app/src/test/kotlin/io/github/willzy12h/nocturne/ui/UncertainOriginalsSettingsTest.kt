@@ -62,6 +62,7 @@ class UncertainOriginalsSettingsTest {
         } }
         compose.waitForIdle()
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("bedjet")
         compose.onNode(hasText("Saved original", substring = true)).performScrollTo().assertIsDisplayed()
     }
 

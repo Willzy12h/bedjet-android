@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne
 
+import io.github.willzy12h.nocturne.ui.openSettingsPage
+
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
@@ -155,18 +157,21 @@ class AppSmokeTest {
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("Nights you run appear here, with every change made during them.").assertIsDisplayed()
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("backups")
         compose.onNodeWithText("Backups and snapshots").performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun handoverIsReachableWhileIdle() {
         compose.onNodeWithText(s(R.string.tab_settings)).performClick()
+        compose.openSettingsPage("bedjet")
         compose.onNodeWithText(s(R.string.feature_release)).performScrollTo().assertIsDisplayed()
     }
 
     @Test
     fun platformSettingsAndHistoryExportAreReachableFromTabs() {
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("night")
         compose.onNodeWithText("Bedtime reminder").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("Export history CSV").assertIsDisplayed()

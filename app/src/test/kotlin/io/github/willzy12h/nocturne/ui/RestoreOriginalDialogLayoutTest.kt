@@ -48,6 +48,7 @@ class RestoreOriginalDialogLayoutTest(look: U06Look) {
 
     @Test fun everyOriginalStepAndTheCompleteWarningAreReachableWithBothActionsVisible() {
         ui.tab("Settings")
+        ui.compose.openSettingsPage("bedjet")
         ui.control(ui.s(R.string.settings_preview_put_back)).performClick()
 
         val finalStep = dialogText(ui.s(R.string.settings_slot_step, 32, "Heat", 30, "1 min"))

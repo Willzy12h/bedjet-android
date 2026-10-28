@@ -78,6 +78,7 @@ class RemoteReconnectPresentationTest {
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsNotEnabled()
         compose.onNodeWithContentDescription("Temperature").performScrollTo().assertIsNotEnabled()
         compose.onNode(hasText("Settings") and hasClickAction()).performClick()
+        compose.onNodeWithTag("settings-page-bedjet").performScrollTo().performClick()
         switch("Lights").performScrollTo().assertIsDisplayed().assertIsOn().assertIsNotEnabled()
         assertTrue(link.writes.isEmpty())
     }
@@ -93,6 +94,7 @@ class RemoteReconnectPresentationTest {
         compose.onNodeWithTag("status-connection").assertTextEquals("Demo")
         assertEquals(LinkState.READY, model.linkState.value)
         compose.onNode(hasText("Settings") and hasClickAction()).performClick()
+        compose.onNodeWithTag("settings-page-bedjet").performScrollTo().performClick()
         switch("Lights").performScrollTo().assertIsNotEnabled()
         compose.runOnUiThread { link.publish(temperature = 60, led = false) }
         waitUntil { model.hasLiveStatus.value && model.status.value?.extra?.ledEnabled == false }

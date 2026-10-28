@@ -10,8 +10,8 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
 - [x] P4: Profile editor, step editor and fan shapes — `9c1f682d25a20be48b0333048a0daf8213b1c03c`
 - [x] P5: Cooldown — `0dcf66c9abb2867933736c1e2e1a222696853d2a`
 - [x] P6: Guided setup, Help and about, Settings and History — `4a661f2c7c4dea53bd288886698366e65ce8cf75`
-- [x] P7: Widgets v2 — this phase commit (hash recorded in the next phase)
-- [ ] P8: Polish and audit
+- [x] P7: Widgets v2 — `bc6882ce908563a2a58b536c0fc0ffd9c39e82f7`
+- [x] P8: Polish and audit — phase commit recorded in Final handover
 - [ ] Final: clean verification, debug APK and handover
 
 ## Assumptions
@@ -42,16 +42,17 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
   pair has large text. Small action/error labels use ink instead of low-contrast accent colours.
   These can be restyled during review while retaining the rendered contrast checks.
 - The design omits the functioning Remote tab and the saved Tonight section order/collapse
-  controls. They remain available. Quick controls retain their established position above the
-  reorderable sections. The existing immediate Start action keeps its truthful “Start night now”
+  controls. They remain available. P8 places Quick controls immediately after the Night section,
+  following the design while preserving the saved order of Night, Wake and Connection. The existing immediate Start action keeps its truthful “Start night now”
   label; the mock's future-start wording is not mapped to an immediate command. Review can
   change these layout choices separately from the command and schedule behaviour.
 - Git CLI publication has no interactive credentials in this environment. Phase commits are
   published through the connected GitHub service with the expected parent SHA and no force.
   Each resulting source tree is compared with the checked local tree before advancing the
   local branch to that same commit. No signing or release configuration changes are needed.
-- Existing saved Turbo chains keep their actual stored duration and temperature when opened;
-  selecting Turbo for another phase sets 10 minutes / 43°C and exposes no sliders. This avoids
+- Existing saved Turbo chains keep their stored duration and temperature data when opened;
+  P8 displays their effective compiled Turbo temperature of 43°C / 109°F.
+  Selecting Turbo for another phase sets 10 minutes / 43°C and exposes no sliders. This avoids
   silently shortening a previously saved chain. The existing chain policy and compiler remain
   intact. Review can introduce an explicit migration if legacy chains should change.
 - The applied plan carries no fan-shape metadata. Quiet middle timeline labels use the captured
@@ -82,6 +83,14 @@ Work in progress. Base: `claude/nocturne-redesign-foundation` at
   its stripe describes the captured preset, with a neutral Off stripe or accent for
   actions without a preset. It does not indicate a confirmed BedJet state. The existing
   status/receipt labels and refresh cadence remain authoritative.
+
+- P8 uses the supplied Figtree/Bricolage font assets, with Latin/Latin Extended glyphs and
+  platform fallback for other scripts. To change this, replace the font resources and the
+  role assignments in `Theme.kt`; retain the attribution notices and contrast/layout checks.
+- Settings subtitles describe the available functions instead of claiming live connection or
+  permission state. The eight destinations follow the design while grouping existing controls.
+  Review can change `SettingsHome` and the page groups in `SettingsScreen.kt` without changing
+  their command owners.
 
 ## Verification and APK
 
@@ -571,6 +580,9 @@ Pending. Toolchain restored into temporary build storage; no signing changes.
 
 - All unticked phases remain outstanding.
 - No on-device, BedJet hardware, Samsung or TalkBack verification.
+- The backup schema/strict-parser compatibility policy remains for Claude’s review, as the
+  brief requires. Older backups load with defaults in the new app; older app versions may
+  refuse newer backup fields. No schema or parser change is included.
 - User-reported observation on 28 October 2026: the installed build used 0.1% battery
   overnight, recorded 23 minutes of background activity and worked as expected. The
   installed build/version was not specified. This is useful evidence for preserving the
@@ -585,3 +597,197 @@ No protected foundation changes: `QuietFan`, `FanShape`, `shiftFan`, compiler sp
 The backup schema, codec and strict parser are unchanged. The required Hot Sleeper preset
 and defaulted Cooldown-answer setting are recorded in P4 and P5; neither rewrites those
 protected implementations.
+
+
+## P8: polish and audit
+
+- Settings now has the design’s eight destinations in four cards. Existing device, alarm,
+  notification, backup, setup, Health Connect and diagnostic controls remain on those pages.
+  Page selection survives recreation; alarm/backup navigation requests are consumed after
+  routing so an old request cannot reopen a page when returning to Settings.
+- Home places Quick controls immediately after the Night section while preserving saved
+  section order/collapse and its truthful immediate Start action. The live reading uses
+  the design’s bold display style, with a smaller large-text size to remain readable.
+- Profile editing opens phase and Through the night controls in palette-coloured sheets.
+  The phase overview comes before the name, season, timing and limit controls. Existing
+  sliders, limits, draft, discard, Save, current-night confirmation and Turbo chaining remain.
+  Legacy Turbo displays its effective 43°C / 109°F without changing stored data.
+- Figtree and Bricolage Grotesque are bundled as static Android fonts from the supplied
+  reference. `fonts/README.md` records provenance, conversion, coverage and checksums;
+  exact upstream OFL notices are available through Settings → Help and about → Licences.
+  Exact attribution text is packaged in `strings.xml` as a non-translatable resource;
+  `P8TypographyTest` verifies it matches the two upstream OFL notices byte for byte.
+- Long feedback uses a bounded, scrollable area and a labelled 48dp dismiss control;
+  shorter messages retain Material’s compact layout. Full text and the host’s polite live
+  region remain available. This fixes alarm feedback taking the whole small-screen viewport.
+- The obsolete fixed Daylight schedule wording and unused Gentle heat resource are removed.
+  Old Daylight scheme aliases are replaced by direct Overcast token references in tests.
+  Source-audit dispositions and visual-review status are tracked in `P8-AUDIT.md`.
+- New profile creation moves to the Profiles header, preserving the preset chooser and
+  eliminating the floating button’s overlap with list content. At large text, long unavailable
+  temperature labels get the header’s full width; short live readings keep the compact row.
+
+### P8 test evidence and navigation changes
+
+Observed RED before implementation: missing editor stripe, legacy Turbo displaying its stored
+30°C rather than effective 43°C; missing Settings destinations/deep links; default Material
+fonts and Home ordering/type size; inline editor controls and wrong overview order; missing
+licence entry and obsolete schedule wording; replayed Settings navigation; missing Middle
+summary values; mid-word large-header wrapping; New profile button below the offer.
+
+The new tests are `P8LegacyTurboDisplayTest`, `P8EditorStripeTest`, `P8SettingsNavigationTest`,
+`P8TypographyTest`, `P8HomeLayoutTest`, `P8EditorSheetsTest`, `P8ConsumedSettingsRequestTest`,
+`P8MiddleSummaryTest`, `P8StatusHeaderLargeTextTest`, `P8ProfilesHeaderTest` and
+`P8SnackbarLayoutTest`. The latter observed the underlying Recheck action becoming unreachable
+while a long message was visible; existing U06 checks also caught the short-message wrapping
+regression during the fix.
+`P8CaptureTest` adds opt-in host captures for editor sheets, setup, all Settings pages,
+populated History and actual Glance-rendered widget views in both palettes.
+
+The existing navigation tests now enter the relevant Settings page and editor sheet before
+checking the same feature. U06’s simultaneous inline slider count is checked by sheet instead:
+three controls for each of three phases, five Middle controls and four range thumbs; every
+original numeric value, spoken unit and adjustment assertion remains. Profile Edit still uses
+real pointer injection and checks that it does not open the New profile chooser.
+
+A temporary diagnostic compared real touch with semantic actions under both Robolectric
+renderers. With bundled fonts, legacy rendering produced incorrect text bounds and missed the
+sheet’s real touch; native rendering correctly handled that same touch. The affected editor
+and alarm tests now use native graphics, retaining the interaction assertions. The diagnostic
+was removed after use. This is host test evidence, not an on-device result.
+
+The corrected native captures cover all eight requested areas in both palettes; see
+`P8-AUDIT.md` for the reviewed states and limitations. The repository uses opt-in capture
+tests, not approved pixel goldens; no golden baseline was weakened or replaced.
+The full P8 gate passed; final capture regeneration uses the same tested source.
+
+### P8 changed files and test-class inventory
+
+All P8 source, resource, test and documentation changes at the phase gate:
+
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/AppViewModel.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/MainActivity.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ProfileEditor.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/ProfilesScreen.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SettingsScreen.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/StatusHeader.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/Theme.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightScreen.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/TonightSections.kt`
+- `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/features/FeatureSections.kt`
+- `app/src/main/res/font/bricolage_bold.ttf`
+- `app/src/main/res/font/figtree_bold.ttf`
+- `app/src/main/res/font/figtree_medium.ttf`
+- `app/src/main/res/font/figtree_regular.ttf`
+- `app/src/main/res/font/figtree_semibold.ttf`
+- `app/src/main/res/values/strings.xml`
+- `app/src/main/res/values/strings_ui.xml`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/AppSmokeTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/AppearanceTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ScreenshotCapture.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/platform/FeatureUiTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/platform/HealthReadDemoBoundaryTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/AccessibilitySemanticsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ActiveIndicatorTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/AlarmAndShortTestSettingsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/AlarmSettingsNavigationTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/BackupOriginalsSettingsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/DaylightHeatPaletteTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/DiagnosticsDisclosureTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/FinalRemoteLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/FinalSettingsCleanupTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/FinalThemeAcceptanceTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ImportPreviewUiTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ImportedPresetRoleSettingsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ImportedTemporaryDurationTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/LightThemeConfirmationTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/MoreReleasePlacementTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/NightTimelineLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P4EditorBehaviourTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P6SettingsHistoryTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8CaptureTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8ConsumedSettingsRequestTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8EditorSheetsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8EditorStripeTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8HomeLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8LegacyTurboDisplayTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8MiddleSummaryTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8ProfilesHeaderTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8SettingsNavigationTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8SnackbarLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8StatusHeaderLargeTextTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/P8TypographyTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ProfileEditorInteractionTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ProfilesEditHitTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/RedesignPaletteConsentTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/RedesignPalettePickerTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/RedesignProfilesStyleTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/RemoteAccessorySwitchTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/RemoteReconnectPresentationTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/RestoreOriginalDialogLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ScheduledThemeHeldOpenTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/SettingsBoostCopyTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/SettingsControlsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/SettingsTestNavigation.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/SetupRouteTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/ThemeDemoIsolationTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/TonightLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/U06ControlSemanticsTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/U06PrimaryLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/U06RecoveryLayoutTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/UatLayoutAndSetupTest.kt`
+- `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/UncertainOriginalsSettingsTest.kt`
+- `docs/redesign/BUG-LOG.md`
+- `docs/redesign/GPT-HANDOVER.md`
+- `docs/redesign/P8-AUDIT.md`
+- `docs/redesign/fonts/BRICOLAGE-OFL.txt`
+- `docs/redesign/fonts/FIGTREE-OFL.txt`
+- `docs/redesign/fonts/README.md`
+
+Existing test-class changes listed above retain their feature assertions. In addition to the
+Settings and sheet routes, `TonightLayoutTest` changes Quick’s ordering expectation,
+`ProfilesEditHitTest` checks the fixed header instead of the former floating action, and
+`DaylightHeatPaletteTest`, `FinalThemeAcceptanceTest`, `NightTimelineLayoutTest`,
+`ScheduledThemeHeldOpenTest` and `ThemeDemoIsolationTest` resolve Overcast tokens directly.
+`ScreenshotCapture` scrolls the real lazy-list key and scopes More to its card before capture.
+`FinalSettingsCleanupTest`, `RestoreOriginalDialogLayoutTest` and `ImportPreviewUiTest`
+enter About, BedJet and Backups respectively before their original feature checks.
+
+The first full P8 gate completed 311 core tests and 1,704 app cases, with 21 app
+failures and 41 opt-in capture skips; lint had zero errors and 24 warnings. It exposed
+remaining test migrations: `HealthReadDemoBoundaryTest` and `FeatureUiTest` render the
+new Health section explicitly; `RemoteAccessorySwitchTest` and
+`RemoteReconnectPresentationTest` enter BedJet; `U06RecoveryLayoutTest` enters Backups.
+`RedesignProfileChooserLargeTextTest` selects the editable profile name, distinct from
+the new overview heading. `ActiveIndicatorTest` uses the existing Night collapse control to keep Quick’s marker
+visible when feedback enters, before measuring its finite pulse and lifecycle gates.
+All original command, receipt, permission, recovery, value and motion assertions remain.
+
+The 42-case follow-up passed 39 cases and retained three marker-visibility failures.
+An attempted scroll with the animation clock frozen stalled the host UI dispatcher; that
+run was interrupted and is not a pass. The final fixture keeps the marker visible through
+the existing Night collapse UI before freezing the clock. All nine `ActiveIndicatorTest`
+cases then passed, including reduced motion, finite pulse, screen-off and paused lifecycle.
+The full unfiltered P8 gate passed with these changes.
+
+### P8 full gate
+
+`./gradlew :core:test :app:testDebugUnitTest :app:lintDebug` passed using the committed
+three-worker/fresh-JVM verification init: 311 core tests; 1,704 app cases, zero failures,
+zero errors and 41 opt-in capture skips (the original 38 plus P8’s three). All JUnit
+XML was readable. Lint reported zero errors and 24 warnings.
+
+```text
+BUILD SUCCESSFUL in 21m 1s
+43 actionable tasks: 5 executed, 38 up-to-date
+```
+
+All 41 opt-in capture cases then passed on the same production/test source with
+`SCREENSHOT_TAG=p8-complete-captures`: `ScreenshotCapture` (14),
+`U06NormalCaptureTest` (12), `U06LargeTextCaptureTest` (12), and `P8CaptureTest` (3).
+Zero failures/errors/skips; `BUILD SUCCESSFUL in 1m 12s`; 31 tasks: 1 executed,
+30 up-to-date. Captures and the scoped visual audit are described in `P8-AUDIT.md`.
+
+Independent review of the refreshed captures found no obvious text clipping, overlap or
+unreadable enabled text in the inspected normal and 320dp/200% viewports in Midnight Ink
+and Overcast. This is bounded host capture review, not full-scroll, device or TalkBack evidence.

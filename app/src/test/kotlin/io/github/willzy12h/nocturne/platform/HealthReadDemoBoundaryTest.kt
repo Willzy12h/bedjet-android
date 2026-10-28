@@ -54,7 +54,7 @@ class HealthReadDemoBoundaryTest : PlatformGraphFixture() {
     }
     @Test fun theLegacyHealthReadToggleIsDisabledDuringDemo() {
         val graph = setup(demo = true)
-        compose.setContent { MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) { PlatformSettingsSection(graph) } } }
+        compose.setContent { MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) { PlatformSettingsSection(graph, healthOnly = true) } } }
         compose.onNodeWithContentDescription(graph.context.getString(R.string.feature_health_title)).performScrollTo().assertIsNotEnabled()
     }
     @Test fun aHealthReadPermissionResultArrivingAfterDemoEntryCannotEnableRealAccess() {
@@ -63,7 +63,7 @@ class HealthReadDemoBoundaryTest : PlatformGraphFixture() {
         val registry = PermissionRegistry()
         val owner = object : ActivityResultRegistryOwner { override val activityResultRegistry = registry }
         compose.setContent { CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
-            MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) { PlatformSettingsSection(graph) } }
+            MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) { PlatformSettingsSection(graph, healthOnly = true) } }
         } }
         compose.onNodeWithContentDescription(graph.context.getString(R.string.feature_health_title)).performScrollTo().performClick()
         assertNotNull("The explicit read-permission request must have launched", registry.requestCode)

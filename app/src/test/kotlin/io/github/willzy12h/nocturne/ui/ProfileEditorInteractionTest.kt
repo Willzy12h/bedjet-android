@@ -57,7 +57,7 @@ class ProfileEditorInteractionTest {
         ui.capture("editor-compact-phase")
         phase.performTouchInput { longClick() }
         ui.compose.onNodeWithTag("editor-phase-controls-START-0").assertExists()
-        ui.compose.onNodeWithTag("editor-phase-controls-START-0").performScrollTo()
+        ui.compose.onNodeWithTag("editor-phase-controls-START-0").assertIsDisplayed()
         ui.capture("editor-expanded-phase")
         ui.compose.onNode(hasContentDescription(ui.s(R.string.slider_length))).performScrollTo().assertIsDisplayed()
     }
@@ -68,6 +68,7 @@ class ProfileEditorInteractionTest {
         ui.compose.onNodeWithTag("editor-add-START").performScrollTo().performClick()
         ui.compose.onNodeWithTag("editor-phase-controls-START-$initial").assertExists()
         assertEquals(initial, ui.graph.repository.profiles.value.first().start.size)
+        ui.compose.onNode(hasText(ui.s(R.string.uat_setup_done)) and hasAnyAncestor(hasTestTag("editor-phase-controls-START-$initial"))).performClick()
         ui.compose.onNodeWithText(ui.s(R.string.editor_save)).performClick()
         ui.waitUntil { ui.graph.repository.profiles.value.first().start.size == initial + 1 }
     }
@@ -94,15 +95,15 @@ class ProfileEditorInteractionTest {
         open()
         ui.compose.onNodeWithTag("night-curve").performTouchInput { longClick(Offset(width * .03f, height / 2f)) }
         ui.compose.onNodeWithTag("editor-phase-controls-START-0").assertExists()
-        ui.compose.onNodeWithTag("editor-phase-START-0").assertIsDisplayed()
+        ui.compose.onNodeWithTag("editor-phase-controls-START-0").assertIsDisplayed()
     }
 
     @Test fun longPressingTheSameCurvePhaseAgainReturnsToItsEditor() {
         open()
         val curve = ui.compose.onNodeWithTag("night-curve")
         curve.performTouchInput { longClick(Offset(width * .03f, height / 2f)) }
-        ui.compose.onNodeWithTag("editor-phase-START-0").assertIsDisplayed()
+        ui.compose.onNode(hasText(ui.s(R.string.uat_setup_done)) and hasAnyAncestor(hasTestTag("editor-phase-controls-START-0"))).performClick()
         curve.performScrollTo().performTouchInput { longClick(Offset(width * .03f, height / 2f)) }
-        ui.compose.onNodeWithTag("editor-phase-START-0").assertIsDisplayed()
+        ui.compose.onNodeWithTag("editor-phase-controls-START-0").assertIsDisplayed()
     }
 }

@@ -3,6 +3,7 @@ package io.github.willzy12h.nocturne.ui
 import android.app.TimePickerDialog
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -34,6 +35,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import io.github.willzy12h.nocturne.ui.NocturneButton as Button
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -60,6 +64,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.plan.FanShape
 import io.github.willzy12h.nocturne.core.plan.QuietFan
@@ -83,7 +88,7 @@ import kotlin.math.roundToInt
 private val PHASE_MODES = listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.TURBO, Mode.DRY, Mode.WAIT)
 
 /** Edits every part of a profile, with a live preview of tonight's night and any reason the BedJet would refuse it. */
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     initialDraft: Profile? = null, onDraftChange: (Profile) -> Unit = {}, initialPhase: EditorPhaseSelection? = null) {
@@ -96,9 +101,10 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     var fanShape by remember(original.id) { mutableStateOf(profile.middle.fanShape) }
     var focusedPhase by remember(original.id) { mutableStateOf(initialPhase) }
     var focusRequest by remember(original.id) { mutableIntStateOf(0) }
+    var middleOpen by remember(original.id) { mutableStateOf(initialPhase?.block == Block.MIDDLE) }
     val middleFocus = remember { BringIntoViewRequester() }
     LaunchedEffect(focusedPhase, focusRequest) {
-        if (focusedPhase?.block == Block.MIDDLE) { withFrameNanos { }; middleFocus.bringIntoView() }
+        if (focusedPhase?.block == Block.MIDDLE) { middleOpen = true }
     }
     val night by model.activeNight.collectAsState()
     val trackingTonight = night?.profileId == original.id
@@ -154,6 +160,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
+                Text(profile.name, style = MaterialTheme.typography.titleLarge)
                 preview.fold(
                     onSuccess = { plan ->
                         Text(stringResource(R.string.editor_preview, Format.clock(plan.start), plan.steps.size), style = MaterialTheme.typography.labelLarge)
@@ -165,57 +172,28 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     onFailure = { Text(it.message.orEmpty(), color = MaterialTheme.colorScheme.onSurface) },
                 )
                 if (!validDurations) Text(stringResource(R.string.editor_invalid_phase_duration), color = MaterialTheme.colorScheme.onSurface)
-                OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth())
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }) }
-                }
-
-                Section(stringResource(R.string.editor_timing)) {
-                    TimeRow(stringResource(R.string.editor_bedtime), profile.bedtimeMinute) { profile = profile.copy(bedtimeMinute = it) }
-                    SwitchRow(stringResource(R.string.editor_wake_with_alarm), stringResource(R.string.editor_wake_with_alarm_help), profile.wakeSource.useAlarm) {
-                        profile = profile.copy(wakeSource = profile.wakeSource.copy(useAlarm = it))
-                    }
-                    TimeRow(stringResource(if (profile.wakeSource.useAlarm) R.string.editor_wake_no_alarm else R.string.wake_time), profile.wakeSource.defaultWakeMinute) {
-                        profile = profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = it))
-                    }
-                    Text(stringResource(R.string.editor_days), style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        DayOfWeek.entries.forEach { day ->
-                            FilterChip(day.value in profile.days, {
-                                profile = profile.copy(days = if (day.value in profile.days) profile.days - day.value else profile.days + day.value)
-                            }, label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) })
-                        }
-                    }
-                }
-
-                Section(stringResource(R.string.editor_limits)) {
-                    Text(stringResource(R.string.editor_limits_help), style = MaterialTheme.typography.bodySmall)
-                    val limits = profile.limits
-                    Text(stringResource(R.string.editor_fan_limits, limits.minFan, limits.maxFan))
-                    RangeSlider(
-                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan_limits),
-                            spokenRange(spokenPercent(limits.minFan), spokenPercent(limits.maxFan))),
-                        value = limits.minFan.toFloat()..limits.maxFan.toFloat(),
-                        onValueChange = {
-                            val next = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())
-                            profile = profile.copy(limits = next, middle = profile.middle.withFanLimits(next))
-                        },
-                        valueRange = 5f..100f, steps = 18,
-                    )
-                    Text(stringResource(R.string.editor_temp_limits, tempText(limits.minTemp, f), tempText(limits.maxTemp, f)))
-                    RangeSlider(
-                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp_limits),
-                            spokenRange(spokenTemp(limits.minTemp, f), spokenTemp(limits.maxTemp, f))),
-                        value = limits.minTemp.toFloat()..limits.maxTemp.toFloat(),
-                        onValueChange = { profile = profile.copy(limits = limits.copy(minTemp = it.start.roundToInt(), maxTemp = it.endInclusive.roundToInt())) },
-                        valueRange = 38f..86f, steps = 47,
-                    )
-                    TextButton(onClick = { profile = profile.copy(limits = ProfileLimits(), middle = profile.middle.withFanLimits(ProfileLimits())) }) { Text(stringResource(R.string.editor_reset_limits)) }
-                }
-
                 PhaseList(Block.START, stringResource(R.string.editor_start_help), profile.start, f, preview.getOrNull(), focusedPhase, focusRequest) { profile = profile.copy(start = it) }
 
-                Section(stringResource(R.string.block_middle), Modifier.bringIntoViewRequester(middleFocus)) {
+                Section(stringResource(R.string.editor_through_night), Modifier.bringIntoViewRequester(middleFocus)) {
+                    val middle = profile.middle
+                    val title = if (middle.mode.usesTemperature) stringResource(R.string.editor_middle_temperatures,
+                        modeName(middle.mode), tempText(middle.tempStart, f), tempText(middle.tempEnd, f)) else modeName(middle.mode)
+                    val fan = middle.quietFan?.let {
+                        stringResource(R.string.profiles_quiet_middle_short, stringResource(R.string.fan_shape_quiet), it.settle, it.asleep, it.rise)
+                    } ?: stringResource(if (middle.fanShape == FanShape.STEADY) R.string.fan_shape_steady else R.string.fan_shape_ease)
+                    StripeTile(stripe = paletteTokens.stepColor(middle.mode, middle.tempStart),
+                        title = title, subtitle = listOf(fan, stringResource(R.string.editor_steps, middle.rampSteps)).joinToString(" · "),
+                        modifier = Modifier.fillMaxWidth().testTag("editor-middle-summary").clickable { middleOpen = true },
+                        trailing = { Icon(Icons.Default.ExpandMore, null) })
+                }
+                if (middleOpen) ModalBottomSheet(onDismissRequest = { middleOpen = false }, containerColor = paletteTokens.sheet,
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+                    Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.8f).dp).testTag("editor-middle-sheet").verticalScroll(rememberScrollState()).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.editor_through_night), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        TextButton(onClick = { middleOpen = false }) { Text(stringResource(R.string.uat_setup_done)) }
+                    }
                     Text(stringResource(R.string.editor_middle_help), style = MaterialTheme.typography.bodySmall)
                     val m = profile.middle
                     ModeChips(m.mode) { profile = profile.copy(middle = m.copy(mode = it, tempStart = it.clampTemp(m.tempStart), tempEnd = it.clampTemp(m.tempEnd))) }
@@ -269,8 +247,57 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     }
                 }
 
+                }
                 PhaseList(Block.WAKE, stringResource(R.string.editor_wake_help), profile.wake, f, preview.getOrNull(), focusedPhase, focusRequest) { profile = profile.copy(wake = it) }
                 PhaseList(Block.AFTER_WAKE, stringResource(R.string.editor_after_wake_help), profile.afterWake, f, preview.getOrNull(), focusedPhase, focusRequest) { profile = profile.copy(afterWake = it) }
+
+                OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth())
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }) }
+                }
+
+                Section(stringResource(R.string.editor_timing)) {
+                    TimeRow(stringResource(R.string.editor_bedtime), profile.bedtimeMinute) { profile = profile.copy(bedtimeMinute = it) }
+                    SwitchRow(stringResource(R.string.editor_wake_with_alarm), stringResource(R.string.editor_wake_with_alarm_help), profile.wakeSource.useAlarm) {
+                        profile = profile.copy(wakeSource = profile.wakeSource.copy(useAlarm = it))
+                    }
+                    TimeRow(stringResource(if (profile.wakeSource.useAlarm) R.string.editor_wake_no_alarm else R.string.wake_time), profile.wakeSource.defaultWakeMinute) {
+                        profile = profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = it))
+                    }
+                    Text(stringResource(R.string.editor_days), style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        DayOfWeek.entries.forEach { day ->
+                            FilterChip(day.value in profile.days, {
+                                profile = profile.copy(days = if (day.value in profile.days) profile.days - day.value else profile.days + day.value)
+                            }, label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) })
+                        }
+                    }
+                }
+
+                Section(stringResource(R.string.editor_limits)) {
+                    Text(stringResource(R.string.editor_limits_help), style = MaterialTheme.typography.bodySmall)
+                    val limits = profile.limits
+                    Text(stringResource(R.string.editor_fan_limits, limits.minFan, limits.maxFan))
+                    RangeSlider(
+                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan_limits),
+                            spokenRange(spokenPercent(limits.minFan), spokenPercent(limits.maxFan))),
+                        value = limits.minFan.toFloat()..limits.maxFan.toFloat(),
+                        onValueChange = {
+                            val next = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())
+                            profile = profile.copy(limits = next, middle = profile.middle.withFanLimits(next))
+                        },
+                        valueRange = 5f..100f, steps = 18,
+                    )
+                    Text(stringResource(R.string.editor_temp_limits, tempText(limits.minTemp, f), tempText(limits.maxTemp, f)))
+                    RangeSlider(
+                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp_limits),
+                            spokenRange(spokenTemp(limits.minTemp, f), spokenTemp(limits.maxTemp, f))),
+                        value = limits.minTemp.toFloat()..limits.maxTemp.toFloat(),
+                        onValueChange = { profile = profile.copy(limits = limits.copy(minTemp = it.start.roundToInt(), maxTemp = it.endInclusive.roundToInt())) },
+                        valueRange = 38f..86f, steps = 47,
+                    )
+                    TextButton(onClick = { profile = profile.copy(limits = ProfileLimits(), middle = profile.middle.withFanLimits(ProfileLimits())) }) { Text(stringResource(R.string.editor_reset_limits)) }
+                }
 
                 Section(stringResource(R.string.mode_turbo)) {
                     SwitchRow(
@@ -286,7 +313,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun PhaseList(block: Block, hint: String, phases: List<Phase>, f: Boolean, plan: Plan?,
     focus: EditorPhaseSelection?, focusRequest: Int, onChange: (List<Phase>) -> Unit) {
@@ -312,30 +339,33 @@ private fun PhaseList(block: Block, hint: String, phases: List<Phase>, f: Boolea
             val editLabel = stringResource(R.string.ux_edit_phase)
             val state = stringResource(if (open) R.string.ux_expanded else R.string.ux_collapsed)
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("editor-phase-${block.name}-$index")
-                    .bringIntoViewRequester(requester)
-                    .combinedClickable(role = Role.Button, onClickLabel = editLabel, onLongClickLabel = editLabel,
-                        onClick = { expanded = if (open) expanded - index else expanded + index },
-                        onLongClick = { expanded = expanded + index })
-                    .semantics { stateDescription = state }, verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(phaseStart?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time), style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.widthIn(min = 52.dp).width(IntrinsicSize.Max), maxLines = 1)
-                    Dot(modeColor(phase.mode), 12)
-                    Column(Modifier.weight(1f)) {
-                        Text(modeName(phase.mode), style = MaterialTheme.typography.bodyLarge)
-                        val detail = buildList {
-                            add(durationText(phase.minutes))
-                            if (phase.mode.usesTemperature || phase.mode == Mode.TURBO) add(tempText(phase.temperature, f))
-                            if (phase.mode.usesFan) add(stringResource(R.string.timeline_fan, phase.fanPercent))
-                        }.joinToString(" · ")
-                        Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val effectiveTemperature = if (phase.mode == Mode.TURBO) 86 else phase.temperature
+                val detail = buildList {
+                    add(phaseStart?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time))
+                    add(durationText(phase.minutes))
+                    if (phase.mode.usesTemperature || phase.mode == Mode.TURBO) add(tempText(effectiveTemperature, f))
+                    if (phase.mode.usesFan) add(stringResource(R.string.timeline_fan, phase.fanPercent))
+                }.joinToString(" · ")
+                StripeTile(
+                    stripe = paletteTokens.stepColor(phase.mode, effectiveTemperature),
+                    title = modeName(phase.mode),
+                    subtitle = detail,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("editor-phase-${block.name}-$index")
+                        .bringIntoViewRequester(requester)
+                        .combinedClickable(role = Role.Button, onClickLabel = editLabel, onLongClickLabel = editLabel,
+                            onClick = { expanded = if (open) expanded - index else expanded + index },
+                            onLongClick = { expanded = expanded + index })
+                        .semantics { stateDescription = state },
+                    trailing = { Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null) },
+                )
+                if (open) ModalBottomSheet(onDismissRequest = { expanded = expanded - index }, containerColor = paletteTokens.sheet,
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+                  Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.8f).dp).testTag("editor-phase-controls-${block.name}-$index")
+                    .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.editor_step_title, modeName(phase.mode), index + 1), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        TextButton(onClick = { expanded = expanded - index }) { Text(stringResource(R.string.uat_setup_done)) }
                     }
-                    Icon(if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
-                }
-                if (open) Column(Modifier.fillMaxWidth().padding(start = 24.dp, bottom = 8.dp)
-                    .testTag("editor-phase-controls-${block.name}-$index"), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     fun update(value: Phase) = onChange(phases.mapIndexed { i, old -> if (i == index) value else old })
                     phaseStart?.let { at -> Text(stringResource(R.string.ux_phase_timeframe, Format.clock(at),
                         Format.clock(at.plusMinutes(phase.minutes.toLong()))), style = MaterialTheme.typography.labelLarge) }
@@ -349,13 +379,14 @@ private fun PhaseList(block: Block, hint: String, phases: List<Phase>, f: Boolea
                     if (phase.mode != Mode.TURBO) Labelled(stringResource(R.string.editor_length, durationText(phase.minutes))) {
                         MinuteSlider(phase.minutes, stringResource(R.string.slider_length), 1) { update(phase.copy(minutes = it)) }
                     } else {
-                        Text(stringResource(R.string.label_temperature, tempText(phase.temperature, f)))
+                        Text(stringResource(R.string.label_temperature, tempText(effectiveTemperature, f)))
                         Text(stringResource(R.string.editor_length, durationText(phase.minutes)))
                     }
                     TextButton(onClick = {
                         expanded = expanded.mapNotNull { if (it < index) it else if (it > index) it - 1 else null }.toSet()
                         onChange(phases.filterIndexed { i, _ -> i != index })
                     }) { Text(stringResource(R.string.editor_remove)) }
+                  }
                 }
             }
         }

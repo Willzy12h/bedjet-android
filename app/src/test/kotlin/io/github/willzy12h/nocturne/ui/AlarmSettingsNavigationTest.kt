@@ -26,6 +26,7 @@ import org.junit.runners.model.Statement
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import java.io.ByteArrayOutputStream
 import java.time.Clock
 import java.time.Instant
@@ -34,6 +35,7 @@ import java.util.TimeZone
 
 /** Real navigation, saved setting and exported diagnostics, beyond an explanation-helper test. */
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 class AlarmSettingsNavigationTest {
     private val ui = U06Fixture(U06Look.MIDNIGHT) { fixture, description ->
@@ -78,6 +80,7 @@ class AlarmSettingsNavigationTest {
 
     @Test fun theUnknownSourceControlCanBeDisabledAgain() {
         ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("night")
         val toggle = ui.control("Use alarms from unknown apps")
         toggle.assertIsOn().performClick()
         ui.waitUntil { !ui.graph.repository.settings.value.acceptUnknownAlarmSource && ui.model.nextAlarm.value?.counts == false }

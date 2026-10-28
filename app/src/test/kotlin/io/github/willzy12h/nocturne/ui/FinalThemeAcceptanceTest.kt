@@ -43,6 +43,7 @@ class FinalThemeAcceptanceTest {
 
     private fun chooseScheduled() {
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("appearance")
         ui.compose.onNodeWithText(ui.s(R.string.theme_scheduled)).performScrollTo().performClick()
     }
     private fun moveClock(instant: String) {
@@ -104,7 +105,7 @@ class FinalThemeAcceptanceTest {
         val layouts = mutableListOf<TextLayoutResult>()
         ui.compose.onAllNodesWithText("Tonight", useUnmergedTree = true)[0]
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-        assertEquals(DaylightScheme.onSurface, layouts.single().layoutInput.style.color)
+        assertEquals(io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.materialScheme().onSurface, layouts.single().layoutInput.style.color)
     }
 
     @Test fun automaticScheduledStayDarkSurvivesRecreationAndExpiresTonight() {
@@ -140,6 +141,7 @@ class FinalThemeAcceptanceTest {
         }
         system(true)
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("appearance")
         ui.compose.onNodeWithText(ui.s(R.string.theme_system)).performScrollTo().performClick()
         ui.waitUntil { ui.graph.repository.settings.value.themeMode == ThemeMode.SYSTEM }
         system(false)
@@ -161,6 +163,7 @@ class FinalThemeAcceptanceTest {
 
     private fun editSchedule(darkBoundary: Boolean = true) {
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("appearance")
         ui.control(if (darkBoundary) "22:00" else "07:00").performClick()
         ui.compose.runOnUiThread {
             val picker = ShadowDialog.getLatestDialog() as android.app.TimePickerDialog

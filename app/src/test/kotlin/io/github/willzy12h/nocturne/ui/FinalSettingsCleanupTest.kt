@@ -35,6 +35,7 @@ class FinalSettingsCleanupTest {
 
     @Test fun updatesOpenTheFixedGitHubReleasesPageInTheBrowser() {
         settings()
+        ui.compose.openSettingsPage("about")
         ui.control("Check GitHub for a new APK").performClick()
         val intent = shadowOf(ui.compose.activity).nextStartedActivity
         assertEquals(Intent.ACTION_VIEW, intent.action)
@@ -43,6 +44,7 @@ class FinalSettingsCleanupTest {
 
     @Test fun aboutKeepsAttributionVersionAndProjectHelpReadableAtTwoHundredPercent() {
         settings()
+        ui.compose.openSettingsPage("about")
         listOf("Nocturne controls BedJet 3 nights over Bluetooth.", "Not affiliated with BedJet LLC",
             "BedJet protocol work by the Lull project (github.com/rkanjani/lull, MIT)").forEach {
             ui.checkLayout(ui.compose.onNodeWithText(it), it)

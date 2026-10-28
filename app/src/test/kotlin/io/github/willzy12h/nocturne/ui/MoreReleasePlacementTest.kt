@@ -45,11 +45,13 @@ class MoreReleasePlacementTest {
         assertNull(ui.graph.repository.activeNight.value)
         ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).assertDoesNotExist()
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().assertIsDisplayed()
     }
 
     @Test fun settingsStillReleasesAndTakesBackTheConnectionThroughTheOwner() {
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().performClick()
         ui.waitUntil { ui.graph.sessions.released.value }
         ui.compose.onNodeWithText(ui.s(R.string.feature_take_back)).performScrollTo().assertIsDisplayed().performClick()
@@ -74,6 +76,7 @@ class MoreReleasePlacementTest {
         }
         assertNull("A remembered selection is not a current device report", ui.graph.link.latestSourcedStatus())
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.settings_connected_unit, rememberedName))
             .performScrollTo().assertIsDisplayed().assertTextEquals("BedJet name: BEDJET-BEDROOM")
         ui.compose.onNodeWithText("Connected unit: BEDJET-BEDROOM").assertDoesNotExist()
@@ -97,6 +100,7 @@ class MoreReleasePlacementTest {
         assertNull("The selected target has no stored name", DeviceNames(ui.graph.context) { target }.displayName())
         assertNull("An unnamed selection is not a current device report", ui.graph.link.latestSourcedStatus())
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.settings_connected_unit, ui.s(R.string.settings_none_yet)))
             .performScrollTo().assertIsDisplayed().assertTextEquals("BedJet name: none yet")
         ui.compose.onNodeWithText("Connected unit: none yet").assertDoesNotExist()

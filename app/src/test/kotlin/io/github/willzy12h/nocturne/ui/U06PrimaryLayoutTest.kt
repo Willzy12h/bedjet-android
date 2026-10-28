@@ -185,6 +185,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
 
     private fun checkDemoChoice(@StringRes tab: Int) {
         ui.tab(ui.s(tab))
+        if (tab == R.string.tab_settings) ui.compose.openSettingsPage("bedjet")
         ui.control(ui.s(R.string.setup_use_demo))
         ui.snackbar()
         ui.control(ui.s(R.string.setup_use_demo)).performClick()
@@ -195,8 +196,11 @@ class U06PrimaryLayoutTest(look: U06Look) {
     @PrimarySeed(PrimaryScenario.BACKUPS)
     @Test fun settingsSlotAndBackupActionsHaveCompleteLabelsAndTargets() {
         ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("bedjet")
         withAndWithoutFeedback {
             (1..3).forEach { ui.control(ui.s(R.string.settings_slot, it)) }
+            ui.compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+            ui.compose.openSettingsPage("backups")
             ui.control(ui.s(R.string.settings_snapshot_now))
             ui.control(ui.s(R.string.settings_export_file))
             ui.control(ui.s(R.string.settings_restore_from_file))
@@ -204,7 +208,11 @@ class U06PrimaryLayoutTest(look: U06Look) {
             assertTrue("The manual snapshot must expose Restore", restores.fetchSemanticsNodes().isNotEmpty())
             restores.fetchSemanticsNodes().indices.forEach { ui.checkControl(restores[it], "${ui.s(R.string.settings_restore)} [$it]") }
             ui.control(ui.s(R.string.settings_delete))
+            ui.compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+            ui.compose.openSettingsPage("about")
             ui.control(ui.s(R.string.settings_diagnostics_export))
+            ui.compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+            ui.compose.openSettingsPage("bedjet")
         }
     }
 

@@ -1,5 +1,8 @@
 package io.github.willzy12h.nocturne
 
+import io.github.willzy12h.nocturne.ui.openSettingsPage
+import io.github.willzy12h.nocturne.ui.backSettingsPage
+
 import android.Manifest
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -110,9 +113,12 @@ class ScreenshotCapture {
         } }
         settle()
         compose.onAllNodesWithText("Settings")[0].performClick()
+        compose.openSettingsPage("bedjet")
         compose.onNodeWithText("Release BedJet for another phone").performScrollTo()
         settle()
         shot("features-01-manual-connection-release")
+        compose.backSettingsPage()
+        compose.openSettingsPage("night")
         compose.onAllNodesWithText("Bedtime reminder")[0].performScrollTo()
         settle()
         shot("features-02-platform-settings")
@@ -157,7 +163,11 @@ class ScreenshotCapture {
             graph.repository.setActiveNight(null)
         }
         tab("Profiles")
-        tap(s(R.string.recovery_more))
+        val profileId = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(profileId)
+        compose.onNode(hasText(s(R.string.recovery_more)) and hasClickAction() and
+            hasAnyAncestor(hasTestTag("profile-card-$profileId"))).performScrollTo().performClick()
+        settle()
         tap(s(R.string.pin_menu), scroll = false)
         compose.onNodeWithText(compose.activity.getString(R.string.pin_slot_help, graph.repository.settings.value.workingSlot + 1)).assertExists()
         shot("gaps-$look-01-slot-pin")
@@ -203,8 +213,10 @@ class ScreenshotCapture {
         tab("Tonight")
         save { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = null) } }
         compose.onNodeWithText(s(R.string.setup_use_demo)).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(s(R.string.setup_choose_title)).assertIsDisplayed()
-        compose.onNodeWithText(s(R.string.setup_find)).assertIsDisplayed()
+        shot("gaps-$look-07-setup-demo")
+        compose.onNodeWithText(s(R.string.setup_choose_title)).performScrollTo().assertIsDisplayed()
+        shot("gaps-$look-07-setup-title")
+        compose.onNodeWithText(s(R.string.setup_find)).performScrollTo().assertIsDisplayed()
         shot("gaps-$look-07-setup-chooser")
         // The production banner itself, with a documented unreadable-history fixture.
         val bannerSettings = graph.repository.settings.value

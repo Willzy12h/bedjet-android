@@ -39,11 +39,13 @@ class ProfilesEditHitTest {
     private fun description(): String {
         val (editBounds, fabTouch) = bounds()
         return "Edit visible=$editBounds; Edit touch=${edit().fetchSemanticsNode().touchBoundsInRoot}; " +
-            "New profile touch=$fabTouch; FAB covers Edit centre=${fabTouch.contains(editBounds.center)}"
+            "New profile touch=$fabTouch; New profile covers Edit centre=${fabTouch.contains(editBounds.center)}"
     }
 
     private fun reveal() {
         ui.tab("Profiles")
+        val id = ui.graph.repository.profiles.value.first().id
+        ui.compose.onNode(hasScrollToKeyAction()).performScrollToKey(id)
         edit().performScrollTo()
         ui.compose.waitForIdle()
         edit().assertIsDisplayed()
@@ -61,21 +63,13 @@ class ProfilesEditHitTest {
         assertFalse("An Edit tap must not open the New profile chooser: $diagnostic", presetOpened)
     }
 
-    @Test fun editRemainsReachableByScrollingAboveTheFloatingActionAtTwoHundredPercent() {
+    @Test fun editRemainsReachableBelowTheNewProfileHeaderAtTwoHundredPercent() {
         reveal()
-        val (initialEdit, initialFab) = bounds()
-        val gap = with(ui.compose.density) { 8.dp.toPx() }
-        val scroll = (initialEdit.bottom - initialFab.top + gap).coerceAtLeast(0f)
-        if (scroll > 0f) {
-            ui.compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy))
-                .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, scroll) }
-            ui.compose.waitForIdle()
-        }
         ui.checkControl(edit(), "Profile Edit", scroll = false)
-        val (editBounds, fabTouch) = bounds()
+        ui.checkControl(add(), "New profile", scroll = false)
+        val (editBounds, newProfileTouch) = bounds()
         val geometry = description()
-        assertTrue("The list must scroll Edit above the FAB without clipping it: $geometry",
-            editBounds.bottom <= fabTouch.top)
+        assertTrue("The header must not cover Edit: $geometry", !editBounds.overlaps(newProfileTouch))
         tapAndCheckEditor(geometry)
     }
 }

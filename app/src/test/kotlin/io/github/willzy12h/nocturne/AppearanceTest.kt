@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne
 
+import io.github.willzy12h.nocturne.ui.openSettingsPage
+
 import android.os.Looper
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
@@ -78,6 +80,7 @@ class AppearanceTest {
     @Test
     fun themeChoiceIsSaved() {
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("appearance")
         compose.onNodeWithText("Light").performScrollTo().performClick()
         compose.onNodeWithText(compose.activity.getString(R.string.ux_light_theme_warning)).assertIsDisplayed()
         assertEquals(ThemeMode.SYSTEM, graph.repository.settings.value.themeMode)

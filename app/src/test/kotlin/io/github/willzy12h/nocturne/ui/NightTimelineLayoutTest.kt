@@ -120,7 +120,7 @@ class NightTimelineLayoutTest {
             val layout = layouts.single()
             val label = "$theme simple=$simple $text"
             if (text == "22:30") assertEquals("$label must render the requested palette",
-                if (theme == ThemeMode.DARK) MidnightInkScheme.onSurfaceVariant else DaylightScheme.onSurfaceVariant,
+                if (theme == ThemeMode.DARK) MidnightInkScheme.onSurfaceVariant else io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.materialScheme().onSurfaceVariant,
                 layout.layoutInput.style.color)
             val first = text.indexOf(clock)
             val last = first + clock.length - 1

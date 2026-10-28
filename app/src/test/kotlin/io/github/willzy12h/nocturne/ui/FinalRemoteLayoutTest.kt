@@ -40,6 +40,7 @@ class FinalRemoteLayoutTest {
             header.assertIsDisplayed()
             assertEquals("The status header must remain above the scrolling screen", bounds.top, header.getUnclippedBoundsInRoot().top)
             if (tab == "Settings") {
+                ui.compose.openSettingsPage("about")
                 ui.compose.onNodeWithText("About").performScrollTo()
                 assertEquals(bounds, header.getUnclippedBoundsInRoot())
             }

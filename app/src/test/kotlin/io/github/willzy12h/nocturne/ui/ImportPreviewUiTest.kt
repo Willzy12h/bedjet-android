@@ -76,6 +76,7 @@ class ImportPreviewUiTest {
 
     @Test fun demoModeDisablesBackupFilePickersAndSnapshotMutations() {
         ui.tab("Settings")
+        ui.compose.openSettingsPage("backups")
         listOf(R.string.settings_export_file, R.string.settings_restore_from_file, R.string.settings_snapshot_now).forEach {
             ui.control(ui.s(it)).assertIsNotEnabled()
         }

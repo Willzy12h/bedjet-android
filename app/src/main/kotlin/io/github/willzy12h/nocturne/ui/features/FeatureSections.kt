@@ -41,11 +41,11 @@ import kotlinx.coroutines.launch
     }
 }
 
-@Composable fun PlatformSettingsSection(graph: Graph) {
+@Composable fun PlatformSettingsSection(graph: Graph, healthOnly: Boolean = false) {
     val settings by graph.repository.settings.collectAsState()
     val prefs=settings.platform
     val scope=rememberCoroutineScope()
-    if (!HealthConnectAccess.platformSupported) Text(stringResource(R.string.health_platform_required))
+    if (healthOnly && !HealthConnectAccess.platformSupported) Text(stringResource(R.string.health_platform_required))
     var message by remember {mutableStateOf<String?>(null)}
     fun change(transform:(PlatformSettings)->PlatformSettings) {
         scope.launch {
@@ -83,6 +83,7 @@ import kotlinx.coroutines.launch
         else enableReminder()
     }
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        if (!healthOnly) {
         FeatureSwitch(stringResource(R.string.feature_reminders),prefs.bedtimeReminder) {reminderToggle(it)}
         if(prefs.bedtimeReminder) Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             Text(androidx.compose.ui.res.pluralStringResource(R.plurals.feature_reminder_minutes,prefs.reminderMinutes,prefs.reminderMinutes),Modifier.weight(1f))
@@ -90,6 +91,7 @@ import kotlinx.coroutines.launch
             TextButton({change {it.copy(reminderMinutes=(it.reminderMinutes-5).coerceAtLeast(0))}}) {Text(stringResource(R.string.feature_later))}
         }
         AutoStartSettingsSection(graph)
+        } else {
         FeatureSwitch(stringResource(R.string.feature_health_title),prefs.healthSleepOverlay, !settings.demoMode) {enabled->
             if (!graph.repository.settings.value.demoMode && HealthConnectAccess.platformSupported) {
                 if(!enabled) changeHealthOverlay(false)
@@ -99,6 +101,7 @@ import kotlinx.coroutines.launch
         }
         Text(stringResource(R.string.feature_health_privacy),style=MaterialTheme.typography.bodySmall)
         HealthExportSettingsSection(graph)
+        }
         message?.let {Text(it,color=MaterialTheme.colorScheme.onSurface)}
     }
 }

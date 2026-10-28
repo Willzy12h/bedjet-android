@@ -13,8 +13,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class P4EditorBehaviourTest {
     private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f)
@@ -31,6 +33,8 @@ class P4EditorBehaviourTest {
         ui.compose.waitForIdle()
     }
     private fun choose(label: String) {
+        if (label in listOf("Steady", "Ease down", "Quiet middle") && ui.compose.onAllNodesWithTag("editor-middle-sheet").fetchSemanticsNodes().isEmpty())
+            ui.compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
         ui.compose.onNode(hasText(label) and hasClickAction()).performScrollTo().performClick()
         ui.compose.waitForIdle()
     }
@@ -101,6 +105,7 @@ class P4EditorBehaviourTest {
         val profile = ui.graph.repository.profiles.value.first()
         show(profile)
         choose("Quiet middle")
+        ui.compose.onNode(hasText(ui.s(R.string.uat_setup_done)) and hasAnyAncestor(hasTestTag("editor-middle-sheet"))).performClick()
         val label = ui.s(R.string.slider_fan_limits)
         ui.compose.onNode(hasContentDescription(label)).performScrollTo()
         val thumbs = ui.compose.onAllNodes(hasAnyAncestor(hasContentDescription(label)) and
@@ -123,6 +128,7 @@ class P4EditorBehaviourTest {
         val profile = ui.graph.repository.profiles.value.first().copy(limits = ProfileLimits(minFan = 32, maxFan = 34))
         show(profile)
         choose("Quiet middle")
+        ui.compose.onNode(hasText(ui.s(R.string.uat_setup_done)) and hasAnyAncestor(hasTestTag("editor-middle-sheet"))).performClick()
         ui.compose.onNode(hasText(ui.s(R.string.editor_save)) and hasClickAction()).assertIsNotEnabled()
     }
 
@@ -169,6 +175,7 @@ class P4EditorBehaviourTest {
         ui.compose.onAllNodes(hasContentDescription(ui.s(R.string.slider_length)) and withinPhase).assertCountEquals(0)
         ui.compose.onAllNodes(hasContentDescription(ui.s(R.string.slider_temp)) and withinPhase).assertCountEquals(0)
         ui.compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress) and withinPhase).assertCountEquals(0)
+        ui.compose.onNode(hasText(ui.s(R.string.uat_setup_done)) and hasAnyAncestor(hasTestTag("editor-phase-controls-START-0"))).performClick()
         ui.compose.onNodeWithTag("editor-phase-START-0").assertTextContains("10 min", substring = true)
         ui.compose.onNodeWithTag("editor-phase-START-0").assertTextContains("43°C", substring = true)
     }

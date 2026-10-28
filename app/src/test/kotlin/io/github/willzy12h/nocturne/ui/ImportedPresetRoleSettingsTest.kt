@@ -73,6 +73,7 @@ class ImportedPresetRoleSettingsTest(private val role: PresetRole) {
         val generation = ui.graph.repository.runtime.value.generation
         val history = ui.graph.repository.history.value
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("notifications")
         val summary = ui.s(R.string.settings_preset_summary, ui.s(role.title), ui.s(R.string.mode_turbo), 100, 10)
         val failures = mutableListOf<String>()
         if (ui.compose.onAllNodesWithText(summary).fetchSemanticsNodes().isEmpty()) {

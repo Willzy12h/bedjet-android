@@ -155,6 +155,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     @Test fun settingsSlidersExposeExactCelsiusAndFahrenheitStates() {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
+        compose.openSettingsPage("notifications")
         for (useFahrenheit in listOf(false, true)) {
             fahrenheit(useFahrenheit)
             data class Preset(val title: Int, val rawTemperature: Float, val celsius: String, val fahrenheit: String,
@@ -210,15 +211,23 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     @Test fun settingsRowsAreSingleToggleableTargets() {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
+        compose.openSettingsPage("appearance")
         toggleTwice(s(R.string.settings_simple_view)) { graph.repository.settings.value.simpleView }
         toggleTwice(s(R.string.settings_show_f)) { graph.repository.settings.value.fahrenheit }
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("notifications")
         toggleTwice(s(R.string.settings_quiet_title)) { graph.repository.settings.value.quietNightNotification }
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("about")
         fixture.control(s(R.string.settings_github_releases))
         fixture.control(s(R.string.settings_source_code))
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("bedjet")
         fixture.control(s(R.string.gpt12_exit_demo), scroll = false).performClick()
         fixture.waitUntil { !graph.repository.settings.value.demoMode }
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar() // The mode boundary disposes the old session and its SnackbarHost.
+        compose.openSettingsPage("bedjet")
         fixture.control(s(R.string.setup_use_demo)).performClick()
         fixture.waitUntil { graph.repository.settings.value.demoMode }
         fixture.snackbar()
@@ -229,6 +238,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.waitUntil { graph.link.state.value == LinkState.READY && graph.link.status.value?.extra != null }
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
+        compose.openSettingsPage("bedjet")
         toggleTwice(s(R.string.remote_lights)) { graph.link.status.value!!.extra!!.ledEnabled }
         toggleTwice(s(R.string.remote_beeps)) { !graph.link.status.value!!.extra!!.beepsMuted }
     }
@@ -237,9 +247,12 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     fun platformRowsAreSingleToggleableTargets() {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
+        compose.openSettingsPage("night")
         toggleTwice(s(R.string.feature_reminders)) { graph.repository.settings.value.platform.bedtimeReminder }
         toggleTwice(s(R.string.auto_start_title)) { graph.repository.settings.value.platform.autoStart?.enabled == true }
         toggleTwice(s(R.string.auto_start_only_charging)) { graph.repository.settings.value.platform.autoStart?.onlyIfCharging == true }
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("health")
         switchRow(s(R.string.health_export_title), true).assertIsEnabled().performClick()
         fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepExport }
         switchRow(s(R.string.health_export_title), false)
@@ -251,8 +264,11 @@ internal class U06ControlSemanticsTest(look: U06Look) {
 
     @Test fun automaticFeatureRowsKeepTheirExplainedDisabledStateInDemo() {
         fixture.tab(s(R.string.tab_settings))
+        compose.openSettingsPage("night")
         switchRow(s(R.string.auto_start_title), false).assertIsNotEnabled()
         switchRow(s(R.string.auto_start_only_charging), false).assertIsNotEnabled()
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("health")
         switchRow(s(R.string.health_export_title), false).assertIsNotEnabled()
         compose.onAllNodesWithText(s(R.string.platform_demo_unavailable)).onFirst().performScrollTo().assertIsDisplayed()
     }
@@ -264,32 +280,33 @@ internal class U06ControlSemanticsTest(look: U06Look) {
 
     @Test fun editorSlidersAndBothRangeThumbsExposeTheirValuesInBothUnits() {
         openEditor()
-        // Compact phase rows reveal the same complete controls on demand.
-        listOf("START", "WAKE", "AFTER_WAKE").forEach { block ->
-            compose.onNodeWithTag("editor-phase-$block-0").performScrollTo().performClick()
-        }
         for (useFahrenheit in listOf(false, true)) {
             fahrenheit(useFahrenheit)
             range(s(R.string.slider_fan_limits), 5f, 100f,
                 s(R.string.a11y_range, percent(5), percent(100)))
             range(s(R.string.slider_temp_limits), 38f, 86f,
                 s(R.string.a11y_range, temperature("19", "66", useFahrenheit), temperature("43", "109", useFahrenheit)))
-            // Start, Wake and After wake each have their own Temperature, Fan and Length controls.
-            scalarGroup(s(R.string.slider_temp), listOf(
-                44f to temperature("22", "72", useFahrenheit),
-                60f to temperature("30", "86", useFahrenheit),
-                44f to temperature("22", "72", useFahrenheit),
-            ))
-            scalarGroup(s(R.string.slider_fan), listOf(70f to percent(70), 30f to percent(30), 40f to percent(40)))
-            scalarGroup(s(R.string.slider_length), listOf(30f to minutes(30), 20f to minutes(20), 20f to minutes(20)))
+            compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(4)
+            data class PhaseValues(val block: String, val temp: Float, val celsius: String, val fahrenheit: String, val fan: Int, val minutes: Int)
+            for (phase in listOf(PhaseValues("START", 44f, "22", "72", 70, 30),
+                PhaseValues("WAKE", 60f, "30", "86", 30, 20),
+                PhaseValues("AFTER_WAKE", 44f, "22", "72", 40, 20))) {
+                compose.onNodeWithTag("editor-phase-${phase.block}-0").performScrollTo().performClick()
+                scalar(s(R.string.slider_temp), phase.temp, temperature(phase.celsius, phase.fahrenheit, useFahrenheit))
+                scalar(s(R.string.slider_fan), phase.fan.toFloat(), percent(phase.fan))
+                scalar(s(R.string.slider_length), phase.minutes.toFloat(), minutes(phase.minutes))
+                compose.onAllNodes(adjustable and hasAnyAncestor(hasTestTag("editor-phase-controls-${phase.block}-0")), useUnmergedTree = true).assertCountEquals(3)
+                compose.onNodeWithText(s(R.string.uat_setup_done)).performScrollTo().performClick()
+            }
+            compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
             scalar(s(R.string.slider_fan_start), 50f, percent(50))
             scalar(s(R.string.slider_fan_end), 25f, percent(25))
             scalar(s(R.string.slider_temp_start), 44f, temperature("22", "72", useFahrenheit))
             scalar(s(R.string.slider_temp_end), 44f, temperature("22", "72", useFahrenheit))
             scalar(s(R.string.slider_steps), 3f,
                 compose.activity.resources.getQuantityString(R.plurals.a11y_steps, 3, 3))
-            // Four range thumbs plus fourteen scalar sliders: this also catches newly added unlabelled sliders.
-            compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(18)
+            compose.onAllNodes(adjustable and hasAnyAncestor(hasTestTag("editor-middle-sheet")), useUnmergedTree = true).assertCountEquals(5)
+            compose.onNodeWithText(s(R.string.uat_setup_done)).performScrollTo().performClick()
         }
     }
 

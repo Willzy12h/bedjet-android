@@ -9,19 +9,30 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsRemote
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +45,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -194,7 +210,31 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
             BluetoothBanner(model)
             DemoModePanel(model, showTryDemo = false)
         } },
-        snackbarHost = { SnackbarHost(snackbar, Modifier.onSizeChanged { snackbarHeight = it.height }) },
+        snackbarHost = {
+            SnackbarHost(snackbar, Modifier.onSizeChanged { snackbarHeight = it.height }) { data ->
+                BoxWithConstraints {
+                    val style = MaterialTheme.typography.bodyMedium
+                    val messageLayout = rememberTextMeasurer().measure(data.visuals.message, style = style,
+                        constraints = Constraints(maxWidth = with(density) { (maxWidth - 56.dp).roundToPx().coerceAtLeast(1) }))
+                    // Preserve Material's compact layout; only long explanations need their own scrolling area.
+                    if (messageLayout.lineCount <= 2) Snackbar(data)
+                    else {
+                        Surface(color = MaterialTheme.colorScheme.inverseSurface, contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                            shape = MaterialTheme.shapes.small, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                            Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f).heightIn(max = (LocalConfiguration.current.screenHeightDp * .25f).dp)
+                                    .testTag("snackbar-message-scroll").verticalScroll(rememberScrollState())) {
+                                    Text(data.visuals.message, style = MaterialTheme.typography.bodyMedium)
+                                }
+                                IconButton(onClick = { data.dismiss() }, modifier = Modifier.size(48.dp).testTag("snackbar-dismiss")) {
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(io.github.willzy12h.nocturne.R.string.snackbar_dismiss))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         bottomBar = {
             Column {
                 if (parkedDrafts.isNotEmpty()) {
@@ -228,7 +268,9 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
             Tab.REMOTE -> RemoteScreen(model, modifier)
             Tab.HISTORY -> HistoryScreen(model, modifier)
-            Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest)
+            Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest,
+                onBackupsRequestHandled = { if (backupsRequest == it) backupsRequest = 0 },
+                onAlarmsRequestHandled = { if (alarmsRequest == it) alarmsRequest = 0 })
         }
     }
 }

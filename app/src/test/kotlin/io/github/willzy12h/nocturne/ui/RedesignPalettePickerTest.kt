@@ -20,6 +20,7 @@ class RedesignPalettePickerTest {
 
     @Test fun choosingNightAndDaySwatchesSavesBothIndependently() {
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("appearance")
         ui.compose.onNodeWithTag("night-palette-FOREST").performScrollTo().performClick()
         ui.waitUntil { ui.graph.repository.settings.value.nightPalette == Palette.FOREST }
         ui.compose.onNodeWithTag("day-palette-WINTER_STORM").performScrollTo().performClick()

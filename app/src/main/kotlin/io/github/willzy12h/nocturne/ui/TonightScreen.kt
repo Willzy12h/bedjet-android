@@ -84,7 +84,7 @@ import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.delay
 import java.time.ZonedDateTime
 
-/** Fixed wake and explanation above saved Quick controls and reorderable Tonight sections. */
+/** Fixed wake and explanation above Tonight's card, presets and saved section order. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenBackups: () -> Unit = {},
@@ -179,11 +179,11 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
             AlarmExplanationLine(explanation, openExplanation)
             if (largeText) HomeReading(model, settings)
-            QuickControls(model, settings, guard)
             TonightSections(settings,
                 onOrder = { order -> model.updateSettings { it.copy(tonightSectionOrder = order) } },
                 onCollapse = { id -> model.updateSettings { it.copy(collapsedTonightSections =
                     if (id in it.collapsedTonightSections) it.collapsedTonightSections - id else it.collapsedTonightSections + id) } },
+                afterSection = { section -> if (section == "night") QuickControls(model, settings, guard) },
             ) { section ->
                 when (section) {
                     "connection" -> {
@@ -296,8 +296,10 @@ private fun HomeReading(model: AppViewModel, settings: Settings) {
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(tempText(reading.actualTemperature, settings.fahrenheit),
-                modifier = Modifier.testTag("home-temperature"), fontSize = 48.sp, lineHeight = 56.sp,
-                fontWeight = FontWeight.Light)
+                modifier = Modifier.testTag("home-temperature"), style = MaterialTheme.typography.displayLarge,
+                fontSize = if (LocalConfiguration.current.fontScale >= 1.5f) 40.sp else 64.sp,
+                lineHeight = if (LocalConfiguration.current.fontScale >= 1.5f) 48.sp else 72.sp,
+                fontWeight = FontWeight.Bold)
             Column {
                 Text(stringResource(R.string.home_air_from_bedjet), modifier = Modifier.testTag("home-reading-context"),
                     color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -310,7 +312,7 @@ private fun HomeReading(model: AppViewModel, settings: Settings) {
     }
 }
 
-/** Where a wake label sits: Midnight Ink's headline, Daylight's tile, or simple view's final timeline row. */
+/** Where a wake label sits: the dark headline, the light palette tile, or simple view's final timeline row. */
 enum class WakeLabelStyle { HEADLINE, TILE, TIMELINE }
 
 /**

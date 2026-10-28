@@ -63,7 +63,7 @@ class BackupOriginalsSettingsTest {
     }
     private fun backup(device: String, slot: Int, name: String) =
         SlotBackup(device, slot, program(name), graph.now().toString())
-    private fun settings() { compose.onNodeWithText("Settings").performClick() }
+    private fun settings() { compose.onNodeWithText("Settings").performClick(); compose.openSettingsPage("bedjet") }
 
     @Test fun importedUnknownAndLegacyOriginalsAreListedSeparatelyAndCannotWrite() {
         val repo = graph.repository

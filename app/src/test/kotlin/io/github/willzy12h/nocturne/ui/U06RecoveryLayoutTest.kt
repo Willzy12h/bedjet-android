@@ -135,6 +135,7 @@ class U06RecoveryLayoutTest(look: U06Look) {
         assertTrue("Cancel must keep the originals barrier", repository.originalsBlocked.value)
 
         ui.tab("Settings")
+        ui.compose.openSettingsPage("backups")
         ui.compose.onNodeWithText(ui.s(R.string.originals_blocked_text)).assertExists()
         viewAndHideDetails("slot-backups.json")
         ui.control(ui.s(R.string.unreadable_dismiss))

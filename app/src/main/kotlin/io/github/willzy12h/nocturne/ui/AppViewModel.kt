@@ -360,7 +360,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val now = graph.now()
         if (startNow) {
             val preview = startPreview(profile, now)
-            return@runCatching preview.plan ?: error(preview.refusalReason ?: "This night cannot start now.")
+            return@runCatching preview.plan ?: error(preview.refusalReason ?: getApplication<Application>().getString(R.string.preview_cannot_start))
         }
         val start = if (startNow) now else WakeResolver.nextBedtime(profile, now)
         PlanCompiler.compile(profile, start, WakeResolver.resolve(profile, start, nextAlarm.value?.takeIf { it.counts }?.time).time)

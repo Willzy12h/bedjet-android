@@ -28,6 +28,7 @@ class LightThemeConfirmationTest {
     private val warning = "Switch to light theme? The screen will get much brighter."
     private fun choose(label: String) {
         tab(R.string.tab_settings)
+        ui.compose.openSettingsPage("appearance")
         ui.compose.onNodeWithText(label).performScrollTo().performClick()
     }
 
@@ -100,6 +101,7 @@ class LightThemeConfirmationTest {
 
     @Test fun releaseBedJetIsReachableFromSettingsAndUsesTheExistingHandover() {
         tab(R.string.tab_settings)
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().performClick()
         ui.waitUntil { ui.graph.sessions.released.value }
         ui.compose.onNodeWithText(ui.s(R.string.feature_take_back)).performScrollTo().assertIsDisplayed()

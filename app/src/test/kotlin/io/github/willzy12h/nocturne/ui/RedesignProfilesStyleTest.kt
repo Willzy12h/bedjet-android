@@ -110,6 +110,6 @@ class RedesignProfileChooserLargeTextTest(private val preset: io.github.willzy12
         ui.checkControl(choice, "Preset ${preset.name}")
         choice.performClick()
         ui.compose.onNodeWithText(ui.s(R.string.editor_title)).assertIsDisplayed()
-        ui.compose.onNodeWithText(preset.name).assertExists()
+        ui.compose.onNode(hasText(preset.name) and hasSetTextAction()).assertExists()
     }
 }

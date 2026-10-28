@@ -93,6 +93,7 @@ class ImportedTemporaryDurationTest {
         val original = ui.graph.repository.activeNight.value
         val generation = ui.graph.repository.runtime.value.generation
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("notifications")
         val unsupportedReason = "This saved action uses unsupported settings. Choose a mode below to repair it."
         // Collect both presentation observations before repairing the preset, so the valid Heat
         // repair and no-owner-work controls still execute when the unsupported presentation is RED.

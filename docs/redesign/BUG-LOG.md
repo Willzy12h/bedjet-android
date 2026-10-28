@@ -72,12 +72,12 @@ This was a static review; tests were not run in this pass.
 
 - P2/P3 state and palette-consent review established no concrete regression; no code or tests
   were changed in that review.
-- P4-004 (open for P8): an imported/legacy Turbo phase can retain a stored temperature other
+- P4-004 (resolved in focused P8 verification; full P8 gate passed): an imported/legacy Turbo phase can retain a stored temperature other
   than 86 half-degrees. `ProfileEditor.kt` displays that stored value, while
   `PlanCompiler.phaseSteps` compiles Turbo at the protocol's fixed 43°C. Add a failing display
   regression and show the effective fixed temperature. Preserve legacy chained durations and
   their existing chain policy; do not rewrite the protected compiler or silently migrate data.
-  Static evidence only at this point; P5 source is frozen for its full gate.
+  `P8LegacyTurboDisplayTest` passed focused verification for Celsius and Fahrenheit, preserving the stored phase, chained duration and compiled steps.
 
 ## P5 gate follow-up
 
@@ -138,3 +138,28 @@ P7 full gate passed with three workers and a fresh JVM per class: 311 core tests
 25 warnings. The fresh suite took 1,162.35 seconds. A repeat of the complete task
 command confirmed lint and the success footer with the same passing results up-to-date.
 No open blocking P7 findings.
+
+## Pass 11 — Whole-branch P8 regression review
+
+A bounded static review of the cumulative changes found no additional concrete functional,
+receipt-state, accessibility or backup/runtime regression. Protected foundation files remain
+unchanged except for the intended defaulted P5 Settings field. Full P8 verification subsequently passed. No builds, device or accessibility-service verification were performed in this pass.
+
+## Pass 12 — P8 layout and navigation regressions
+
+| ID | Severity | Evidence / file | Reproduction or test | Status | Verified fix evidence |
+| --- | --- | --- | --- | --- | --- |
+| P8-001 | Moderate | A consumed alarm/backup navigation request could reopen its page on a later Settings visit. | `P8ConsumedSettingsRequestTest` observed RED. | Resolved in full P8 gate. | Focused test passes after matching requests are consumed by MainActivity. |
+| P8-002 | Moderate | At 320dp / 200% text, New profile overlapped the Cooldown offer; the long unavailable temperature broke mid-word. | `P8ProfilesHeaderTest`, `P8StatusHeaderLargeTextTest` observed RED. | Resolved in full P8 gate. | Fixed header and full-width long status text pass focused checks and corrected captures. |
+| P8-003 | Moderate | Long alarm feedback occupied the usable viewport; the first dismiss-button layout also wrapped short feedback enough to clip a Quick tile. | `P8SnackbarLayoutTest`, existing alarm and U06 primary layout checks. | Resolved in full P8 gate. | 61-case focused pass covers complete scrollable feedback, dismiss target, actual alarm recheck and all primary-layout variants. |
+
+The first full P8 gate found 21 test-migration failures after the Settings, Home and editor
+layout changes. Health fixtures need the separated Health section; accessory/reconnection
+checks enter BedJet; recovery checks enter Backups; preset selection distinguishes the
+editable name from its new heading. Animation geometry is measured with Night collapsed through its existing control, keeping
+the marker visible when feedback enters; the original motion/lifecycle assertions remain. No command, receipt, permission,
+recovery or motion assertion is removed. The follow-up and full P8 gate are recorded below.
+
+Focused follow-up passed all routing, permission, recovery and selector cases. The final
+marker fixture passes all nine active-indicator cases. The complete P8 rerun passed: 311 core tests, 1,704 app cases with zero failures/errors and
+41 opt-in capture skips, zero lint errors and 24 warnings; BUILD SUCCESSFUL in 21m 1s.

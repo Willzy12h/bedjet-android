@@ -15,14 +15,14 @@ import java.time.ZonedDateTime
 @Config(sdk = [34])
 class DaylightHeatPaletteTest : ComposeActivityFixture() {
     @Test fun overcastHeatingUsesTheSharedEmberFamily() {
-        val heat = DaylightColors.heat
-        val gentle = DaylightColors.gentleHeat
-        val turbo = DaylightColors.turbo
+        val heat = io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.nocturneColors().heat
+        val gentle = io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.nocturneColors().gentleHeat
+        val turbo = io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.nocturneColors().turbo
         assertEquals(Color(0xFFF45A40), heat)
         assertEquals(Color(0xFFFF8257), gentle)
         assertEquals(Color(0xFFC0202E), turbo)
-        assertEquals(Color(0xFF2B8EE0), DaylightColors.cool)
-        assertEquals(Color(0xFFB88C12), DaylightColors.dry)
+        assertEquals(Color(0xFF2B8EE0), io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.nocturneColors().cool)
+        assertEquals(Color(0xFFB88C12), io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.nocturneColors().dry)
     }
 
     @Test fun simpleViewUsesTheSamePaletteTokens() {

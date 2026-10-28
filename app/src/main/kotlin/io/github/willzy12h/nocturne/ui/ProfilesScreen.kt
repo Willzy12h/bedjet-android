@@ -20,7 +20,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExtendedFloatingActionButton
+import io.github.willzy12h.nocturne.ui.NocturneButton as Button
 import androidx.compose.material3.MaterialTheme
 import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.Text
@@ -76,9 +76,13 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     val activeNight by model.activeNight.collectAsState()
     val tokens = paletteTokens
 
-    Box(modifier.fillMaxSize()) {
-        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text(stringResource(R.string.profiles_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
+    Column(modifier.fillMaxSize()) {
+        FlowRow(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.profiles_title), style = MaterialTheme.typography.headlineMedium)
+            Button(onClick = { adding = true }) { Text(stringResource(R.string.profiles_new)) }
+        }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!settings.cooldownOfferAnswered) item { CooldownOfferCard(model, profiles, settings.fahrenheit) }
             items(profiles, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }
@@ -129,9 +133,8 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                         }
                 }
             }
-            item { Box(Modifier.padding(40.dp)) }
+            item { Box(Modifier.padding(8.dp)) }
         }
-        ExtendedFloatingActionButton(onClick = { adding = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Text(stringResource(R.string.profiles_new)) }
     }
 
     if (adding) {

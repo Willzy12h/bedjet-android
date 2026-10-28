@@ -31,9 +31,9 @@ class TonightLayoutTest {
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     private fun saved() = json.encodeToString(Settings.serializer(), ui.graph.repository.settings.value)
 
-    @Test fun quickControlsComeBeforeThePlanAndCollapsePersists() {
+    @Test fun quickControlsFollowThePlanAndCollapsePersists() {
         val quick = ui.compose.onNode(hasText(ui.s(R.string.tonight_quick)) and hasClickAction())
-        quick.assertIsDisplayed().performClick()
+        quick.performScrollTo().assertIsDisplayed().performClick()
         ui.waitUntil { saved().contains("\"quickControlsCollapsed\":true") }
         ui.compose.onNodeWithTag("quick-mode-HEAT").assertDoesNotExist()
         tab(R.string.tab_settings); tab(R.string.tab_tonight)
@@ -43,7 +43,7 @@ class TonightLayoutTest {
         val warm = ui.compose.onNodeWithTag("quick-mode-HEAT")
         warm.performScrollTo().assertIsDisplayed()
         val section = ui.compose.onNodeWithTag("tonight-section-night").getUnclippedBoundsInRoot()
-        assertTrue(warm.getUnclippedBoundsInRoot().bottom < section.top)
+        assertTrue(section.bottom < warm.getUnclippedBoundsInRoot().top)
     }
 
     @Test fun wakeStaysAtTheTopRightWhenTheSectionsScroll() {

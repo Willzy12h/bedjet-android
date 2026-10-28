@@ -92,6 +92,7 @@ class ThemeDemoIsolationTest {
         assertTrue(preferences.getLong("holdUntil", 0) > ui.graph.now().toInstant().toEpochMilli())
 
         settings()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.setup_use_demo)).performScrollTo().performClick()
         ui.waitUntil {
             ui.graph.repository.isDemoSession && ui.graph.repository.settings.value.demoMode &&
@@ -102,6 +103,7 @@ class ThemeDemoIsolationTest {
         assertEquals("Entering Demo must not brighten the held screen", MidnightInkScheme.onSurface, renderedHeaderColour())
 
         settings()
+        ui.compose.openSettingsPage("appearance")
         ui.compose.onNodeWithText(ui.s(R.string.theme_light)).performScrollTo().performClick()
         ui.compose.onNodeWithText(ui.s(R.string.ux_light_theme_warning)).assertIsDisplayed()
         assertEquals(ThemeMode.SCHEDULED, ui.graph.repository.settings.value.themeMode)
@@ -109,7 +111,7 @@ class ThemeDemoIsolationTest {
         ui.waitUntil { ui.graph.repository.settings.value.themeMode == ThemeMode.LIGHT }
         settleFrames()
         assertTrue(ui.graph.repository.isDemoSession)
-        assertEquals("The explicit demo choice must actually show the light palette", DaylightScheme.onSurface, renderedHeaderColour())
+        assertEquals("The explicit demo choice must actually show the light palette", io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.materialScheme().onSurface, renderedHeaderColour())
         assertEquals("Demo must leave real consent on disk intact even if the process dies before Exit demo",
             realConsent, preferences.all)
 
@@ -145,10 +147,12 @@ class ThemeDemoIsolationTest {
         assertNotNull(preferences.getString("holdSelection", null))
 
         settings()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.setup_use_demo)).performScrollTo().performClick()
         ui.waitUntil { ui.graph.repository.isDemoSession && ui.graph.actions.busy.value.runningLabel == null }
         settleFrames()
         settings()
+        ui.compose.openSettingsPage("appearance")
         ui.compose.onNodeWithText(ui.s(R.string.theme_light)).performScrollTo().performClick()
         ui.compose.onNodeWithText(ui.s(R.string.ux_switch)).performClick()
         ui.waitUntil { ui.graph.repository.settings.value.themeMode == ThemeMode.LIGHT }
@@ -156,7 +160,7 @@ class ThemeDemoIsolationTest {
         val displayedDemoSettings = ui.graph.repository.settings.value
         val displayedRevision = ui.graph.repository.sessionRevision.value
         assertTrue(displayedDemoSettings.demoMode)
-        assertEquals(DaylightScheme.onSurface, renderedHeaderColour())
+        assertEquals(io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.materialScheme().onSurface, renderedHeaderColour())
         assertEquals(realConsent, preferences.all)
 
         ui.compose.onNodeWithText(ui.s(R.string.gpt12_exit_demo)).performClick()

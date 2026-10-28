@@ -48,6 +48,7 @@ class FeatureUiTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixture
         org.robolectric.shadows.ShadowAlarmManager.setCanScheduleExactAlarms(false)
         compose.setContent { MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
             PlatformSettingsSection(graph)
+            PlatformSettingsSection(graph, healthOnly = true)
         } } }
         compose.onNodeWithText("Auto-start").performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Auto-start").assertIsDisplayed().assertIsOff()

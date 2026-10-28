@@ -50,7 +50,8 @@ import kotlin.math.abs
 /** Reorders actual sections, with a compact view for dragging sections whose content spans several screens. */
 @Composable
 internal fun TonightSections(settings: Settings, onOrder: (List<String>) -> Unit,
-    onCollapse: (String) -> Unit, content: @Composable (String) -> Unit) {
+    onCollapse: (String) -> Unit, afterSection: @Composable (String) -> Unit = {},
+    content: @Composable (String) -> Unit) {
     val order = settings.normalisedTonightOrder()
     val currentOrder by rememberUpdatedState(order)
     val saveOrder by rememberUpdatedState(onOrder)
@@ -131,5 +132,6 @@ internal fun TonightSections(settings: Settings, onOrder: (List<String>) -> Unit
             }
             if (!collapsed) content(id)
         }
+        afterSection(id)
     } }
 }

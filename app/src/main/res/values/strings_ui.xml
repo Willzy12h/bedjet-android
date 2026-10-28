@@ -45,7 +45,6 @@
     <string name="mode_off">Off</string>
     <string name="mode_heat">Heat</string>
     <string name="mode_turbo">Turbo</string>
-    <string name="mode_gentle_heat">Gentle heat</string>
     <string name="mode_cool">Cool</string>
     <string name="mode_dry">Dry</string>
     <string name="mode_pause">Pause</string>
@@ -113,9 +112,7 @@
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="theme_scheduled">Scheduled</string>
-    <string name="settings_scheduled_help">Use Midnight Ink at night and Daylight during the day. Equal times keep Midnight Ink all day.</string>
     <string name="settings_dark_from">Midnight Ink from</string>
-    <string name="settings_light_from">Daylight from</string>
     <string name="settings_simple_view">Simple view</string>
     <string name="settings_simple_view_help">Show tonight as a list of steps instead of the curve.</string>
     <string name="settings_bedjet">BedJet</string>

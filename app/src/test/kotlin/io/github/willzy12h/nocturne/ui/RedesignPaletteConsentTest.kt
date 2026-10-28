@@ -76,6 +76,7 @@ class RedesignPaletteConsentTest {
         runBlocking { ui.graph.repository.updateSettings { it.copy(themeMode = ThemeMode.DARK, nightPalette = Palette.FOREST) } }
         settle()
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("appearance")
         ui.compose.onNodeWithTag("night-palette-OVERCAST").performScrollTo().performClick()
         ui.compose.onNodeWithText(ui.s(R.string.ux_light_theme_warning)).assertIsDisplayed()
         assertEquals(Palette.FOREST, ui.graph.repository.settings.value.nightPalette)

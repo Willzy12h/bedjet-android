@@ -30,6 +30,10 @@ class ActiveIndicatorTest {
     }
     @After fun restoreClock() { ui.compose.mainClock.autoAdvance = true }
     private fun warm() {
+        // Quick controls follow Night now; keep the marker visible when confirmation feedback enters.
+        ui.compose.onNodeWithContentDescription(ui.s(R.string.gpt12_collapse_section, ui.s(R.string.ux_section_night)))
+            .performScrollTo().performClick()
+        ui.waitUntil { "night" in ui.graph.repository.settings.value.collapsedTonightSections }
         val control = ui.compose.onNodeWithTag("quick-mode-HEAT")
         control.performScrollTo()
         ui.compose.mainClock.autoAdvance = false

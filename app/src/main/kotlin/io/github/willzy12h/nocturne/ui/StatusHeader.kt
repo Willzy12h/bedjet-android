@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -77,11 +78,17 @@ internal fun StatusHeader(model: AppViewModel) {
     val connected = connection == HeaderConnection.CONNECTED
     val background = if (connected) symbol.copy(alpha = .08f).compositeOver(MaterialTheme.colorScheme.surfaceContainer)
         else MaterialTheme.colorScheme.surface
+    val stackTemperature = LocalConfiguration.current.fontScale >= 1.5f && (status == null || !live)
+    val temperature = status?.let {
+        if (live) tempText(it.actualTemperature, settings.fahrenheit)
+        else stringResource(R.string.status_last_temperature, tempText(it.actualTemperature, settings.fahrenheit))
+    } ?: stringResource(R.string.status_temperature_unavailable)
     Surface(color = background, border = BorderStroke(1.dp,
         if (connected) symbol else MaterialTheme.colorScheme.outlineVariant)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("status-header"),
-            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("status-header")) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.Top) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("status-device"))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Icon(connection.icon, description, tint = symbol,
@@ -89,12 +96,12 @@ internal fun StatusHeader(model: AppViewModel) {
                     Text(stringResource(connection.text), style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.testTag("status-connection"))
                 }
+                }
+                if (!stackTemperature) Text(temperature, style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.widthIn(max = 132.dp).testTag("status-temperature"))
             }
-            Text(status?.let {
-                if (live) tempText(it.actualTemperature, settings.fahrenheit)
-                else stringResource(R.string.status_last_temperature, tempText(it.actualTemperature, settings.fahrenheit))
-            } ?: stringResource(R.string.status_temperature_unavailable), style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.widthIn(max = 132.dp).testTag("status-temperature"))
+            if (stackTemperature) Text(temperature, style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.fillMaxWidth().testTag("status-temperature"))
         }
     }
 }

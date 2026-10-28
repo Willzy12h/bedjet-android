@@ -136,6 +136,7 @@ class UatLayoutAndSetupTest {
             val settings by model.settings.collectAsState()
             NocturneTheme(settings, model.now()) { SettingsScreen(model, Modifier) }
         }
+        compose.openSettingsPage("permissions")
         compose.onNodeWithTag("open-setup-checklist").performScrollTo().performClick()
         compose.waitUntil(5_000) { model.setupChecklistOpen.value && model.settings.value.setupDismissedOptional.isEmpty() }
         assertEquals(1, model.setupChecklistRequest.value)

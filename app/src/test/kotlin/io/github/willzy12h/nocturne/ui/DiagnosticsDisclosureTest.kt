@@ -57,6 +57,7 @@ class DiagnosticsDisclosureTest {
         assertEquals(ALARM_SOURCE, alarm.getValue("creatorPackage").jsonPrimitive.content)
 
         ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("about")
         val explanation = ui.s(R.string.settings_diagnostics_help)
         // This checks the actual visible node, every rendered character, and clipping at 320 dp / 200% text.
         ui.checkLayout(ui.compose.onNodeWithText(explanation), "Diagnostics export data disclosure")

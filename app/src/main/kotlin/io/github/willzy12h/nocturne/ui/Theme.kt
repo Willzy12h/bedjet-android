@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -25,6 +26,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -32,6 +36,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.Palette
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.core.store.Settings
@@ -101,11 +106,31 @@ fun PaletteTokens.nocturneColors(): NocturneColors = NocturneColors(
     dry = dry, idle = off, connected = if (dark) Color(0xFF5ED39A) else Color(0xFF1E8A55), accent = accent,
 )
 
-// Compatibility aliases used by widgets and existing callers until they migrate to selected tokens.
 val MidnightInkColors = Palette.MIDNIGHT_INK.tokens.nocturneColors()
-val DaylightColors = Palette.OVERCAST.tokens.nocturneColors()
 val MidnightInkScheme = Palette.MIDNIGHT_INK.tokens.materialScheme()
-val DaylightScheme = Palette.OVERCAST.tokens.materialScheme()
+
+private val displayFont = FontFamily(Font(R.font.bricolage_bold, FontWeight.Bold))
+private val bodyFont = FontFamily(Font(R.font.figtree_regular, FontWeight.Normal),
+    Font(R.font.figtree_medium, FontWeight.Medium), Font(R.font.figtree_semibold, FontWeight.SemiBold),
+    Font(R.font.figtree_bold, FontWeight.Bold))
+private val baseTypography = Typography()
+private val nocturneTypography = baseTypography.copy(
+    displayLarge = baseTypography.displayLarge.copy(fontFamily = displayFont, fontWeight = FontWeight.Bold),
+    displayMedium = baseTypography.displayMedium.copy(fontFamily = displayFont, fontWeight = FontWeight.Bold),
+    displaySmall = baseTypography.displaySmall.copy(fontFamily = displayFont, fontWeight = FontWeight.Bold),
+    headlineLarge = baseTypography.headlineLarge.copy(fontFamily = displayFont, fontWeight = FontWeight.Bold),
+    headlineMedium = baseTypography.headlineMedium.copy(fontFamily = displayFont, fontWeight = FontWeight.Bold),
+    headlineSmall = baseTypography.headlineSmall.copy(fontFamily = displayFont, fontWeight = FontWeight.Bold),
+    titleLarge = baseTypography.titleLarge.copy(fontFamily = displayFont, fontWeight = FontWeight.Bold),
+    titleMedium = baseTypography.titleMedium.copy(fontFamily = bodyFont),
+    titleSmall = baseTypography.titleSmall.copy(fontFamily = bodyFont),
+    bodyLarge = baseTypography.bodyLarge.copy(fontFamily = bodyFont),
+    bodyMedium = baseTypography.bodyMedium.copy(fontFamily = bodyFont),
+    bodySmall = baseTypography.bodySmall.copy(fontFamily = bodyFont),
+    labelLarge = baseTypography.labelLarge.copy(fontFamily = bodyFont),
+    labelMedium = baseTypography.labelMedium.copy(fontFamily = bodyFont),
+    labelSmall = baseTypography.labelSmall.copy(fontFamily = bodyFont),
+)
 
 val LocalPaletteTokens = staticCompositionLocalOf { Palette.MIDNIGHT_INK.tokens }
 val LocalNocturneColors = staticCompositionLocalOf { MidnightInkColors }
@@ -148,7 +173,7 @@ private fun NocturnePalette(tokens: PaletteTokens, content: @Composable () -> Un
         LocalPaletteTokens provides tokens,
         LocalNocturneColors provides colors,
     ) {
-        MaterialTheme(colorScheme = scheme, content = content)
+        MaterialTheme(colorScheme = scheme, typography = nocturneTypography, content = content)
     }
 }
 

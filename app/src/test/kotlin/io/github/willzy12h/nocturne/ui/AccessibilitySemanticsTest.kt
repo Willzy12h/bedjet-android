@@ -61,6 +61,7 @@ class AccessibilitySemanticsTest {
         compose.onNodeWithTag("profile-open-${profile.id}").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Edit profile").fetchSemanticsNodes().isNotEmpty() }
         val middle = profile.middle
+        compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
         if (middle.mode.usesFan) {
             val fan = slider(s(R.string.slider_fan_start)).performScrollTo()
             assertEquals(s(R.string.a11y_percent, middle.fanStart), stateOf(fan))
@@ -71,18 +72,22 @@ class AccessibilitySemanticsTest {
         }
         val steps = slider(s(R.string.slider_steps)).performScrollTo()
         assertEquals(compose.activity.resources.getQuantityString(R.plurals.a11y_steps, middle.rampSteps, middle.rampSteps), stateOf(steps))
+        compose.onNode(hasText(s(R.string.uat_setup_done)) and hasClickAction() and
+            hasAnyAncestor(hasTestTag("editor-middle-sheet"))).performScrollTo().performClick()
         val fanLimits = compose.onNode(hasContentDescription(s(R.string.slider_fan_limits))).performScrollTo()
         assertEquals(s(R.string.a11y_range, s(R.string.a11y_percent, profile.limits.minFan), s(R.string.a11y_percent, profile.limits.maxFan)), stateOf(fanLimits))
     }
 
     @Test fun theBoostSliderSaysItsMinutes() {
         compose.onAllNodesWithText("Settings")[0].performClick()
+        compose.openSettingsPage("notifications")
         val boost = slider(s(R.string.slider_boost)).performScrollTo()
         assertEquals(compose.activity.resources.getQuantityString(R.plurals.a11y_minutes, 15, 15), stateOf(boost))
     }
 
     @Test fun featureSwitchesAreOneToggleableRowAtLeast48dpTall() {
         compose.onAllNodesWithText("Settings")[0].performClick()
+        compose.openSettingsPage("night")
         val label = s(R.string.feature_reminders)
         val row = compose.onNode(hasContentDescription(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
         row.performScrollTo()

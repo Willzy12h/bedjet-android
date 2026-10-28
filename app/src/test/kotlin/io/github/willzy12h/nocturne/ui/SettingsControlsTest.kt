@@ -58,6 +58,7 @@ class SettingsControlsTest {
     @Test fun theQuietStatusNotificationCanBeSwitchedOnAndOffFromSettings() {
         val graph = graph
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("notifications")
         val row = compose.onNode(hasContentDescription(s(R.string.settings_quiet_title)))
         row.performScrollTo()
         row.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
@@ -73,6 +74,7 @@ class SettingsControlsTest {
     @Test fun diagnosticsCanBeExportedFromSettings() {
         val graph = graph
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("about")
         compose.onNodeWithText(s(R.string.settings_diagnostics_export)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(s(R.string.settings_diagnostics_help)).assertExists()
         val file = temp.newFile("diagnostics.json")
