@@ -14,6 +14,12 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
@@ -37,7 +43,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -56,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -181,8 +185,6 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     val snackbar = remember { SnackbarHostState() }
-    // The snackbar floats over the content, so while one shows the content ends above it and nothing (Off) sits underneath.
-    var snackbarHeight by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     LaunchedEffect(Unit) { model.messages.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(tonightRequest) {
@@ -215,24 +217,26 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
     Scaffold(
         topBar = { Spacer(Modifier.statusBarsPadding()) },
         snackbarHost = {
-            SnackbarHost(snackbar, Modifier.onSizeChanged { snackbarHeight = it.height }) { data ->
-                BoxWithConstraints {
-                    val style = MaterialTheme.typography.bodyMedium
+            // Feedback floats over the screen as a small bubble; the content underneath never moves.
+            SnackbarHost(snackbar) { data ->
+                val tokens = paletteTokens
+                BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                    val style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
                     val messageLayout = rememberTextMeasurer().measure(data.visuals.message, style = style,
-                        constraints = Constraints(maxWidth = with(density) { (maxWidth - 56.dp).roundToPx().coerceAtLeast(1) }))
-                    // Preserve Material's compact layout; only long explanations need their own scrolling area.
-                    if (messageLayout.lineCount <= 2) Snackbar(data)
-                    else {
-                        Surface(color = MaterialTheme.colorScheme.inverseSurface, contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                            shape = MaterialTheme.shapes.small, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                            Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f).heightIn(max = (LocalConfiguration.current.screenHeightDp * .25f).dp)
-                                    .testTag("snackbar-message-scroll").verticalScroll(rememberScrollState())) {
-                                    Text(data.visuals.message, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                IconButton(onClick = { data.dismiss() }, modifier = Modifier.size(48.dp).testTag("snackbar-dismiss")) {
-                                    Icon(Icons.Default.Close, contentDescription = stringResource(io.github.willzy12h.nocturne.R.string.snackbar_dismiss))
-                                }
+                        constraints = Constraints(maxWidth = with(density) { (maxWidth - 40.dp).roundToPx().coerceAtLeast(1) }))
+                    Surface(color = tokens.menu, contentColor = tokens.ink, shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, tokens.outline), shadowElevation = 8.dp,
+                        modifier = Modifier.widthIn(max = 360.dp).testTag("feedback-bubble")) {
+                        // Short notices dismiss on a tap; only long explanations need their own scrolling area.
+                        if (messageLayout.lineCount <= 2) Text(data.visuals.message, style = style, textAlign = TextAlign.Center,
+                            modifier = Modifier.clickable { data.dismiss() }.padding(horizontal = 16.dp, vertical = 10.dp))
+                        else Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f, fill = false).heightIn(max = (LocalConfiguration.current.screenHeightDp * .25f).dp)
+                                .testTag("snackbar-message-scroll").verticalScroll(rememberScrollState())) {
+                                Text(data.visuals.message, style = style)
+                            }
+                            IconButton(onClick = { data.dismiss() }, modifier = Modifier.size(48.dp).testTag("snackbar-dismiss")) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(io.github.willzy12h.nocturne.R.string.snackbar_dismiss))
                             }
                         }
                     }
@@ -273,8 +277,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
             }
         },
     ) { padding ->
-        val snackbarInset = with(density) { snackbarHeight.toDp() }
-        val modifier = Modifier.padding(padding).padding(bottom = snackbarInset)
+        val modifier = Modifier.padding(padding)
         if (remoteOpen) Column(modifier) {
             NocturneTextButton(onClick = { remoteOpen = false }, modifier = Modifier.testTag("remote-back")) {
                 Text(androidx.compose.ui.res.stringResource(R.string.parity_back,

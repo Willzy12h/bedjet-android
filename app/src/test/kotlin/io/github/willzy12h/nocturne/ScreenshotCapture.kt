@@ -272,6 +272,7 @@ class ScreenshotCapture {
                 graph.actions.status.value.confidence == Confidence.CONFIRMED && graph.actions.busy.value.runningLabel == null &&
                 compose.onAllNodes(hasText(compose.activity.getString(R.string.parity_end_night))).fetchSemanticsNodes().isNotEmpty()
         }
+        shot("$look-06a-feedback-bubble")
         settle(6_000) // let the confirmation message bar time out
         assertEquals("Running capture needs a confirmed night", Confidence.CONFIRMED, graph.repository.activeNight.value?.confidence)
         assertEquals("Running capture must not show a pending adjustment", Confidence.CONFIRMED, graph.actions.status.value.confidence)
