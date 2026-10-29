@@ -3,7 +3,7 @@
 
 ## 29 October 2026 parity completion and final-review preparation
 
-This follow-up starts from `claude/nocturne-redesign-review` at `8a249bbee2a8dff05c35b7a8ee9604e2b9720d91` and is prepared on `gpt/nocturne-parity-completion`. The earlier verification and APK figures below remain historical; use the results in this section for the current Claude implementation.
+This follow-up starts from `claude/nocturne-redesign-review` at `8a249bbee2a8dff05c35b7a8ee9604e2b9720d91`, merged normally at `1e96ff449059205e7309b2ffe03e458f85b62df4`, and is completed on `gpt/nocturne-redesign` at `8869a7ea1b686a80bd7c4f1cd109949e43517c24`. The earlier verification and APK figures below remain historical; use the results in this section for the current Claude implementation.
 
 ### Completed in this follow-up
 
