@@ -6,7 +6,6 @@ import contextlib
 import io
 import json
 from pathlib import Path
-import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -41,6 +40,27 @@ LEGACY_NAMES = {
     for scene in ("01-tonight", "01b-tonight-lower", "02-profiles", "03-remote",
                   "04-history", "05-settings", "06-tonight-running")
 } | {"features-01-manual-connection-release.png", "features-02-platform-settings.png", "features-03-history-export.png"}
+CURRENT_LOOKS = ("dark", "light", "simple-dark", "simple-light", "combined-320dp-200pct")
+# Hand-checked against the unchanged 14 producer methods and the committed capture manifest.
+REDESIGN_NAMES = {
+    f"{look}-{scene}.png" for look in CURRENT_LOOKS
+    for scene in ("02b-editor", "02c-step-editor", "02d-add-step", "06a-feedback-bubble")
+} | {
+    f"{look}-{scene}.png" for look in CURRENT_LOOKS[:4]
+    for scene in ("05a-settings-appearance", "05b-settings-night", "05c-settings-permissions",
+                  "05d-settings-backups", "05e-settings-notifications", "05f-settings-about")
+} | {
+    f"gaps-{look}-{scene}.png" for look in GAP_LOOK_FIXTURES
+    for scene in ("00-profile-menu", "07-setup-demo", "07-setup-title")
+}
+WINDOW_NAMES = {
+    f"{look}-{scene}-window1.png" for look in CURRENT_LOOKS
+    for scene in ("02c-step-editor", "02d-add-step")
+} | {
+    f"gaps-{look}-{scene}-window1.png" for look in GAP_LOOK_FIXTURES
+    for scene in ("00-profile-menu", "01-slot-pin", "05-checkin-dialog", "06-checkin-suggestion")
+}
+CURRENT_NAMES = LEGACY_NAMES | GAP_NAMES | REDESIGN_NAMES | WINDOW_NAMES
 
 
 class ScreenshotEvidenceTest(unittest.TestCase):
@@ -53,26 +73,42 @@ class ScreenshotEvidenceTest(unittest.TestCase):
         self.assertIn("features-01-manual-connection-release.png", expected)
         self.assertNotIn("features-01-idle-handover.png", expected)
 
-    def test_complete_known_inventory_accepts_all_102_captures_and_74_unbaselined_views(self):
+    def test_complete_current_inventory_accepts_212_captures_and_184_unbaselined_views(self):
         self.assertEqual(64, len(GAP_NAMES))
         self.assertEqual(GAP_NAMES, {path.name for path in (REPOSITORY / "docs/screenshots/gaps").glob("*.png")})
-        self.assertEqual(LEGACY_NAMES | GAP_NAMES, screenshots.EXPECTED)
-        self.assertEqual(102, len(screenshots.EXPECTED))
+        self.assertEqual(212, len(CURRENT_NAMES))
+        self.assertEqual(CURRENT_NAMES, screenshots.EXPECTED)
+        self.assertEqual(212, len(screenshots.EXPECTED))
         self.assertEqual(28, len(screenshots.EXPECTED_BASELINE))
-        self.assertEqual(74, len(screenshots.EXPECTED - screenshots.EXPECTED_BASELINE))
-        self.assertEqual([], screenshots.validate_inventory(screenshots.EXPECTED, screenshots.EXPECTED_BASELINE))
+        self.assertEqual(184, len(screenshots.EXPECTED - screenshots.EXPECTED_BASELINE))
+        self.assertEqual([], screenshots.validate_inventory(CURRENT_NAMES, screenshots.EXPECTED_BASELINE))
 
-    def test_every_existing_gap_capture_is_required(self):
-        for name in sorted(GAP_NAMES):
+    def test_inventory_accepts_the_independently_archived_producer_names(self):
+        import csv
+        manifest = REPOSITORY / "docs/redesign/evidence/remediation/visual/capture-manifest.csv"
+        with manifest.open() as stream:
+            recorded = {row["file"] for row in csv.DictReader(stream)
+                        if not row["file"].startswith(("p8-", "u06/"))}
+        self.assertEqual(212, len(recorded))
+        self.assertEqual(CURRENT_NAMES, recorded)
+        self.assertEqual([], screenshots.validate_inventory(recorded, screenshots.EXPECTED_BASELINE))
+
+    def test_every_current_capture_including_each_secondary_window_is_required(self):
+        for name in sorted(CURRENT_NAMES):
             with self.subTest(name=name):
                 self.assertEqual([f"Missing after capture: {name}"],
-                                 screenshots.validate_inventory((LEGACY_NAMES | GAP_NAMES) - {name}, screenshots.EXPECTED_BASELINE))
+                                 screenshots.validate_inventory(CURRENT_NAMES - {name}, screenshots.EXPECTED_BASELINE))
 
     def test_gap_captures_cannot_become_fabricated_historical_baselines(self):
         for name in sorted(GAP_NAMES):
             with self.subTest(name=name):
                 self.assertEqual([f"Unexpected historical baseline: {name}"],
-                                 screenshots.validate_inventory(LEGACY_NAMES | GAP_NAMES, screenshots.EXPECTED_BASELINE | {name}))
+                                 screenshots.validate_inventory(CURRENT_NAMES, screenshots.EXPECTED_BASELINE | {name}))
+
+    def test_unexpected_window_index_is_rejected_even_when_its_parent_is_known(self):
+        name = "dark-02c-step-editor-window2.png"
+        self.assertEqual([f"Unexpected after capture (possibly stale): {name}"],
+                         screenshots.validate_inventory(CURRENT_NAMES | {name}, screenshots.EXPECTED_BASELINE))
 
     def test_deleted_historical_baseline_fails_even_when_all_after_images_exist(self):
         baseline = screenshots.EXPECTED_BASELINE - {"dark-05-settings.png"}
@@ -110,9 +146,11 @@ class ScreenshotEvidenceTest(unittest.TestCase):
     def gap_fixture(self, look, scene):
         theme, simple, width, scale = GAP_LOOK_FIXTURES[look]
         name = f"gaps-{look}-{scene}.png"
-        # Real archived images establish that dialogs have their own window sizes. They remain untouched.
-        with Image.open(REPOSITORY / "docs/screenshots/gaps" / name) as image:
-            size = image.size
+        # Current producer: the primary is the Activity, except the explicitly selected wake picker.
+        # Other dialogs are separate window1 PNGs, rather than the historical primary-only views.
+        size = (width * 3, 2673)
+        if scene == "03-wake-picker":
+            size = (960, 1305) if width == 320 else (1171, 1302)
         data = self.metadata(theme=theme, simpleView=simple, screenWidthDp=width, fontScale=scale,
                              pixelWidth=size[0], pixelHeight=size[1],
                              demoMode=scene not in ("07-setup-chooser", "08-unreadable-banner"))
@@ -157,14 +195,14 @@ class ScreenshotEvidenceTest(unittest.TestCase):
             for look in GAP_LOOK_FIXTURES:
                 for scene in GAP_SCENES:
                     name, data, _ = self.gap_fixture(look, scene)
-                    shutil.copyfile(REPOSITORY / "docs/screenshots/gaps" / name, after / name)
+                    Image.new("RGB", (data["pixelWidth"], data["pixelHeight"]), "#20252a").save(after / name)
                     # Test-only sidecars, never release evidence or historical baselines.
                     (after / name).with_suffix(".json").write_text(json.dumps(data))
             with patch("sys.argv", ["release_screenshots.py", "--after", str(after), "--baseline", str(baseline),
                                     "--output", str(output)]), contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(1, screenshots.main())  # The 38 required legacy after views are deliberately absent.
+                self.assertEqual(1, screenshots.main())  # All other required current views are deliberately absent.
             report = json.loads((output / "report.json").read_text())
-            self.assertEqual([f"Missing after capture: {name}" for name in sorted(LEGACY_NAMES)], report["errors"])
+            self.assertEqual([f"Missing after capture: {name}" for name in sorted(CURRENT_NAMES - GAP_NAMES)], report["errors"])
             self.assertEqual(GAP_NAMES, {row["name"] for row in report["captures"]})
             self.assertEqual({"UNBASELINED"}, {row["status"] for row in report["captures"]})
             self.assertEqual(64, report["unbaselined"])
@@ -188,6 +226,121 @@ class ScreenshotEvidenceTest(unittest.TestCase):
     def test_matching_metadata_cannot_hide_wrong_png_dimensions(self):
         errors = self.validate_fixture(self.metadata(pixelWidth=1233), size=(1233, 2673))
         self.assertTrue(any("image size expected (960, 2673)" in error for error in errors))
+
+    def test_scheduled_dark_appearance_capture_preserves_its_actual_theme_state(self):
+        data = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1233, theme="SCHEDULED")
+        self.assertEqual([], self.validate_fixture(data, (1233, 2673), "dark-05a-settings-appearance.json"))
+        for wrong in ("DARK", "LIGHT"):
+            with self.subTest(theme=wrong):
+                self.assertTrue(any("theme" in error for error in
+                                    self.validate_fixture({**data, "theme": wrong}, (1233, 2673),
+                                                          "dark-05a-settings-appearance.json")))
+
+    def test_scheduled_theme_does_not_leak_into_other_settings_capture_states(self):
+        for name, theme in (("dark-05b-settings-night.json", "DARK"),
+                            ("light-05a-settings-appearance.json", "LIGHT")):
+            data = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1233, theme=theme)
+            with self.subTest(name=name):
+                self.assertEqual([], self.validate_fixture(data, (1233, 2673), name))
+                self.assertTrue(any("theme" in error for error in
+                                    self.validate_fixture({**data, "theme": "SCHEDULED"}, (1233, 2673), name)))
+
+    def test_feature_captures_retain_the_current_default_simple_view_state(self):
+        for scene in ("01-manual-connection-release", "02-platform-settings", "03-history-export"):
+            name = f"features-{scene}.json"
+            data = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1233, simpleView=True)
+            with self.subTest(name=name):
+                self.assertEqual([], self.validate_fixture(data, (1233, 2673), name))
+                self.assertTrue(any("simpleView" in error for error in
+                                    self.validate_fixture({**data, "simpleView": False}, (1233, 2673), name)))
+
+    def test_new_setup_views_require_real_mode_after_leaving_demo(self):
+        for scene in ("07-setup-demo", "07-setup-title"):
+            name = f"gaps-compact-light-{scene}.json"
+            data = self.metadata(theme="LIGHT", demoMode=False)
+            with self.subTest(name=name):
+                self.assertEqual([], self.validate_fixture(data, name=name))
+                self.assertTrue(any("demoMode" in error for error in
+                                    self.validate_fixture({**data, "demoMode": True}, name=name)))
+
+    def test_requested_native_wake_picker_window_can_be_narrower_than_activity(self):
+        data = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1171, pixelHeight=1302)
+        self.assertEqual([], self.validate_fixture(data, (1171, 1302), "gaps-dark-03-wake-picker.json"))
+        for size in ((1234, 1302), (1171, 2674), (0, 1302), (1171, 0)):
+            with self.subTest(size=size):
+                changed = {**data, "pixelWidth": size[0], "pixelHeight": size[1]}
+                self.assertTrue(any("image size" in error for error in
+                                    self.validate_fixture(changed, size, "gaps-dark-03-wake-picker.json")))
+
+    def report_subset(self, images, sidecars):
+        with tempfile.TemporaryDirectory(prefix="nocturne-current-capture-contract-") as directory:
+            after, output = Path(directory) / "after", Path(directory) / "report"
+            after.mkdir()
+            for name, size in images.items():
+                Image.new("RGB", size, "#20252a").save(after / name)
+            for name, data in sidecars.items():
+                (after / name).write_text(json.dumps(data))
+            with patch("sys.argv", ["release_screenshots.py", "--after", str(after),
+                                    "--baseline", str(REPOSITORY / "docs/screenshots/baseline"),
+                                    "--output", str(output)]), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(1, screenshots.main())  # Other explicitly required captures are intentionally absent.
+            return json.loads((output / "report.json").read_text())
+
+    def test_secondary_window_uses_parent_scene_metadata_without_fabricated_sidecar(self):
+        parent, child = "gaps-dark-00-profile-menu.png", "gaps-dark-00-profile-menu-window1.png"
+        data = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1233)
+        report = self.report_subset({parent: (1233, 2673), child: (691, 624)},
+                                    {"gaps-dark-00-profile-menu.json": data})
+        self.assertEqual({parent, child}, {row["name"] for row in report["captures"]})
+        self.assertEqual([f"Missing after capture: {name}" for name in sorted(CURRENT_NAMES - {parent, child})],
+                         report["errors"])
+        child_row = next(row for row in report["captures"] if row["name"] == child)
+        self.assertEqual("gaps-dark-00-profile-menu.json", child_row["metadata_source"])
+        self.assertEqual([691, 624], child_row["after_size"])
+        self.assertEqual(1233, child_row["fixture"]["pixelWidth"])
+
+    def test_secondary_window_cannot_bypass_parent_state_or_dimension_validation(self):
+        parent, child = "gaps-dark-00-profile-menu.png", "gaps-dark-00-profile-menu-window1.png"
+        valid = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1233)
+        for changes in ({"tag": "remediation"}, {"theme": "LIGHT"}, {"pixelWidth": 1232}):
+            with self.subTest(changes=changes):
+                report = self.report_subset({parent: (1233, 2673), child: (691, 624)},
+                                            {"gaps-dark-00-profile-menu.json": {**valid, **changes}})
+                relevant = [error for error in report["errors"] if not error.startswith("Missing after capture:")]
+                self.assertTrue(any(next(iter(changes)) in error for error in relevant), relevant)
+
+    def test_secondary_window_requires_its_actual_primary_image(self):
+        child = "gaps-dark-00-profile-menu-window1.png"
+        data = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1233)
+        report = self.report_subset({child: (691, 624)}, {"gaps-dark-00-profile-menu.json": data})
+        self.assertTrue(any("primary" in error and child in error for error in report["errors"]), report["errors"])
+
+    def test_secondary_popup_bounds_and_fullscreen_sheet_dimensions_remain_enforced(self):
+        for stem, size in (("gaps-dark-00-profile-menu", (1234, 624)),
+                           ("gaps-dark-01-slot-pin", (960, 2674)),
+                           ("dark-02c-step-editor", (960, 1728))):
+            parent, child = stem + ".png", stem + "-window1.png"
+            data = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1233)
+            report = self.report_subset({parent: (1233, 2673), child: size}, {stem + ".json": data})
+            with self.subTest(child=child, size=size):
+                self.assertTrue(any(child in error and "image size" in error for error in report["errors"]),
+                                report["errors"])
+
+    def test_truncated_png_is_rejected_even_when_all_pixels_can_be_decoded(self):
+        with tempfile.TemporaryDirectory(prefix="nocturne-broken-capture-") as directory:
+            after, output = Path(directory) / "after", Path(directory) / "report"
+            after.mkdir()
+            name = "features-03-history-export.png"
+            image = after / name
+            Image.new("RGB", (1233, 2673), "#20252a").save(image)
+            image.write_bytes(image.read_bytes()[:-12])  # Complete pixel data, missing terminal IEND.
+            data = self.metadata(screenWidthDp=411, fontScale=1.0, pixelWidth=1233)
+            image.with_suffix(".json").write_text(json.dumps(data))
+            with patch("sys.argv", ["release_screenshots.py", "--after", str(after),
+                                    "--baseline", str(REPOSITORY / "docs/screenshots/baseline"),
+                                    "--output", str(output)]), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises((OSError, SyntaxError)):
+                    screenshots.main()
 
 
 if __name__ == "__main__":

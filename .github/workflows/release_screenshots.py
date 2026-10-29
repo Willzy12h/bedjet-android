@@ -20,16 +20,34 @@ SCREENS = (
     "01-tonight", "01b-tonight-lower", "02-profiles", "03-remote",
     "04-history", "05-settings", "06-tonight-running",
 )
+EDITOR_SCREENS = ("02b-editor", "02c-step-editor", "02d-add-step")
+SETTINGS_SCREENS = (
+    "05a-settings-appearance", "05b-settings-night", "05c-settings-permissions",
+    "05d-settings-backups", "05e-settings-notifications", "05f-settings-about",
+)
 GAP_LOOKS = LOOKS[:4] + tuple(f"compact-{look}" for look in LOOKS[:4])
 GAP_SCREENS = (
-    "01-slot-pin", "02-wake-expiry", "03-wake-picker", "04-resume",
-    "05-checkin-dialog", "06-checkin-suggestion", "07-setup-chooser", "08-unreadable-banner",
+    "00-profile-menu", "01-slot-pin", "02-wake-expiry", "03-wake-picker", "04-resume",
+    "05-checkin-dialog", "06-checkin-suggestion", "07-setup-demo", "07-setup-title",
+    "07-setup-chooser", "08-unreadable-banner",
 )
-GAP_DIALOG_SCREENS = ("01-slot-pin", "03-wake-picker", "05-checkin-dialog", "06-checkin-suggestion")
-EXPECTED = {f"{look}-{screen}.png" for look in LOOKS for screen in SCREENS} | {
+# Explicit producer contract: 170 primary scenes and 42 separately drawn windows.
+# This must be reviewed when ScreenshotCapture changes, never inferred from candidate files.
+FULL_SIZE_WINDOWS = {
+    f"{look}-{screen}-window1.png": f"{look}-{screen}.png"
+    for look in LOOKS for screen in ("02c-step-editor", "02d-add-step")
+}
+SECONDARY_WINDOWS = FULL_SIZE_WINDOWS | {
+    f"gaps-{look}-{screen}-window1.png": f"gaps-{look}-{screen}.png"
+    for look in GAP_LOOKS
+    for screen in ("00-profile-menu", "01-slot-pin", "05-checkin-dialog", "06-checkin-suggestion")
+}
+EXPECTED = {f"{look}-{screen}.png" for look in LOOKS for screen in SCREENS + EDITOR_SCREENS + ("06a-feedback-bubble",)} | {
+    f"{look}-{screen}.png" for look in LOOKS[:4] for screen in SETTINGS_SCREENS
+} | {
     "features-01-manual-connection-release.png", "features-02-platform-settings.png",
     "features-03-history-export.png",
-} | {f"gaps-{look}-{screen}.png" for look in GAP_LOOKS for screen in GAP_SCREENS}
+} | {f"gaps-{look}-{screen}.png" for look in GAP_LOOKS for screen in GAP_SCREENS} | SECONDARY_WINDOWS.keys()
 EXPECTED_BASELINE = {f"{look}-{screen}.png" for look in LOOKS[:4] for screen in SCREENS}
 
 
@@ -50,29 +68,57 @@ def validate_metadata(path, size):
     gap = path.name.startswith("gaps-")
     look = path.name.removeprefix("gaps-").removeprefix("compact-")
     combined = path.name.startswith(("combined-320dp-200pct-", "gaps-compact-"))
-    setup = gap and path.stem.endswith(("07-setup-chooser", "08-unreadable-banner"))
-    dialog = gap and path.stem.endswith(GAP_DIALOG_SCREENS)
+    setup = gap and path.stem.endswith(("07-setup-demo", "07-setup-title", "07-setup-chooser", "08-unreadable-banner"))
+    # The picker explicitly captures its native decor view; all other primary views are the Activity.
+    dialog = gap and path.stem.endswith("03-wake-picker")
+    theme = "LIGHT" if look.startswith(("light-", "simple-light-")) else "DARK"
+    if path.stem == "dark-05a-settings-appearance":
+        theme = "SCHEDULED"
     expected = {
         "renderer": "Robolectric native graphics", "sdk": 34, "tag": "after",
         "clockInstant": "2026-10-22T22:30:00Z", "clockZone": "Europe/London",
         "screenWidthDp": 320 if combined else 411, "screenHeightDp": 891,
         "fontScale": 2.0 if combined else 1.0, "densityDpi": 480,
         "pixelWidth": size[0], "pixelHeight": size[1], "demoMode": not setup,
-        "theme": "LIGHT" if look.startswith(("light-", "simple-light-")) else "DARK",
-        "simpleView": look.startswith("simple-"),
+        "theme": theme,
+        # featureViews changes theme/demo only and retains Settings' default Simple view.
+        "simpleView": look.startswith("simple-") or path.name.startswith("features-"),
     }
     errors = [f"{path.name}: {key} expected {value!r}, found {data.get(key)!r}"
               for key, value in expected.items() if data.get(key) != value]
     expected_size = (expected["screenWidthDp"] * 3, expected["screenHeightDp"] * 3)
-    # Gap dialogs capture their own decor view. Its content height can change with text;
-    # configuration, pixel metadata, full screen width and the screen-height bound still apply.
-    # Legacy and gap activity captures retain exact full-screen dimensions.
+    # Requested native dialog width/height can be smaller than the Activity. The exact
+    # decoded dimensions must still match its own sidecar and stay within the host.
     if dialog:
-        if size[0] != expected_size[0] or not 0 < size[1] <= expected_size[1]:
-            errors.append(f"{path.name}: dialog image size expected width {expected_size[0]} and height 1..{expected_size[1]}, found {size}")
+        if not (0 < size[0] <= expected_size[0] and 0 < size[1] <= expected_size[1]):
+            errors.append(f"{path.name}: dialog image size expected within {expected_size}, found {size}")
     elif size != expected_size:
         errors.append(f"{path.name}: image size expected {expected_size}, found {size}")
     return data, errors
+
+
+def validate_capture_metadata(source, size):
+    """Secondary windows share the primary scene sidecar; its pixel fields describe that primary only."""
+    parent = SECONDARY_WINDOWS.get(source.name)
+    if parent is None:
+        metadata = source.with_suffix(".json")
+        data, errors = validate_metadata(metadata, size)
+        return data, errors, metadata.name
+    primary = source.with_name(parent)
+    if not primary.is_file():
+        raise ValueError(f"missing primary capture {parent} for its secondary window")
+    with Image.open(primary) as image:
+        primary_size = image.size
+    metadata = primary.with_suffix(".json")
+    data, errors = validate_metadata(metadata, primary_size)
+    width = 960 if source.name.startswith(("combined-320dp-200pct-", "gaps-compact-")) else 1233
+    host_size = (width, 2673)
+    if source.name in FULL_SIZE_WINDOWS:
+        if size != host_size:
+            errors.append(f"{source.name}: sheet image size expected {host_size}, found {size}")
+    elif not (0 < size[0] <= host_size[0] and 0 < size[1] <= host_size[1]):
+        errors.append(f"{source.name}: secondary window image size expected within {host_size}, found {size}")
+    return data, errors, metadata.name
 
 
 def main():
@@ -94,10 +140,14 @@ def main():
         source = args.after / name
         before = args.baseline / name
         with Image.open(source) as opened:
+            opened.verify()  # Full pixel decoding alone can accept a missing terminal IEND.
+        with Image.open(source) as opened:
             after = opened.convert("RGB")
         row = {"name": name, "after_size": list(after.size), "after_sha256": sha256(source)}
         try:
-            row["fixture"], fixture_errors = validate_metadata(source.with_suffix(".json"), after.size)
+            row["fixture"], fixture_errors, row["metadata_source"] = validate_capture_metadata(source, after.size)
+            if name in SECONDARY_WINDOWS:
+                row["metadata_scope"] = "Shared scene state; sidecar pixel dimensions describe the primary capture."
             errors.extend(fixture_errors)
         except (OSError, ValueError) as error:
             errors.append(f"{name}: invalid/missing capture metadata: {error}")

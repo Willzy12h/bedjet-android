@@ -1,5 +1,7 @@
 # Independent review correction register
 
+**Delivery continuation:** the user has now authorised remote delivery. The earlier approval blocker below is historical. See [DELIVERY-STATUS.md](DELIVERY-STATUS.md) for the actual Git authentication result, additional CI screenshot-contract correction and exact-history delivery route.
+
 Date: 29 October 2026. Base: `146501a69814f28d3879ca835bb93d2442b455a1`.
 Branch: `gpt/nocturne-independent-fixes`.
 
