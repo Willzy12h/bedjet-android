@@ -25,7 +25,10 @@ class QuietMiddleDescriptionTest {
         val quiet = QuietFan(50, 30, 25, 45, 40)
         runBlocking { ui.graph.repository.saveProfile(original.copy(middle = original.middle.copy(mode = Mode.COOL, fanStart = 50, fanEnd = 45, quietFan = quiet))) }
         ui.compose.onNode(hasText(ui.s(R.string.tab_profiles)) and hasClickAction()).performClick()
-        ui.compose.onNode(hasText("settle 50%", substring = true) and hasText("asleep 25%", substring = true) and hasText("rise 45%", substring = true) and hasAnyAncestor(hasTestTag("profile-card-${original.id}")) and !hasAnyAncestor(hasTestTag("profile-timeline-${original.id}")), useUnmergedTree = true).assertExists()
+        ui.compose.onNodeWithTag("profile-timeline-${original.id}", useUnmergedTree = true)
+            .assertContentDescriptionContains("settle 50%", substring = true)
+            .assertContentDescriptionContains("asleep 25%", substring = true)
+            .assertContentDescriptionContains("rise 45%", substring = true)
     }
 
 }

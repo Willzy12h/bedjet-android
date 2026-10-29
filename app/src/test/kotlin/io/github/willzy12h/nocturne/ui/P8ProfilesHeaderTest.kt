@@ -19,16 +19,16 @@ class P8ProfilesHeaderTest {
 
     @Test fun newProfileIsInHeaderAndDoesNotCoverListControls() {
         ui.tab(ui.s(R.string.tab_profiles))
-        val newProfile = ui.compose.onNode(hasText(ui.s(R.string.profiles_new)) and hasClickAction())
+        val newProfile = ui.compose.onNodeWithTag("profiles-new")
         ui.checkControl(newProfile, "New profile", scroll = false)
         val headerBounds = newProfile.fetchSemanticsNode().touchBoundsInRoot
+        ui.compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Add a 10-minute Cooldown after waking?"))
         val offer = ui.compose.onNodeWithText("Add a 10-minute Cooldown after waking?")
         val offerBounds = offer.fetchSemanticsNode().boundsInRoot
         assertTrue("New profile belongs above the offer", headerBounds.bottom <= offerBounds.top)
         val id = ui.graph.repository.profiles.value.first().id
         ui.compose.onNode(hasScrollToKeyAction()).performScrollToKey(id)
-        val edit = ui.compose.onNode(hasText(ui.s(R.string.action_edit)) and hasClickAction() and
-            hasAnyAncestor(hasTestTag("profile-card-$id"))).performScrollTo()
+        val edit = ui.compose.onNodeWithTag("profile-open-$id").performScrollTo()
         ui.checkControl(edit, "Profile Edit", scroll = false)
         val editBounds = edit.fetchSemanticsNode().touchBoundsInRoot
         assertTrue("New profile must not cover profile controls", !headerBounds.overlaps(editBounds))

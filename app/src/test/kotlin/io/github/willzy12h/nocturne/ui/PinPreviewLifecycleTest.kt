@@ -26,7 +26,7 @@ class PinPreviewLifecycleTest {
 
     @Test fun aStoppedPinPreviewDoesNotKeepItsFiveSecondTimer() {
         ui.compose.onNodeWithText("Profiles").performClick()
-        ui.compose.onAllNodesWithText("More")[0].performScrollTo().performClick()
+        ui.compose.onNodeWithTag("profile-more-${ui.graph.repository.profiles.value.first().id}").performScrollTo().performClick()
         ui.compose.onNodeWithText("Keep on BedJet slot…").performClick()
         ui.compose.waitForIdle()
         val base = ui.graph.clock

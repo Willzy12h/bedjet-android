@@ -27,7 +27,11 @@ class CooldownOfferTest {
         }
     }
     @get:Rule val rules = ui.rules
-    private fun profiles() = ui.compose.onNode(hasText(ui.s(R.string.tab_profiles)) and hasClickAction()).performClick()
+    private fun profiles() {
+        ui.compose.navTab(ui.s(R.string.tab_profiles))
+        if (!ui.graph.repository.settings.value.cooldownOfferAnswered)
+            ui.compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Add a 10-minute Cooldown after waking?"))
+    }
     private fun choice(id: String) = ui.compose.onNodeWithTag("cooldown-choice-$id").performScrollTo()
     private fun offer() = ui.compose.onNodeWithText("Add a 10-minute Cooldown after waking?")
     private fun reopen() {
@@ -74,7 +78,7 @@ class CooldownOfferTest {
 
     @Test fun newProfileFromPresetKeepsItsOwnAfterWake() {
         profiles()
-        ui.compose.onNode(hasText(ui.s(R.string.profiles_new)) and hasClickAction()).performClick()
+        ui.compose.onNodeWithTag("profiles-new").performClick()
         val preset = Presets.summerCool
         ui.compose.onNode(hasText(preset.name) and hasClickAction() and hasAnyAncestor(isDialog())).performScrollTo().performClick()
         ui.compose.onNodeWithTag("editor-phase-AFTER_WAKE-0").performScrollTo().assertTextContains("20 min", substring = true)
@@ -83,11 +87,11 @@ class CooldownOfferTest {
 
     @Test fun newProfileFromPresetWithoutAfterWakeStartsWithCooldown() {
         profiles()
-        ui.compose.onNode(hasText(ui.s(R.string.profiles_new)) and hasClickAction()).performClick()
+        ui.compose.onNodeWithTag("profiles-new").performClick()
         val preset = Presets.springAutumn
         ui.compose.onNode(hasText(preset.name) and hasClickAction() and hasAnyAncestor(isDialog())).performScrollTo().performClick()
         ui.compose.onNodeWithTag("editor-phase-AFTER_WAKE-0").performScrollTo().assertTextContains("10 min", substring = true)
-            .assertTextContains("22°C", substring = true).assertTextContains("30%", substring = true)
+            .assertContentDescriptionContains("22°C", substring = true).assertTextContains("30%", substring = true)
         assertEquals(empty.afterWake, ui.graph.repository.profiles.value.single { it.id == empty.id }.afterWake)
         assertEquals(existing.afterWake, ui.graph.repository.profiles.value.single { it.id == existing.id }.afterWake)
     }

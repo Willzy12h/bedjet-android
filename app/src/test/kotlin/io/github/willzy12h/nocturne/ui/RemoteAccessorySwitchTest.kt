@@ -97,7 +97,7 @@ class RemoteAccessorySwitchTest {
         compose.runOnUiThread { link.publish(initialFlags) }
         compose.openRemote()
         switch(label).assertDoesNotExist()
-        compose.onNode(hasText("Settings") and hasClickAction()).performClick()
+        compose.navTab("Settings")
         compose.onNodeWithTag("settings-page-bedjet").performScrollTo().performClick()
         waitUntil { switchHasState(label, initiallyOn) }
         switch(label).performScrollTo().assertIsDisplayed().assertHasClickAction().performClick()

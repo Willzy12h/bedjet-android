@@ -39,11 +39,11 @@ class P8LegacyTurboDisplayTest {
             } }
             ui.compose.waitForIdle()
             val row = ui.compose.onNodeWithTag("editor-phase-START-0").performScrollTo()
-            row.assertTextContains(expected, substring = true)
+            row.assertContentDescriptionContains(expected, substring = true)
             row.assertTextContains("30 min", substring = true)
             row.performClick()
             val controls = hasAnyAncestor(hasTestTag("editor-phase-controls-START-0"))
-            ui.compose.onNode(hasText("Temperature $expected") and controls).assertExists()
+            ui.compose.onNodeWithTag("step-temp").assertTextEquals(expected)
             ui.compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress) and controls).assertCountEquals(0)
             assertEquals(phase, draft.start.single())
             assertEquals(compiled, PlanCompiler.phaseSteps(draft.start.single(), draft.limits, draft.turboChain))

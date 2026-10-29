@@ -132,7 +132,7 @@ class P4EditorBehaviourTest {
         ui.compose.onNode(hasText(ui.s(R.string.editor_save)) and hasClickAction()).assertIsNotEnabled()
     }
 
-    @Test fun phaseLengthSliderAcceptsEndpointsAndClampsOutsideRange() {
+    @Test fun phaseLengthAdjustmentAcceptsEndpointsAndClampsOutsideRange() {
         val profile = ui.graph.repository.profiles.value.first().copy(start = listOf(Phase(Mode.COOL, 44, 40, 30)))
         show(profile)
         ui.compose.onNodeWithTag("editor-phase-START-0").performScrollTo().performClick()
@@ -177,6 +177,6 @@ class P4EditorBehaviourTest {
         ui.compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress) and withinPhase).assertCountEquals(0)
         ui.compose.onNode(hasText(ui.s(R.string.uat_setup_done)) and hasAnyAncestor(hasTestTag("editor-phase-controls-START-0"))).performClick()
         ui.compose.onNodeWithTag("editor-phase-START-0").assertTextContains("10 min", substring = true)
-        ui.compose.onNodeWithTag("editor-phase-START-0").assertTextContains("43°C", substring = true)
+        ui.compose.onNodeWithTag("editor-phase-START-0").assertContentDescriptionContains("43°C", substring = true)
     }
 }

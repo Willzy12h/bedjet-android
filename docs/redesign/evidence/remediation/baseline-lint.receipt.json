@@ -1,0 +1,17 @@
+{
+  "command": [
+    "./gradlew",
+    "--offline",
+    "--no-daemon",
+    "--max-workers=3",
+    "-I",
+    "docs/redesign/verification.init.gradle",
+    ":app:lintDebug",
+    "--warning-mode",
+    "all"
+  ],
+  "started": "2026-10-29T01:12:02.335253+00:00",
+  "finished": "2026-10-29T01:12:18.015716+00:00",
+  "exit_code": 0,
+  "source": "e4be250fb9f340800fa89aea8e358d5bddbf5054"
+}

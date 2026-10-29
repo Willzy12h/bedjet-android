@@ -1,0 +1,20 @@
+{
+  "command": [
+    "./gradlew",
+    "--offline",
+    "--no-daemon",
+    "--max-workers=3",
+    "-I",
+    "docs/redesign/verification.init.gradle",
+    ":app:testDebugUnitTest",
+    "--tests",
+    "*EditorLargeTextReachabilityTest"
+  ],
+  "started": "2026-10-29T01:29:02.939304+00:00",
+  "finished": "2026-10-29T01:31:19.501333+00:00",
+  "exit_code": 1,
+  "source": "e4be250fb9f340800fa89aea8e358d5bddbf5054",
+  "source_after": "e4be250fb9f340800fa89aea8e358d5bddbf5054",
+  "source_tree_sha256": "8325df865817199ace5f7fc94e5812980707a0b15be64e9698cdcaf89523bf6f",
+  "source_tree_sha256_after": "8325df865817199ace5f7fc94e5812980707a0b15be64e9698cdcaf89523bf6f"
+}

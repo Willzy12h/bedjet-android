@@ -31,6 +31,7 @@ class CooldownOfferLayoutTest {
 
     @Test fun offerChoicesAndActionsRemainReachableAndReadableAtLargeText() {
         ui.tab(ui.s(R.string.tab_profiles))
+        ui.compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(ui.s(R.string.cooldown_offer_title)))
         profiles.forEach { profile ->
             val row = ui.checkControl(ui.compose.onNodeWithTag("cooldown-choice-${profile.id}"), profile.name)
             row.assertTextContains(profile.name, substring = true).assertHasClickAction()

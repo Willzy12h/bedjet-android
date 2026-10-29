@@ -1,0 +1,33 @@
+{
+  "command": [
+    "./gradlew",
+    "--offline",
+    "--no-daemon",
+    "--max-workers=3",
+    "-I",
+    "docs/redesign/verification.init.gradle",
+    ":app:testDebugUnitTest",
+    "--tests",
+    "*RemediationStateSafetyTest",
+    "--tests",
+    "*ProfileEditorInteractionTest",
+    "--tests",
+    "*RedesignTextContrastTest",
+    "--tests",
+    "*U06ControlSemanticsTest",
+    "--tests",
+    "*TonightAcceptanceTest",
+    "--tests",
+    "*ProfilesEditHitTest",
+    "--tests",
+    "*P8ConsumedSettingsRequestTest",
+    "--tests",
+    "*ActiveIndicatorTest",
+    "--tests",
+    "*HealthLegacyContainmentSecurityTest"
+  ],
+  "started": "2026-10-29T01:13:54.906948+00:00",
+  "finished": "2026-10-29T01:17:57.289348+00:00",
+  "exit_code": 1,
+  "source": "e4be250fb9f340800fa89aea8e358d5bddbf5054"
+}

@@ -87,7 +87,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
         ui.waitUntil { ui.graph.actions.status.value.confidence == Confidence.CONFIRMED }
         assertEquals(Confidence.CONFIRMED, ui.graph.repository.activeNight.value?.confidence)
         withAndWithoutFeedback {
-            ui.control(ui.s(R.string.tonight_end_night))
+            ui.control(ui.s(R.string.parity_end_night))
             ui.control(ui.s(R.string.runtime_command_stop_tracking))
             quickButtons()
         }
@@ -158,7 +158,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
     @Test fun longOwnerAndQueueDescriptionStaysWholeAtTwoHundredPercent() {
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
         val label = ui.s(R.string.runtime_override_label)
-        val quick = ui.compose.onNodeWithText(ui.s(R.string.tonight_quick)).performScrollTo()
+        val quick = ui.compose.onNodeWithTag("quick-controls").performScrollTo()
         val before = quick.getUnclippedBoundsInRoot()
         ui.compose.runOnUiThread {
             ui.graph.scope.launch { ui.graph.actions.remote(label) { gate.await() } }
@@ -218,10 +218,11 @@ class U06PrimaryLayoutTest(look: U06Look) {
 
     private fun quickButtons() {
         ui.checkLayout(ui.compose.onNodeWithText(ui.s(R.string.gpt12_wake_no_alarm)), "Wake fallback reason")
-        val modes = io.github.willzy12h.nocturne.core.store.QuickDefaults.modes + Mode.STANDBY
+        val modes = listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, Mode.STANDBY)
         modes.forEach { mode ->
             ui.checkControl(ui.compose.onNodeWithTag("quick-mode-${mode.name}"), "Quick $mode").assertHasClickAction()
         }
+        ui.checkControl(ui.compose.onNodeWithTag("quick-mode-BOOST"), "Quick Boost").assertHasClickAction()
     }
 
     private fun withAndWithoutFeedback(check: () -> Unit) {

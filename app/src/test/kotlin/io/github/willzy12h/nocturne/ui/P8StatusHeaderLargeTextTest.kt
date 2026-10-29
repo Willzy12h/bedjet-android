@@ -22,7 +22,7 @@ class P8StatusHeaderLargeTextTest {
     @get:Rule val rules = ui.rules
 
     @Test fun unavailableTemperatureWrapsAtWordBoundaries() {
-        val node = ui.compose.onNodeWithTag("status-temperature").assertIsDisplayed()
+        val node = ui.compose.onNodeWithTag("home-reading-context").assertIsDisplayed()
         val layouts = mutableListOf<TextLayoutResult>()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         val layout = layouts.single()

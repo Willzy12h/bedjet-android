@@ -45,7 +45,7 @@ class AccessibilitySemanticsTest {
             try { base.evaluate() } finally { graph.clock = previous }
         }
     } }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(fixture).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(io.github.willzy12h.nocturne.GraphLifecycle()).around(fixture).around(compose)
     private val graph get() = compose.activity.graph
     private fun s(id: Int, vararg args: Any) = compose.activity.getString(id, *args)
     private val density get() = compose.activity.resources.displayMetrics.density
@@ -56,10 +56,10 @@ class AccessibilitySemanticsTest {
 
     @Test fun editorSlidersSayWhatTheySetInWhichUnitAndTheirValue() {
         val profile = graph.repository.profiles.value.first()
-        compose.onNodeWithText("Profiles").performClick()
+        compose.navTab("Profiles")
         compose.onNode(hasScrollToKeyAction()).performScrollToKey(profile.id)
         compose.onNodeWithTag("profile-open-${profile.id}").performScrollTo().performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Edit profile").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("editor-save").assertExists()
         val middle = profile.middle
         compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
         if (middle.mode.usesFan) {

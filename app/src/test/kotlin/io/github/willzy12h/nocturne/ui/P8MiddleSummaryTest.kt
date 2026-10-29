@@ -28,8 +28,8 @@ class P8MiddleSummaryTest {
         } }
         val summary = ui.compose.onNodeWithTag("editor-middle-summary").performScrollTo()
         summary.assertTextContains("Heat", substring = true).assertTextContains("32°C", substring = true)
-            .assertTextContains("29°C", substring = true).assertTextContains("50%", substring = true)
-            .assertTextContains("25%", substring = true).assertTextContains("45%", substring = true)
+            .assertTextContains("29°C", substring = true).assertContentDescriptionContains("50%", substring = true)
+            .assertContentDescriptionContains("25%", substring = true).assertContentDescriptionContains("45%", substring = true)
             .assertHasClickAction().performClick()
         ui.compose.onNodeWithTag("editor-middle-sheet").assertIsDisplayed()
     }

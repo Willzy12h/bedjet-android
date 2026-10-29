@@ -67,8 +67,9 @@ class ThemeDemoIsolationTest {
     }
 
     private fun renderedHeaderColour(): Color {
+        ui.compose.navTab("Tonight")
         val layouts = mutableListOf<TextLayoutResult>()
-        ui.compose.onNodeWithTag("status-device", useUnmergedTree = true).assertIsDisplayed()
+        ui.compose.onNodeWithTag("status-connection", useUnmergedTree = true).assertIsDisplayed()
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { assertTrue(it(layouts)) }
         return layouts.single().layoutInput.style.color
     }
@@ -76,14 +77,14 @@ class ThemeDemoIsolationTest {
     @Test fun demoLightApprovalKeepsTheRealScheduledDarkHoldOnExitAndRecreation() {
         assertFalse(ui.graph.repository.isDemoSession)
         assertFalse(ui.graph.repository.settings.value.demoMode)
-        assertEquals(MidnightInkScheme.onSurface, renderedHeaderColour())
+        assertEquals(io.github.willzy12h.nocturne.core.store.Palette.MIDNIGHT_INK.tokens.ink2, renderedHeaderColour())
 
         moveClock("2026-10-26T07:01:00Z")
         ui.compose.onNodeWithText(ui.s(R.string.theme_light_due)).assertIsDisplayed()
         ui.compose.onNodeWithText(ui.s(R.string.theme_stay_dark)).performClick()
         settleFrames()
         ui.compose.onNodeWithText(ui.s(R.string.theme_light_due)).assertDoesNotExist()
-        assertEquals(MidnightInkScheme.onSurface, renderedHeaderColour())
+        assertEquals(io.github.willzy12h.nocturne.core.store.Palette.MIDNIGHT_INK.tokens.ink2, renderedHeaderColour())
         val realSettings = ui.graph.repository.settings.value
         val preferences = ui.compose.activity.getSharedPreferences("appearance-consent", Context.MODE_PRIVATE)
         val realConsent = preferences.all.toMap()
@@ -99,8 +100,8 @@ class ThemeDemoIsolationTest {
                 ui.graph.actions.busy.value.runningLabel == null
         }
         settleFrames()
-        ui.compose.onNodeWithText(ui.s(R.string.gpt12_demo_banner)).assertIsDisplayed()
-        assertEquals("Entering Demo must not brighten the held screen", MidnightInkScheme.onSurface, renderedHeaderColour())
+        ui.compose.onNodeWithText(ui.s(R.string.parity_status_demo)).assertIsDisplayed()
+        assertEquals("Entering Demo must not brighten the held screen", io.github.willzy12h.nocturne.core.store.Palette.MIDNIGHT_INK.tokens.ink2, renderedHeaderColour())
 
         settings()
         ui.compose.openSettingsPage("appearance")
@@ -111,7 +112,7 @@ class ThemeDemoIsolationTest {
         ui.waitUntil { ui.graph.repository.settings.value.themeMode == ThemeMode.LIGHT }
         settleFrames()
         assertTrue(ui.graph.repository.isDemoSession)
-        assertEquals("The explicit demo choice must actually show the light palette", io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.materialScheme().onSurface, renderedHeaderColour())
+        assertEquals("The explicit demo choice must actually show the light palette", io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.ink2, renderedHeaderColour())
         assertEquals("Demo must leave real consent on disk intact even if the process dies before Exit demo",
             realConsent, preferences.all)
 
@@ -122,10 +123,10 @@ class ThemeDemoIsolationTest {
         }
         settleFrames()
         assertEquals(realSettings, ui.graph.repository.settings.value)
-        ui.compose.onNodeWithText(ui.s(R.string.gpt12_demo_banner)).assertDoesNotExist()
+        ui.compose.onNodeWithText(ui.s(R.string.parity_status_demo)).assertDoesNotExist()
         ui.compose.onNodeWithText(ui.s(R.string.theme_light_due)).assertDoesNotExist()
         assertEquals("Exit demo must return to the real Stay dark palette without another consent choice",
-            MidnightInkScheme.onSurface, renderedHeaderColour())
+            io.github.willzy12h.nocturne.core.store.Palette.MIDNIGHT_INK.tokens.ink2, renderedHeaderColour())
         assertEquals("A disposable light approval must preserve the real session's persisted consent", realConsent, preferences.all)
 
         ui.compose.activityRule.scenario.recreate()
@@ -133,7 +134,7 @@ class ThemeDemoIsolationTest {
         assertEquals(realSettings, ui.graph.repository.settings.value)
         ui.compose.onNodeWithText(ui.s(R.string.theme_light_due)).assertDoesNotExist()
         assertEquals("The restored real hold must still protect the recreated screen",
-            MidnightInkScheme.onSurface, renderedHeaderColour())
+            io.github.willzy12h.nocturne.core.store.Palette.MIDNIGHT_INK.tokens.ink2, renderedHeaderColour())
         assertEquals(realConsent, preferences.all)
     }
 
@@ -160,7 +161,7 @@ class ThemeDemoIsolationTest {
         val displayedDemoSettings = ui.graph.repository.settings.value
         val displayedRevision = ui.graph.repository.sessionRevision.value
         assertTrue(displayedDemoSettings.demoMode)
-        assertEquals(io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.materialScheme().onSurface, renderedHeaderColour())
+        assertEquals(io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.ink2, renderedHeaderColour())
         assertEquals(realConsent, preferences.all)
 
         ui.compose.onNodeWithText(ui.s(R.string.gpt12_exit_demo)).performClick()

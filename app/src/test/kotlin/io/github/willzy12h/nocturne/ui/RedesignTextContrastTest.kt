@@ -8,6 +8,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.geometry.Offset
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import androidx.compose.ui.platform.testTag
+import io.github.willzy12h.nocturne.core.plan.Phase
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.semantics.SemanticsActions
@@ -44,10 +51,11 @@ class RedesignTextContrastTest {
     @get:Rule val rules = ui.rules
     private val palette = mutableStateOf(Palette.MIDNIGHT_INK)
 
-    private fun layout(text: String): TextLayoutResult {
+    private fun layout(text: String, scroll: Boolean = true): TextLayoutResult {
         val results = mutableListOf<TextLayoutResult>()
-        ui.compose.onAllNodesWithText(text, useUnmergedTree = true)[0]
-            .performScrollTo().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        val node = ui.compose.onAllNodesWithText(text, useUnmergedTree = true)[0]
+        if (scroll) node.performScrollTo()
+        node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
         return results.single()
     }
 
@@ -80,7 +88,7 @@ class RedesignTextContrastTest {
             ui.compose.runOnIdle { palette.value = choice }
             ui.compose.waitForIdle()
             val t = choice.tokens
-            checkText("$choice profile action", layout(ui.s(R.string.profiles_use_tonight)), t.surface.compositeOver(t.ground))
+            checkText("$choice profile action", layout(ui.s(R.string.parity_start)), t.surface.compositeOver(t.ground))
         }
     }
 
@@ -142,4 +150,62 @@ class RedesignTextContrastTest {
             checkText("$choice Start", layout(ui.s(R.string.tonight_start_now)), choice.tokens.primary)
         }
     }
+    @Test fun compactCaptionsAndLinksRemainReadableInEveryPalette() {
+        ui.compose.runOnUiThread { ui.compose.activity.setContent {
+            NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
+                Surface(color = palette.value.tokens.ground) {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        SectionLabel("Caption probe")
+                        AccentLink("Action probe", onClick = {})
+                    }
+                }
+            }
+        } }
+        Palette.entries.forEach { choice ->
+            ui.compose.runOnIdle { palette.value = choice }
+            checkText("$choice section caption", layout("CAPTION PROBE"), choice.tokens.ground)
+            checkText("$choice action link", layout("Action probe"), choice.tokens.ground)
+        }
+    }
+
+    @Test fun liftedEditorStepKeepsItsTextReadableInOvercast() {
+        val choice = Palette.OVERCAST
+        ui.compose.runOnUiThread { ui.compose.activity.setContent {
+            NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = choice) {
+                Surface(color = choice.tokens.ground) {
+                    Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+                        StepCard(Phase(Mode.HEAT, 72, 40, 30), "Heat 36°C", "Fan 40%", "30 min", Modifier.testTag("drag-step"),
+                            canMoveUp = false, canMoveDown = true, onMove = {}, onClick = {})
+                    }
+                }
+            }
+        } }
+        val card = ui.compose.onNodeWithTag("drag-step")
+        val density = ui.compose.activity.resources.displayMetrics.density
+        fun background(): Color {
+            val view = ui.compose.activity.window.decorView
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            ui.compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+            val bounds = card.fetchSemanticsNode().boundsInRoot
+            return try { Color(bitmap.getPixel((bounds.left + 8f * density).toInt(), bounds.center.y.toInt())) }
+                finally { bitmap.recycle() }
+        }
+        val restingBackground = background()
+        card.performTouchInput {
+            down(Offset(23f * density, centerY))
+            advanceEventTime(android.view.ViewConfiguration.getLongPressTimeout().toLong() + 1)
+            moveBy(Offset(0f, 2f))
+        }
+        ui.compose.waitForIdle()
+        // This pixel is inside the side stripe's tinted body, away from the grip and text.
+        val background = background()
+        try {
+            org.junit.Assert.assertNotEquals("The held grip must enter the rendered drag state", restingBackground, background)
+            checkText("Overcast lifted step title", layout("Heat 36°C", scroll = false), background)
+            checkText("Overcast lifted step subtitle", layout("Fan 40%", scroll = false), background)
+        } finally {
+            card.performTouchInput { up() }
+        }
+    }
+
 }

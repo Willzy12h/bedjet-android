@@ -80,67 +80,88 @@ class TonightAcceptanceTest {
     } }
     @get:Rule val rules: TestRule = RuleChain.outerRule(timezone).around(ui.rules)
 
-    @Test fun nightCanCollapseAndReopenAfterRestart() = collapseRestartExpand("Night")
-    @Test fun wakeCanCollapseAndReopenAfterRestart() = collapseRestartExpand("Wake and recovery")
-    @Test fun connectionCanCollapseAndReopenAfterRestart() = collapseRestartExpand("Connection and setup")
-    @Test fun quickCanCollapseAndReopenAfterRestart() = collapseRestartExpand("Quick")
+    // The approved compact Tonight card removed independently collapsible sections. Old saved
+    // collapse preferences must never hide the replacement controls after a process restart.
+    @Test fun legacyNightCollapseCannotHideTheCompactPlanAfterRestart() {
+        restartWithLegacyCollapse("night")
+        ui.compose.onNodeWithTag("tonight-card").assertExists()
+        ui.compose.openTonightDetail()
+        ui.compose.onNodeWithText("Wake time", substring = true).performScrollTo().assertIsDisplayed()
+    }
 
-    private fun collapseRestartExpand(title: String) {
-        val collapse = ui.compose.onNodeWithContentDescription("Collapse $title")
-        collapse.performScrollTo().assertIsDisplayed()
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Expanded"))
-        val bounds = collapse.getUnclippedBoundsInRoot()
-        val height = (bounds.bottom - bounds.top).value
-        assertTrue("The section header must offer at least a 48 dp target", height >= 48f)
-        collapse.performClick()
-        ui.waitUntil { ui.compose.onAllNodesWithContentDescription("Expand $title").fetchSemanticsNodes().size == 1 }
-        ui.compose.onNodeWithContentDescription("Expand $title").performScrollTo()
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Collapsed"))
+    @Test fun legacyWakeCollapseCannotHideTheWakePickerAfterRestart() {
+        restartWithLegacyCollapse("wake")
+        ui.checkControl(ui.compose.onNodeWithTag("tonight-fixed-wake"), "Wake picker").performClick()
+        val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
+        assertTrue(dialog is android.app.TimePickerDialog && dialog.isShowing)
+        ui.compose.runOnUiThread { dialog.dismiss() }
+    }
+
+    @Test fun legacyConnectionCollapseCannotHideRemoteAfterRestart() {
+        restartWithLegacyCollapse("connection")
+        ui.compose.openRemote()
+        ui.compose.onNodeWithTag("remote-back").assertIsDisplayed()
+        ui.compose.onNodeWithText(ui.s(R.string.remote_title)).assertExists()
+    }
+
+    @Test fun legacyQuickCollapseCannotHideTheApprovedPresetsAfterRestart() {
+        restartWithLegacyCollapse("quick")
+        listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST", "STANDBY").forEach {
+            ui.checkControl(ui.compose.onNodeWithTag("quick-mode-$it"), "Quick $it")
+        }
+        ui.compose.onNodeWithTag("quick-mode-HEAT").performScrollTo().performClick()
+        ui.waitUntil { ui.graph.link.status.value?.mode == io.github.willzy12h.nocturne.core.protocol.Mode.HEAT }
+    }
+
+    private fun restartWithLegacyCollapse(section: String) {
+        ui.compose.runOnUiThread { runBlocking {
+            ui.graph.repository.updateSettings {
+                if (section == "quick") it.copy(quickControlsCollapsed = true)
+                else it.copy(collapsedTonightSections = setOf(section))
+            }
+        } }
         val app = RuntimeEnvironment.getApplication() as App
-        // A process restart does not retain the Activity's ViewModel or its cancelled old Graph.
         ui.compose.runOnUiThread { ui.compose.activity.viewModelStore.clear() }
         val replacement = ui.graphs.fresh { Graph(app).also { it.clock = fixedClock } }
         ReflectionHelpers.setField(app, "graph", replacement)
         ui.compose.activityRule.scenario.recreate()
-        ui.compose.onNodeWithContentDescription("Expand $title").performScrollTo().assertIsDisplayed().performClick()
-        ui.waitUntil { ui.compose.onAllNodesWithContentDescription("Collapse $title").fetchSemanticsNodes().size == 1 }
-        ui.compose.onNodeWithContentDescription("Collapse $title").performScrollTo().assertIsDisplayed()
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Expanded"))
+        assertTrue(if (section == "quick") replacement.repository.settings.value.quickControlsCollapsed
+            else section in replacement.repository.settings.value.collapsedTonightSections)
     }
 
     @Test fun acceptedAlarmBeatsAProfileThatUsesAFixedWake() {
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:30")
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Next phone alarm")
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:30", substring = true)
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Next phone alarm", substring = true)
         assertEquals("The displayed phone alarm must not silently rewrite the profile", false,
             ui.model.tonightsProfile()!!.wakeSource.useAlarm)
     }
 
     @Test fun acceptedAlarmBeatsTheStoredNightEndWithoutClaimingARetime() {
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:30")
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Next phone alarm")
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:30", substring = true)
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Next phone alarm", substring = true)
         assertEquals("2026-10-23T07:00Z", ui.graph.repository.activeNight.value!!.wakeAt)
     }
 
     @Test fun noAlarmShowsTheProfileFallbackWithAReason() {
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00")
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback")
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback", substring = true)
         ui.checkLayout(ui.compose.onNodeWithText("No phone alarm available"), "No-alarm fallback reason")
     }
 
     @Test fun explicitTonightOverrideWinsOverAnAcceptedPhoneAlarm() {
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:45")
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Tonight-only wake")
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:45", substring = true)
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Tonight-only wake", substring = true)
     }
 
     @Test fun tooSoonPhoneAlarmShowsTheWindowFallback() {
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00")
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback")
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback", substring = true)
         ui.checkLayout(ui.compose.onNodeWithText("Next alarm is less than 1 hour after the night starts"), "Too-soon alarm fallback reason")
     }
 
     @Test fun tooLatePhoneAlarmShowsTheWindowFallback() {
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00")
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback")
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback", substring = true)
         ui.checkLayout(ui.compose.onNodeWithText("Next alarm is beyond the 18-hour night window"), "Too-late alarm fallback reason")
     }
 
@@ -148,7 +169,7 @@ class TonightAcceptanceTest {
         ui.compose.runOnIdle { runBlocking { ui.graph.repository.updateSettings { it.copy(simpleView = false) } } }
         ui.compose.onNode(hasText(ui.s(R.string.tab_profiles)) and hasClickAction()).performClick()
         ui.compose.onAllNodesWithTag("night-curve").assertCountEquals(0)
-        ui.compose.onNodeWithTag("profile-timeline-${ui.graph.repository.profiles.value.first().id}")
-            .assertExists().assert(hasAnyDescendant(hasText("Wake time", substring = true)))
+        ui.compose.onNodeWithTag("profile-timeline-${ui.graph.repository.profiles.value.first().id}", useUnmergedTree = true)
+            .assertExists().assertContentDescriptionContains("Wake time", substring = true)
     }
 }

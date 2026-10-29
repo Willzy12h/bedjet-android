@@ -30,16 +30,13 @@ class ActiveIndicatorTest {
     }
     @After fun restoreClock() { ui.compose.mainClock.autoAdvance = true }
     private fun warm() {
-        // Quick controls follow Night now; keep the marker visible when confirmation feedback enters.
-        ui.compose.onNodeWithContentDescription(ui.s(R.string.gpt12_collapse_section, ui.s(R.string.ux_section_night)))
-            .performScrollTo().performClick()
-        ui.waitUntil { "night" in ui.graph.repository.settings.value.collapsedTonightSections }
+        // Compact Tonight has no collapsible sections; scroll the actual preset into view.
         val control = ui.compose.onNodeWithTag("quick-mode-HEAT")
         control.performScrollTo()
         ui.compose.mainClock.autoAdvance = false
         control.performClick()
-        ui.waitUntil { ui.graph.link.status.value?.mode == Mode.HEAT }
-        ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertExists()
+        ui.waitUntil { ui.graph.link.status.value?.mode == Mode.HEAT && ui.graph.actions.busy.value.runningLabel == null }
+        ui.waitUntil { ui.compose.onAllNodesWithTag("quick-active-HEAT", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
     }
     private fun legacyAction() = reportedQuickAction(ui.graph.link.status.value, ui.graph.link.state.value,
         ui.graph.repository.settings.value, ui.graph.repository.activeNight.value,
@@ -50,9 +47,9 @@ class ActiveIndicatorTest {
         AndroidSettings.Global.putFloat(ui.compose.activity.contentResolver, AndroidSettings.Global.ANIMATOR_DURATION_SCALE, 1f)
         warm()
         ui.compose.mainClock.advanceTimeBy(400)
-        assertTrue("Active marker should have a subtle pulse", width() > 10.1f)
+        assertTrue("Active marker should have a subtle pulse", width() > 7.1f)
         ui.compose.mainClock.advanceTimeBy(3_000)
-        assertEquals("The pulse settles; it never loops indefinitely", 10f, width(), .2f)
+        assertEquals("The pulse settles; it never loops indefinitely", 7f, width(), .2f)
         ui.compose.mainClock.autoAdvance = true
         tab(R.string.tab_settings)
         ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertDoesNotExist()
@@ -63,20 +60,22 @@ class ActiveIndicatorTest {
         AndroidSettings.Global.putFloat(ui.compose.activity.contentResolver, AndroidSettings.Global.ANIMATOR_DURATION_SCALE, 0f)
         warm()
         ui.compose.mainClock.advanceTimeBy(400)
-        assertEquals(10f, width(), .2f)
+        assertEquals(7f, width(), .2f)
         ui.compose.mainClock.advanceTimeBy(800)
-        assertEquals(10f, width(), .2f)
+        assertEquals(7f, width(), .2f)
         ui.compose.mainClock.autoAdvance = true
     }
 
-    @Test fun aCustomWarmPresetMarksItsReportedModeInsteadOfAssumingHeat() {
+    @Test fun aCustomLongHeatPresetDoesNotFalselyMarkTheHeatTile() {
         val repository = ui.graph.repository
         ui.compose.runOnUiThread { kotlinx.coroutines.runBlocking {
             repository.updateSettings { it.copy(extendWarm = it.extendWarm.copy(mode = Mode.EXTENDED_HEAT)) }
         } }
-        ui.compose.onNodeWithTag("quick-mode-EXTENDED_HEAT").performScrollTo().performClick()
+        ui.compose.runOnUiThread { ui.model.run(Command.WARM) }
         ui.waitUntil { ui.graph.link.status.value?.mode == Mode.EXTENDED_HEAT }
-        ui.compose.onNodeWithTag("quick-active-EXTENDED_HEAT", useUnmergedTree = true).assertExists()
+        ui.compose.openRemote()
+        ui.compose.onNode(hasText(ui.s(R.string.mode_long_heat)) and hasClickAction()).performScrollTo().assertIsSelected()
+        ui.compose.navTab("Tonight")
         ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertDoesNotExist()
     }
 
@@ -89,6 +88,7 @@ class ActiveIndicatorTest {
         ui.compose.onNodeWithText(ui.s(R.string.tonight_start_now)).performScrollTo().performClick()
         ui.waitUntil { ui.graph.repository.activeNight.value?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED &&
             ui.graph.link.status.value?.mode == Mode.TURBO }
+        ui.compose.openTonightDetail()
         ui.compose.onNodeWithTag("night-active-phase", useUnmergedTree = true).assertExists()
         ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertDoesNotExist()
     }
@@ -105,6 +105,7 @@ class ActiveIndicatorTest {
         ui.waitUntil { ui.graph.repository.runtime.value.slotWrite?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED &&
             ui.graph.link.status.value?.let { it.mode == Mode.TURBO && (it.extra?.programStep ?: 0) > 0 } == true }
         assertEquals(Command.BOOST, legacyAction())
+        ui.compose.onNodeWithTag("quick-active-BOOST", useUnmergedTree = true).assertExists()
         ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertDoesNotExist()
     }
 
@@ -114,6 +115,7 @@ class ActiveIndicatorTest {
             ui.graph.repository.updateSettings { it.copy(boostMinutes = if (it.boostMinutes == 15) 30 else 15) }
         } }
         assertNull("Changed defaults must not identify the running legacy programme", legacyAction())
+        ui.compose.onNodeWithTag("quick-active-BOOST", useUnmergedTree = true).assertDoesNotExist()
         ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertDoesNotExist()
     }
 
@@ -122,7 +124,7 @@ class ActiveIndicatorTest {
             ui.graph.repository.updateSettings { it.copy(extendCool = it.extendWarm) }
         } }
         ui.compose.onNodeWithTag("quick-mode-HEAT").performScrollTo().performClick()
-        ui.waitUntil { ui.graph.link.status.value?.mode == Mode.HEAT }
+        ui.waitUntil { ui.graph.link.status.value?.mode == Mode.HEAT && ui.graph.actions.busy.value.runningLabel == null }
         assertNull("Identical legacy presets cannot identify a Warm or Cool request", legacyAction())
         // The new mode grid has exactly one Heat button: it may show the actual reported manual mode.
         ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertExists()
@@ -135,13 +137,13 @@ class ActiveIndicatorTest {
         ui.compose.activity.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF))
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         ui.compose.mainClock.advanceTimeBy(500)
-        assertEquals("A screen-off broadcast stops motion immediately", 10f, width(), .2f)
+        assertEquals("A screen-off broadcast stops motion immediately", 7f, width(), .2f)
         ui.compose.activity.sendBroadcast(Intent(Intent.ACTION_SCREEN_ON))
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         val marker = ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).fetchSemanticsNode()
         ui.compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
         ui.compose.mainClock.advanceTimeBy(500)
-        assertEquals("A paused Activity keeps the active state without motion", 10f,
+        assertEquals("A paused Activity keeps the active state without motion", 7f,
             marker.boundsInRoot.width / marker.layoutInfo.density.density, .2f)
         ui.compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         ui.compose.mainClock.autoAdvance = true

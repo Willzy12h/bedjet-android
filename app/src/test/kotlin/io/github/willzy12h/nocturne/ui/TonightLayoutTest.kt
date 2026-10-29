@@ -17,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Real screen, repository and owner: order/collapse survive leaving Tonight; progress never shifts controls. */
+/** The approved compact layout, saved detail state and real owner progress remain usable. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
@@ -31,69 +31,60 @@ class TonightLayoutTest {
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     private fun saved() = json.encodeToString(Settings.serializer(), ui.graph.repository.settings.value)
 
-    @Test fun quickControlsFollowThePlanAndCollapsePersists() {
-        val quick = ui.compose.onNode(hasText(ui.s(R.string.tonight_quick)) and hasClickAction())
-        quick.performScrollTo().assertIsDisplayed().performClick()
-        ui.waitUntil { saved().contains("\"quickControlsCollapsed\":true") }
-        ui.compose.onNodeWithTag("quick-mode-HEAT").assertDoesNotExist()
-        tab(R.string.tab_settings); tab(R.string.tab_tonight)
-        ui.compose.onNodeWithTag("quick-mode-HEAT").assertDoesNotExist()
-        quick.performScrollTo().performClick()
-        ui.waitUntil { !ui.graph.repository.settings.value.quickControlsCollapsed }
+    @Test fun quickControlsFollowThePlanAndRemainAvailableAfterNavigation() {
         val warm = ui.compose.onNodeWithTag("quick-mode-HEAT")
         warm.performScrollTo().assertIsDisplayed()
-        val section = ui.compose.onNodeWithTag("tonight-section-night").getUnclippedBoundsInRoot()
-        assertTrue(section.bottom < warm.getUnclippedBoundsInRoot().top)
+        val card = ui.compose.onNodeWithTag("tonight-card").getUnclippedBoundsInRoot()
+        assertTrue(card.bottom < warm.getUnclippedBoundsInRoot().top)
+        tab(R.string.tab_settings); tab(R.string.tab_tonight)
+        warm.performScrollTo().assertIsDisplayed().performClick()
+        ui.waitUntil { ui.graph.link.status.value?.mode == io.github.willzy12h.nocturne.core.protocol.Mode.HEAT }
     }
 
-    @Test fun wakeStaysAtTheTopRightWhenTheSectionsScroll() {
-        val wake = ui.compose.onNodeWithTag("tonight-fixed-wake")
+    @Test fun wakeScrollsWithItsCardAndRemainsReachableOnTheRight() {
+        val wake = ui.compose.onNodeWithTag("tonight-fixed-wake").performScrollTo()
         val before = wake.getUnclippedBoundsInRoot()
         assertTrue("Wake occupies the right side", (before.left.value + before.right.value) / 2 > 205f)
         ui.compose.onNodeWithTag("tonight-content").performTouchInput { swipeUp() }
-        val after = wake.getUnclippedBoundsInRoot()
-        assertEquals(before, after)
-        wake.assertIsDisplayed()
+        assertNotEquals("The compact card belongs to the scroll content", before, wake.getUnclippedBoundsInRoot())
+        ui.checkControl(wake, "Wake picker").performClick()
+        val dialog = org.robolectric.shadows.ShadowDialog.getLatestDialog()
+        assertTrue(dialog is android.app.TimePickerDialog && dialog.isShowing)
+        ui.compose.runOnUiThread { dialog.dismiss() }
     }
 
-    @Test fun accessibleMoveActionsPersistTheOrder() {
-        ui.compose.onNodeWithContentDescription("Move Night down").performScrollTo().performClick()
-        ui.waitUntil { saved().contains("\"tonightSectionOrder\":[\"wake\",\"night\",\"connection\"]") }
+    @Test fun detailExpansionSurvivesActivityRecreationAndCanCollapseAgain() {
+        ui.compose.onNodeWithTag("night-curve").assertDoesNotExist()
+        ui.compose.openTonightDetail()
+        ui.compose.onNodeWithTag("night-curve").performScrollTo().assertIsDisplayed()
+        ui.compose.activityRule.scenario.recreate()
+        ui.compose.onNodeWithTag("night-curve").performScrollTo().assertIsDisplayed()
+        ui.compose.openTonightDetail()
+        ui.compose.onNodeWithTag("night-curve").assertDoesNotExist()
+        ui.compose.onNodeWithTag("quick-mode-HEAT").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun draggingCompactContentDoesNotRewriteLegacySectionOrder() {
+        val before = ui.graph.repository.settings.value.tonightSectionOrder
+        ui.compose.onNodeWithText("Reorder sections").assertDoesNotExist()
+        ui.compose.onNodeWithTag("tonight-content").performTouchInput { swipeUp(); swipeDown() }
+        assertEquals(before, ui.graph.repository.settings.value.tonightSectionOrder)
         tab(R.string.tab_settings); tab(R.string.tab_tonight)
-        val wake = ui.compose.onNodeWithTag("tonight-section-wake").getUnclippedBoundsInRoot()
-        val night = ui.compose.onNodeWithTag("tonight-section-night").getUnclippedBoundsInRoot()
-        assertTrue(wake.top < night.top)
-        ui.compose.onNodeWithContentDescription("Move Night up").performScrollTo().performClick()
-        ui.waitUntil { saved().contains("\"tonightSectionOrder\":[\"night\",\"wake\",\"connection\"]") }
+        assertTrue(ui.compose.onNodeWithTag("tonight-card").getUnclippedBoundsInRoot().bottom <
+            ui.compose.onNodeWithTag("quick-controls").getUnclippedBoundsInRoot().top)
     }
 
-    @Test fun draggingASectionActuallyChangesTheSavedOrder() {
-        ui.compose.onNodeWithText("Reorder sections").performScrollTo().performClick()
-        val source = ui.compose.onNodeWithTag("drag-night")
-        val target = ui.compose.onNodeWithTag("drag-wake")
-        val distance = target.fetchSemanticsNode().boundsInRoot.center.y - source.fetchSemanticsNode().boundsInRoot.center.y
-        source.performTouchInput {
-            down(center)
-            advanceEventTime(600)
-            moveBy(Offset(0f, distance), delayMillis = 250)
-            up()
-        }
-        ui.waitUntil { saved().contains("\"tonightSectionOrder\":[\"wake\",\"night\",\"connection\"]") }
-        ui.compose.onNodeWithText("Done reordering").performClick()
-        assertTrue(ui.compose.onNodeWithTag("tonight-section-wake").getUnclippedBoundsInRoot().top <
-            ui.compose.onNodeWithTag("tonight-section-night").getUnclippedBoundsInRoot().top)
-    }
-
-    @Test fun malformedStoredOrderKeepsEverySectionExactlyOnce() {
+    @Test fun malformedLegacyOrderCannotDuplicateOrHideCurrentControls() {
         val malformed = json.decodeFromString(Settings.serializer(), saved().dropLast(1) +
             ",\"tonightSectionOrder\":[\"connection\",\"connection\",\"unknown\"]}")
         runBlocking { ui.graph.repository.updateSettings { malformed } }
         tab(R.string.tab_settings); tab(R.string.tab_tonight)
-        ui.compose.onAllNodesWithTag("tonight-section-connection").assertCountEquals(1)
-        ui.compose.onAllNodesWithTag("tonight-section-night").assertCountEquals(1)
-        ui.compose.onAllNodesWithTag("tonight-section-wake").assertCountEquals(1)
-        assertTrue(ui.compose.onNodeWithTag("tonight-section-connection").getUnclippedBoundsInRoot().top <
-            ui.compose.onNodeWithTag("tonight-section-night").getUnclippedBoundsInRoot().top)
+        ui.compose.onAllNodesWithTag("status-header").assertCountEquals(1)
+        ui.compose.onAllNodesWithTag("tonight-card").assertCountEquals(1)
+        ui.compose.onAllNodesWithTag("tonight-fixed-wake").assertCountEquals(1)
+        ui.compose.onAllNodesWithTag("quick-controls").assertCountEquals(1)
+        assertTrue(ui.compose.onNodeWithTag("tonight-card").getUnclippedBoundsInRoot().bottom <
+            ui.compose.onNodeWithTag("quick-controls").getUnclippedBoundsInRoot().top)
     }
 
     @Test fun queuedWorkDoesNotMoveTheQuickControls() {
@@ -101,7 +92,7 @@ class TonightLayoutTest {
         val release = CompletableDeferred<Unit>()
         val holder = ui.graph.scope.launch { ui.graph.actions.exclusive { entered.complete(Unit); release.await() } }
         ui.waitUntil { entered.isCompleted }
-        val quick = ui.compose.onNodeWithText(ui.s(R.string.tonight_quick))
+        val quick = ui.compose.onNodeWithTag("quick-controls")
         quick.performScrollTo()
         val before = quick.getUnclippedBoundsInRoot()
         try {
@@ -128,7 +119,8 @@ class TonightLayoutTest {
         val selected = requireNotNull(ui.model.tonightsProfile())
         val renamed = selected.copy(name = "Renamed current profile")
         ui.compose.runOnUiThread { runBlocking { ui.graph.repository.saveProfile(renamed) } }
-        ui.compose.onNode(hasText(renamed.name) and hasClickAction()).assertExists()
+        ui.compose.onNodeWithText(renamed.name, substring = true).assertExists()
+        ui.compose.openTonightDetail()
         ui.compose.onNodeWithTag("night-curve").performScrollTo().performTouchInput {
             longClick(Offset(width * .03f, height / 2f))
         }

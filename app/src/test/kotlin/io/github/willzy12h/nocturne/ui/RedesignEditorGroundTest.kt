@@ -22,8 +22,8 @@ class RedesignEditorGroundTest {
     @get:Rule val rules = ui.rules
 
     @Test fun fullScreenEditorHasAnOpaquePaletteGround() {
-        ui.control(ui.s(R.string.action_edit)).performClick()
-        ui.compose.onNodeWithText(ui.s(R.string.editor_title)).assertIsDisplayed()
+        ui.compose.openTonightProfileEditor()
+        ui.compose.onNodeWithTag("editor-save").assertIsDisplayed()
         val view = ui.compose.activity.window.decorView
         val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
         ui.compose.runOnUiThread { view.draw(Canvas(bitmap)) }

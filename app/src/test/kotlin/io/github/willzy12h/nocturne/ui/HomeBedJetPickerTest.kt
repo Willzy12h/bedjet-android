@@ -57,13 +57,13 @@ class HomeBedJetPickerTest {
         ui.waitUntil { ui.graph.repository.settings.value.targetDevice == "ble:AA:BB:CC:DD:EE:02" }
         ui.waitUntil { "AA:BB:CC:DD:EE:02" in radio.connects }
         assertFalse(ui.graph.repository.settings.value.demoMode)
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertIsDisplayed()
+        ui.compose.onNodeWithTag("tonight-fixed-wake").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun homePickerKeepsBothRememberedBedJetsAndCanSwitchBack() {
         ui.compose.runOnIdle { runBlocking { ui.graph.actions.selectTarget("ble:AA:BB:CC:DD:EE:02", useRealDevice = true) } }
         val first = ui.compose.onNode(hasText("AA:BB:CC:DD:EE:01", substring = true) and hasClickAction())
-        first.performScrollTo().assertIsDisplayed().performClick()
+        ui.checkControl(first, "Remembered BedJet").performClick()
         ui.waitUntil { ui.graph.repository.settings.value.targetDevice == "ble:AA:BB:CC:DD:EE:01" }
         ui.compose.onNode(hasText("AA:BB:CC:DD:EE:02", substring = true) and hasClickAction()).assertExists()
     }
@@ -71,7 +71,7 @@ class HomeBedJetPickerTest {
     @Test fun demoHasAnExitAndReturnsToTheRememberedRealPicker() {
         ui.compose.runOnIdle { ui.model.useDemo() }
         ui.waitUntil { ui.graph.repository.settings.value.demoMode }
-        ui.compose.onNodeWithText("Demo — no BedJet connected").assertIsDisplayed()
+        ui.compose.onNodeWithText("Demo · no BedJet connected").assertIsDisplayed()
         ui.compose.onNodeWithText("Exit demo").assertIsDisplayed().performClick()
         ui.waitUntil { !ui.graph.repository.settings.value.demoMode }
         assertEquals("ble:AA:BB:CC:DD:EE:01", ui.graph.repository.settings.value.targetDevice)

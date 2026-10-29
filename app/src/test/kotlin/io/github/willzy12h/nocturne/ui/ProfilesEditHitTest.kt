@@ -30,8 +30,8 @@ class ProfilesEditHitTest {
     }
     @get:Rule val rules = ui.rules
 
-    private fun edit() = ui.compose.onNode(hasText(ui.s(R.string.action_edit)) and hasClickAction())
-    private fun add() = ui.compose.onNode(hasText(ui.s(R.string.profiles_new)) and hasClickAction())
+    private fun edit() = ui.compose.onNodeWithTag("profile-open-${ui.graph.repository.profiles.value.single().id}")
+    private fun add() = ui.compose.onNodeWithTag("profiles-new")
 
     private fun bounds(): Pair<Rect, Rect> =
         edit().fetchSemanticsNode().boundsInRoot to add().fetchSemanticsNode().touchBoundsInRoot
@@ -59,7 +59,7 @@ class ProfilesEditHitTest {
             .fetchSemanticsNodes().isNotEmpty()
         val diagnostic = "$geometry; New profile preset dialog opened=$presetOpened"
         println(diagnostic)
-        ui.compose.onNodeWithText(ui.s(R.string.editor_title)).assertExists(diagnostic)
+        ui.compose.onNodeWithTag("editor-save").assertExists(diagnostic)
         assertFalse("An Edit tap must not open the New profile chooser: $diagnostic", presetOpened)
     }
 

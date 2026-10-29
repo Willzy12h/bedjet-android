@@ -94,6 +94,7 @@ class NightTimelineLayoutTest {
         if (theme == ThemeMode.LIGHT) {
             compose.onNodeWithText(compose.activity.getString(R.string.theme_switch_now)).performClick()
         }
+        compose.openTonightDetail()
         compose.waitUntil(10_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             if (simple) compose.onAllNodesWithText("23:00", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()

@@ -53,6 +53,7 @@ class TonightWakeLabelLayoutTest(
     }
 
     @Test fun overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView() {
+        ui.compose.openTonightDetail()
         val fullLabel = ui.s(R.string.wake_origin_override)
         val title = hasText(fullLabel) or hasText(COMPACT_LABEL)
         ui.waitUntil { ui.compose.onAllNodes(title, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }

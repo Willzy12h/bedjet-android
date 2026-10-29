@@ -17,9 +17,10 @@ class TonightPhaseNavigationTest {
     @get:Rule val rules = ui.rules
 
     @Test fun longPressingTonightsCurveOpensThatSourcePhaseInTheEditor() {
+        ui.compose.openTonightDetail()
         ui.compose.onNodeWithTag("night-curve").performScrollTo()
             .performTouchInput { longClick(Offset(width * .03f, height / 2f)) }
-        ui.compose.onNodeWithText("Edit profile").assertExists()
+        ui.compose.onNodeWithTag("editor-save").assertExists()
         ui.compose.onNodeWithTag("editor-phase-controls-START-0").assertExists()
         ui.compose.onNodeWithTag("editor-phase-START-0").assertIsDisplayed()
     }

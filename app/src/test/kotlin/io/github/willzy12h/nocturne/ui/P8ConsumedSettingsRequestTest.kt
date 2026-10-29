@@ -51,13 +51,27 @@ class P8ConsumedSettingsRequestTest {
     @get:Rule val rules = RuleChain.outerRule(timezone).around(ui.rules)
 
     @Test fun handledAlarmLinkDoesNotReopenWhenReturningToSettings() {
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").assertIsDisplayed().performClick()
-        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms)).assertIsDisplayed()
-        ui.compose.onNodeWithTag("settings-back").performClick()
+        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").performScrollTo().assertIsDisplayed().performClick()
+        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms), ignoreCase = true).performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithTag("settings-back").performScrollTo().performClick()
         ui.compose.onNodeWithTag("settings-page-night").assertExists()
         ui.tab(ui.s(R.string.tab_tonight))
         ui.tab(ui.s(R.string.tab_settings))
         ui.compose.onNodeWithTag("settings-page-night").assertExists()
-        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms)).assertDoesNotExist()
+        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms), ignoreCase = true).assertDoesNotExist()
     }
+    @Test fun handledSetupRequestDoesNotNavigateAgainAfterRecreation() {
+        ui.tab("Settings")
+        ui.compose.openSettingsPage("permissions")
+        ui.compose.onNodeWithTag("open-setup-checklist").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("setup-checklist").assertExists()
+        ui.compose.onNode(hasText(ui.s(R.string.uat_setup_done)) and hasAnyAncestor(hasTestTag("setup-checklist")))
+            .performScrollTo().performClick()
+        ui.tab("Profiles")
+        ui.compose.onNodeWithTag("profiles-new").assertIsDisplayed()
+        ui.compose.activityRule.scenario.recreate()
+        ui.compose.onNodeWithTag("profiles-new").assertIsDisplayed()
+        ui.compose.onNodeWithTag("tonight-card").assertDoesNotExist()
+    }
+
 }

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "./gradlew",
+    "--offline",
+    "--no-daemon",
+    "--max-workers=3",
+    "-I",
+    "docs/redesign/verification.init.gradle",
+    ":app:testDebugUnitTest",
+    "--tests",
+    "*QuickPendingStateTest"
+  ],
+  "started": "2026-10-29T01:25:50.479970+00:00",
+  "finished": "2026-10-29T01:28:05.715906+00:00",
+  "exit_code": 1,
+  "source": "e4be250fb9f340800fa89aea8e358d5bddbf5054",
+  "source_after": "e4be250fb9f340800fa89aea8e358d5bddbf5054",
+  "source_tree_sha256": "45d2b108c6cc6f73c6ae639d39795e050f99842043dd7a27fc47728b6648f6de",
+  "source_tree_sha256_after": "45d2b108c6cc6f73c6ae639d39795e050f99842043dd7a27fc47728b6648f6de"
+}

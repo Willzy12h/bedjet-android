@@ -44,7 +44,7 @@ class RedesignProfilesStyleTest {
 
     @Test fun overcastOverflowMenuRendersPaletteBackgroundInkAndBorder() {
         ui.compose.onNode(hasText(ui.s(R.string.tab_profiles)) and hasClickAction()).performClick()
-        ui.compose.onAllNodes(hasText(ui.s(R.string.recovery_more)) and hasClickAction())[0]
+        ui.compose.onNodeWithTag("profile-more-${ui.graph.repository.profiles.value.first().id}")
             .performScrollTo().performClick()
         ui.compose.onNodeWithText(ui.s(R.string.pin_menu)).assertIsDisplayed()
         ui.compose.waitForIdle()
@@ -72,7 +72,7 @@ class RedesignProfilesStyleTest {
         val profile = ui.graph.repository.profiles.value.first()
         ui.compose.onNode(hasText(ui.s(R.string.tab_profiles)) and hasClickAction()).performClick()
         ui.compose.onNodeWithTag("profile-open-${profile.id}").performScrollTo().performClick()
-        ui.compose.onNodeWithText(ui.s(R.string.editor_title)).assertIsDisplayed()
+        ui.compose.onNodeWithTag("editor-save").assertIsDisplayed()
     }
 
     private fun draw(view: android.view.View): Bitmap {
@@ -104,12 +104,12 @@ class RedesignProfileChooserLargeTextTest(private val preset: io.github.willzy12
 
     @Test fun presetIsFullyReachableAndOpensItsDraft() {
         ui.tab(ui.s(R.string.tab_profiles))
-        ui.compose.onNode(hasText(ui.s(R.string.profiles_new)) and hasClickAction()).performClick()
+        ui.compose.onNodeWithTag("profiles-new").performClick()
         ui.compose.onNodeWithText(ui.s(R.string.profiles_start_from)).assertIsDisplayed()
         val choice = ui.compose.onNode(hasText(preset.name) and hasClickAction() and hasAnyAncestor(isDialog()))
         ui.checkControl(choice, "Preset ${preset.name}")
         choice.performClick()
-        ui.compose.onNodeWithText(ui.s(R.string.editor_title)).assertIsDisplayed()
+        ui.compose.onNodeWithTag("editor-save").assertIsDisplayed()
         ui.compose.onNode(hasText(preset.name) and hasSetTextAction()).assertExists()
     }
 }

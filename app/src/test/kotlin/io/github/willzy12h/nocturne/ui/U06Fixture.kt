@@ -135,6 +135,17 @@ internal class U06Fixture(
         val geometry = "touch=$touch, visible=${semantics.boundsInRoot}, size=${semantics.size}, position=${semantics.positionInRoot}"
         assertTrue("$label touch width ${touch.width / density} dp < 48 dp; $geometry", touch.width >= 48f * density - 1f)
         assertTrue("$label touch height ${touch.height / density} dp < 48 dp; $geometry", touch.height >= 48f * density - 1f)
+        // The approved feedback bubble overlays content. A control beneath it is reached by dismissing
+        // the bubble first, through the actual pointer route, rather than accidentally tapping the bubble.
+        val bubble = compose.onAllNodesWithTag("feedback-bubble").fetchSemanticsNodes().singleOrNull()
+        if (bubble != null && bubble.root === semantics.root && bubble.boundsInRoot.contains(semantics.boundsInRoot.center)) {
+            val dismiss = compose.onAllNodesWithTag("snackbar-dismiss").fetchSemanticsNodes().isNotEmpty()
+            if (dismiss) compose.onNodeWithTag("snackbar-dismiss").performClick()
+            else compose.onNode(hasClickAction() and hasAnyAncestor(hasTestTag("feedback-bubble")), useUnmergedTree = true).performClick()
+            waitUntil { compose.onAllNodesWithTag("feedback-bubble").fetchSemanticsNodes().isEmpty() }
+            feedback = null
+            checkLayout(node, label, scroll = false)
+        }
         return node
     }
 

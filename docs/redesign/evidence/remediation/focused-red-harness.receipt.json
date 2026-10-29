@@ -1,0 +1,27 @@
+{
+  "command": [
+    "./gradlew",
+    "--offline",
+    "--no-daemon",
+    "--max-workers=3",
+    "-I",
+    "docs/redesign/verification.init.gradle",
+    ":app:testDebugUnitTest",
+    "--tests",
+    "*RedesignTextContrastTest.liftedEditorStepKeepsItsTextReadableInOvercast",
+    "--tests",
+    "*P8ConsumedSettingsRequestTest",
+    "--tests",
+    "*ActiveIndicatorTest",
+    "--tests",
+    "*U06RecoveryLayoutTest",
+    "--tests",
+    "*U06ControlSemanticsTest.platformRowsAreSingleToggleableTargets*",
+    "--tests",
+    "*U06ControlSemanticsTest.settingsRowsAreSingleToggleableTargets*"
+  ],
+  "started": "2026-10-29T01:20:55.113953+00:00",
+  "finished": "2026-10-29T01:25:17.677895+00:00",
+  "exit_code": 1,
+  "source": "e4be250fb9f340800fa89aea8e358d5bddbf5054"
+}

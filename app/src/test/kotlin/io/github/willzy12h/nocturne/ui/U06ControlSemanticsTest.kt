@@ -222,7 +222,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.control(s(R.string.settings_github_releases))
         fixture.control(s(R.string.settings_source_code))
         compose.onNodeWithTag("settings-back").performScrollTo().performClick()
-        compose.openSettingsPage("bedjet")
+        fixture.tab(s(R.string.tab_tonight))
         fixture.control(s(R.string.gpt12_exit_demo), scroll = false).performClick()
         fixture.waitUntil { !graph.repository.settings.value.demoMode }
         fixture.tab(s(R.string.tab_settings))
@@ -231,6 +231,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.control(s(R.string.setup_use_demo)).performClick()
         fixture.waitUntil { graph.repository.settings.value.demoMode }
         fixture.snackbar()
+        fixture.tab(s(R.string.tab_tonight))
         fixture.control(s(R.string.gpt12_exit_demo), scroll = false)
     }
 
@@ -274,8 +275,8 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     }
 
     private fun openEditor() {
-        fixture.control(s(R.string.action_edit)).performClick()
-        compose.onNodeWithText(s(R.string.editor_title)).assertIsDisplayed()
+        compose.openTonightProfileEditor()
+        compose.onNodeWithTag("editor-save").assertIsDisplayed()
     }
 
     @Test fun editorSlidersAndBothRangeThumbsExposeTheirValuesInBothUnits() {

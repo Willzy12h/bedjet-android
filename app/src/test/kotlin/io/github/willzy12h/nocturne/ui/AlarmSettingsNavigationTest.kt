@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.R
 import kotlinx.coroutines.runBlocking
@@ -67,15 +68,15 @@ class AlarmSettingsNavigationTest {
 
     @Test fun anIgnoredUnknownAlarmOpensTheRelevantSettingAndCanBeEnabled() {
         ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change")
-            .assertIsDisplayed().performClick()
+            .performScrollTo().assertIsDisplayed().performClick()
         ui.compose.waitForIdle()
-        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms)).assertIsDisplayed()
+        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms), ignoreCase = true).performScrollTo().assertIsDisplayed()
         val toggle = ui.control("Use alarms from unknown apps")
         toggle.assertIsOff().performClick()
         ui.waitUntil { ui.graph.repository.settings.value.acceptUnknownAlarmSource && ui.model.nextAlarm.value?.counts == true }
         toggle.assertIsOn()
         ui.tab(ui.s(R.string.tab_tonight))
-        ui.compose.onNodeWithText("Next alarm 06:30 · Phone alarm (app not identified) — used").assertIsDisplayed()
+        ui.compose.onNodeWithText("Next alarm 06:30 · Phone alarm (app not identified) — used").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun theUnknownSourceControlCanBeDisabledAgain() {

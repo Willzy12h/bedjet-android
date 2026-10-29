@@ -1,0 +1,19 @@
+{
+  "command": [
+    "./gradlew",
+    "--offline",
+    "--no-daemon",
+    "--max-workers=3",
+    "-I",
+    "docs/redesign/verification.init.gradle",
+    "clean",
+    ":core:test",
+    ":app:testDebugUnitTest",
+    ":app:assembleDebug",
+    ":app:lintDebug"
+  ],
+  "started": "2026-10-29T00:43:01.064602+00:00",
+  "finished": "2026-10-29T01:08:34.914956+00:00",
+  "exit_code": 1,
+  "source": "e4be250fb9f340800fa89aea8e358d5bddbf5054"
+}

@@ -104,7 +104,7 @@ class WakePickerIdentityTest {
     }
 
     private fun openPicker(): TimePickerDialog {
-        compose.onNodeWithText(compose.activity.getString(R.string.tonight_set_wake)).performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-fixed-wake").performScrollTo().performClick()
         return (ShadowDialog.getLatestDialog() as TimePickerDialog).also {
             assertTrue("The actual Tonight wake picker must be showing", it.isShowing)
             compose.runOnUiThread { it.updateTime(7, 30) }

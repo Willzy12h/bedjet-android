@@ -70,8 +70,8 @@ class UatRound2RegressionTest {
 
     @Test fun U1_readyWithoutACurrentSelectedReportMustNotSayConnected() {
         val model = model(target = "ble:AA:BB:CC:DD:EE:01")
-        compose.setContent { MaterialTheme { StatusHeader(model) } }
-        compose.onNodeWithTag("status-connection").assertTextEquals("Connecting…")
+        compose.setContent { MaterialTheme { StatusLine(model, runningName = null, onRemote = {}) } }
+        compose.onNodeWithTag("status-connection").assertTextContains("connecting", substring = true)
     }
 
     @Test fun U2_anUnidentifiedPhoneAlarmHasAnActionableNeutralLabel() {
@@ -96,10 +96,10 @@ class UatRound2RegressionTest {
         compose.onNodeWithTag("setup-pair").assertIsDisplayed()
     }
 
-    @Test fun U5_quickControlsExposeEveryDefaultModeInsteadOfWarm() {
+    @Test fun U5_quickControlsExposeAllSixApprovedPresetsInsteadOfWarm() {
         val model = model(demo = true)
         compose.setContent { MaterialTheme { TonightScreen(model, Modifier, onEdit = {}) } }
-        listOf("TURBO", "HEAT", "EXTENDED_HEAT", "COOL", "DRY", "STANDBY").forEach {
+        listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST", "STANDBY").forEach {
             compose.onNodeWithTag("quick-mode-$it").assertExists()
         }
         compose.onAllNodesWithText("Warm").assertCountEquals(0)

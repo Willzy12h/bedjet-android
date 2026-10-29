@@ -30,8 +30,8 @@ class EditorDemoBannerTest {
     @get:Rule val rules = ui.rules
 
     @Test fun demoEditorKeepsItsBannerAndOneTapExitAtTwoHundredPercent() {
-        ui.control("Edit").performClick()
-        ui.compose.onNodeWithText("Edit profile").assertExists()
+        ui.compose.openTonightProfileEditor()
+        ui.compose.onNodeWithTag("editor-save").assertExists()
         ui.compose.onNode(hasSetTextAction() and hasText("Name", substring = true))
             .performScrollTo().performTextReplacement("Disposable editor draft")
 
@@ -40,7 +40,7 @@ class EditorDemoBannerTest {
             .performClick()
 
         ui.waitUntil { !ui.graph.repository.settings.value.demoMode }
-        ui.compose.onNodeWithText("Edit profile").assertDoesNotExist()
+        ui.compose.onNodeWithTag("editor-save").assertDoesNotExist()
         ui.compose.onNode(hasSetTextAction() and hasText("Disposable editor draft")).assertDoesNotExist()
         assertEquals(realProfiles, ui.graph.repository.profiles.value)
     }

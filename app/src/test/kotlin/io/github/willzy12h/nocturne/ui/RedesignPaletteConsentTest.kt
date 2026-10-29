@@ -55,19 +55,19 @@ class RedesignPaletteConsentTest {
 
     private fun headerColour(): Color {
         val layouts = mutableListOf<TextLayoutResult>()
-        ui.compose.onNodeWithTag("status-device", useUnmergedTree = true)
+        ui.compose.onNodeWithTag("status-connection", useUnmergedTree = true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { assertTrue(it(layouts)) }
         return layouts.single().layoutInput.style.color
     }
 
     @Test fun darkDayPaletteDoesNotPromptAndNativeDialogStaysDark() {
-        assertEquals(Palette.FOREST.tokens.ink, headerColour())
+        assertEquals(Palette.FOREST.tokens.ink2, headerColour())
         ui.compose.onNodeWithText(ui.s(R.string.theme_light_due)).assertDoesNotExist()
         assertTrue(nativeThemeIsDark(ui.compose.activity, ui.graph.repository.settings.value, ui.graph.now(), false))
     }
 
     @Test fun legacyDefaultPaletteHoldSurvivesUpgrade() {
-        assertEquals(Palette.MIDNIGHT_INK.tokens.ink, headerColour())
+        assertEquals(Palette.MIDNIGHT_INK.tokens.ink2, headerColour())
         ui.compose.onNodeWithText(ui.s(R.string.theme_light_due)).assertDoesNotExist()
     }
 
@@ -85,16 +85,16 @@ class RedesignPaletteConsentTest {
     }
 
     @Test fun scheduleKeepsPreviousDarkPaletteUntilLightIsApproved() {
-        assertEquals(Palette.FOREST.tokens.ink, headerColour())
+        assertEquals(Palette.FOREST.tokens.ink2, headerColour())
         ui.compose.runOnUiThread {
             ui.graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:01:00Z"), ZoneOffset.UTC)
             ui.compose.activity.sendBroadcast(Intent(Intent.ACTION_TIME_CHANGED))
         }
         settle()
         ui.compose.onNodeWithText(ui.s(R.string.theme_light_due)).assertIsDisplayed()
-        assertEquals(Palette.FOREST.tokens.ink, headerColour())
+        assertEquals(Palette.FOREST.tokens.ink2, headerColour())
         ui.compose.onNodeWithText(ui.s(R.string.theme_switch_now)).performClick()
         settle()
-        assertEquals(Palette.OVERCAST.tokens.ink, headerColour())
+        assertEquals(Palette.OVERCAST.tokens.ink2, headerColour())
     }
 }

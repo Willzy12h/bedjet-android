@@ -15,7 +15,7 @@ class RemoteModeLimitsTest {
     @get:Rule val rules = ui.rules
 
     @Test fun everyRemoteModeNamesItsModelMaximumIncludingDry() {
-        ui.compose.onNodeWithText(ui.s(R.string.tab_remote)).performClick()
+        ui.compose.openRemote()
         ui.waitUntil { ui.graph.link.status.value != null }
         listOf("Heat" to "max 40°C", "Turbo" to "max 43°C", "Long heat" to "max 33.5°C",
             "Cool" to "max 31°C", "Dry" to "max 31°C").forEach { (name, maximum) ->

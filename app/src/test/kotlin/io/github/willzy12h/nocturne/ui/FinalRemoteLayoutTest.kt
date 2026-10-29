@@ -30,39 +30,34 @@ class FinalRemoteLayoutTest {
     }
     @get:Rule val rules = ui.rules
 
-    @Test fun oneStatusHeaderStaysFixedAcrossScrollingAndAllMainTabs() {
-        val header = ui.compose.onNodeWithTag("status-header")
-        header.assertIsDisplayed()
-        val bounds = header.getUnclippedBoundsInRoot()
-        listOf("Remote", "Settings", "Profiles", "History", "Tonight").forEach { tab ->
-            ui.tab(tab)
-            ui.compose.onAllNodesWithTag("status-header").assertCountEquals(1)
-            header.assertIsDisplayed()
-            assertEquals("The status header must remain above the scrolling screen", bounds.top, header.getUnclippedBoundsInRoot().top)
-            if (tab == "Settings") {
-                ui.compose.openSettingsPage("about")
-                ui.compose.onNodeWithText("About").performScrollTo()
-                assertEquals(bounds, header.getUnclippedBoundsInRoot())
-            }
-        }
-        ui.compose.onNodeWithTag("status-connection").assertTextEquals("Demo")
-        ui.compose.onNodeWithTag("status-device").assertTextContains("Demo")
-        ui.compose.onNodeWithTag("status-temperature").assertIsDisplayed()
+    @Test fun tonightOwnsTheCompactStatusAndRemoteReturnsToIt() {
+        ui.compose.onAllNodesWithTag("status-header").assertCountEquals(1)
+        ui.compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
+        ui.tab("Remote")
+        ui.compose.onNodeWithTag("remote-back").assertIsDisplayed().performClick()
+        ui.compose.onAllNodesWithTag("status-header").assertCountEquals(1)
+        ui.compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
+        ui.compose.onNodeWithTag("home-temperature").assertIsDisplayed()
     }
 
-    @Test fun demoExitStaysVisibleOnEveryMainTab() {
+    @Test fun demoExitIsReachableThroughTonightFromEveryMainDestination() {
         listOf("Remote", "Settings", "Profiles", "History", "Tonight").forEach { tab ->
             ui.tab(tab)
-            ui.compose.onNodeWithText("Demo — no BedJet connected").assertIsDisplayed()
+            ui.tab("Tonight")
+            ui.compose.onNodeWithText("Demo · no BedJet connected").assertIsDisplayed()
             ui.checkControl(ui.compose.onNodeWithText("Exit demo"), "Exit demo", scroll = false)
         }
+        ui.compose.onNodeWithText("Exit demo").performClick()
+        ui.waitUntil { !ui.graph.repository.settings.value.demoMode }
+        ui.compose.onNodeWithText("Demo · no BedJet connected").assertDoesNotExist()
     }
 
     @Test fun withNoTargetTheHeaderCannotReuseAPreviouslyConnectedName() {
         assertNull("A legacy display name cannot stand for an unselected target", ui.model.bedJetName())
-        ui.compose.onNodeWithTag("status-device").assertTextEquals("No BedJet selected")
-        ui.compose.onNodeWithTag("status-connection").assertTextEquals("Disconnected")
-        ui.compose.onNodeWithText("Previous BedJet").assertDoesNotExist()
+        ui.compose.onNodeWithTag("status-connection")
+            .assertTextEquals("No BedJet selected · offline")
+            .assertContentDescriptionContains("No BedJet selected", substring = true)
+        ui.compose.onNodeWithText("Previous BedJet", substring = true).assertDoesNotExist()
     }
 
     @Test fun fanScaleLabelsFitAndItsAccessibleValueCannotSendZero() {
