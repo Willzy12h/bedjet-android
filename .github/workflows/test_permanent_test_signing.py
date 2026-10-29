@@ -2,8 +2,11 @@
 """Host-only safety/regression tests for permanent Nocturne TEST signing."""
 
 import contextlib
+import base64
 import io
+import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +19,51 @@ import permanent_test_signing as signing
 
 
 class PermanentTestSigningTest(unittest.TestCase):
+    def test_android12_apk_with_both_signatures_is_accepted(self):
+        # apksigner's default manifest range (minSdk 31) verifies v3 only, even
+        # when v2 is present. Reproduce the observed Android Build Tools output
+        # at the subprocess boundary without requiring a private key in tests.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'input.apk'
+            source.write_bytes(b'packaged-program-bytes')
+            output = root / 'result'
+            env = dict(zip(signing.SECRET_NAMES, (
+                base64.b64encode(b'\xfe\xed\xfe\xed' + bytes(2000)).decode(),
+                'private-test-password', 'nocturne-test', 'private-test-password')))
+            env['GITHUB_OUTPUT'] = str(root / 'github-output')
+
+            def sdk_run(command, **kwargs):
+                if command[1] == 'sign':
+                    Path(command[command.index('--out') + 1]).write_bytes(source.read_bytes())
+                if command[1] == 'verify':
+                    covers_v2 = ('--min-sdk-version' in command and
+                                 int(command[command.index('--min-sdk-version') + 1]) <= 27)
+                    stdout = ('Verified using v2 scheme (APK Signature Scheme v2): ' +
+                              str(covers_v2).lower() + '\n' +
+                              'Verified using v3 scheme (APK Signature Scheme v3): true\n' +
+                              'Signer #1 certificate SHA-256 digest: ' + signing.EXPECTED_CERT_SHA256 + '\n')
+                elif command[1] == 'dump':
+                    stdout = "package: name='io.github.willzy12h.nocturne' versionCode='20261078'"
+                else:
+                    stdout = ''
+                return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr='')
+
+            args = SimpleNamespace(sdk=str(root / 'sdk'), build_tools='35.0.0',
+                                   unsigned=str(source), output_dir=str(output), version_code=20261078)
+            with patch.object(signing.subprocess, 'run', side_effect=sdk_run), \
+                    contextlib.redirect_stdout(io.StringIO()) as stream:
+                try:
+                    accepted = signing.run(args, env)
+                except RuntimeError as error:
+                    self.fail(f'Valid dual-signature Android 12 APK was refused: {error}')
+                self.assertTrue(accepted)
+            self.assertEqual((root / 'github-output').read_text(), 'signed=true\n')
+            metadata = json.loads((output / 'test-signature-metadata.json').read_text())
+            self.assertEqual(metadata['signature_schemes'], ['v2', 'v3'])
+            self.assertEqual(metadata['signing_certificate_sha256'], signing.EXPECTED_CERT_SHA256)
+            self.assertNotIn('private-test-password', stream.getvalue())
+
     def test_no_secrets_skips_without_failure_or_file(self):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "github-out"
@@ -50,8 +98,9 @@ class PermanentTestSigningTest(unittest.TestCase):
                 "Verified using v3 scheme (APK Signature Scheme v3): true\n"
                 "Signer #1 certificate SHA-256 digest: " + signing.EXPECTED_CERT_SHA256.upper() + "\n")
         self.assertEqual(signing.certificate_digest(text), signing.EXPECTED_CERT_SHA256)
-        with self.assertRaises(RuntimeError):
-            signing.certificate_digest(text.replace("v3): true", "v3): false"))
+        for scheme in ('v2', 'v3'):
+            with self.subTest(scheme=scheme), self.assertRaises(RuntimeError):
+                signing.certificate_digest(text.replace(scheme + "): true", scheme + "): false"))
         with self.assertRaises(RuntimeError):
             signing.certificate_digest(text + "Signer #2 certificate SHA-256 digest: " + "a" * 64 + "\n")
         with self.assertRaises(RuntimeError):

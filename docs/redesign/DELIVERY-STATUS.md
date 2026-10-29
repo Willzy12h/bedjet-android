@@ -36,6 +36,12 @@ The final helper's real local provisioning run exited 0, with both CLI subproces
 
 This makes the declared API 36 toolchain reproducible. It does not validate Android 17/API 37 target-specific behaviour, and the original newer-target advisory remains recorded. Fresh hosted verification of this correction is required before acceptance.
 
+## Permanent signing verification correction on resume
+
+A real signing rehearsal with the recovered original key revealed a separate validation defect. The helper requested and produced both v2 and v3 signatures, but default `apksigner verify` uses the APK manifest's minimum SDK 31 and reported v2 as not verified. Explicit verification from API 24 successfully checked both schemes on the exact same APK. The previous parser therefore rejected a valid permanent-signed APK before writing success metadata.
+
+The verification invocation now explicitly includes API 24 so both requested signature schemes are checked. The APK manifest and signing minimum remain API 31, and the pinned certificate, alias, package, version checks and prohibition on production credentials are unchanged. A behavioural regression first failed with the reproduced dual-signature rejection, then the complete permanent-signing suite passed all eight cases, including refusal of either missing scheme. A real signing rehearsal also passed, with the original pinned certificate and every packaged program/resource entry unchanged. This does not claim installation on Android 7; API 24 is only the signature-verification range.
+
 ## Remaining permanent TEST signing prerequisite
 
 The Build job needs all four existing TEST secrets available in its authorised scope:
@@ -47,13 +53,13 @@ The Build job needs all four existing TEST secrets available in its authorised s
 
 They must refer to the existing JKS whose certificate is pinned below. The GitHub connection can publish reviewed source and read Actions evidence, but cannot administer Actions secrets. Build 50 supplied empty values for all four TEST variables. The earlier browser configuration check required sign-in. A repository owner must make the existing TEST configuration available for automatic CI signing; secret values must not be supplied in chat.
 
-During recovery in a new session on 29 October, the original saved test keystore and its credentials were located and recovered into a private temporary directory. A certificate export confirmed the exact pinned SHA-256 below, an RSA-4096 public key and validity through 27 October 2056. No password/private-key content was printed, and no replacement key was generated. This enables local signing of a source-verified, CI-built unsigned release with the existing signing helper while preserving the installation identity. It does not establish that GitHub Actions secrets have been configured. The final delivery must identify its actual signing location and verification evidence.
+During recovery in a new session on 29 October, the original saved test keystore and its credentials were located and recovered into a private temporary directory. A certificate export confirmed the exact pinned SHA-256 below, an RSA-4096 public key and validity through 27 October 2056. No password/private-key content was printed, and no replacement key was generated. This enables local signing of a source-verified, CI-built release with the existing signing helper while preserving the installation identity. It does not establish that GitHub Actions secrets have been configured. The final delivery must identify its actual signing location and verification evidence.
 
 ## Exact-history transfer and acceptance
 
 The authenticated GitHub app prepared an isolated import workflow in this same repository. A pinned incremental Git bundle preserved the original commits rather than recreating their identities. The successful import checked the manifest, every part, complete bundle, target tree, source digest, exact commit list, ancestry and connectivity before an ordinary push to one staging ref. It used the normal repository Actions credential and no TEST or production signing secret. The candidate remains separate from the temporary import history.
 
-The final candidate must complete the existing Build workflow successfully. The permanent TEST signing helper must explicitly succeed, and the delivered artifact's source/run, package, version, signature, certificate and SHA-256 must be independently verified. If signing is performed locally with the recovered original key, record that fact and the missing automatic CI secret configuration; do not claim a permanent-signed Actions artifact exists. The accepted artifact and workflow identity are recorded in the delivery manifest; local debug/unsigned builds and artifacts from failed workflows are not installation acceptance.
+The final candidate must complete the existing Build workflow successfully. When re-signing the CI test candidate, independently verify its original source, SHA-256 and signer first, then compare every non-signature APK entry before and after. The permanent TEST signing helper must explicitly succeed, and the delivered artifact's source/run, package, version, signature, certificate and SHA-256 must be independently verified. If signing is performed locally with the recovered original key, record that fact and the missing automatic CI secret configuration; do not claim a permanent-signed Actions artifact exists. The accepted artifact and workflow identity are recorded in the delivery manifest; local debug/unsigned builds and artifacts from failed workflows are not installation acceptance.
 
 Required permanent TEST certificate SHA-256:
 

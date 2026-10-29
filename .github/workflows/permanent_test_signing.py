@@ -98,7 +98,10 @@ def run(args, env):
                         "--v3-signing-enabled", "true", "--min-sdk-version", "31",
                         "--out", str(signed), str(aligned)],
                        check=True, capture_output=True, env=safe_env)
-        signature = subprocess.run([str(apksigner), "verify", "--verbose", "--print-certs", str(signed)],
+        # A minSdk 31 manifest makes default verification check v3 only. Include
+        # API 24 in the signature check to verify v2 too; the manifest stays 31.
+        signature = subprocess.run([str(apksigner), "verify", "--verbose", "--print-certs",
+                                    "--min-sdk-version", "24", str(signed)],
                                    check=True, capture_output=True, text=True, env=safe_env).stdout
         actual = certificate_digest(signature)
         if actual != EXPECTED_CERT_SHA256:
