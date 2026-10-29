@@ -147,8 +147,8 @@ class ScreenshotCapture {
         val graph = graph
         fun s(id: Int) = compose.activity.getString(id)
         fun tab(label: String) {
-            if (expectedWidthDp == 320) compose.onAllNodes(hasContentDescription(label))[0].performClick()
-            else compose.onAllNodesWithText(label)[0].performClick()
+            compose.onNode((hasText(label) or hasContentDescription(label) or hasAnyDescendant(hasText(label))) and hasClickAction() and
+                hasAnyAncestor(hasTestTag("main-navigation")), useUnmergedTree = true).performClick()
             settle()
         }
         fun tap(text: String, scroll: Boolean = true) {
@@ -176,10 +176,11 @@ class ScreenshotCapture {
         tab("Tonight")
         save { graph.repository.updateSettings { it.setWakeOverride(graph.now().plusHours(7), graph.now()) } }
         val expiry = graph.now().plusHours(7)
-        val note = compose.activity.getString(R.string.override_expiry, Format.clock(expiry), expiry.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM")))
-        compose.onNodeWithText(note).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("tonight-fixed-wake").performScrollTo()
+            .assertTextContains(Format.clock(expiry), substring = true)
         shot("gaps-$look-02-wake-expiry")
-        tap(compose.activity.getString(R.string.tonight_change_wake, Format.clock(expiry)))
+        compose.onNodeWithTag("tonight-fixed-wake").performClick()
+        settle()
         // TimePickerDialog is a platform dialog, so its own window is captured, not the activity behind it.
         val picker = org.robolectric.shadows.ShadowDialog.getLatestDialog()
         assertTrue("Wake picker must be showing", picker.isShowing)

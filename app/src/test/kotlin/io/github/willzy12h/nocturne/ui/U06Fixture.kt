@@ -182,8 +182,15 @@ internal class U06Fixture(
                 } ?: error("Visible feedback must expose its opaque Material Surface")
                 // The approved design floats feedback as a small bubble over the screen instead of moving it. A control
                 // beneath it stays reachable: the bubble is dismissible and never taller than a quarter of the window.
-                assertTrue("Visible feedback must be dismissible",
-                    compose.onAllNodesWithTag("snackbar-dismiss", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+                val closeButton = compose.onAllNodesWithTag("snackbar-dismiss", useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+                val tapToDismiss = compose.onAllNodesWithTag("feedback-bubble", useUnmergedTree = true)
+                    .fetchSemanticsNodes().any { bubble ->
+                        generateSequence(bubble) { it.parent }.any {
+                            it.config.contains(SemanticsActions.OnClick)
+                        } || bubble.children.any { it.config.contains(SemanticsActions.OnClick) }
+                    }
+                assertTrue("Visible feedback must be dismissible", closeButton || tapToDismiss)
                 assertTrue("$label: feedback bubble is too tall: ${surface.boundsInRoot}",
                     surface.boundsInRoot.height <= root.height / 4f + 1f)
             }

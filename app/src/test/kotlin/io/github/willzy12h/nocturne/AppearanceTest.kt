@@ -7,6 +7,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -70,7 +71,8 @@ class AppearanceTest {
     @Test
     fun simpleViewListsTheNightAndEndsAtTheWakeTime() {
         compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } } }
-        waitFor(hasText("Wake time") or hasText("Your alarm"))
+        waitFor(hasTestTag("tonight-fixed-wake"))
+        compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Wake", substring = true)
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("quick-mode-TURBO")
             .performScrollTo().assertIsDisplayed()

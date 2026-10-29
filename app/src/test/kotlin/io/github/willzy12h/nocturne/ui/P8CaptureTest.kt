@@ -142,7 +142,7 @@ class P8CaptureTest {
                     Surface(Modifier.fillMaxSize(), color = palette.tokens.ground) { ProfileEditor(ui.model, profile, onDone = {}) }
                 }
             } }
-            ui.compose.onNodeWithText("Edit profile").assertExists()
+            ui.compose.onNodeWithTag("editor-back").assertExists()
             capture("p8-${palette.name.lowercase()}-editor")
             ui.compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
             ui.compose.onNodeWithTag("editor-middle-sheet").assertIsDisplayed()

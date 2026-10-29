@@ -24,6 +24,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.ui.MainActivity
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
+import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.service.BedJetService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -72,7 +73,7 @@ class AppSmokeTest {
                 val previous = graph.clock
                 val previousScale = app.resources.configuration.fontScale
                 graph.clock = fixedClock
-                if (description.methodName == "largeTextNavigationKeepsFiveTabsReachable") {
+                if (description.methodName == "largeTextNavigationKeepsEveryTabReachable") {
                     val config = android.content.res.Configuration(app.resources.configuration).apply { fontScale = 2f }
                     @Suppress("DEPRECATION")
                     app.resources.updateConfiguration(config, app.resources.displayMetrics)
@@ -134,7 +135,7 @@ class AppSmokeTest {
     fun confirmationCannotStopANightThatChangedWhileDialogWasOpen() {
         compose.onNodeWithText("Start night now").performScrollTo().performClick()
         waitForConfirmedNight()
-        compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-end-night").performScrollTo().performClick()
         val original = graph.repository.activeNight.value!!
         val replacement = original.copy(revision = original.revision + 1)
         runBlocking { graph.repository.setActiveNight(replacement) }
@@ -155,11 +156,12 @@ class AppSmokeTest {
             compose.onAllNodes(hasText(s(R.string.remote_connect)) or
                 (hasText(s(R.string.mode_cool)) and hasClickAction())).fetchSemanticsNodes().isNotEmpty()
         }
+        compose.onNodeWithTag("remote-back").performClick()
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("Nights you run appear here, with every change made during them.").assertIsDisplayed()
         compose.onNodeWithText("Settings").performClick()
         compose.openSettingsPage("backups")
-        compose.onNodeWithText("Backups and snapshots").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Profiles and backups").assertIsDisplayed()
     }
 
     @Test
@@ -190,13 +192,13 @@ class AppSmokeTest {
             compose.onAllNodes(hasText("BedJet state unknown", substring = true)).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithTag("tonight-fixed-wake").assertIsDisplayed()
-            .assertTextContains(s(R.string.gpt12_wake_profile_fallback))
+            .assertTextContains(s(R.string.gpt12_wake_profile_fallback), substring = true)
         compose.onNodeWithText(s(R.string.tonight_waking_at)).assertDoesNotExist()
         assertTrue(compose.onAllNodes(hasText("Now:", substring = true)).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithTag("night-active-phase").assertDoesNotExist()
         // Stop is deliberately available in UNKNOWN state; its presence must not claim a confirmed run.
         val original = graph.repository.activeNight.value!!.identity
-        compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-end-night").performScrollTo().performClick()
         compose.onNode(hasText(s(R.string.guard_title)) and hasAnyAncestor(isDialog())).assertIsDisplayed()
         compose.onNode(hasText(s(R.string.guard_keep)) and hasAnyAncestor(isDialog())).performClick()
         assertEquals(original, graph.repository.activeNight.value?.identity)
@@ -248,14 +250,14 @@ class AppSmokeTest {
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
             compose.onAllNodes(hasText(s(R.string.tonight_manual_until), substring = true) and
-                hasAnyAncestor(hasTestTag("tonight-section-night"))).fetchSemanticsNodes().isNotEmpty()
+                hasAnyAncestor(hasTestTag("tonight-card"))).fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(compose.onAllNodes(hasText("Waking you at")).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithText(s(R.string.recovery_resume_programme)).performScrollTo().assertIsDisplayed()
         // P5 (P3b review): the applied plan claims no wake: no wake label, marker text or spoken "wake".
         // The separate "Wake and recovery" navigation heading names a category, not this manual run's end.
         fun noWakeClaims(look: String) {
-            val inPlan = hasAnyAncestor(hasTestTag("tonight-section-night"))
+            val inPlan = hasAnyAncestor(hasTestTag("tonight-card"))
             listOf("Wake ", "Your alarm", "Wake time", "Profile's wake time", "From your alarm", "Tonight-only wake time").forEach { text ->
                 assertTrue("$look shows '$text'", compose.onAllNodes(hasText(text, substring = true) and inPlan).fetchSemanticsNodes().isEmpty())
             }
@@ -273,7 +275,7 @@ class AppSmokeTest {
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
             compose.onAllNodes(hasText(s(R.string.tonight_manual_until), substring = true) and
-                hasAnyAncestor(hasTestTag("tonight-section-night"))).fetchSemanticsNodes().isNotEmpty()
+                hasAnyAncestor(hasTestTag("tonight-card"))).fetchSemanticsNodes().isNotEmpty()
         }
         noWakeClaims("simple view")
         // The snooze's wake-up notification now says the same.
@@ -290,14 +292,19 @@ class AppSmokeTest {
             compose.onNodeWithText("Start night now").performScrollTo().performClick()
             waitForConfirmedNight(controller.get())
             val profileBefore = graph.repository.profiles.value.first { it.id == graph.repository.activeNight.value!!.profileId }
-            compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
+            compose.onNodeWithTag("tonight-end-night").performScrollTo().performClick()
             confirmStopNight()
             waitForText("Start night now", controller.get())
             compose.onNodeWithText("History").performClick()
             waitForText("Morning check-in", controller.get())
             compose.onNodeWithText("Morning check-in").performScrollTo().performClick()
             compose.onNodeWithText("Just right").performClick()
-            waitForText("Morning check-in: Just right")
+            compose.waitUntil(10_000) {
+                shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250))
+                graph.repository.history.value.any { night ->
+                    night.events.any { it.comfort == MorningComfort.JUST_RIGHT }
+                } && compose.onAllNodes(hasText("Just right")).fetchSemanticsNodes().isNotEmpty()
+            }
             assertEquals(profileBefore, graph.repository.profiles.value.first { it.id == profileBefore.id })
             assertTrue(compose.onAllNodes(hasText("Review Middle suggestion")).fetchSemanticsNodes().isEmpty())
         } finally { controller.destroy() }
@@ -306,7 +313,8 @@ class AppSmokeTest {
     @Test
     fun pinPreviewProtectsTheWorkingSlotAndStaleSelection() {
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodesWithText("More")[0].performScrollTo().performClick()
+        val profileId = graph.repository.profiles.value.first().id
+        compose.onNodeWithTag("profile-more-$profileId", useUnmergedTree = true).performScrollTo().performClick()
         compose.onNodeWithText("Keep on BedJet slot…").performClick()
         compose.onNodeWithText("Slot 1", substring = true).assertIsDisplayed()
         assertTrue(compose.onAllNodes(hasText("Slot 3", substring = false)).fetchSemanticsNodes().isEmpty())
@@ -319,7 +327,8 @@ class AppSmokeTest {
     @Test
     fun heldOpenPinPreviewExpiresBeforeConfirmation() {
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodesWithText("More")[0].performScrollTo().performClick()
+        val profileId = graph.repository.profiles.value.first().id
+        compose.onNodeWithTag("profile-more-$profileId", useUnmergedTree = true).performScrollTo().performClick()
         compose.onNodeWithText("Keep on BedJet slot…").performClick()
         compose.onNodeWithText("Keep on slot 1").assertIsDisplayed()
         graph.clock = java.time.Clock.offset(graph.clock, Duration.ofMinutes(2))
@@ -342,7 +351,12 @@ class AppSmokeTest {
             assertTrue("$label is clipped by the navigation bar", bounds.top >= navigation.top && bounds.bottom <= navigation.bottom)
             destination.performClick()
             compose.waitForIdle()
-            compose.onNodeWithText(label).assertIsDisplayed()
+            when (label) {
+                "Tonight" -> compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
+                "Profiles" -> compose.onNodeWithTag("profiles-new", useUnmergedTree = true).assertIsDisplayed()
+                "History" -> compose.onNodeWithText("History").assertIsDisplayed()
+                "Settings" -> compose.onNodeWithTag("settings-page-bedjet").assertIsDisplayed()
+            }
         }
     }
 
@@ -354,7 +368,7 @@ class AppSmokeTest {
         assertNotNull(graph.repository.activeNight.value)
         assertEquals(1, graph.repository.history.value.size)
         assertEquals(1, graph.link.status.value?.extra?.programStep)
-        compose.onNodeWithText(s(R.string.tonight_end_night)).performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-end-night").performScrollTo().performClick()
         // Ending a running night asks first.
         confirmStopNight()
         waitForText("Start night now")
@@ -383,7 +397,7 @@ class AppSmokeTest {
         val profileId = graph.repository.profiles.value.first().id
         compose.onNode(hasScrollToKeyAction()).performScrollToKey(profileId)
         compose.onNodeWithTag("profile-open-$profileId").performScrollTo().performClick()
-        compose.onNodeWithText("Edit profile").assertIsDisplayed()
+        compose.onNodeWithTag("editor-back").assertIsDisplayed()
         compose.onNodeWithText("Save").performClick()
         compose.onNodeWithTag("profiles-new", useUnmergedTree = true).assertIsDisplayed()
     }

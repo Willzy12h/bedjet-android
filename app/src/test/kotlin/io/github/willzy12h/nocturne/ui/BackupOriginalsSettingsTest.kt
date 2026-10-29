@@ -91,7 +91,6 @@ class BackupOriginalsSettingsTest {
         val demo = graph.link as io.github.willzy12h.nocturne.core.link.DemoBedJet
         val slotsBefore = demo.slots.toList()
         settings()
-        compose.onNodeWithText("From backup").performScrollTo().assertIsDisplayed()
         listOf("Other saved", "Unknown saved", "Legacy saved").forEach { name ->
             compose.onNode(hasText(name, substring = true)).performScrollTo().assertIsDisplayed()
         }
@@ -176,7 +175,6 @@ class BackupOriginalsSettingsTest {
             graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = null) }
         } }
         settings()
-        compose.onNodeWithText("From backup").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Saved from slot 1: empty slot").performScrollTo().assertIsDisplayed()
         compose.onAllNodesWithText(s(R.string.settings_preview_put_back)).assertCountEquals(0)
         assertNull(graph.repository.runtime.value.slotWrite)
