@@ -1,6 +1,21 @@
 package io.github.willzy12h.nocturne.ui
 
-import androidx.compose.foundation.BorderStroke
+import androidx.annotation.StringRes
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Row
@@ -57,11 +72,39 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
     val settings by model.settings.collectAsState()
     val activeNight by model.activeNight.collectAsState()
     val tokens = paletteTokens
+    var earlier by rememberSaveable { mutableStateOf(false) }
+    val nights = history.sortedByDescending { it.startedAt }
     LazyColumn(modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text(stringResource(R.string.history_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp)) }
-        item { HistoryExportButton(model.graph) }
-        if (history.isEmpty()) item { Text(stringResource(R.string.history_empty)) }
-        items(history.sortedByDescending { it.startedAt }, key = { it.id }) { night ->
+        item { Text(stringResource(R.string.history_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp).semantics { heading() }) }
+        if (history.isEmpty()) item { Text(stringResource(R.string.history_empty), color = tokens.ink2, fontSize = 15.sp) }
+        items(nights.take(RECENT_NIGHTS), key = { it.id }) { night -> NightCard(model, night, profiles, settings, activeNight) }
+        if (nights.size > RECENT_NIGHTS) {
+            item(key = "earlier") {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
+                    .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)
+                    .testTag("history-earlier").clickable(role = Role.Button) { earlier = !earlier }.padding(horizontal = 18.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.parity_history_earlier), color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(pluralStringResource(R.plurals.parity_history_earlier_count, nights.size - RECENT_NIGHTS, nights.size - RECENT_NIGHTS),
+                            color = tokens.ink2, fontSize = 14.sp)
+                    }
+                    Text(if (earlier) "⌃" else "⌄", color = tokens.ink3, fontSize = 16.sp)
+                }
+            }
+            if (earlier) items(nights.drop(RECENT_NIGHTS), key = { it.id }) { night -> NightCard(model, night, profiles, settings, activeNight) }
+        }
+        item(key = "export") { HistoryExportButton(model.graph) }
+    }
+}
+
+private const val RECENT_NIGHTS = 3
+
+@Composable
+private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io.github.willzy12h.nocturne.core.plan.Profile>,
+    settings: io.github.willzy12h.nocturne.core.store.Settings, activeNight: io.github.willzy12h.nocturne.core.night.ActiveNight?) {
+            val tokens = paletteTokens
             var open by remember { mutableStateOf(false) }
             var checkingIn by remember(night.id) { mutableStateOf(false) }
             var submitting by remember(night.id) { mutableStateOf(false) }
@@ -70,37 +113,38 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
             val completed = night.events.any { it.kind == EventKind.ENDED || it.kind == EventKind.STOPPED }
             val checkedIn = night.events.any { it.kind == EventKind.MORNING_FEEDBACK }
             val availableSuggestion = if (checkedIn) model.morningCheckIn(night.id)?.suggestion else suggestion
-            Card(Modifier.fillMaxWidth().clickable { open = !open }, shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = tokens.surface), border = BorderStroke(1.dp, tokens.outline)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val day = runCatching { ZonedDateTime.parse(night.startedAt).format(DateTimeFormatter.ofPattern("EEE d MMM")) }.getOrDefault("")
-                    Text("$day · ${night.profileName}", style = MaterialTheme.typography.titleMedium)
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
+                .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)
+                .clickable { open = !open }.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val issues = night.events.count { it.kind == EventKind.ERROR }
-                    if (issues > 0) Surface(modifier = Modifier.testTag("history-issues-${night.id}"),
-                        shape = RoundedCornerShape(50), color = tokens.surface2, border = BorderStroke(1.dp, tokens.warn)) {
-                        Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(8.dp).background(tokens.warn, RoundedCornerShape(50)))
-                            Text(pluralStringResource(R.plurals.history_issues, issues, issues),
-                                style = MaterialTheme.typography.labelMedium, color = tokens.ink)
+                    val comfort = night.events.lastOrNull { it.kind == EventKind.MORNING_FEEDBACK }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(nightLabel(night, model.now(), activeNight?.recordId == night.id), Modifier.weight(1f),
+                            color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        comfort?.let { feedback ->
+                            HistoryPill(feedback.comfort?.let { stringResource(comfortName(it)) } ?: feedback.detail, tokens.ink2)
                         }
+                        if (issues > 0) HistoryPill(pluralStringResource(R.plurals.history_issues, issues, issues), tokens.warn,
+                            Modifier.testTag("history-issues-${night.id}"))
                     }
-                    Text(stringResource(if (night.wakeFromAlarm) R.string.history_times_alarm else R.string.history_times, Format.clock(night.startedAt), Format.clock(night.wakeAt)))
-                    historyPlan(night)?.let { NightCurve(it) }
+                    historyPlan(night)?.let { StepBar(it) }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(night.profileName, Modifier.weight(1f), color = tokens.ink2, fontSize = 15.sp, maxLines = 1)
+                        if (night.wakeFromAlarm) Icon(painterResource(R.drawable.ic_nc_alarm), stringResource(R.string.parity_history_alarm),
+                            Modifier.padding(end = 6.dp).size(14.dp), tint = tokens.ink3)
+                        Text("${Format.clock(night.startedAt)} – ${Format.clock(night.wakeAt)}", color = tokens.ink3, fontSize = 15.sp)
+                    }
                     HealthSleepOverlay(model.graph, night)
                     HealthExportMarker(model.graph, night)
                     if (completed && !checkedIn && activeNight?.recordId != night.id) {
-                        OutlinedButton(onClick = { checkingIn = true }) { Text(stringResource(R.string.checkin_button)) }
-                    }
-                    night.events.lastOrNull { it.kind == EventKind.MORNING_FEEDBACK }?.let { feedback ->
-                        Text(stringResource(R.string.checkin_saved, feedback.detail), style = MaterialTheme.typography.bodySmall)
+                        AccentLink(stringResource(R.string.checkin_button), { checkingIn = true }, fontSize = 14.sp)
                     }
                     if (availableSuggestion != null && !showSuggestion) {
-                        TextButton(onClick = { showSuggestion = true }) { Text(stringResource(R.string.checkin_review)) }
+                        AccentLink(stringResource(R.string.checkin_review), { showSuggestion = true }, fontSize = 14.sp)
                     }
                     if (open) {
                         night.events.forEach {
-                            Text(stringResource(R.string.history_event, Format.clock(it.at), eventKindName(it.kind), it.detail), style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.history_event, Format.clock(it.at), eventKindName(it.kind), it.detail), color = tokens.ink3, fontSize = 12.5.sp)
                         }
                         // Each programme the BedJet confirmed for this night, in order; only confirmed ones are recorded.
                         if (night.revisions.size > 1) {
@@ -125,9 +169,8 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                             )
                         }
                     } else if (night.events.size > 1) {
-                        Text(pluralStringResource(R.plurals.history_events, night.events.size, night.events.size), style = MaterialTheme.typography.labelSmall)
+                        Text(pluralStringResource(R.plurals.history_events, night.events.size, night.events.size), color = tokens.ink3, fontSize = 12.5.sp)
                     }
-                }
             }
             if (checkingIn) AlertDialog(
                 onDismissRequest = { if (!submitting) checkingIn = false },
@@ -195,6 +238,42 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                     dismissButton = { TextButton(onClick = { showSuggestion = false }) { Text(stringResource(R.string.checkin_keep)) } },
                 )
             }
+}
+
+/** "Tonight", "Last night", a weekday within the week, then the date. */
+@Composable
+private fun nightLabel(night: NightRecord, now: ZonedDateTime, running: Boolean): String {
+    if (running) return stringResource(R.string.parity_history_tonight)
+    val start = runCatching { ZonedDateTime.parse(night.startedAt).withZoneSameInstant(now.zone) }.getOrNull() ?: return ""
+    val days = java.time.temporal.ChronoUnit.DAYS.between(start.toLocalDate(), now.toLocalDate())
+    return when {
+        days <= 1 -> stringResource(R.string.parity_history_last_night)
+        days < 7 -> start.format(DateTimeFormatter.ofPattern("EEEE"))
+        else -> start.format(DateTimeFormatter.ofPattern("EEE d MMM"))
+    }
+}
+
+@StringRes
+private fun comfortName(comfort: MorningComfort) = when (comfort) {
+    MorningComfort.TOO_HOT -> R.string.checkin_too_hot
+    MorningComfort.JUST_RIGHT -> R.string.checkin_just_right
+    MorningComfort.TOO_COLD -> R.string.checkin_too_cold
+}
+
+@Composable
+private fun HistoryPill(text: String, color: Color, modifier: Modifier = Modifier) {
+    Text(text, modifier.clip(RoundedCornerShape(50)).background(paletteTokens.surface2).padding(horizontal = 12.dp, vertical = 5.dp),
+        color = color, fontSize = 14.sp, maxLines = 1)
+}
+
+/** The night as one bar: a segment per step, as wide as the step is long, in the step's colour. */
+@Composable
+private fun StepBar(plan: Plan) {
+    val tokens = paletteTokens
+    Row(Modifier.fillMaxWidth().height(18.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        plan.steps.filter { it.minutes > 0 }.forEach { step ->
+            val color = if (step.step.mode == Mode.WAIT) tokens.surface2 else tokens.stepColor(step.step.mode, step.step.temperature)
+            Box(Modifier.weight(step.minutes.toFloat()).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(color))
         }
     }
 }

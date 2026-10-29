@@ -11,6 +11,8 @@ import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.ui.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.core.plan.Presets
+import io.github.willzy12h.nocturne.core.plan.Block
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.night.NightActions
 import android.graphics.Bitmap
@@ -165,8 +167,7 @@ class ScreenshotCapture {
         tab("Profiles")
         val profileId = graph.repository.profiles.value.first().id
         compose.onNode(hasScrollToKeyAction()).performScrollToKey(profileId)
-        compose.onNode(hasText(s(R.string.recovery_more)) and hasClickAction() and
-            hasAnyAncestor(hasTestTag("profile-card-$profileId"))).performScrollTo().performClick()
+        compose.onNodeWithTag("profile-more-$profileId", useUnmergedTree = true).performScrollTo().performClick()
         settle()
         tap(s(R.string.pin_menu), scroll = false)
         compose.onNodeWithText(compose.activity.getString(R.string.pin_slot_help, graph.repository.settings.value.workingSlot + 1)).assertExists()
@@ -249,11 +250,20 @@ class ScreenshotCapture {
         settle()
         compose.onNodeWithText(compose.activity.getString(R.string.tonight_start_now)).assertIsDisplayed()
         shot("$look-01b-tonight-lower")
-        for ((tab, name) in listOf("Profiles" to "02-profiles", "Remote" to "03-remote", "History" to "04-history", "Settings" to "05-settings")) {
+        // Remote is a Tonight sub-page opened from the status line.
+        compose.onNodeWithTag("open-remote").performScrollTo().performClick()
+        settle()
+        shot("$look-03-remote")
+        compose.onNodeWithTag("remote-back").performClick()
+        settle()
+        seedHistory()
+        for ((tab, name) in listOf("Profiles" to "02-profiles", "History" to "04-history", "Settings" to "05-settings")) {
             if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription(tab))[0].performClick()
             else compose.onAllNodesWithText(tab)[0].performClick()
             settle()
             shot("$look-$name")
+            if (tab == "Profiles") captureEditor(look)
+            if (tab == "Settings" && !look.startsWith("combined-")) captureSettingsPages(look)
         }
         if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription("Tonight"))[0].performClick()
         else compose.onAllNodesWithText("Tonight")[0].performClick()
@@ -264,8 +274,9 @@ class ScreenshotCapture {
             // Stop remains available while a request is pending; its label alone does not prove a running night.
             graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED &&
                 graph.actions.status.value.confidence == Confidence.CONFIRMED && graph.actions.busy.value.runningLabel == null &&
-                compose.onAllNodes(hasText(compose.activity.getString(R.string.tonight_end_night))).fetchSemanticsNodes().isNotEmpty()
+                compose.onAllNodes(hasText(compose.activity.getString(R.string.parity_end_night))).fetchSemanticsNodes().isNotEmpty()
         }
+        shot("$look-06a-feedback-bubble")
         settle(6_000) // let the confirmation message bar time out
         assertEquals("Running capture needs a confirmed night", Confidence.CONFIRMED, graph.repository.activeNight.value?.confidence)
         assertEquals("Running capture must not show a pending adjustment", Confidence.CONFIRMED, graph.actions.status.value.confidence)
@@ -277,6 +288,80 @@ class ScreenshotCapture {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
         Snapshot.sendApplyNotifications()
         compose.waitForIdle()
+    }
+
+    /** The editor, one step's sheet and the Add a step sheet, then back to Profiles. */
+    /** A few finished nights so History shows the design's cards; only added once per run. */
+    private fun seedHistory() {
+        if (graph.repository.history.value.any { it.id.startsWith("capture-") }) return
+        fun night(id: String, daysAgo: Long, name: String, steps: List<Triple<Mode, Int, Int>>,
+            comfort: MorningComfort?, errors: Int) {
+            val start = graph.now().minusDays(daysAgo).withHour(22).withMinute(31 + daysAgo.toInt() * 7 % 29)
+            var at = start
+            val recorded = steps.mapIndexed { index, (mode, temp, minutes) ->
+                val block = when (index) { 0, 1 -> Block.START; steps.lastIndex -> Block.AFTER_WAKE; else -> Block.MIDDLE }
+                RecordedStep(block, mode, temp, 40, at.toString(), minutes).also { at = at.plusMinutes(minutes.toLong()) }
+            }
+            val end = at
+            val events = buildList {
+                add(HistoryEvent(start.toString(), EventKind.STARTED, "Started"))
+                repeat(errors) { add(HistoryEvent(start.plusHours(3).toString(), EventKind.ERROR, "A change didn't send")) }
+                add(HistoryEvent(end.toString(), EventKind.ENDED, "Ended"))
+                comfort?.let { add(HistoryEvent(end.plusMinutes(10).toString(), EventKind.MORNING_FEEDBACK, it.name, it)) }
+            }
+            runBlocking { graph.repository.addRecord(NightRecord(id, "capture-$id", name, start.toString(), end.toString(), true,
+                steps = recorded, events = events)) }
+        }
+        compose.runOnUiThread {
+            night("capture-1", 1, "Summer comfort", listOf(Triple(Mode.COOL, 40, 30), Triple(Mode.COOL, 44, 400), Triple(Mode.HEAT, 60, 40), Triple(Mode.COOL, 44, 20)),
+                MorningComfort.JUST_RIGHT, 0)
+            night("capture-2", 2, "Winter warm", listOf(Triple(Mode.TURBO, 86, 15), Triple(Mode.HEAT, 80, 30), Triple(Mode.HEAT, 64, 400), Triple(Mode.HEAT, 70, 30), Triple(Mode.COOL, 44, 15)),
+                MorningComfort.TOO_HOT, 0)
+            night("capture-3", 3, "Winter warm", listOf(Triple(Mode.TURBO, 86, 15), Triple(Mode.HEAT, 80, 30), Triple(Mode.HEAT, 64, 200), Triple(Mode.WAIT, 0, 30),
+                Triple(Mode.HEAT, 66, 170), Triple(Mode.HEAT, 72, 40)), null, 1)
+            night("capture-4", 9, "Summer comfort", listOf(Triple(Mode.COOL, 44, 480)), null, 0)
+            night("capture-5", 12, "Summer comfort", listOf(Triple(Mode.COOL, 44, 480)), null, 0)
+        }
+        settle()
+    }
+
+    private fun themeMode(mode: ThemeMode) {
+        compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(themeMode = mode) } } }
+        settle()
+    }
+
+    private fun captureSettingsPages(look: String) {
+        listOf("appearance", "night", "permissions", "backups", "notifications", "about").forEachIndexed { index, page ->
+            compose.onNodeWithTag("settings-page-$page").performScrollTo().performClick()
+            settle()
+            if (page == "appearance" && look == "dark") themeMode(ThemeMode.SCHEDULED)
+            shot("$look-05${'a' + index}-settings-$page")
+            if (page == "appearance" && look == "dark") themeMode(ThemeMode.DARK)
+            compose.onNodeWithTag("settings-back").performClick()
+            settle()
+        }
+    }
+
+    private fun captureEditor(look: String) {
+        compose.onAllNodes(hasTestTagPrefix("profile-open-"), useUnmergedTree = true)[0].performClick()
+        settle()
+        shot("$look-02b-editor")
+        compose.onNodeWithTag("editor-phase-START-0").performScrollTo().performClick()
+        settle()
+        shot("$look-02c-step-editor")
+        compose.onNodeWithTag("step-done").performClick()
+        settle()
+        compose.onNodeWithTag("editor-add-START").performScrollTo().performClick()
+        settle()
+        shot("$look-02d-add-step")
+        compose.onAllNodesWithText(compose.activity.getString(R.string.feature_cancel))[0].performClick()
+        settle()
+        compose.onNodeWithTag("editor-back").performClick()
+        settle()
+    }
+
+    private fun hasTestTagPrefix(prefix: String) = androidx.compose.ui.test.SemanticsMatcher("tag starts with $prefix") {
+        androidx.compose.ui.semantics.SemanticsProperties.TestTag in it.config && it.config[androidx.compose.ui.semantics.SemanticsProperties.TestTag].startsWith(prefix)
     }
 
     private fun shot(name: String, windowView: android.view.View? = null) {

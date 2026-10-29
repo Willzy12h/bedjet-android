@@ -102,7 +102,7 @@ class NavigationRestoreTest {
 
     private fun newDraft() {
         compose.onNodeWithText("Profiles").performClick()
-        compose.onNodeWithText("New profile").performClick()
+        compose.onNodeWithTag("profiles-new", useUnmergedTree = true).performClick()
         compose.onNode(hasText("Summer Cool") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         compose.onNodeWithText("Edit profile").assertExists()
     }

@@ -14,7 +14,7 @@ class BoostAccessibilityTest {
     @get:Rule val rules = ui.rules
 
     @Test fun remoteDescribesTheActualTurboThenHeatProgramme() {
-        ui.compose.onNodeWithText("Remote").performClick()
+        ui.compose.openRemote()
         ui.compose.onNodeWithContentDescription("Turbo heat for 10 minutes, then Heat for 5 minutes")
             .performScrollTo().assertHasClickAction().assertIsDisplayed()
     }

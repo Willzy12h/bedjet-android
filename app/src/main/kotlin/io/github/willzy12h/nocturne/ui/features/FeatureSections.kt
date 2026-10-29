@@ -21,6 +21,7 @@ import io.github.willzy12h.nocturne.night.CommandOrigin
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.willzy12h.nocturne.platform.HealthConnectAccess
 import androidx.health.connect.client.PermissionController
 import io.github.willzy12h.nocturne.Graph
@@ -36,8 +37,9 @@ import kotlinx.coroutines.launch
     Row(Modifier.fillMaxWidth().heightIn(min=48.dp)
         .toggleable(value=checked,enabled=enabled,role=androidx.compose.ui.semantics.Role.Switch,onValueChange=onChange)
         .semantics {contentDescription=label},verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-        Text(label,Modifier.weight(1f).padding(end=8.dp))
-        Switch(checked,onCheckedChange=null,enabled=enabled)
+        Text(label,Modifier.weight(1f).padding(end=8.dp),color=io.github.willzy12h.nocturne.ui.paletteTokens.ink,
+            fontSize=16.sp,fontWeight=androidx.compose.ui.text.font.FontWeight.Bold)
+        Switch(checked,onCheckedChange=null,enabled=enabled,colors=io.github.willzy12h.nocturne.ui.nocturneSwitchColors())
     }
 }
 

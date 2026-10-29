@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne
 
+import io.github.willzy12h.nocturne.ui.openRemote
 import io.github.willzy12h.nocturne.ui.openSettingsPage
 
 import androidx.compose.ui.test.assertIsDisplayed
@@ -148,8 +149,8 @@ class AppSmokeTest {
     fun everyTabOpens() {
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Profiles").performClick()
-        compose.onNodeWithText("New profile").assertIsDisplayed()
-        compose.onNodeWithText("Remote").performClick()
+        compose.onNodeWithTag("profiles-new", useUnmergedTree = true).assertIsDisplayed()
+        compose.openRemote()
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText(s(R.string.remote_connect)) or
                 (hasText(s(R.string.mode_cool)) and hasClickAction())).fetchSemanticsNodes().isNotEmpty()
@@ -329,11 +330,12 @@ class AppSmokeTest {
 
     @Test
     @Config(qualifiers = "w320dp-h891dp-xhdpi")
-    fun largeTextNavigationKeepsFiveTabsReachable() {
+    fun largeTextNavigationKeepsEveryTabReachable() {
         val navigation = compose.onNodeWithTag("main-navigation").fetchSemanticsNode().boundsInRoot
         val density = compose.activity.resources.displayMetrics.density
         assertTrue("Compact navigation must fit in its bar", navigation.height <= 90f * density)
-        listOf("Tonight", "Profiles", "Remote", "History", "Settings").forEach { label ->
+        // Remote is a Tonight sub-page in the approved design; the bar keeps the four main tabs.
+        listOf("Tonight", "Profiles", "History", "Settings").forEach { label ->
             val destination = compose.onNodeWithContentDescription(label)
             destination.assertIsDisplayed()
             val bounds = destination.fetchSemanticsNode().boundsInRoot
@@ -383,6 +385,6 @@ class AppSmokeTest {
         compose.onNodeWithTag("profile-open-$profileId").performScrollTo().performClick()
         compose.onNodeWithText("Edit profile").assertIsDisplayed()
         compose.onNodeWithText("Save").performClick()
-        compose.onNodeWithText("New profile").assertIsDisplayed()
+        compose.onNodeWithTag("profiles-new", useUnmergedTree = true).assertIsDisplayed()
     }
 }

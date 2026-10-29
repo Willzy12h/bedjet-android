@@ -891,6 +891,18 @@ class Repository(
         return true
     }
 
+    /** One profile on its own, for sharing: no settings, devices, originals or history leave the phone. */
+    suspend fun exportProfileTo(uri: Uri, profileId: String) {
+        val bytes = serially {
+            val profile = _profiles.value.first { it.id == profileId }
+            BackupCodec.encode(BackupBundle(createdAt = now().toString(), profiles = listOf(profile),
+                settings = Settings())).toByteArray(Charsets.UTF_8)
+        }
+        withContext(Dispatchers.IO) {
+            openOutput(uri)?.use { it.write(bytes) } ?: throw IOException(context.getString(R.string.runtime_export_open_failed))
+        }
+    }
+
     suspend fun exportTo(uri: Uri) {
         val bytes = serially {
             requireRealSession()

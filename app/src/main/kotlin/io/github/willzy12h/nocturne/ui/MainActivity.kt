@@ -13,6 +13,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
+import io.github.willzy12h.nocturne.R
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
@@ -32,7 +43,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -51,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -119,12 +128,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(@androidx.annotation.StringRes val label: Int, val icon: ImageVector) {
-    TONIGHT(io.github.willzy12h.nocturne.R.string.tab_tonight, Icons.Filled.Bedtime),
-    PROFILES(io.github.willzy12h.nocturne.R.string.tab_profiles, Icons.Filled.ViewList),
-    REMOTE(io.github.willzy12h.nocturne.R.string.tab_remote, Icons.Filled.SettingsRemote),
-    HISTORY(io.github.willzy12h.nocturne.R.string.tab_history, Icons.Filled.History),
-    SETTINGS(io.github.willzy12h.nocturne.R.string.tab_settings, Icons.Filled.Settings),
+private enum class Tab(@androidx.annotation.StringRes val label: Int, @androidx.annotation.DrawableRes val icon: Int) {
+    TONIGHT(R.string.tab_tonight, R.drawable.ic_nc_moon),
+    PROFILES(R.string.tab_profiles, R.drawable.ic_nc_list),
+    HISTORY(R.string.tab_history, R.drawable.ic_nc_hist),
+    SETTINGS(R.string.tab_settings, R.drawable.ic_nc_gear),
 }
 
 @Serializable
@@ -152,6 +160,9 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     var tab by rememberSaveable { mutableStateOf(Tab.TONIGHT) }
+    // Remote is a Tonight sub-page: no tab bar, a "‹ Tonight" link and Back return to Tonight.
+    var remoteOpen by rememberSaveable { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = remoteOpen) { remoteOpen = false }
     val setupRequest by model.setupChecklistRequest.collectAsState()
     LaunchedEffect(setupRequest) { if (setupRequest > 0) tab = Tab.TONIGHT }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
@@ -174,8 +185,6 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     val snackbar = remember { SnackbarHostState() }
-    // The snackbar floats over the content, so while one shows the content ends above it and nothing (Off) sits underneath.
-    var snackbarHeight by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     LaunchedEffect(Unit) { model.messages.collect { snackbar.showSnackbar(it) } }
     LaunchedEffect(tonightRequest) {
@@ -185,6 +194,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                 draftJson = null
             }
             tab = Tab.TONIGHT
+            remoteOpen = false
         }
     }
 
@@ -205,30 +215,28 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         return
     }
     Scaffold(
-        topBar = { Column(Modifier.statusBarsPadding()) {
-            StatusHeader(model)
-            BluetoothBanner(model)
-            DemoModePanel(model, showTryDemo = false)
-        } },
+        topBar = { Spacer(Modifier.statusBarsPadding()) },
         snackbarHost = {
-            SnackbarHost(snackbar, Modifier.onSizeChanged { snackbarHeight = it.height }) { data ->
-                BoxWithConstraints {
-                    val style = MaterialTheme.typography.bodyMedium
+            // Feedback floats over the screen as a small bubble; the content underneath never moves.
+            SnackbarHost(snackbar) { data ->
+                val tokens = paletteTokens
+                BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                    val style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
                     val messageLayout = rememberTextMeasurer().measure(data.visuals.message, style = style,
-                        constraints = Constraints(maxWidth = with(density) { (maxWidth - 56.dp).roundToPx().coerceAtLeast(1) }))
-                    // Preserve Material's compact layout; only long explanations need their own scrolling area.
-                    if (messageLayout.lineCount <= 2) Snackbar(data)
-                    else {
-                        Surface(color = MaterialTheme.colorScheme.inverseSurface, contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                            shape = MaterialTheme.shapes.small, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                            Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f).heightIn(max = (LocalConfiguration.current.screenHeightDp * .25f).dp)
-                                    .testTag("snackbar-message-scroll").verticalScroll(rememberScrollState())) {
-                                    Text(data.visuals.message, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                IconButton(onClick = { data.dismiss() }, modifier = Modifier.size(48.dp).testTag("snackbar-dismiss")) {
-                                    Icon(Icons.Default.Close, contentDescription = stringResource(io.github.willzy12h.nocturne.R.string.snackbar_dismiss))
-                                }
+                        constraints = Constraints(maxWidth = with(density) { (maxWidth - 40.dp).roundToPx().coerceAtLeast(1) }))
+                    Surface(color = tokens.menu, contentColor = tokens.ink, shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, tokens.outline), shadowElevation = 8.dp,
+                        modifier = Modifier.widthIn(max = 360.dp).testTag("feedback-bubble")) {
+                        // Short notices dismiss on a tap; only long explanations need their own scrolling area.
+                        if (messageLayout.lineCount <= 2) Text(data.visuals.message, style = style, textAlign = TextAlign.Center,
+                            modifier = Modifier.clickable { data.dismiss() }.padding(horizontal = 16.dp, vertical = 10.dp))
+                        else Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f, fill = false).heightIn(max = (LocalConfiguration.current.screenHeightDp * .25f).dp)
+                                .testTag("snackbar-message-scroll").verticalScroll(rememberScrollState())) {
+                                Text(data.visuals.message, style = style)
+                            }
+                            IconButton(onClick = { data.dismiss() }, modifier = Modifier.size(48.dp).testTag("snackbar-dismiss")) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(io.github.willzy12h.nocturne.R.string.snackbar_dismiss))
                             }
                         }
                     }
@@ -244,29 +252,44 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                         parkedDrafts = parkedDrafts.drop(1)
                     }) { Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.main_resume_draft)) }
                 }
-                NavigationBar(modifier = Modifier.testTag("main-navigation")) {
+                val tokens = paletteTokens
+                if (!remoteOpen) NavigationBar(containerColor = tokens.ground, tonalElevation = 0.dp,
+                    modifier = Modifier.drawBehind {
+                        drawLine(tokens.hairline, androidx.compose.ui.geometry.Offset(0f, 0f),
+                            androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx())
+                    }.testTag("main-navigation")) {
                     Tab.entries.forEach {
                         val label = androidx.compose.ui.res.stringResource(it.label)
                         NavigationBarItem(
                             selected = tab == it,
                             onClick = { tab = it },
                             modifier = if (compactNavigation) Modifier.semantics { contentDescription = label } else Modifier,
-                            icon = { Icon(it.icon, null) },
-                            label = if (compactNavigation) null else { { Text(label) } },
+                            icon = { Icon(androidx.compose.ui.res.painterResource(it.icon), null, Modifier.size(22.dp)) },
+                            label = if (compactNavigation) null else { { Text(label, fontSize = 10.5.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) } },
+                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                                selectedIconColor = tokens.ink, selectedTextColor = tokens.ink,
+                                unselectedIconColor = tokens.ink3, unselectedTextColor = tokens.ink3,
+                                indicatorColor = Color.Transparent),
                         )
                     }
                 }
             }
         },
     ) { padding ->
-        val snackbarInset = with(density) { snackbarHeight.toDp() }
-        val modifier = Modifier.padding(padding).padding(bottom = snackbarInset)
-        when (tab) {
+        val modifier = Modifier.padding(padding)
+        if (remoteOpen) Column(modifier) {
+            NocturneTextButton(onClick = { remoteOpen = false }, modifier = Modifier.testTag("remote-back")) {
+                Text(androidx.compose.ui.res.stringResource(R.string.parity_back,
+                    androidx.compose.ui.res.stringResource(R.string.tab_tonight)), color = paletteTokens.accent)
+            }
+            RemoteScreen(model, Modifier.weight(1f))
+        } else when (tab) {
             Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onEditPhase = editPhase,
+                onOpenRemote = { remoteOpen = true },
                 onOpenBackups = { tab = Tab.SETTINGS; alarmsRequest = 0; backupsRequest++ },
                 onOpenAlarmSettings = { tab = Tab.SETTINGS; backupsRequest = 0; alarmsRequest++ })
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
-            Tab.REMOTE -> RemoteScreen(model, modifier)
             Tab.HISTORY -> HistoryScreen(model, modifier)
             Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest,
                 onBackupsRequestHandled = { if (backupsRequest == it) backupsRequest = 0 },

@@ -28,7 +28,7 @@ class BluetoothBannerTest {
 
     @Test fun bothScreensOfferEnableAndTheBannerClearsOnARealStateChange() {
         ui.compose.onNodeWithText("Enable Bluetooth").assertIsDisplayed()
-        ui.compose.onNodeWithText("Remote").performClick()
+        ui.compose.openRemote()
         ui.compose.onNodeWithText("Enable Bluetooth").assertIsDisplayed()
         val app = RuntimeEnvironment.getApplication()
         shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)

@@ -132,7 +132,7 @@
     <string name="settings_nav_about_detail">Version, source and diagnostics</string>
     <string name="settings_nav_back">Settings</string>
     <string name="settings_nav_chevron">›</string>
-    <string name="settings_scheduled_help">Use your night palette and day palette at the times below. Equal times keep your night palette all day.</string>
+    <string name="settings_scheduled_help">Use your night palette and day palette at these times. Equal times keep your night palette all day.</string>
     <string name="settings_light_from">Day from</string>
     <string name="settings_licences">Licences</string>
     <string name="editor_through_night">Through the night</string>

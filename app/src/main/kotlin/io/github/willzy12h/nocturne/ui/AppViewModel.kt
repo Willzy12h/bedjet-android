@@ -645,6 +645,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun shareProfile(uri: android.net.Uri, profileId: String) {
+        graph.scope.launch {
+            runCatching { repo.exportProfileTo(uri, profileId) }
+                .onSuccess { _messages.tryEmit(text(R.string.parity_profile_shared)) }
+                .onFailure { _messages.tryEmit(text(R.string.runtime_backup_save_failed, it.message.toString())) }
+        }
+    }
+
     /** Writes the diagnostics file the person chose (NightActions.diagnostics: no private preferences). */
     fun exportDiagnostics(uri: android.net.Uri,
         open: ((android.net.Uri) -> java.io.OutputStream?)? = null) {

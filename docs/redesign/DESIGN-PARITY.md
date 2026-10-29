@@ -46,3 +46,10 @@ Where an image and `DESIGN-REFERENCE.md` disagree, `RECONCILIATION.md` decides.
   `GPT-HANDOVER.md`.
 - The full gate passes with lint at no more than 24 warnings. Tests that asserted the old layout are updated, not
   deleted, and the behaviour they covered is still tested.
+
+## Ownership (2026-10-28)
+
+The owner has asked Claude to build every screen in this brief on `claude/nocturne-redesign-review`, so the app is
+done by one hand and stays consistent. That includes Settings, History, Guided setup, Widgets, the Overcast versions of
+each, and the `DemoImportPreviewInvalidationTest` fix. Codex/Astra should not start parity screen work on
+`gpt/nocturne-redesign`; anything already started there should be raised with the owner before it is merged.

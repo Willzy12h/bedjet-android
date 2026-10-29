@@ -95,7 +95,7 @@ class RemoteAccessorySwitchTest {
     private fun toggle(label: String, initialFlags: String, initiallyOn: Boolean, command: Int,
         unrelatedFlags: String, matchingFlags: String, confirmedMessage: String) {
         compose.runOnUiThread { link.publish(initialFlags) }
-        compose.onNode(hasText("Remote") and hasClickAction()).performClick()
+        compose.openRemote()
         switch(label).assertDoesNotExist()
         compose.onNode(hasText("Settings") and hasClickAction()).performClick()
         compose.onNodeWithTag("settings-page-bedjet").performScrollTo().performClick()

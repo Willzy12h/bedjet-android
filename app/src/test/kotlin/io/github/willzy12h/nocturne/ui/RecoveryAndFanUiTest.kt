@@ -63,7 +63,7 @@ class RecoveryAndFanUiTest {
         val outcomes = CopyOnWriteArrayList<CommandOutcome>()
         ui.graph.scope.launch(start = CoroutineStart.UNDISPATCHED) { ui.model.messages.collect { messages += it } }
         ui.graph.scope.launch(start = CoroutineStart.UNDISPATCHED) { ui.graph.actions.outcomes.collect { outcomes += it } }
-        ui.compose.onNodeWithText("Remote").performClick()
+        ui.compose.openRemote()
         ui.waitUntil { ui.model.status.value?.mode == Mode.HEAT }
         ui.compose.onNode(hasContentDescription(ui.s(R.string.slider_fan))).performScrollTo()
             .performSemanticsAction(SemanticsActions.SetProgress) { it(65f) }

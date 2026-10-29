@@ -1,5 +1,25 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import android.app.TimePickerDialog
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import io.github.willzy12h.nocturne.core.link.LinkState
+import androidx.compose.material3.Icon
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -138,12 +158,18 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             dismissButton = { TextButton(onClick = { pendingTheme = null }) { Text(stringResource(R.string.feature_cancel)) } })
     }
 
+    var alarmDetails by rememberSaveable { mutableStateOf(false) }
     val settingsScroll = rememberScrollState()
     var settingsViewportHeight by remember { mutableStateOf(0) }
     Column(modifier.fillMaxSize().onSizeChanged { settingsViewportHeight = it.height }.verticalScroll(settingsScroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
-        if (page == "home") SettingsHome { page = it }
-        else TextButton(onClick = { page = "home" }, modifier = Modifier.testTag("settings-back")) { Text(stringResource(R.string.settings_nav_back)) }
+        if (page == "home") {
+            Text(stringResource(R.string.settings_title), color = paletteTokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            SettingsHome(model) { page = it }
+        } else Column {
+            AccentLink("‹ " + stringResource(R.string.settings_nav_back), { page = "home" }, Modifier.testTag("settings-back"), fontSize = 15.sp)
+            Text(stringResource(pageTitle(page)), color = paletteTokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() })
+        }
         if (page == "permissions") OutlinedButton(onClick = model::openSetupChecklist, modifier = Modifier.testTag("open-setup-checklist")) {
             Text(stringResource(R.string.uat_setup_title))
         }
@@ -156,24 +182,21 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 QuickDefaultsSection(model, settings)
             } }, confirmButton = { TextButton(onClick = { quickDefaultsOpen = false }) { Text(stringResource(R.string.uat_setup_done)) } })
 
-        if (page == "appearance") Group(stringResource(R.string.settings_appearance)) {
-            Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // The design's order; the enum's order is stored data and stays as it is.
-                listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SCHEDULED).forEach { mode ->
-                    FilterChip(settings.themeMode == mode, {
-                        if (settings.themeMode != mode) chooseAppearance(settings.copy(themeMode = mode))
-                    }, label = { Text(stringResource(themeName(mode))) })
-                }
+        if (page == "appearance") {
+            // The design's order; the enum's order is stored data and stays as it is.
+            Segmented(listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SCHEDULED).map { it to stringResource(themeName(it)) },
+                settings.themeMode, tag = "settings-theme") { mode ->
+                if (settings.themeMode != mode) chooseAppearance(settings.copy(themeMode = mode))
             }
-            if (settings.themeMode == ThemeMode.SCHEDULED) {
-                Text(stringResource(R.string.settings_scheduled_help), style = MaterialTheme.typography.bodySmall)
-                TimeRow(stringResource(R.string.settings_dark_from), settings.scheduledDarkMinute) { minute ->
+            if (settings.themeMode == ThemeMode.SCHEDULED) SettingsCard {
+                ClockRow(R.drawable.ic_nc_moon, paletteTokens.accent, stringResource(R.string.parity_settings_night_from), settings.scheduledDarkMinute) { minute ->
                     if (minute != settings.scheduledDarkMinute) chooseAppearance(settings.copy(scheduledDarkMinute = minute))
                 }
-                TimeRow(stringResource(R.string.settings_light_from), settings.scheduledLightMinute) { minute ->
+                ClockRow(R.drawable.ic_nc_sun, paletteTokens.warn, stringResource(R.string.settings_light_from), settings.scheduledLightMinute) { minute ->
                     if (minute != settings.scheduledLightMinute) chooseAppearance(settings.copy(scheduledLightMinute = minute))
                 }
+                DayNightBar(settings.scheduledDarkMinute, settings.scheduledLightMinute)
+                Text(stringResource(R.string.settings_scheduled_help), color = paletteTokens.ink3, fontSize = 12.5.sp)
             }
             PalettePicker(stringResource(R.string.settings_night_palette), settings.nightPalette, "night") { palette ->
                 if (settings.isDarkTheme(model.now(), systemDark)) chooseAppearance(settings.copy(nightPalette = palette))
@@ -183,9 +206,12 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 if (!settings.isDarkTheme(model.now(), systemDark)) chooseAppearance(settings.copy(dayPalette = palette))
                 else saveAppearance(settings.copy(dayPalette = palette))
             }
-            SwitchRow(stringResource(R.string.settings_show_f), null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
-            SwitchRow(stringResource(R.string.settings_simple_view), stringResource(R.string.settings_simple_view_help), settings.simpleView) { on ->
-                model.updateSettings { it.copy(simpleView = on) }
+            SettingsCard(spacing = 0) {
+                SwitchRow(stringResource(R.string.settings_show_f), null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
+                HorizontalDivider(color = paletteTokens.hairline)
+                SwitchRow(stringResource(R.string.settings_simple_view), stringResource(R.string.settings_simple_view_help), settings.simpleView) { on ->
+                    model.updateSettings { it.copy(simpleView = on) }
+                }
             }
         }
 
@@ -271,43 +297,61 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
 
         if (page == "night") Group(stringResource(R.string.settings_alarms), Modifier.bringIntoViewRequester(alarms)) {
             val next = alarm
-            Text(
-                if (next == null) stringResource(R.string.settings_no_alarm)
-                else stringResource(if (next.counts) R.string.settings_next_alarm else R.string.settings_next_alarm_unused,
-                    Format.clock(next.time), io.github.willzy12h.nocturne.night.alarmSourceName(context, next.identifiedCreator)),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (next != null) Text(stringResource(R.string.uat_alarm_raw_creator,
-                next.creator ?: stringResource(R.string.uat_alarm_null_creator)),
-                style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("alarm-raw-creator"))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(paletteTokens.surface2), contentAlignment = Alignment.Center) {
+                    Icon(painterResource(R.drawable.ic_nc_alarm), null, Modifier.size(20.dp), tint = paletteTokens.ink2)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.parity_settings_alarm_source), color = paletteTokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (next == null) stringResource(R.string.settings_no_alarm)
+                        else stringResource(if (next.counts) R.string.settings_next_alarm else R.string.settings_next_alarm_unused,
+                            Format.clock(next.time), io.github.willzy12h.nocturne.night.alarmSourceName(context, next.identifiedCreator)),
+                        color = paletteTokens.ink2, fontSize = 14.sp,
+                    )
+                }
+            }
             if (next?.creator != null && !next.counts) {
                 FilledTonalButton(onClick = { model.useAlarmsFrom(next.creator!!) }) {
                     Text(stringResource(R.string.settings_use_alarms_from, next.creator.orEmpty()))
                 }
             }
+            HorizontalDivider(color = paletteTokens.hairline)
             SwitchRow(stringResource(R.string.settings_unknown_alarm_sources),
                 stringResource(R.string.settings_unknown_alarm_sources_help), settings.acceptUnknownAlarmSource) { on ->
                 model.updateSettings { it.copy(acceptUnknownAlarmSource = on) }
             }
-            Text(stringResource(R.string.settings_used_from, settings.alarmPackages.joinToString()), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.alarm_next_only), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.alarm_normal_window), style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = model::recheckAlarm) { Text(stringResource(R.string.recovery_recheck_alarm)) }
-            alarmCheck?.let { result -> Text(result, style = MaterialTheme.typography.bodySmall,
+            HorizontalDivider(color = paletteTokens.hairline)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                AccentLink(stringResource(R.string.recovery_recheck_alarm), model::recheckAlarm, fontSize = 14.sp)
+                Spacer(Modifier.weight(1f))
+                AccentLink(stringResource(if (alarmDetails) R.string.parity_settings_hide_details else R.string.parity_settings_details),
+                    { alarmDetails = !alarmDetails }, Modifier.testTag("alarm-details"), fontSize = 14.sp)
+            }
+            alarmCheck?.let { result -> Text(result, color = paletteTokens.ink2, fontSize = 13.5.sp,
                 modifier = Modifier.testTag("alarm-check-result")) }
+            if (alarmDetails) {
+                if (next != null) Text(stringResource(R.string.uat_alarm_raw_creator,
+                    next.creator ?: stringResource(R.string.uat_alarm_null_creator)),
+                    color = paletteTokens.ink3, fontSize = 12.5.sp, modifier = Modifier.testTag("alarm-raw-creator"))
+                Text(stringResource(R.string.settings_used_from, settings.alarmPackages.joinToString()), color = paletteTokens.ink3, fontSize = 12.5.sp)
+                Text(stringResource(R.string.alarm_next_only), color = paletteTokens.ink3, fontSize = 12.5.sp)
+                Text(stringResource(R.string.alarm_normal_window), color = paletteTokens.ink3, fontSize = 12.5.sp)
+            }
         }
 
         if (page == "night") Group(stringResource(R.string.short_test_title)) {
             ShortTestControls(model)
         }
 
-        if (page == "permissions") Group(stringResource(R.string.settings_phone_setup)) {
+        if (page == "permissions") {
+            // The checks bring their own cards, so they sit straight on the page.
             SetupChecks(showAll = true)
             SetupFlow(model, showDemoChoice = false)
         }
 
-        if (page == "night") PlatformSettingsSection(model.graph)
-        if (page == "health") PlatformSettingsSection(model.graph, healthOnly = true)
+        if (page == "night") SettingsCard { PlatformSettingsSection(model.graph) }
+        if (page == "health") SettingsCard { PlatformSettingsSection(model.graph, healthOnly = true) }
 
         if (page == "backups") Group(stringResource(R.string.settings_backups), Modifier.bringIntoViewRequester(backups)) {
             // The same calm banner as Tonight; the snapshots to restore from are listed just below it.
@@ -419,34 +463,74 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     }
 }
 
-private data class SettingsDestination(val id: String, @StringRes val label: Int, @StringRes val subtitle: Int)
+private data class SettingsDestination(val id: String, val label: String, val subtitle: String, val icon: Int,
+    val iconColor: Color? = null, val ok: Boolean = false)
 
 @Composable
-private fun SettingsHome(open: (String) -> Unit) {
+private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
+    val tokens = paletteTokens
+    val context = LocalContext.current
+    val settings by model.settings.collectAsState()
+    val name by model.selectedBedJetName.collectAsState()
+    val link by model.linkState.collectAsState()
+    val notices by model.notices.collectAsState()
+    var refresh by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
+    val checks = remember(refresh) { checks(context) { } }
+    val slot = settings.workingSlot + 1
+    val bedjetState = when {
+        settings.demoMode -> stringResource(R.string.parity_settings_demo)
+        link == LinkState.READY -> stringResource(R.string.parity_status_connected).replaceFirstChar { it.uppercase() }
+        else -> stringResource(R.string.parity_settings_not_connected)
+    }
+    val autoStart = settings.platform.autoStart?.enabled ?: settings.platform.chargerAutoStart
+    val palettes = when (settings.themeMode) {
+        ThemeMode.DARK -> stringResource(paletteName(settings.nightPalette))
+        ThemeMode.LIGHT -> stringResource(paletteName(settings.dayPalette))
+        else -> "${stringResource(paletteName(settings.nightPalette))} / ${stringResource(paletteName(settings.dayPalette))}"
+    }
+    val allowed = checks.count { it.ok }
+    val health = settings.platform.healthSleepOverlay || settings.platform.healthSleepExport
+    val green = if (tokens.dark) Color(0xFF4CD889) else Color(0xFF1F9D57)
     val groups = listOf(
-        listOf(SettingsDestination("bedjet", R.string.settings_nav_bedjet, R.string.settings_nav_bedjet_detail)),
-        listOf(SettingsDestination("night", R.string.settings_nav_night, R.string.settings_nav_night_detail),
-            SettingsDestination("appearance", R.string.settings_nav_appearance, R.string.settings_nav_appearance_detail),
-            SettingsDestination("permissions", R.string.settings_nav_permissions, R.string.settings_nav_permissions_detail)),
-        listOf(SettingsDestination("backups", R.string.settings_nav_backups, R.string.settings_nav_backups_detail),
-            SettingsDestination("notifications", R.string.settings_nav_notifications, R.string.settings_nav_notifications_detail),
-            SettingsDestination("health", R.string.settings_nav_health, R.string.settings_nav_health_detail)),
-        listOf(SettingsDestination("about", R.string.settings_nav_about, R.string.settings_nav_about_detail)),
+        listOf(SettingsDestination("bedjet", name?.let { stringResource(R.string.parity_settings_bedjet_named, it) } ?: stringResource(R.string.settings_nav_bedjet),
+            stringResource(R.string.parity_settings_slot, bedjetState, slot), R.drawable.ic_nc_bt, tokens.cool)),
+        listOf(SettingsDestination("night", stringResource(R.string.settings_nav_night),
+                stringResource(R.string.parity_settings_night,
+                    stringResource(if (settings.alarmPackages.isEmpty()) R.string.parity_settings_alarm_ignored else R.string.parity_settings_clock_alarm),
+                    stringResource(if (autoStart) R.string.parity_settings_on else R.string.parity_settings_off).lowercase()), R.drawable.ic_nc_alarm),
+            SettingsDestination("appearance", stringResource(R.string.settings_nav_appearance),
+                "${stringResource(themeName(settings.themeMode))} · $palettes", R.drawable.ic_nc_sun),
+            SettingsDestination("permissions", stringResource(R.string.settings_nav_permissions),
+                if (allowed == checks.size) stringResource(R.string.parity_settings_all_allowed, checks.size)
+                else stringResource(R.string.parity_settings_some_allowed, allowed, checks.size),
+                R.drawable.ic_nc_shield, if (allowed == checks.size) green else tokens.warn, ok = allowed == checks.size)),
+        listOf(SettingsDestination("backups", stringResource(R.string.settings_nav_backups), stringResource(R.string.parity_settings_backups), R.drawable.ic_nc_box),
+            SettingsDestination("notifications", stringResource(R.string.settings_nav_notifications),
+                if (notices.isEmpty()) stringResource(R.string.parity_settings_no_notices)
+                else pluralStringResource(R.plurals.parity_settings_notices, notices.size, notices.size), R.drawable.ic_nc_bell),
+            SettingsDestination("health", stringResource(R.string.settings_nav_health),
+                stringResource(if (health) R.string.parity_settings_on else R.string.parity_settings_off), R.drawable.ic_nc_heart)),
+        listOf(SettingsDestination("about", stringResource(R.string.settings_nav_about),
+            stringResource(R.string.parity_settings_about, model.version), R.drawable.ic_nc_info)),
     )
     groups.forEach { group ->
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = paletteTokens.surface),
-            border = BorderStroke(1.dp, paletteTokens.outline)) {
-            group.forEach { destination ->
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("settings-page-${destination.id}")
-                    .clickable(role = Role.Button) { open(destination.id) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(destination.label), style = MaterialTheme.typography.bodyLarge)
-                        Text(stringResource(destination.subtitle), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
+            .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)) {
+            group.forEachIndexed { index, destination ->
+                if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = tokens.hairline)
+                Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).testTag("settings-page-${destination.id}")
+                    .clickable(role = Role.Button) { open(destination.id) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(tokens.surface2), contentAlignment = Alignment.Center) {
+                        Icon(painterResource(destination.icon), null, Modifier.size(20.dp), tint = destination.iconColor ?: tokens.ink2)
                     }
-                    Text(stringResource(R.string.settings_nav_chevron), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f)) {
+                        Text(destination.label, color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text(destination.subtitle, color = tokens.ink2, fontSize = 14.sp)
+                    }
+                    if (destination.ok) Icon(painterResource(R.drawable.ic_nc_check), null, Modifier.size(18.dp), tint = green)
+                    Text(stringResource(R.string.settings_nav_chevron), color = tokens.ink3, fontSize = 16.sp)
                 }
             }
         }
@@ -463,14 +547,69 @@ private fun themeName(mode: ThemeMode) = when (mode) {
 
 @Composable
 private fun Group(title: String, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = paletteTokens.surface),
-        border = BorderStroke(1.dp, paletteTokens.outline)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = modifier.semantics { heading() })
-            content()
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionLabel(title, modifier.semantics { heading() })
+        SettingsCard(content = content)
+    }
+}
+
+/** The design's settings card: surface, radius 18, the palette's edge. */
+@Composable
+private fun SettingsCard(spacing: Int = 10, content: @Composable () -> Unit) {
+    val tokens = paletteTokens
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
+        .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)
+        .padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(spacing.dp)) {
+        ProvideTextStyle(TextStyle(color = tokens.ink2, fontSize = 14.sp, lineHeight = 20.sp)) { content() }
+    }
+}
+
+/** An icon, a label and a clock pill that opens the time picker. */
+@Composable
+private fun ClockRow(icon: Int, tint: Color, label: String, minuteOfDay: Int, onChange: (Int) -> Unit) {
+    val context = LocalContext.current
+    val tokens = paletteTokens
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(painterResource(icon), null, Modifier.size(22.dp), tint = tint)
+        Text(label, Modifier.weight(1f), color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(50)).background(tokens.ink)
+            .clickable(role = Role.Button, onClickLabel = label) {
+                val themed = android.view.ContextThemeWrapper(context, if (tokens.dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
+                TimePickerDialog(themed, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, true).apply {
+                    show(); styleNativeDialog(this, tokens)
+                }
+            }.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+            Text(Format.clockOfDay(minuteOfDay), color = tokens.ground, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
     }
+}
+
+/** A 24-hour bar: night colour where the dark theme applies, day colour where it does not. */
+@Composable
+private fun DayNightBar(darkFrom: Int, lightFrom: Int) {
+    val tokens = paletteTokens
+    val night = tokens.accent.copy(alpha = .35f)
+    val day = tokens.ink2.copy(alpha = .8f)
+    val bounds = listOf(0, lightFrom, darkFrom, 24 * 60).sorted()
+    Row(Modifier.fillMaxWidth().height(18.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        bounds.zipWithNext().filter { (a, b) -> b > a }.forEach { (a, b) ->
+            val mid = (a + b) / 2
+            val dark = if (darkFrom > lightFrom) mid >= darkFrom || mid < lightFrom else mid in darkFrom until lightFrom
+            Box(Modifier.weight((b - a).toFloat()).fillMaxHeight().clip(RoundedCornerShape(9.dp)).background(if (dark) night else day))
+        }
+    }
+}
+
+@StringRes
+private fun pageTitle(page: String) = when (page) {
+    "bedjet" -> R.string.settings_nav_bedjet
+    "night" -> R.string.settings_nav_night
+    "appearance" -> R.string.settings_nav_appearance
+    "permissions" -> R.string.settings_nav_permissions
+    "backups" -> R.string.settings_nav_backups
+    "notifications" -> R.string.settings_nav_notifications
+    "health" -> R.string.settings_nav_health
+    else -> R.string.settings_nav_about
 }
 
 @OptIn(ExperimentalLayoutApi::class)

@@ -73,6 +73,22 @@ private fun matchesQuick(status: DeviceStatus?, preset: ActionPreset): Boolean =
         (!preset.mode.usesTemperature || it.targetTemperature == preset.temperature)
 } == true
 
+internal fun quickMatches(status: DeviceStatus?, preset: ActionPreset): Boolean = matchesQuick(status, preset)
+
+/** The current receipt, only while nothing else (a night, a slot write, another command) owns the BedJet. */
+@Composable
+internal fun quickEvidence(model: AppViewModel): DeviceStatus? {
+    val status by model.status.collectAsState()
+    val live by model.hasLiveStatus.collectAsState()
+    val link by model.linkState.collectAsState()
+    val runtime by model.runtime.collectAsState()
+    val night by model.activeNight.collectAsState()
+    val owner by model.commandBusy.collectAsState()
+    return status.takeIf { live && link == LinkState.READY && runtime.slotWrite == null && owner.runningLabel == null &&
+        (it?.mode == Mode.STANDBY || night == null || (night?.trackingManual == true &&
+            night?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED)) }
+}
+
 /** Six fixed modes, two equal columns; text wraps and every target can grow beyond 72 dp. */
 @Composable
 internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {

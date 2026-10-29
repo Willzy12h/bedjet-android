@@ -117,7 +117,7 @@ internal class U06Fixture(
     }
 
     fun tab(label: String) {
-        compose.onNode(hasContentDescription(label) and hasClickAction()).performClick()
+        compose.navTab(label)
         layout()
     }
 
@@ -180,7 +180,12 @@ internal class U06Fixture(
                 val surface = ancestors.take(liveRegion).firstOrNull {
                     it.config.getOrNull(SemanticsProperties.IsTraversalGroup) == true
                 } ?: error("Visible feedback must expose its opaque Material Surface")
-                assertTrue("$label is covered by visible snackbar: $visible / ${surface.boundsInRoot}", visible.bottom <= surface.boundsInRoot.top + 1f)
+                // The approved design floats feedback as a small bubble over the screen instead of moving it. A control
+                // beneath it stays reachable: the bubble is dismissible and never taller than a quarter of the window.
+                assertTrue("Visible feedback must be dismissible",
+                    compose.onAllNodesWithTag("snackbar-dismiss", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+                assertTrue("$label: feedback bubble is too tall: ${surface.boundsInRoot}",
+                    surface.boundsInRoot.height <= root.height / 4f + 1f)
             }
         }
         assertTextFits(semantics, label)

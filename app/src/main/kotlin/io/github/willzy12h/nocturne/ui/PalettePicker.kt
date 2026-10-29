@@ -9,12 +9,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -22,11 +19,22 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.Palette
 
 @StringRes
-private fun paletteName(palette: Palette): Int = when (palette) {
+internal fun paletteName(palette: Palette): Int = when (palette) {
     Palette.MIDNIGHT_INK -> R.string.palette_midnight_ink
     Palette.FOREST -> R.string.palette_forest
     Palette.GRAPHITE -> R.string.palette_graphite
@@ -36,32 +44,33 @@ private fun paletteName(palette: Palette): Int = when (palette) {
     Palette.OVERCAST -> R.string.palette_overcast
 }
 
+/** The design's palette row: the chosen palette's name, then a swatch for each palette, ringed when chosen. */
 @Composable
 fun PalettePicker(label: String, selected: Palette, tagPrefix: String, onSelect: (Palette) -> Unit) {
-    Column {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
-        Text(stringResource(paletteName(selected)), style = MaterialTheme.typography.bodySmall)
-        Row(Modifier.horizontalScroll(rememberScrollState()).selectableGroup()) {
-            Palette.entries.forEach { palette ->
-                val name = stringResource(paletteName(palette))
-                val tokens = palette.tokens
-                val isSelected = palette == selected
-                Canvas(
-                    Modifier.size(48.dp)
-                        .testTag("$tagPrefix-palette-${palette.name}")
-                        .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(palette) })
-                        .semantics { contentDescription = name },
-                ) {
-                    val radius = 14.dp.toPx()
-                    drawCircle(tokens.ground, radius)
-                    drawCircle(tokens.accent, radius, style = Stroke(width = 2.dp.toPx()))
-                    if (isSelected) {
-                        drawCircle(tokens.accent, 19.dp.toPx(), style = Stroke(width = 2.dp.toPx()))
-                        val stroke = 2.dp.toPx()
-                        drawLine(tokens.accent, Offset(center.x - 6.dp.toPx(), center.y),
-                            Offset(center.x - 2.dp.toPx(), center.y + 4.dp.toPx()), strokeWidth = stroke, cap = StrokeCap.Round)
-                        drawLine(tokens.accent, Offset(center.x - 2.dp.toPx(), center.y + 4.dp.toPx()),
-                            Offset(center.x + 7.dp.toPx(), center.y - 5.dp.toPx()), strokeWidth = stroke, cap = StrokeCap.Round)
+    val tokens = paletteTokens
+    val night = tagPrefix == "night"
+    // Each row leads with the palettes made for it; every palette stays selectable in both.
+    val order = Palette.entries.sortedBy { if (it.tokens.dark == night) 0 else 1 }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionLabel(label, Modifier.padding(start = 2.dp).semantics { heading() })
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
+            .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)
+            .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(paletteName(selected)), Modifier.weight(1f), color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.weight(1.6f, fill = false).horizontalScroll(rememberScrollState()).selectableGroup()) {
+                order.forEach { palette ->
+                    val name = stringResource(paletteName(palette))
+                    val swatch = palette.tokens
+                    val isSelected = palette == selected
+                    Canvas(
+                        Modifier.size(44.dp)
+                            .testTag("$tagPrefix-palette-${palette.name}")
+                            .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(palette) })
+                            .semantics { contentDescription = name },
+                    ) {
+                        drawCircle(if (swatch.dark) swatch.glow else swatch.ground, 15.dp.toPx())
+                        drawCircle(tokens.hairline, 15.dp.toPx(), style = Stroke(width = 1.dp.toPx()))
+                        if (isSelected) drawCircle(tokens.accent, 19.dp.toPx(), style = Stroke(width = 2.dp.toPx()))
                     }
                 }
             }

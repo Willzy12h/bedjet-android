@@ -49,7 +49,7 @@ class UiFinalisationTest {
     @Test fun newProfileDraftSurvivesRecreationAndOnlySaveAddsIt() {
         val originalIds = graph.repository.profiles.value.map { it.id }.toSet()
         compose.onNodeWithText("Profiles").performClick()
-        compose.onNodeWithText("New profile").performClick()
+        compose.onNodeWithTag("profiles-new", useUnmergedTree = true).performClick()
         compose.onNode(hasText("Summer Cool") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         waitFor("Edit profile")
         assertEquals(originalIds, graph.repository.profiles.value.map { it.id }.toSet())
@@ -85,13 +85,15 @@ class UiFinalisationTest {
         }
     }
 
-    @Test fun offRemainsAboveTheVisibleSnackbar() {
-        compose.onNodeWithText("Off").performScrollTo().performClick()
+    @Test fun feedbackFloatsOverTheScreenWithoutMovingIt() {
+        compose.onNodeWithText("Off").performScrollTo()
+        val before = compose.onNodeWithText("Off").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithText("Off").performClick()
         waitFor("BedJet off.")
-        // Do not wait for the snackbar to disappear: this is the previously untested obstruction.
-        compose.onNodeWithText("Off").performScrollTo().assertIsDisplayed()
-        val off = compose.onNodeWithText("Off").fetchSemanticsNode().boundsInRoot
-        val notice = compose.onNodeWithText("BedJet off.").fetchSemanticsNode().boundsInRoot
-        assertTrue("Off must remain above visible feedback: off=$off notice=$notice", off.bottom <= notice.top)
+        // Do not wait for the bubble to disappear: the content must not shift while it shows.
+        compose.onNodeWithTag("feedback-bubble").assertIsDisplayed()
+        val during = compose.onNodeWithText("Off").fetchSemanticsNode().boundsInRoot
+        assertEquals("Feedback must overlay, not push the content: before=$before during=$during", before, during)
     }
+
 }

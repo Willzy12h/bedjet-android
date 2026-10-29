@@ -99,7 +99,7 @@ class RemoteReconnectPresentationTest {
         compose.runOnUiThread { link.publish(temperature = 60, led = false) }
         waitUntil { model.hasLiveStatus.value && model.status.value?.extra?.ledEnabled == false }
         switch("Lights").performScrollTo().assertIsOff().assertIsEnabled()
-        compose.onNode(hasText("Remote") and hasClickAction()).performClick()
+        compose.openRemote()
         compose.onNodeWithText("Air 25°C · room 22°C").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Last reported").assertDoesNotExist()
         compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsEnabled()
@@ -133,7 +133,7 @@ class RemoteReconnectPresentationTest {
     }
 
     private fun openRemoteAndReconnect() {
-        compose.onNode(hasText("Remote") and hasClickAction()).performClick()
+        compose.openRemote()
         compose.onNodeWithText("Air 25°C · room 22°C").assertIsDisplayed()
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         link.beginReconnect()
