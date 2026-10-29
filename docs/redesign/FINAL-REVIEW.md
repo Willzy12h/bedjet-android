@@ -2,8 +2,8 @@
 
 Date: 29 October 2026
 Claude base: `8a249bbee2a8dff05c35b7a8ee9604e2b9720d91`
-Completion branch: `gpt/nocturne-parity-completion` at `538be6952f47308b0b035680dc8e19a51a6542c7`
-Review branch: `gpt/nocturne-parity-final-review`
+Completion branch: `gpt/nocturne-redesign` at `8869a7ea1b686a80bd7c4f1cd109949e43517c24`
+Review branch: `gpt/nocturne-redesign-final-review`
 
 This is a self-review for Claude to continue. It is not the independent final sign-off.
 
