@@ -2,7 +2,8 @@
 
 Date: 29 October 2026
 Claude base: `8a249bbee2a8dff05c35b7a8ee9604e2b9720d91`
-Completion branch: `gpt/nocturne-parity-completion`
+Completion branch: `gpt/nocturne-parity-completion` at `538be6952f47308b0b035680dc8e19a51a6542c7`
+Review branch: `gpt/nocturne-parity-final-review`
 
 This is a self-review for Claude to continue. It is not the independent final sign-off.
 
@@ -53,3 +54,16 @@ Six `HealthLegacyContainmentSecurityTest` cases request Robolectric API 31 and 3
 ```
 
 Release readiness requires zero test failures, lint at zero errors and no more than 24 warnings.
+
+## Debug APK candidate
+
+A debug APK was assembled from the same source tree for review and device testing. It is a debug-signed candidate, not a release artifact.
+
+- Package: `io.github.willzy12h.nocturne`
+- Version: `0.1.0` (`versionCode 1`)
+- Minimum SDK: 31; target SDK: 35
+- Size: 70,855,068 bytes
+- SHA-256: `3b2317aea7a74334475f4cc45e1c1ecd18bc339f45c1a3835ed18204eb41a8d4`
+- Debug certificate SHA-256: `ebef59843edabb07ce8b112cac8cecc2edd411a929ff370f7d1b8d64a18f45bb`
+
+Do not treat this candidate as release-ready while the full app suite is red.
