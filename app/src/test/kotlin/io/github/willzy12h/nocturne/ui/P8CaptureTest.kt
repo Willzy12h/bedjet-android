@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.preferencesOf
 import androidx.glance.appwidget.compose
+import io.github.willzy12h.nocturne.NativePngCapture
 import io.github.willzy12h.nocturne.widget.QuickControlsWidget
 import io.github.willzy12h.nocturne.widget.SingleActionWidget
 import io.github.willzy12h.nocturne.core.store.ThemeMode
@@ -65,11 +66,10 @@ class P8CaptureTest {
         val dir = File("build/screenshots/$tag").apply { mkdirs() }
         views.forEachIndexed { index, view ->
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            ui.compose.runOnUiThread { view.draw(Canvas(bitmap)) }
-            File(dir, "$name-window$index.png").outputStream().use {
-                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-            bitmap.recycle()
+            try {
+                ui.compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+                NativePngCapture.write(bitmap, File(dir, "$name-window$index.png"))
+            } finally { bitmap.recycle() }
         }
     }
 
@@ -109,12 +109,11 @@ class P8CaptureTest {
                     if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
                 assertTrue(descendants(root).filterIsInstance<Button>().any { it.text.toString() == "Warm" })
                 val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
-                ui.compose.runOnUiThread { root.draw(Canvas(bitmap)) }
-                val dir = File("build/screenshots/$tag").apply { mkdirs() }
-                File(dir, "p8-${palette.name.lowercase()}-widget-${if (single) "single" else "quick"}.png").outputStream().use {
-                    assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-                }
-                bitmap.recycle()
+                try {
+                    ui.compose.runOnUiThread { root.draw(Canvas(bitmap)) }
+                    val dir = File("build/screenshots/$tag").apply { mkdirs() }
+                    NativePngCapture.write(bitmap, File(dir, "p8-${palette.name.lowercase()}-widget-${if (single) "single" else "quick"}.png"))
+                } finally { bitmap.recycle() }
             }
         }
     }

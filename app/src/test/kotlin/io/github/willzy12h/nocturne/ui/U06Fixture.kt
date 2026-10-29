@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModelProvider
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
+import io.github.willzy12h.nocturne.NativePngCapture
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.CommandOutcome
@@ -293,11 +294,10 @@ internal class U06Fixture(
         assertTrue("Native capture must include the Activity", views.any { it === compose.activity.window.decorView })
         views.forEachIndexed { index, view ->
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            compose.runOnUiThread { view.draw(Canvas(bitmap)) }
-            File(directory, "$stem-window$index.png").outputStream().use {
-                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-            bitmap.recycle()
+            try {
+                compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+                NativePngCapture.write(bitmap, File(directory, "$stem-window$index.png"))
+            } finally { bitmap.recycle() }
         }
         val config = compose.activity.resources.configuration
         val dimensions = views.joinToString(",") { "{\"widthPx\":${it.width},\"heightPx\":${it.height}}" }

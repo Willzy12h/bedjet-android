@@ -393,11 +393,10 @@ class ScreenshotCapture {
         views.forEachIndexed { index, view ->
             assertTrue("Capture window must be laid out", view.width > 0 && view.height > 0)
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            compose.runOnUiThread { view.draw(Canvas(bitmap)) }
-            File(dir, if (index == 0) "$name.png" else "$name-window$index.png").outputStream().use {
-                assertTrue("PNG compression must succeed", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-            bitmap.recycle()
+            try {
+                compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+                NativePngCapture.write(bitmap, File(dir, if (index == 0) "$name.png" else "$name-window$index.png"))
+            } finally { bitmap.recycle() }
         }
         val view = views.first()
         File(dir, "$name.json").writeText("""
