@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="settings_unknown_alarm_sources">Use alarms from unknown apps</string>
-    <string name="settings_unknown_alarm_sources_help">Some clock apps do not identify themselves. These alarms must still fall within tonight’s 1–18 hour window.</string>
-</resources>

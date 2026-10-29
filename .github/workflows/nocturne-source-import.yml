@@ -1,0 +1,32 @@
+name: Import verified Nocturne source
+on:
+  push:
+    branches: [gpt/nocturne-independent-import-20261029]
+permissions:
+  contents: write
+concurrency:
+  group: nocturne-independent-source-import
+  cancel-in-progress: false
+jobs:
+  import:
+    if: github.repository == 'Willzy12h/bedjet-android' && github.ref == 'refs/heads/gpt/nocturne-independent-import-20261029'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Verify and import exact Git objects
+        env:
+          EXPECTED_MANIFEST_SHA256: 'b214dce7f8230b27f8162845db470786f1ea30bf20befab0c575d131a2ca2308'
+        run: python3 -B delivery-source/import_source.py
+      - name: Preserve import receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: nocturne-source-import-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/nocturne-import-result.json
+          retention-days: 30
+          if-no-files-found: warn

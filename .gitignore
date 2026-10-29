@@ -1,9 +1,0 @@
-.superpowers/
-.gradle/
-build/
-*/build/
-local.properties
-.idea/
-*.iml
-.kotlin/
-.claude/worktrees/

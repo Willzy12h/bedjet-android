@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="settings_github_releases">Check GitHub for a new APK</string>
-    <string name="settings_about_description">Nocturne controls BedJet 3 nights over Bluetooth.</string>
-    <string name="settings_about_unaffiliated">Not affiliated with BedJet LLC</string>
-    <string name="settings_project_help">Project and help on GitHub</string>
-    <string name="settings_protocol_attribution">BedJet protocol work by the Lull project (github.com/rkanjani/lull, MIT)</string>
-</resources>

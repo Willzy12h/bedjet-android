@@ -1,5 +1,0 @@
-# Pillow wheels from https://pypi.org/pypi/Pillow/12.3.0/json
-# Linux x86_64: CPython 3.12 in CI; 3.11 for local verification.
-Pillow==12.3.0 \
-    --hash=sha256:23d27a3e0307ec2244cc51e7287b919aa68d097504ebe19df4e76a98a3eea5bd \
-    --hash=sha256:78cb2c6865a35ab8ff8b75fd122f6033b92a62c82801110e48ddd6c936a45d91
