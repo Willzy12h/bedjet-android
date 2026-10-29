@@ -26,19 +26,19 @@ class P8SettingsNavigationTest {
 
     @Test fun rootShowsEightNamedChoicesAndEachOpensARealPage() {
         settings()
-        val controls = mapOf(
-            "bedjet" to R.string.settings_slot_title,
-            "night" to R.string.settings_alarms,
-            "appearance" to R.string.settings_night_palette,
-            "permissions" to R.string.settings_phone_setup,
-            "backups" to R.string.settings_snapshot_now,
-            "notifications" to R.string.settings_wake_notification,
-            "health" to R.string.feature_health_title,
-            "about" to R.string.settings_source_code,
+        val titles = mapOf(
+            "bedjet" to R.string.settings_nav_bedjet,
+            "night" to R.string.settings_nav_night,
+            "appearance" to R.string.settings_nav_appearance,
+            "permissions" to R.string.settings_nav_permissions,
+            "backups" to R.string.settings_nav_backups,
+            "notifications" to R.string.settings_nav_notifications,
+            "health" to R.string.settings_nav_health,
+            "about" to R.string.settings_nav_about,
         )
         for ((id, label) in rows) {
             row(id).assertTextContains(label, substring = true).assertHasClickAction().performClick()
-            ui.compose.onAllNodesWithText(ui.s(controls.getValue(id)))[0].performScrollTo().assertExists()
+            ui.compose.onNode(hasText(ui.s(titles.getValue(id))) and isHeading()).assertIsDisplayed()
             ui.compose.onNodeWithTag("settings-back").performClick()
             row(id).assertExists()
         }
@@ -94,6 +94,6 @@ class P8SettingsNavigationTest {
 
     @Test fun alarmsRequestOpensAlarmControls() {
         deepLink(backups = 0, alarms = 1)
-        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms)).assertIsDisplayed()
+        ui.compose.onNode(hasText(ui.s(R.string.settings_nav_night)) and isHeading()).assertIsDisplayed()
     }
 }

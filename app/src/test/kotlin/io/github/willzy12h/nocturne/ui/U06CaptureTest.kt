@@ -12,8 +12,6 @@ import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.AppliedProgram
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
-import io.github.willzy12h.nocturne.core.protocol.Mode
-import io.github.willzy12h.nocturne.core.store.QuickDefaults
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -51,7 +49,7 @@ class U06NormalCaptureTest(look: U06Look) {
     }
 
     @Test @CaptureSeed(CaptureScene.IDLE)
-    fun normalIdleTonightAndFiveTabs() = views.idleTonight(allTabs = true)
+    fun normalIdleTonightAndFourTabs() = views.idleTonight(allTabs = true)
 
     @Test @CaptureSeed(CaptureScene.CONFIRMED)
     fun normalConfirmedTonight() = views.confirmedTonight()
@@ -124,8 +122,8 @@ private class CaptureViews(private val ui: U06Fixture) {
         if (allTabs) captureTop("tonight")
         tonight(R.string.tonight_start_now, "start")
         if (allTabs) {
-            listOf(R.string.tab_profiles to "profiles", R.string.tab_remote to "remote",
-                R.string.tab_history to "history", R.string.tab_settings to "settings").forEach { (id, name) ->
+            listOf(R.string.tab_profiles to "profiles", R.string.tab_history to "history",
+                R.string.tab_settings to "settings").forEach { (id, name) ->
                 val label = ui.s(id)
                 compose.onNode(hasClickAction() and (hasText(label) or hasContentDescription(label))).performClick()
                 captureTop(name)
@@ -135,13 +133,13 @@ private class CaptureViews(private val ui: U06Fixture) {
 
     fun confirmedTonight() {
         ui.waitUntil { ui.graph.actions.status.value.confidence == Confidence.CONFIRMED }
-        tonight(R.string.tonight_end_night, "end")
+        tonight(R.string.parity_end_night, "end")
     }
 
     private fun tonight(primaryId: Int, name: String) {
         val primary = button(primaryId).performScrollTo()
-        val quick = (QuickDefaults.modes + Mode.STANDBY).map { mode ->
-            compose.onNodeWithTag("quick-mode-${mode.name}")
+        val quick = listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST", "STANDBY").map { mode ->
+            compose.onNodeWithTag("quick-mode-$mode")
         }
         compose.onNodeWithTag("quick-controls").performScrollTo()
         compose.waitForIdle()

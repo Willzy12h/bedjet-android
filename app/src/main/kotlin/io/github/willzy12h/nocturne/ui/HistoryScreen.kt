@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -270,7 +271,9 @@ private fun HistoryPill(text: String, color: Color, modifier: Modifier = Modifie
 @Composable
 private fun StepBar(plan: Plan) {
     val tokens = paletteTokens
-    Row(Modifier.fillMaxWidth().height(18.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    val description = stringResource(R.string.history_plan_accessibility, Format.clock(plan.start), Format.clock(plan.end))
+    Row(Modifier.fillMaxWidth().height(18.dp).clearAndSetSemantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         plan.steps.filter { it.minutes > 0 }.forEach { step ->
             val color = if (step.step.mode == Mode.WAIT) tokens.surface2 else tokens.stepColor(step.step.mode, step.step.temperature)
             Box(Modifier.weight(step.minutes.toFloat()).fillMaxHeight().clip(RoundedCornerShape(6.dp)).background(color))
