@@ -15,6 +15,8 @@ import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.night.NightActions
+import io.github.willzy12h.nocturne.data.Repository
+import io.github.willzy12h.nocturne.widget.WidgetUpdater
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Looper
@@ -39,12 +41,17 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.util.ReflectionHelpers
 import java.io.File
 import java.time.Duration
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
 
 /**
  * Renders the real app's screens to PNG for before/after comparison. Off unless SCREENSHOT_TAG is set, e.g.
@@ -61,6 +68,7 @@ class ScreenshotCapture {
     private val captureZone = ZoneId.of("Europe/London")
     private var expectedWidthDp = 411
     private var expectedFontScale = 1f
+    private val graphs = GraphLifecycle()
     private val compose = createAndroidComposeRule<MainActivity>()
     private val pinClock = TestRule { base, description ->
         object : org.junit.runners.model.Statement() {
@@ -75,7 +83,20 @@ class ScreenshotCapture {
                 "android.permission.health.READ_SLEEP")
             val oldClock = app.graph.clock
             val oldScale = app.resources.configuration.fontScale
-            app.graph.clock = Clock.fixed(captureInstant, captureZone)
+            // The Compose test frame clock can resume inline from a StateFlow writer. Keep capture
+            // publications on Main, as U06Fixture does, without disabling the real runtime collectors.
+            val captureGraph = graphs.fresh {
+                Graph(app, repositoryFactory = { scope, now ->
+                    Repository(app, scope, writer = Dispatchers.Main.immediate, now = now)
+                }).also { it.clock = Clock.fixed(captureInstant, captureZone) }
+            }
+            ReflectionHelpers.setField(app, "graph", captureGraph)
+            // The old graph's updater was cancelled by fresh(); allow actual startup to bind the new graph.
+            val widgetStarted = WidgetUpdater::class.java.getDeclaredField("started").let {
+                it.isAccessible = true
+                it.get(WidgetUpdater) as AtomicBoolean
+            }
+            widgetStarted.set(false)
             val combined = description.methodName.contains("combined320And200") || description.methodName.contains("Compact")
             expectedWidthDp = if (combined) 320 else 411
             expectedFontScale = if (combined) 2f else 1f
@@ -84,7 +105,11 @@ class ScreenshotCapture {
                 @Suppress("DEPRECATION")
                 app.resources.updateConfiguration(config, app.resources.displayMetrics)
             }
-            try { base.evaluate() } finally {
+            try {
+                startCaptureRuntime(captureGraph)
+                assertTrue("Capture runtime must start the widget updater", widgetStarted.get())
+                base.evaluate()
+            } finally {
                 app.graph.clock = oldClock
                 if (app.resources.configuration.fontScale != oldScale) {
                     val config = android.content.res.Configuration(app.resources.configuration).apply { fontScale = oldScale }
@@ -95,9 +120,25 @@ class ScreenshotCapture {
           }
         }
     }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(GraphLifecycle()).around(pinClock).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(graphs).around(pinClock).around(compose)
 
     private val graph get() = compose.activity.graph
+
+    private fun startCaptureRuntime(captureGraph: Graph) {
+        // startRuntime blocks on migration's IO coroutine, which now needs Main for repository work.
+        // Pump Main before Compose launches; lifecycle cancellation can interrupt the blocking startup.
+        val startup = captureGraph.scope.async(Dispatchers.Default) {
+            runInterruptible { captureGraph.startRuntime() }
+        }
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (!startup.isCompleted && System.nanoTime() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.yield()
+        }
+        assertTrue("Capture runtime startup must complete before Compose launches", startup.isCompleted)
+        runBlocking { startup.await() }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
 
     @Test fun dark() = capture("dark", ThemeMode.DARK, simple = false)
     @Test fun light() = capture("light", ThemeMode.LIGHT, simple = false)
