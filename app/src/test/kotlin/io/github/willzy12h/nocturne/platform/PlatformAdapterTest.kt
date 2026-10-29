@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.platform
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.Manifest
 import android.app.NotificationManager
 import android.app.job.JobScheduler
@@ -41,6 +42,8 @@ class PlatformAdapterTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
         assertFalse(BedtimeReminders.deliver(graph,profile.id,bedtime))
     }
     @Test fun fullBatteryWithoutPowerIsNotCharging() {
+        // Seed the system-only sticky battery broadcast; Robolectric has no public replacement setter.
+        @Suppress("DEPRECATION")
         context.sendStickyBroadcast(android.content.Intent(android.content.Intent.ACTION_BATTERY_CHANGED)
             .putExtra(android.os.BatteryManager.EXTRA_STATUS,android.os.BatteryManager.BATTERY_STATUS_FULL)
             .putExtra(android.os.BatteryManager.EXTRA_PLUGGED,0))
@@ -57,7 +60,7 @@ class PlatformAdapterTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
         val scheduler=context.getSystemService(JobScheduler::class.java)
         val alarms=shadowOf(context.getSystemService(android.app.AlarmManager::class.java))
         fun automaticAlarms() = alarms.scheduledAlarms.filter {
-            shadowOf(it.operation).savedIntent.component?.className == AutoStartReceiver::class.java.name
+            shadowOf(it.operationIntent).savedIntent.component?.className == AutoStartReceiver::class.java.name
         }
         val device="ble:AA:BB:CC:DD:EE:FF"
         graph.repository.updateSettings {it.copy(demoMode=false,targetDevice=device,platform=it.platform.copy(
@@ -67,7 +70,7 @@ class PlatformAdapterTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
         assertNull(scheduler.getPendingJob(ChargerJobs.ID))
         val alarm=automaticAlarms().single()
         assertEquals(0L,alarm.intervalMs)
-        assertTrue(alarm.operation!!.isImmutable)
+        assertTrue(alarm.operationIntent!!.isImmutable)
         graph.repository.updateSettings {it.copy(platform=it.platform.copy(autoStart=it.platform.autoStart!!.copy(enabled=false)))}
         ChargerJobs.sync(graph)
         assertTrue(automaticAlarms().isEmpty())

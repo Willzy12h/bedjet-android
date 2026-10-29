@@ -53,9 +53,9 @@ internal fun CustomRunDuration(captured: CapturedDuration, onDismiss: () -> Unit
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.remote_custom_bounds, durationText(captured.maximumMinutes)))
                 OutlinedTextField(hours, { hours = it.take(4) }, label = { Text(stringResource(R.string.remote_custom_hours)) },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = nocturneTextFieldColors())
                 OutlinedTextField(minutes, { minutes = it.take(3) }, label = { Text(stringResource(R.string.remote_custom_minutes)) },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = nocturneTextFieldColors())
                 if (!valid) Text(stringResource(R.string.remote_custom_invalid))
             }
         },

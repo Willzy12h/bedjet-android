@@ -13,6 +13,7 @@ import io.github.willzy12h.nocturne.core.night.AppliedProgram
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -73,7 +74,7 @@ class U06LargeTextCaptureTest(look: U06Look) {
     }
 
     @Test @CaptureSeed(CaptureScene.IDLE)
-    fun largeTextIdleTonight() = views.idleTonight(allTabs = false)
+    fun largeTextIdleTonight() = views.idleTonight(allTabs = true)
 
     @Test @CaptureSeed(CaptureScene.CONFIRMED)
     fun largeTextConfirmedTonight() = views.confirmedTonight()
@@ -125,8 +126,32 @@ private class CaptureViews(private val ui: U06Fixture) {
             listOf(R.string.tab_profiles to "profiles", R.string.tab_history to "history",
                 R.string.tab_settings to "settings").forEach { (id, name) ->
                 val label = ui.s(id)
-                compose.onNode(hasClickAction() and (hasText(label) or hasContentDescription(label))).performClick()
+                compose.navTab(label)
                 captureTop(name)
+            }
+            if (compose.density.fontScale >= 1.5f && ui.look in listOf(U06Look.MIDNIGHT, U06Look.DAYLIGHT)) {
+                // Keep the additional detail captures inside the existing opt-in case count.
+                ui.tab("Tonight")
+                captureTonightSurfaces(ui) { ui.capture("large-$it") }
+                ui.tab("Profiles")
+                captureProfileSurfaces(ui) { ui.capture("large-$it") }
+                ui.tab("Settings")
+                for (page in listOf("bedjet", "night", "appearance", "permissions", "backups", "notifications", "health", "about")) {
+                    compose.openSettingsPage(page)
+                    compose.onNodeWithTag("settings-back").performScrollTo().assertIsDisplayed()
+                    ui.capture("large-settings-$page")
+                    captureScrollEnd(ui)
+                    ui.capture("large-settings-$page-bottom")
+                    compose.onNodeWithTag("settings-back").performScrollTo()
+                    compose.backSettingsPage()
+                }
+                ui.tab("Remote")
+                ui.capture("large-remote")
+                captureScrollEnd(ui)
+                ui.capture("large-remote-bottom")
+                ui.tab("Tonight")
+                compose.openTonightProfileEditor()
+                captureEditorSurfaces(ui) { ui.capture("large-$it") }
             }
         }
     }
@@ -134,6 +159,45 @@ private class CaptureViews(private val ui: U06Fixture) {
     fun confirmedTonight() {
         ui.waitUntil { ui.graph.actions.status.value.confidence == Confidence.CONFIRMED }
         tonight(R.string.parity_end_night, "end")
+        captureTop("tonight-running")
+        compose.onNodeWithTag("quick-mode-HEAT").performScrollTo().performClick()
+        compose.onNodeWithText(ui.s(R.string.temporary_title)).assertIsDisplayed()
+        ui.capture("running-night-change-confirmation")
+        captureScrollEnd(ui)
+        ui.capture("running-night-change-confirmation-bottom")
+        button(R.string.guard_keep).performClick()
+        button(R.string.recovery_more).performScrollTo().performClick()
+        compose.onNodeWithText(ui.s(R.string.recovery_recheck_alarm)).assertIsDisplayed()
+        ui.capture("recovery-menu")
+        compose.onNodeWithText(ui.s(R.string.recovery_recheck_alarm)).performClick()
+
+        // Hold the real command owner deterministically; never manufacture Sending from a timer.
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val label = ui.s(R.string.runtime_override_label)
+        compose.runOnUiThread { ui.graph.scope.launch { ui.graph.actions.remote(label) { gate.await() } } }
+        try {
+            ui.waitUntil { ui.graph.actions.busy.value.runningLabel == label }
+            captureTop("tonight-sending")
+            compose.onNodeWithTag("status-connection").assertTextEquals(ui.s(R.string.parity_status_sending))
+        } finally { gate.complete(Unit) }
+        ui.waitUntil { ui.graph.actions.busy.value.runningLabel == null }
+
+        // A selected, explicitly released unit is a truthful offline presentation and makes no real connection.
+        val adapter = compose.activity.getSystemService(android.bluetooth.BluetoothManager::class.java).adapter
+        org.robolectric.Shadows.shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
+        compose.runOnUiThread {
+            compose.activity.sendBroadcast(android.content.Intent(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED)
+                .putExtra(android.bluetooth.BluetoothAdapter.EXTRA_STATE, android.bluetooth.BluetoothAdapter.STATE_ON))
+            runBlocking {
+                ui.graph.sessions.suspendAutoConnect(null).join()
+                ui.graph.repository.setActiveNight(null)
+                ui.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "AA:BB:CC:DD:EE:01") }
+            }
+        }
+        ui.tab("Tonight")
+        captureTop("tonight-offline")
+        compose.onNodeWithTag("status-symbol-DISCONNECTED").assertExists()
+        compose.onNodeWithTag("quick-mode-STANDBY").assertIsNotEnabled()
     }
 
     private fun tonight(primaryId: Int, name: String) {
@@ -212,16 +276,17 @@ private class CaptureViews(private val ui: U06Fixture) {
         compose.waitForIdle()
         ui.capture("accept-loss-start")
         val body = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
-        val scroller = generateSequence(body) { it.parent }.firstOrNull {
+        val scroller = requireNotNull(generateSequence(body) { it.parent }.firstOrNull {
             it.config.contains(SemanticsProperties.VerticalScrollAxisRange) && it.config.contains(SemanticsActions.ScrollBy)
-        } ?: return // The baseline has no route to the clipped final warning; its capture must still complete.
+        }) { "The complete loss explanation must remain reachable through its scroll container" }
         val range = scroller.config[SemanticsProperties.VerticalScrollAxisRange]
-        if (range.maxValue() <= 0f) return // At normal size the complete explanation can fit without scrolling.
         val target = range.maxValue()
         val delta = (target - range.value()) * if (range.reverseScrolling) -1f else 1f
         compose.onNode(SemanticsMatcher("loss explanation scroll area") { it.id == scroller.id }, useUnmergedTree = true)
             .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, delta) }
         ui.waitUntil { abs(range.value() - target) <= 1f }
         ui.capture("accept-loss-end")
+        compose.onNodeWithText(ui.s(R.string.originals_accept_confirm)).assertIsDisplayed().assertHasClickAction()
+        compose.onNodeWithText(ui.s(R.string.originals_accept_cancel)).assertIsDisplayed().assertHasClickAction()
     }
 }

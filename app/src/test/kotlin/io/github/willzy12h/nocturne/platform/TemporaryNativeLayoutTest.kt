@@ -398,7 +398,7 @@ class TemporaryNativeLayoutTest : PlatformGraphFixture() {
                 val label = app.getString(if (command == Command.RESUME) R.string.runtime_resume_title else R.string.runtime_end)
                 val notification = requireNotNull(shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(id))
                 val action = notification.actions.single { it.title.toString() == label }
-                assertTrue("Recovery must open the actual confirmation Activity", shadowOf(action.actionIntent).isActivityIntent)
+                assertTrue("Recovery must open the actual confirmation Activity", shadowOf(action.actionIntent).isActivity)
                 shadowOf(action.actionIntent).savedIntent
             }
             else -> error("Not a fallback case")

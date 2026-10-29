@@ -91,7 +91,7 @@ class ProfileEditorInteractionTest {
         open()
         ui.compose.onNodeWithTag("editor-phase-START-0").performScrollTo().performClick()
         listOf("Heat" to "max 40°C", "Turbo" to "max 43°C", "Long heat" to "max 33.5°C", "Cool" to "max 31°C").forEach { (mode, maximum) ->
-            ui.compose.onNode(hasContentDescription(mode, substring = true) and hasClickAction() and
+            ui.compose.onNode(hasContentDescription("$mode,", substring = true) and hasClickAction() and
                 hasAnyAncestor(hasTestTag("editor-phase-controls-START-0"))).performScrollTo().assertIsDisplayed()
                 .assertContentDescriptionContains(maximum, substring = true)
         }

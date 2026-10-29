@@ -252,7 +252,7 @@ class DemoSessionIsolationTest {
 
     private fun userFiles(): Map<String, String> = context.filesDir.walkTopDown().filter { it.isFile &&
         (it.name in setOf("profiles.json", "settings.json", "history.json", "slot-backups.json", "runtime.json",
-            "active-night.json", "automation.json", "notices.json") || it.parentFile.name == "snapshots")
+            "active-night.json", "automation.json", "notices.json") || it.parentFile?.name == "snapshots")
     }.associate { it.relativeTo(context.filesDir).path to it.readText() }
 
     private fun restartGraph() {

@@ -138,7 +138,9 @@ internal class U06Fixture(
         // The approved feedback bubble overlays content. A control beneath it is reached by dismissing
         // the bubble first, through the actual pointer route, rather than accidentally tapping the bubble.
         val bubble = compose.onAllNodesWithTag("feedback-bubble").fetchSemanticsNodes().singleOrNull()
-        if (bubble != null && bubble.root === semantics.root && bubble.boundsInRoot.contains(semantics.boundsInRoot.center)) {
+        if (bubble != null && bubble.root === semantics.root &&
+            generateSequence(semantics) { it.parent }.none { it.id == bubble.id } &&
+            bubble.boundsInRoot.contains(semantics.boundsInRoot.center)) {
             val dismiss = compose.onAllNodesWithTag("snackbar-dismiss").fetchSemanticsNodes().isNotEmpty()
             if (dismiss) compose.onNodeWithTag("snackbar-dismiss").performClick()
             else compose.onNode(hasClickAction() and hasAnyAncestor(hasTestTag("feedback-bubble")), useUnmergedTree = true).performClick()
@@ -279,6 +281,7 @@ internal class U06Fixture(
     /** Opt-in evidence is separate from assertions: these tests still run without SCREENSHOT_TAG. */
     fun capture(name: String) {
         val tag = System.getenv("SCREENSHOT_TAG")?.takeIf { it.isNotBlank() } ?: return
+        layout() // A click can schedule recomposition; draw the destination rather than the preceding screen.
         assertConfiguration()
         require(tag.matches(Regex("[A-Za-z0-9][A-Za-z0-9_-]*")))
         val safeName = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(90)

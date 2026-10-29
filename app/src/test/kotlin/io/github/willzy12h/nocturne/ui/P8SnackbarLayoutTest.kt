@@ -27,7 +27,7 @@ class P8SnackbarLayoutTest {
         ui.compose.runOnIdle { ui.model.report(CommandOutcome(OutcomeKind.LOCAL, message)) }
         ui.waitUntil { ui.compose.onAllNodesWithText(message).fetchSemanticsNodes().isNotEmpty() }
         ui.compose.mainClock.advanceTimeBy(300)
-        ui.control(ui.s(R.string.recovery_recheck_alarm)).assertIsDisplayed()
+        ui.checkLayout(ui.compose.onNode(hasText(ui.s(R.string.recovery_recheck_alarm)) and hasClickAction()), "Underlying recheck").assertIsDisplayed()
         ui.compose.onNodeWithText(message).assertExists()
         ui.compose.onNodeWithTag("snackbar-message-scroll").assert(SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy))
             .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 1000f) }

@@ -3,6 +3,8 @@ package io.github.willzy12h.nocturne
 import io.github.willzy12h.nocturne.ui.openRemote
 import io.github.willzy12h.nocturne.ui.openSettingsPage
 
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
@@ -67,7 +69,7 @@ class AppSmokeTest {
                     ReflectionHelpers.setField(app, "graph", replacement)
                     shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
                     @Suppress("DEPRECATION")
-                    shadowOf(BluetoothAdapter.getDefaultAdapter()).setEnabled(true)
+                    shadowOf(BluetoothAdapter.getDefaultAdapter()).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
                     replacement
                 } else app.graph
                 val previous = graph.clock
@@ -191,8 +193,8 @@ class AppSmokeTest {
         compose.waitUntil(5_000) {
             compose.onAllNodes(hasText("BedJet state unknown", substring = true)).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag("tonight-fixed-wake").assertIsDisplayed()
-            .assertTextContains(s(R.string.gpt12_wake_profile_fallback), substring = true)
+        compose.onNodeWithTag("tonight-fixed-wake").performScrollTo().assertIsDisplayed()
+            .assert(hasAnyDescendant(hasText(s(R.string.gpt12_wake_profile_fallback), substring = true)))
         compose.onNodeWithText(s(R.string.tonight_waking_at)).assertDoesNotExist()
         assertTrue(compose.onAllNodes(hasText("Now:", substring = true)).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithTag("night-active-phase").assertDoesNotExist()

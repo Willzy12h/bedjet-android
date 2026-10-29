@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.platform
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.job.JobScheduler
@@ -35,7 +36,7 @@ class AutoStartSchedulingTest : PlatformGraphFixture() {
     }
 
     private fun pendingStarts() = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms
-        .filter { shadowOf(it.operation).savedIntent.component?.className ==
+        .filter { shadowOf(it.operationIntent).savedIntent.component?.className ==
             "io.github.willzy12h.nocturne.platform.AutoStartReceiver" }
 
     private suspend fun explicit(graph: Graph, mode: String = "FIXED", fixed: Int = 1380, before: Int = 480) {
@@ -58,7 +59,7 @@ class AutoStartSchedulingTest : PlatformGraphFixture() {
         assertNull("The old periodic charging job must be cancelled",
             context.getSystemService(JobScheduler::class.java).getPendingJob(ChargerJobs.ID))
         assertEquals("Exactly one alarm must represent this night", 1, pendingStarts().size)
-        assertEquals(Instant.parse("2026-10-26T22:30:00Z").toEpochMilli(), pendingStarts().single().triggerAtTime)
+        assertEquals(Instant.parse("2026-10-26T22:30:00Z").toEpochMilli(), pendingStarts().single().triggerAtMs)
     }
 
     @Test fun explicitFixedTimeSchedulesWithoutRequiringChargingAndReplacesItsOwnAlarm() = runBlocking {
@@ -66,7 +67,7 @@ class AutoStartSchedulingTest : PlatformGraphFixture() {
         explicit(graph)
         repeat(3) { ChargerJobs.sync(graph) }
         assertEquals(1, pendingStarts().size)
-        assertEquals(Instant.parse("2026-10-26T23:00:00Z").toEpochMilli(), pendingStarts().single().triggerAtTime)
+        assertEquals(Instant.parse("2026-10-26T23:00:00Z").toEpochMilli(), pendingStarts().single().triggerAtMs)
         assertNull(context.getSystemService(JobScheduler::class.java).getPendingJob(ChargerJobs.ID))
     }
 
@@ -80,7 +81,7 @@ class AutoStartSchedulingTest : PlatformGraphFixture() {
         explicit(graph, mode = "BEFORE_WAKE")
         ChargerJobs.sync(graph)
         assertEquals(1, pendingStarts().size)
-        assertEquals(Instant.parse("2026-10-26T23:30:00Z").toEpochMilli(), pendingStarts().single().triggerAtTime)
+        assertEquals(Instant.parse("2026-10-26T23:30:00Z").toEpochMilli(), pendingStarts().single().triggerAtMs)
     }
 
     @Test fun absentAlarmUsesTheChosenProfilesWakeFallback() = runBlocking {
@@ -90,7 +91,7 @@ class AutoStartSchedulingTest : PlatformGraphFixture() {
         explicit(graph, mode = "BEFORE_WAKE")
         ChargerJobs.sync(graph)
         assertEquals(1, pendingStarts().size)
-        assertEquals(Instant.parse("2026-10-26T23:00:00Z").toEpochMilli(), pendingStarts().single().triggerAtTime)
+        assertEquals(Instant.parse("2026-10-26T23:00:00Z").toEpochMilli(), pendingStarts().single().triggerAtMs)
     }
 
     @Test fun enteringDemoCancelsTheRealAutomaticStart() = runBlocking {

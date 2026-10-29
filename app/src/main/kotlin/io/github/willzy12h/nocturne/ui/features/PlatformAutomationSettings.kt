@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import io.github.willzy12h.nocturne.ui.nocturneRadioColors
+import io.github.willzy12h.nocturne.ui.nocturneSliderColors
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -120,7 +122,7 @@ import kotlin.math.roundToInt
             val label = stringResource(if (mode == AutoStartMode.FIXED) R.string.auto_start_fixed else R.string.auto_start_before_wake)
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(config.mode == mode, enabled = editable, role = Role.RadioButton,
                 onClick = { save { it.copy(mode = mode) } }), verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(config.mode == mode, onClick = null, enabled = editable)
+                RadioButton(config.mode == mode, onClick = null, enabled = editable, colors = nocturneRadioColors())
                 Text(label, Modifier.weight(1f))
             }
         }
@@ -133,7 +135,7 @@ import kotlin.math.roundToInt
             Text(duration)
             Slider(value = offset, onValueChange = { offset = it }, valueRange = 60f..1080f, steps = 33,
                 enabled = editable, onValueChangeFinished = { save { it.copy(minutesBeforeWake = offset.roundToInt()) } },
-                modifier = Modifier.semantics { contentDescription = duration })
+                modifier = Modifier.semantics { contentDescription = duration }, colors = nocturneSliderColors())
             val preview = plan ?: AutoStartSchedule.next(graph, graph.now())
             Text(when (preview?.wakeSource) {
                 AutoStartWakeSource.ALARM -> stringResource(R.string.auto_start_alarm_wake, Format.clock(preview.wakeAt!!))
@@ -153,7 +155,7 @@ import kotlin.math.roundToInt
                 profiles.forEach { profile ->
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(profile.id == config.profileId, role = Role.RadioButton,
                         onClick = { save { it.copy(profileId = profile.id) }; choosingProfile = false }), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(profile.id == config.profileId, onClick = null)
+                        RadioButton(profile.id == config.profileId, onClick = null, colors = nocturneRadioColors())
                         Text(profile.name, Modifier.weight(1f))
                     }
                 }

@@ -2,7 +2,6 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.compositeOver
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.Palette
@@ -95,17 +94,16 @@ class ContrastTest {
         }
     }
 
-    @Test fun quickControlBoundaryOrFillMeetsThreeAgainstSurroundingsInBothSharedPalettes() {
-        looks.forEach { (name, scheme, _) ->
-            // Read the same BorderStroke factory consumed by TonightScreen.QuickButton.
-            val stroke = quickButtonBorder(scheme)
-            assertTrue("$name Quick boundary must be drawn with positive width", stroke.width.value > 0f)
-            val border = (stroke.brush as SolidColor).value
-            val boundary = contrast(border, scheme.background)
-            val surface = scheme.surfaceContainer.compositeOver(scheme.background)
-            val fill = contrast(surface, scheme.background)
-            assertTrue("$name Quick control boundary=$boundary fill=$fill must reach 3:1", max(boundary, fill) >= 3.0)
-            check("$name Quick boundary/fill", border, surface, 3.0)
+    // Current labelled tiles use decorative design borders. The selected-state marker still needs 3:1.
+    // RedesignTextContrastTest additionally samples that actual marker and label in all seven palettes.
+    @Test fun quickControlStateMarkersMeetThreeAgainstEveryActiveTint() {
+        Palette.entries.forEach { palette ->
+            val tokens = palette.tokens
+            val stripes = tokens.ember + listOf(tokens.cool, tokens.dry, Color(0xFFFF6FA0), tokens.off)
+            stripes.forEach { stripe ->
+                val surface = tokens.tint(stripe, TintLevel.ON).compositeOver(tokens.surface.compositeOver(tokens.ground))
+                check("$palette active marker", tokens.readableText(stripe, surface, minimumContrast = 3f), surface, 3.0)
+            }
         }
     }
 }

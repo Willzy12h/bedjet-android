@@ -28,7 +28,7 @@ class P8StatusHeaderLargeTextTest {
         val layout = layouts.single()
         val text = layout.layoutInput.text.text
         assertNull(ui.model.status.value)
-        assertEquals("Temperature unavailable", text)
+        assertEquals(ui.s(io.github.willzy12h.nocturne.R.string.home_reading_unavailable), text)
         assertFalse(layout.hasVisualOverflow)
         for (line in 0 until layout.lineCount - 1) {
             val end = layout.getLineEnd(line, visibleEnd = true)

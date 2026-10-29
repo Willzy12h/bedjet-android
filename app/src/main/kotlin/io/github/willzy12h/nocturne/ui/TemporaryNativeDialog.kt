@@ -176,9 +176,9 @@ internal fun styleNativeDialog(dialog: AlertDialog, tokens: PaletteTokens) {
         view.setPadding(left, top, right, bottom)
     }
     tint(root)
-    val panelId = root.resources.getIdentifier("parentPanel", "id", "android")
+    val panelId = nativeDialogId(root, "parentPanel")
     if (panelId != 0) root.findViewById<View>(panelId)?.let(::tint)
-    val titleId = root.resources.getIdentifier("alertTitle", "id", "android")
+    val titleId = nativeDialogId(root, "alertTitle")
     if (titleId != 0) root.findViewById<TextView>(titleId)?.setTextColor(tokens.ink.toArgb())
     root.findViewById<TextView>(android.R.id.message)?.setTextColor(tokens.ink.toArgb())
     val buttonColors = ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
@@ -187,3 +187,8 @@ internal fun styleNativeDialog(dialog: AlertDialog, tokens: PaletteTokens) {
         dialog.getButton(id)?.setTextColor(buttonColors)
     }
 }
+
+/** Private framework IDs have no public android.R constant. This never reflects application resources.
+ * OEM absence is handled by the caller; the root, public message and buttons are styled independently. */
+@android.annotation.SuppressLint("DiscouragedApi")
+private fun nativeDialogId(view: View, name: String): Int = view.resources.getIdentifier(name, "id", "android")

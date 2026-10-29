@@ -37,7 +37,7 @@ class FinalRemoteLayoutTest {
         ui.compose.onNodeWithTag("remote-back").assertIsDisplayed().performClick()
         ui.compose.onAllNodesWithTag("status-header").assertCountEquals(1)
         ui.compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
-        ui.compose.onNodeWithTag("home-temperature").assertIsDisplayed()
+        ui.compose.onNodeWithTag("home-temperature").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun demoExitIsReachableThroughTonightFromEveryMainDestination() {

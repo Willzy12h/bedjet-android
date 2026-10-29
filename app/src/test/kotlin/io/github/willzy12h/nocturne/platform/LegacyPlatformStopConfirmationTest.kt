@@ -71,7 +71,7 @@ class LegacyPlatformStopConfirmationTest {
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
         // Owner confirmation and durable History use a real session; all packets still use the injected fake.
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN)
-        shadowOf(android.bluetooth.BluetoothAdapter.getDefaultAdapter()).setEnabled(true)
+        shadowOf(org.robolectric.RuntimeEnvironment.getApplication().getSystemService(android.bluetooth.BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val result = graph.actions.execute(graph.actions.capture(Command.START_NIGHT))
         assertEquals(result.message, OutcomeKind.CONFIRMED, result.kind)

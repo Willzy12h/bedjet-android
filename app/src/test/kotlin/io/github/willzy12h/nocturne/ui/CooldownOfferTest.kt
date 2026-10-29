@@ -35,7 +35,7 @@ class CooldownOfferTest {
     private fun choice(id: String) = ui.compose.onNodeWithTag("cooldown-choice-$id").performScrollTo()
     private fun offer() = ui.compose.onNodeWithText("Add a 10-minute Cooldown after waking?")
     private fun reopen() {
-        ui.compose.onNode(hasText(ui.s(R.string.tab_tonight)) and hasClickAction()).performClick()
+        ui.compose.navTab(ui.s(R.string.tab_tonight))
         profiles()
     }
 

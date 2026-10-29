@@ -50,7 +50,7 @@ class UatRound2RegressionTest {
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.POST_NOTIFICATIONS)
         @Suppress("DEPRECATION")
-        shadowOf(BluetoothAdapter.getDefaultAdapter()).setEnabled(true)
+        shadowOf(BluetoothAdapter.getDefaultAdapter()).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         val link = object : BedJetLink {
             override val state = MutableStateFlow(LinkState.READY)
             override val status = MutableStateFlow<DeviceStatus?>(null)

@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -139,9 +138,6 @@ private val nocturneTypography = baseTypography.copy(
 
 val LocalPaletteTokens = staticCompositionLocalOf { Palette.MIDNIGHT_INK.tokens }
 val LocalNocturneColors = staticCompositionLocalOf { MidnightInkColors }
-
-/** The Quick controls' boundary, separate from decorative card borders. */
-internal fun quickButtonBorder(scheme: ColorScheme): BorderStroke = BorderStroke(1.dp, scheme.onSurfaceVariant)
 
 /** Shared unit preference for curve descriptions; standalone previews default to Celsius. */
 internal val LocalTemperatureFahrenheit = staticCompositionLocalOf { false }

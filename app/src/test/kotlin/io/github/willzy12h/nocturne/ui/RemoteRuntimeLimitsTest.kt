@@ -160,7 +160,7 @@ class RemoteRuntimeLimitsTest {
         val before = runtimeWrites
         org.robolectric.Shadows.shadowOf(org.robolectric.RuntimeEnvironment.getApplication())
             .grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN)
-        org.robolectric.Shadows.shadowOf(android.bluetooth.BluetoothAdapter.getDefaultAdapter()).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
+        org.robolectric.Shadows.shadowOf(org.robolectric.RuntimeEnvironment.getApplication().getSystemService(android.bluetooth.BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         runBlocking { ui.graph.repository.updateSettings {
             it.copy(demoMode = false, targetDevice = DeviceId.ble("AA:BB:CC:DD:EE:99"))
         } }

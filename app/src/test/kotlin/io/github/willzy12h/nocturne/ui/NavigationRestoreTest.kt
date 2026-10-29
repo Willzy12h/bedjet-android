@@ -34,7 +34,7 @@ import java.time.ZoneOffset
 
 /** A fresh Activity and ViewModel receive only the marshalled saved state, never retained editor state. */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
+@Config(sdk = [34, 36], qualifiers = "w411dp-h891dp-xhdpi")
 class NavigationRestoreTest {
     private val graphs = GraphLifecycle()
     private val compose = createEmptyComposeRule()

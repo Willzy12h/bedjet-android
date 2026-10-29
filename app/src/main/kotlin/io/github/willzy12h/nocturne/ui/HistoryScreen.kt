@@ -1,6 +1,12 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -91,7 +97,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
                         Text(pluralStringResource(R.plurals.parity_history_earlier_count, nights.size - RECENT_NIGHTS, nights.size - RECENT_NIGHTS),
                             color = tokens.ink2, fontSize = 14.sp)
                     }
-                    Text(if (earlier) "⌃" else "⌄", color = tokens.ink3, fontSize = 16.sp)
+                    Text(if (earlier) "⌃" else "⌄", color = tokens.ink2, fontSize = 16.sp)
                 }
             }
             if (earlier) items(nights.drop(RECENT_NIGHTS), key = { it.id }) { night -> NightCard(model, night, profiles, settings, activeNight) }
@@ -102,10 +108,12 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
 
 private const val RECENT_NIGHTS = 3
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io.github.willzy12h.nocturne.core.plan.Profile>,
     settings: io.github.willzy12h.nocturne.core.store.Settings, activeNight: io.github.willzy12h.nocturne.core.night.ActiveNight?) {
             val tokens = paletteTokens
+            val largeText = LocalConfiguration.current.fontScale >= 1.5f
             var open by remember { mutableStateOf(false) }
             var checkingIn by remember(night.id) { mutableStateOf(false) }
             var submitting by remember(night.id) { mutableStateOf(false) }
@@ -119,8 +127,9 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                 .clickable { open = !open }.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     val issues = night.events.count { it.kind == EventKind.ERROR }
                     val comfort = night.events.lastOrNull { it.kind == EventKind.MORNING_FEEDBACK }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(nightLabel(night, model.now(), activeNight?.recordId == night.id), Modifier.weight(1f),
+                    FlowRow(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(nightLabel(night, model.now(), activeNight?.recordId == night.id),
+                            if (largeText) Modifier.fillMaxWidth() else Modifier.weight(1f),
                             color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         comfort?.let { feedback ->
                             HistoryPill(feedback.comfort?.let { stringResource(comfortName(it)) } ?: feedback.detail, tokens.ink2)
@@ -129,11 +138,14 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                             Modifier.testTag("history-issues-${night.id}"))
                     }
                     historyPlan(night)?.let { StepBar(it) }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(night.profileName, Modifier.weight(1f), color = tokens.ink2, fontSize = 15.sp, maxLines = 1)
-                        if (night.wakeFromAlarm) Icon(painterResource(R.drawable.ic_nc_alarm), stringResource(R.string.parity_history_alarm),
-                            Modifier.padding(end = 6.dp).size(14.dp), tint = tokens.ink3)
-                        Text("${Format.clock(night.startedAt)} – ${Format.clock(night.wakeAt)}", color = tokens.ink3, fontSize = 15.sp)
+                    FlowRow(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(night.profileName, if (largeText) Modifier.fillMaxWidth() else Modifier.weight(1f),
+                            color = tokens.ink2, fontSize = 15.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (night.wakeFromAlarm) Icon(painterResource(R.drawable.ic_nc_alarm), stringResource(R.string.parity_history_alarm),
+                                Modifier.padding(end = 6.dp).size(14.dp), tint = tokens.ink2)
+                            Text("${Format.clock(night.startedAt)} – ${Format.clock(night.wakeAt)}", color = tokens.ink2, fontSize = 15.sp)
+                        }
                     }
                     HealthSleepOverlay(model.graph, night)
                     HealthExportMarker(model.graph, night)
@@ -145,7 +157,7 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                     }
                     if (open) {
                         night.events.forEach {
-                            Text(stringResource(R.string.history_event, Format.clock(it.at), eventKindName(it.kind), it.detail), color = tokens.ink3, fontSize = 12.5.sp)
+                            Text(stringResource(R.string.history_event, Format.clock(it.at), eventKindName(it.kind), it.detail), color = tokens.ink2, fontSize = 12.5.sp)
                         }
                         // Each programme the BedJet confirmed for this night, in order; only confirmed ones are recorded.
                         if (night.revisions.size > 1) {
@@ -170,14 +182,14 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                             )
                         }
                     } else if (night.events.size > 1) {
-                        Text(pluralStringResource(R.plurals.history_events, night.events.size, night.events.size), color = tokens.ink3, fontSize = 12.5.sp)
+                        Text(pluralStringResource(R.plurals.history_events, night.events.size, night.events.size), color = tokens.ink2, fontSize = 12.5.sp)
                     }
             }
             if (checkingIn) AlertDialog(
                 onDismissRequest = { if (!submitting) checkingIn = false },
                 title = { Text(stringResource(R.string.checkin_title)) },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.checkin_help))
                         listOf(
                             MorningComfort.TOO_HOT to R.string.checkin_too_hot,
@@ -205,7 +217,7 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                     onDismissRequest = { showSuggestion = false },
                     title = { Text(stringResource(R.string.checkin_change_title)) },
                     text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             val name = profile?.name ?: stringResource(R.string.checkin_this_profile)
                             if (proposal.changesFan) {
                                 // Cool or Dry: more fan when too hot, less when too cold.
@@ -263,8 +275,10 @@ private fun comfortName(comfort: MorningComfort) = when (comfort) {
 
 @Composable
 private fun HistoryPill(text: String, color: Color, modifier: Modifier = Modifier) {
-    Text(text, modifier.clip(RoundedCornerShape(50)).background(paletteTokens.surface2).padding(horizontal = 12.dp, vertical = 5.dp),
-        color = color, fontSize = 14.sp, maxLines = 1)
+    val tokens = paletteTokens
+    val background = tokens.surface2.compositeOver(tokens.surface.compositeOver(tokens.ground))
+    Text(text, modifier.clip(RoundedCornerShape(50)).background(tokens.surface2).padding(horizontal = 12.dp, vertical = 5.dp),
+        color = tokens.readableText(color, background), fontSize = 14.sp)
 }
 
 /** The night as one bar: a segment per step, as wide as the step is long, in the step's colour. */

@@ -1,8 +1,8 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.ui.res.pluralStringResource
 import android.content.Context
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,17 +10,9 @@ import androidx.compose.foundation.verticalScroll
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AcUnit
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -37,15 +29,6 @@ import io.github.willzy12h.nocturne.core.store.QuickDefaults
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlin.math.roundToInt
-
-private fun quickModeIcon(mode: Mode): ImageVector = when (mode) {
-    Mode.TURBO -> Icons.Default.Speed
-    Mode.HEAT, Mode.EXTENDED_HEAT -> Icons.Default.LocalFireDepartment
-    Mode.COOL -> Icons.Default.AcUnit
-    Mode.DRY -> Icons.Default.WaterDrop
-    Mode.STANDBY -> Icons.Default.PowerSettingsNew
-    Mode.WAIT -> Icons.Default.Schedule
-}
 
 internal fun quickModeLabel(context: Context, preset: ActionPreset, fahrenheit: Boolean): String {
     val name = context.getString(Format.modeNameRes(preset.mode))
@@ -84,64 +67,12 @@ internal fun quickEvidence(model: AppViewModel): DeviceStatus? {
     val runtime by model.runtime.collectAsState()
     val night by model.activeNight.collectAsState()
     val owner by model.commandBusy.collectAsState()
-    return status.takeIf { live && link == LinkState.READY && runtime.slotWrite == null && owner.runningLabel == null &&
+    val slotWrite = runtime.slotWrite
+    // A confirmed Boost/pin journal remains for recovery; it must not hide a later fresh manual receipt.
+    val slotSettled = slotWrite == null || slotWrite.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED
+    return status.takeIf { live && link == LinkState.READY && slotSettled && owner.runningLabel == null &&
         (it?.mode == Mode.STANDBY || night == null || (night?.trackingManual == true &&
             night?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED)) }
-}
-
-/** Six fixed modes, two equal columns; text wraps and every target can grow beyond 72 dp. */
-@Composable
-internal fun ModeQuickButtons(model: AppViewModel, settings: Settings, guard: NightGuard) {
-    val context = LocalContext.current
-    val status by model.status.collectAsState()
-    val live by model.hasLiveStatus.collectAsState()
-    val link by model.linkState.collectAsState()
-    val runtime by model.runtime.collectAsState()
-    val night by model.activeNight.collectAsState()
-    val owner by model.commandBusy.collectAsState()
-    val evidence = status.takeIf { live && link == LinkState.READY && runtime.slotWrite == null && owner.runningLabel == null &&
-        (it?.mode == Mode.STANDBY || night == null || (night?.trackingManual == true &&
-            night?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED)) }
-    val tokens = paletteTokens
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        (QuickDefaults.modes + Mode.STANDBY).chunked(2).forEach { pair ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                pair.forEach { mode ->
-                    val preset = if (mode == Mode.STANDBY) null else QuickDefaults.resolve(settings, mode)
-                    val valid = preset == null || QuickDefaults.valid(preset)
-                    val label = stringResource(Format.modeNameRes(mode))
-                    val active = if (preset == null) evidence?.mode == Mode.STANDBY else matchesQuick(evidence, preset)
-                    val description = if (!valid) stringResource(R.string.uat_quick_invalid)
-                        else preset?.let { presetDetail(context, it, settings.fahrenheit) } ?: label
-                    val subtitle = preset?.takeIf { valid }?.let {
-                        val duration = durationText(it.minutes)
-                        if (it.mode.usesTemperature) stringResource(R.string.quick_tile_detail, tempText(it.temperature, settings.fahrenheit), duration)
-                        else duration
-                    }
-                    StripeTile(stripe = tokens.stepColor(mode, preset?.temperature ?: 0), title = label,
-                        subtitle = subtitle, level = if (active) TintLevel.ON else TintLevel.TILE,
-                        icon = { Icon(quickModeIcon(mode), contentDescription = null, modifier = Modifier.size(16.dp),
-                            tint = tokens.stepColor(mode, preset?.temperature ?: 0)) },
-                        trailing = { if (active) ActiveIndicator(tokens.stepColor(mode, preset?.temperature ?: 0), true,
-                            Modifier.testTag("quick-active-${mode.name}")) },
-                        modifier = Modifier.weight(1f).heightIn(min = 72.dp).testTag("quick-mode-${mode.name}")
-                            .semantics { contentDescription = description }
-                            .border(quickButtonBorder(MaterialTheme.colorScheme), RoundedCornerShape(12.dp))
-                            .clickable(role = Role.Button) {
-                        if (preset == null) guard.confirm(context.getString(R.string.guard_turn_off)) { model.run(Command.OFF) }
-                        else {
-                            val captured = captureModeQuick(model, preset)
-                            guard.confirm(context.getString(R.string.guard_switch_to, context.getString(Format.modeNameRes(mode))),
-                                captured.temporary) { model.runCaptured(captured.end) }
-                        }
-                    })
-                }
-            }
-        }
-        if (QuickDefaults.modes.any { !QuickDefaults.valid(QuickDefaults.resolve(settings, it)) })
-            Text(stringResource(R.string.uat_quick_invalid), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface)
-    }
 }
 
 @Composable
@@ -152,7 +83,7 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
         val preset = QuickDefaults.resolve(settings, mode)
         StripeTile(stripe = paletteTokens.stepColor(preset.mode, preset.temperature),
             title = quickModeLabel(context, preset, settings.fahrenheit),
-            subtitle = stringResource(R.string.uat_quick_summary, tempText(preset.temperature, settings.fahrenheit),
+            subtitle = pluralStringResource(R.plurals.uat_quick_summary, preset.minutes, tempText(preset.temperature, settings.fahrenheit),
                 preset.fanPercent, preset.minutes), modifier = Modifier.fillMaxWidth().testTag("quick-default-${mode.name}")) {
                 if (!QuickDefaults.valid(preset)) Text(stringResource(R.string.uat_quick_invalid),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
@@ -176,17 +107,17 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
                         Text(stringResource(R.string.slider_temp))
                         Slider(draft.temperature.coerceIn(range).toFloat(), { draft = draft.copy(temperature = it.roundToInt()) },
                             valueRange = range.first.toFloat()..range.last.toFloat(), steps = range.last - range.first - 1,
-                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(draft.temperature, settings.fahrenheit)))
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(draft.temperature, settings.fahrenheit)), colors = nocturneSliderColors())
                     }
                     Text(stringResource(R.string.slider_fan))
                     Slider(draft.fanPercent.coerceIn(5, 100).toFloat(), { draft = draft.copy(fanPercent = (it / 5).roundToInt() * 5) },
                         valueRange = 5f..100f, steps = 18,
-                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(draft.fanPercent)))
+                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(draft.fanPercent)), colors = nocturneSliderColors())
                     val maximum = QuickDefaults.maximumMinutes(draft).coerceAtLeast(1)
                     Text(stringResource(R.string.slider_minutes))
                     if (maximum > 1) Slider(draft.minutes.coerceIn(1, maximum).toFloat(), { draft = draft.copy(minutes = it.roundToInt()) },
                         valueRange = 1f..maximum.toFloat(), steps = maximum - 2,
-                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(draft.minutes)))
+                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(draft.minutes)), colors = nocturneSliderColors())
                 }
             },
             confirmButton = { TextButton(onClick = {

@@ -42,7 +42,7 @@ class P6SheetPaletteTest {
                 else AlertDialog(onDismissRequest = {}, confirmButton = {}, text = { Text("Palette surface") })
             }
         } }
-        for (choice in listOf(Palette.MIDNIGHT_INK, Palette.OVERCAST)) {
+        for (choice in Palette.entries) {
             ui.compose.runOnIdle { palette.value = choice }
             ui.compose.waitForIdle()
             val layouts = mutableListOf<TextLayoutResult>()

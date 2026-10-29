@@ -196,7 +196,7 @@ class RuntimeDeliveryTest {
         val notification = shadowOf(context.getSystemService(NotificationManager::class.java)).getNotification(7)
         assertNotNull(notification)
         val action = notification.actions.single().actionIntent
-        assertTrue(shadowOf(action).isActivityIntent)
+        assertTrue(shadowOf(action).isActivity)
         action.send()
         val intent = shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity
         val activity = Robolectric.buildActivity(ShortcutActivity::class.java, intent).setup().get()
@@ -233,7 +233,7 @@ class RuntimeDeliveryTest {
         assertNotEquals(first!!.id, newest.id)
         assertEquals(graph.repository.activeNight.value!!.recordId, newest.nightId)
         assertEquals(before, graph.controller().programSteps(2))
-        assertTrue(shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms.any { it.alarmClockInfo == null && it.triggerAtTime <= graph.clock.millis() + 600000 })
+        assertTrue(shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms.any { it.alarmClockInfo == null && it.triggerAtMs <= graph.clock.millis() + 600000 })
         graph.actions.retryPendingRetime()
         assertFalse(graph.actions.retimePending)
         assertEquals(graph.now().plusHours(6).toInstant(), ZonedDateTime.parse(graph.repository.activeNight.value!!.wakeAt).toInstant())
@@ -283,7 +283,7 @@ class RuntimeDeliveryTest {
         graph.repository.updateSettings { it.copy(demoMode = false) }
         val delivery = io.github.willzy12h.nocturne.service.ServiceStartContext(context)
         shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
-        shadowOf(context.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(context.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         assertTrue(BedJetService.start(delivery, NightActions.Command.OFF))
         shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
         val service = Robolectric.buildService(BedJetService::class.java).create().get()

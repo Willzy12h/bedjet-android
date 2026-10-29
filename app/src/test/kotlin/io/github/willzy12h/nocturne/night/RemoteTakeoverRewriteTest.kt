@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
@@ -82,7 +83,7 @@ class RemoteTakeoverRewriteTest {
         return at
     }
     private fun retryScheduled() = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms
-        .any { shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY }
+        .any { shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY }
     private fun takeover() = context.getString(R.string.runtime_takeover)
     private fun assertTakenOver(n: ActiveNight, slotBefore: StoredProgram?, sentBefore: Int) {
         assertEquals("no slot write or start command", sentBefore, sent.size)

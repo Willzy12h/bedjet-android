@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.os.Looper
 import io.github.willzy12h.nocturne.App
@@ -96,7 +97,7 @@ class RuntimeFixRoundTest {
     }
     private fun starts() = sent.count { it[0] == 0x01.toByte() && it[1].toInt() and 0xff in 0x80..0x82 }
     private fun retryScheduled() = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.any {
-        shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+        shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY
     }
     private fun wakeText(night: ActiveNight) = app.getString(R.string.feature_wake,
         ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("EEE HH:mm")))
@@ -485,16 +486,16 @@ class RuntimeFixRoundTest {
                 assertEquals("Spent cleanup grace must leave local deliveries for their own retry", listOf(deferredDelivery),
                     graph.repository.runtime.value.localDeliveries)
                 assertTrue("The deferred local delivery must retain its retry", shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.any {
-                    shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_LOCAL_RETRY
+                    shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_LOCAL_RETRY
                 })
             }
             val confirmed = published!!
             val alarms = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms
             listOf(NightAlarms.ACTION_WAKE_UP to confirmed.wakeUpStart, NightAlarms.ACTION_NIGHT_END to confirmed.endsAt).forEach { (action, at) ->
-                val scheduled = alarms.singleOrNull { shadowOf(it.operation).savedIntent.action == action }
+                val scheduled = alarms.singleOrNull { shadowOf(it.operationIntent).savedIntent.action == action }
                 assertNotNull("The confirmed $command must schedule $action even after owner cancellation", scheduled)
-                assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(scheduled!!.operation).savedIntent))
-                assertEquals(ZonedDateTime.parse(at).toInstant().toEpochMilli(), scheduled.triggerAtTime)
+                assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(scheduled!!.operationIntent).savedIntent))
+                assertEquals(ZonedDateTime.parse(at).toInstant().toEpochMilli(), scheduled.triggerAtMs)
             }
             assertNull("The superseded retime journal must be cleared", graph.repository.runtime.value.retime)
             assertNull("The confirmed slot write settles the earlier uncertain write", graph.repository.runtime.value.slotWrite)

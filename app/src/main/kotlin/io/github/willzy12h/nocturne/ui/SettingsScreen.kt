@@ -160,7 +160,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
 
     var alarmDetails by rememberSaveable { mutableStateOf(false) }
     val settingsScroll = rememberScrollState()
-    var settingsViewportHeight by remember { mutableStateOf(0) }
+    var settingsViewportHeight by remember { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize().onSizeChanged { settingsViewportHeight = it.height }.verticalScroll(settingsScroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (page == "home") {
             Text(stringResource(R.string.settings_title), color = paletteTokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -196,7 +196,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                     if (minute != settings.scheduledLightMinute) chooseAppearance(settings.copy(scheduledLightMinute = minute))
                 }
                 DayNightBar(settings.scheduledDarkMinute, settings.scheduledLightMinute)
-                Text(stringResource(R.string.settings_scheduled_help), color = paletteTokens.ink3, fontSize = 12.5.sp)
+                Text(stringResource(R.string.settings_scheduled_help), color = paletteTokens.ink2, fontSize = 12.5.sp)
             }
             PalettePicker(stringResource(R.string.settings_night_palette), settings.nightPalette, "night") { palette ->
                 if (settings.isDarkTheme(model.now(), systemDark)) chooseAppearance(settings.copy(nightPalette = palette))
@@ -292,7 +292,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             PresetEditor(stringResource(R.string.settings_preset_extend_cool), settings.extendCool, f, quickCommand = Command.COOL) { p -> model.updateSettings { it.copy(extendCool = p) } }
             Text(io.github.willzy12h.nocturne.night.boostDescription(context, settings.boostMinutes))
             Slider(settings.boostMinutes.toFloat(), { v -> model.updateSettings { it.copy(boostMinutes = v.roundToInt()) } }, valueRange = 10f..30f, steps = 3,
-                modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)))
+                modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)), colors = nocturneSliderColors())
         }
 
         if (page == "night") Group(stringResource(R.string.settings_alarms), Modifier.bringIntoViewRequester(alarms)) {
@@ -333,10 +333,10 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             if (alarmDetails) {
                 if (next != null) Text(stringResource(R.string.uat_alarm_raw_creator,
                     next.creator ?: stringResource(R.string.uat_alarm_null_creator)),
-                    color = paletteTokens.ink3, fontSize = 12.5.sp, modifier = Modifier.testTag("alarm-raw-creator"))
-                Text(stringResource(R.string.settings_used_from, settings.alarmPackages.joinToString()), color = paletteTokens.ink3, fontSize = 12.5.sp)
-                Text(stringResource(R.string.alarm_next_only), color = paletteTokens.ink3, fontSize = 12.5.sp)
-                Text(stringResource(R.string.alarm_normal_window), color = paletteTokens.ink3, fontSize = 12.5.sp)
+                    color = paletteTokens.ink2, fontSize = 12.5.sp, modifier = Modifier.testTag("alarm-raw-creator"))
+                Text(stringResource(R.string.settings_used_from, settings.alarmPackages.joinToString()), color = paletteTokens.ink2, fontSize = 12.5.sp)
+                Text(stringResource(R.string.alarm_next_only), color = paletteTokens.ink2, fontSize = 12.5.sp)
+                Text(stringResource(R.string.alarm_normal_window), color = paletteTokens.ink2, fontSize = 12.5.sp)
             }
         }
 
@@ -360,7 +360,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             Text(stringResource(R.string.settings_snapshots_help), style = MaterialTheme.typography.bodySmall)
             if (settings.demoMode) Text(stringResource(R.string.import_demo_unavailable), style = MaterialTheme.typography.bodySmall)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(snapshotLabel, { snapshotLabel = it.take(40) }, label = { Text(stringResource(R.string.settings_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(snapshotLabel, { snapshotLabel = it.take(40) }, label = { Text(stringResource(R.string.settings_label)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = nocturneTextFieldColors())
                 FilledTonalButton(enabled = !settings.demoMode && !importApplying, onClick = { model.snapshotNow(snapshotLabel); snapshotLabel = "" }) { Text(stringResource(R.string.settings_snapshot_now)) }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -473,16 +473,22 @@ private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
     val settings by model.settings.collectAsState()
     val name by model.selectedBedJetName.collectAsState()
     val link by model.linkState.collectAsState()
+    val status by model.status.collectAsState()
+    val live by model.hasLiveStatus.collectAsState()
+    val bluetoothOff by model.bluetoothOff.collectAsState()
+    val released by model.graph.sessions.released.collectAsState()
     val notices by model.notices.collectAsState()
     var refresh by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
     val checks = remember(refresh) { checks(context) { } }
     val slot = settings.workingSlot + 1
-    val bedjetState = when {
-        settings.demoMode -> stringResource(R.string.parity_settings_demo)
-        link == LinkState.READY -> stringResource(R.string.parity_status_connected).replaceFirstChar { it.uppercase() }
-        else -> stringResource(R.string.parity_settings_not_connected)
-    }
+    val connection = headerConnection(settings.demoMode, settings.targetDevice != null, released,
+        bluetoothOff, link, live && status != null)
+    val bedjetState = stringResource(when (connection) {
+        HeaderConnection.DEMO -> R.string.parity_settings_demo
+        HeaderConnection.DISCONNECTED -> R.string.parity_settings_not_connected
+        else -> connection.text
+    })
     val autoStart = settings.platform.autoStart?.enabled ?: settings.platform.chargerAutoStart
     val palettes = when (settings.themeMode) {
         ThemeMode.DARK -> stringResource(paletteName(settings.nightPalette))
@@ -502,8 +508,8 @@ private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
             SettingsDestination("appearance", stringResource(R.string.settings_nav_appearance),
                 "${stringResource(themeName(settings.themeMode))} · $palettes", R.drawable.ic_nc_sun),
             SettingsDestination("permissions", stringResource(R.string.settings_nav_permissions),
-                if (allowed == checks.size) stringResource(R.string.parity_settings_all_allowed, checks.size)
-                else stringResource(R.string.parity_settings_some_allowed, allowed, checks.size),
+                if (allowed == checks.size) pluralStringResource(R.plurals.parity_settings_all_allowed, checks.size, checks.size)
+                else pluralStringResource(R.plurals.parity_settings_some_allowed, allowed, allowed, checks.size),
                 R.drawable.ic_nc_shield, if (allowed == checks.size) green else tokens.warn, ok = allowed == checks.size)),
         listOf(SettingsDestination("backups", stringResource(R.string.settings_nav_backups), stringResource(R.string.parity_settings_backups), R.drawable.ic_nc_box),
             SettingsDestination("notifications", stringResource(R.string.settings_nav_notifications),
@@ -530,7 +536,7 @@ private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
                         Text(destination.subtitle, color = tokens.ink2, fontSize = 14.sp)
                     }
                     if (destination.ok) Icon(painterResource(R.drawable.ic_nc_check), null, Modifier.size(18.dp), tint = green)
-                    Text(stringResource(R.string.settings_nav_chevron), color = tokens.ink3, fontSize = 16.sp)
+                    Text(stringResource(R.string.settings_nav_chevron), color = tokens.ink2, fontSize = 16.sp)
                 }
             }
         }
@@ -643,14 +649,14 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, quickC
             if (preset.mode.usesTemperature) {
                 val range = preset.mode.temperatureRange
                 Slider(preset.temperature.toFloat(), { onChange(preset.copy(temperature = it.roundToInt())) }, valueRange = range.first.toFloat()..range.last.toFloat(),
-                    modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_temp)), spokenTemp(preset.temperature, f)))
+                    modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_temp)), spokenTemp(preset.temperature, f)), colors = nocturneSliderColors())
             }
             Text(stringResource(R.string.slider_fan), style = MaterialTheme.typography.labelSmall)
             Slider(preset.fanPercent.toFloat(), { onChange(preset.copy(fanPercent = ((it / 5).roundToInt() * 5).coerceIn(5, 100))) }, valueRange = 5f..100f, steps = 18,
-                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_fan)), spokenPercent(preset.fanPercent)))
+                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_fan)), spokenPercent(preset.fanPercent)), colors = nocturneSliderColors())
             Text(stringResource(R.string.slider_minutes), style = MaterialTheme.typography.labelSmall)
             Slider(preset.minutes.toFloat(), { onChange(preset.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..120f, steps = 22,
-                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_minutes)), spokenMinutes(preset.minutes)))
+                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_minutes)), spokenMinutes(preset.minutes)), colors = nocturneSliderColors())
         }
     }
 }

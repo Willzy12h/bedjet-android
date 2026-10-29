@@ -7,6 +7,9 @@ import java.time.Duration
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -53,4 +56,26 @@ class QuickPendingStateTest {
         } finally { release.complete(Unit); holder.cancel() }
         ui.waitUntil { ui.graph.actions.busy.value.runningLabel == null && !ui.model.busy.value }
     }
+    @Test fun aCompletedSubmissionCannotClearBusyWhileAnotherSubmissionOwnsTheDevice() {
+        val enteredFirst = CompletableDeferred<Unit>()
+        val releaseFirst = CompletableDeferred<Unit>()
+        val enteredSecond = CompletableDeferred<Unit>()
+        val releaseSecond = CompletableDeferred<Unit>()
+        val firstFeedback = ui.graph.scope.async(start = CoroutineStart.UNDISPATCHED) { ui.model.messages.first() }
+        try {
+            ui.model.remote("First", confirms = { it.mode == Mode.HEAT }) {
+                enteredFirst.complete(Unit); releaseFirst.await(); it.setMode(Mode.HEAT)
+            }
+            ui.waitUntil { enteredFirst.isCompleted }
+            ui.model.remote("Second", confirms = { it.mode == Mode.COOL }) {
+                enteredSecond.complete(Unit); releaseSecond.await(); it.setMode(Mode.COOL)
+            }
+            ui.waitUntil { ui.graph.actions.busy.value.queuedCount > 0 }
+            releaseFirst.complete(Unit)
+            ui.waitUntil { firstFeedback.isCompleted && enteredSecond.isCompleted }
+            assertTrue("The second submitted operation still owns the device", ui.model.busy.value)
+        } finally { releaseFirst.complete(Unit); releaseSecond.complete(Unit); firstFeedback.cancel() }
+        ui.waitUntil { ui.graph.actions.busy.value.runningLabel == null && !ui.model.busy.value }
+    }
+
 }

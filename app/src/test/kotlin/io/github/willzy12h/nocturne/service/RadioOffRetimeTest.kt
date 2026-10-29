@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.service
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationManager
@@ -85,7 +86,7 @@ class RadioOffRetimeTest {
             alarmPackages = setOf("approved.clock"), acceptUnknownAlarmSource = false) }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.POST_NOTIFICATIONS)
-        shadowOf(adapter).setEnabled(false)
+        shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
         val profile = graph.repository.profiles.value.first { it.id == "preset-summer" }
         val start = graph.now()
         val wake = start.plusDays(1).withHour(7).withMinute(0)
@@ -128,7 +129,7 @@ class RadioOffRetimeTest {
         assertEquals("Metadata resolution must not write the BedJet", 0, writes)
     }
     private fun retryScheduled() = shadowOf(alarms).scheduledAlarms.any {
-        shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+        shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY
     }
     private fun radioReceivers() = shadowOf(app).registeredReceivers.count {
         it.intentFilter.hasAction(BluetoothAdapter.ACTION_STATE_CHANGED)

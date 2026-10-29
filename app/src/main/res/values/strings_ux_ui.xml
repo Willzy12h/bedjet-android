@@ -1,23 +1,9 @@
 <resources>
     <string name="ux_active">Active</string>
-    <string name="ux_reorder_sections">Reorder sections</string>
-    <string name="ux_done_reordering">Done reordering</string>
-    <string name="ux_reorder_hint">Drag a handle, or use Move up and Move down.</string>
-    <string name="ux_section_night">Night</string>
-    <string name="ux_section_wake">Wake and recovery</string>
-    <string name="ux_section_connection">Connection and setup</string>
-    <string name="ux_move_up">Move %1$s up</string>
-    <string name="ux_move_down">Move %1$s down</string>
-    <string name="ux_move_up_action">Move up</string>
-    <string name="ux_move_down_action">Move down</string>
-    <string name="ux_drag_section">Drag %1$s to reorder</string>
-    <string name="ux_collapsed">Collapsed</string>
-    <string name="ux_expanded">Expanded</string>
     <string name="ux_light_theme_warning">Switch to light theme? The screen will get much brighter.</string>
     <string name="ux_switch">Switch</string>
     <string name="ux_mode_max">max %1$s</string>
     <string name="ux_unknown_time">--:--</string>
-    <string name="ux_phase_timeframe">%1$s–%2$s</string>
     <string name="ux_curve_phase_target">%1$s · %2$s–%3$s · target %4$s</string>
     <string name="ux_curve_phase_without_target">%1$s · %2$s–%3$s</string>
     <string name="ux_curve_details">Show phase details</string>

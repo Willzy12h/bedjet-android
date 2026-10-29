@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.os.Looper
 import io.github.willzy12h.nocturne.App
@@ -41,7 +42,7 @@ class TrackedNightForegroundConnectionTest {
         val night = graph.repository.activeNight.value!!
         val alarms = shadowOf(app.getSystemService(AlarmManager::class.java))
         fun scheduled() = alarms.scheduledAlarms.map {
-            shadowOf(it.operation).savedIntent.action to it.triggerAtTime
+            shadowOf(it.operationIntent).savedIntent.action to it.triggerAtMs
         }.toSet()
         val before = scheduled()
         assertTrue(before.any { it.first == NightAlarms.ACTION_WAKE_UP })

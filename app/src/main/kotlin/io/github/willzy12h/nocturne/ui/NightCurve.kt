@@ -172,7 +172,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
             FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 plan.steps.map { it.step.mode }.distinct().forEach { mode ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Dot(colors.mode(mode), 10)
+                        Dot(colors.mode(mode), sizeDp = 10)
                         Text(modeName(mode), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
                     }
                 }
@@ -193,7 +193,7 @@ private fun level(mode: Mode, temperature: Int, fanPercent: Int): Float = when (
 }
 
 @Composable
-fun Dot(color: Color, sizeDp: Int = 12, modifier: Modifier = Modifier) {
+fun Dot(color: Color, modifier: Modifier = Modifier, sizeDp: Int = 12) {
     Box(modifier.size(sizeDp.dp).background(color, CircleShape))
 }
 

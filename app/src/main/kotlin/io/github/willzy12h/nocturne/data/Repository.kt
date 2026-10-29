@@ -806,20 +806,25 @@ class Repository(
 
     /** Build a read-only review. No snapshot or repository file is written until the person applies it. */
     suspend fun previewImport(bundle: BackupBundle,
-        label: String = context.getString(R.string.snapshot_label_before_import)): ImportPreview {
+        label: String = context.getString(R.string.snapshot_label_before_import), profilesOnly: Boolean = false): ImportPreview {
         val admission = operationAdmission.tryImport() ?: throw importBusy()
         try { return serially {
             requireImportIdle()
             val current = bundle()
             val errors = BackupValidator.validate(bundle)
             if (errors.isNotEmpty()) return@serially ImportPreview("", "", label, bundle.createdAt,
-                ImportArea.entries.map { ImportSection(it, emptyList()) }, emptySet(), emptyList(), errors.size)
+                ImportArea.entries.map { ImportSection(it, emptyList()) }, emptySet(), emptyList(), errors.size, profilesOnly)
             val encoded = BackupCodec.encode(bundle)
             val checked = BackupCodec.decode(encoded)
             val finalErrors = BackupValidator.validate(checked)
             if (finalErrors.isNotEmpty()) throw BackupException(finalErrors)
-            val projected = restoreProjection(checked, now())
-            val sections = importSections(current, checked, projected)
+            val projected = if (profilesOnly) profileImportProjection(checked) else restoreProjection(checked, now())
+            val projectedErrors = if (profilesOnly) BackupValidator.validate(projected) else emptyList()
+            if (projectedErrors.isNotEmpty()) return@serially ImportPreview("", "", label, checked.createdAt,
+                ImportArea.entries.map { ImportSection(it, emptyList()) }, emptySet(), emptyList(), projectedErrors.size, profilesOnly)
+            val sections = importSections(current, if (profilesOnly) projected else checked, projected)
+            if (profilesOnly) return@serially ImportPreview(encoded, importFingerprint(projected), label, checked.createdAt,
+                sections, emptySet(), emptyList(), 0, profilesOnly = true)
             val originals = checked.slotBackups + projected.slotBackups
             val devices = (listOfNotNull(checked.settings.targetDevice, checked.settings.setupFanCheckedDevice,
                 checked.settings.platform.chargerDevice, checked.settings.platform.autoStart?.deviceId) +
@@ -844,6 +849,14 @@ class Repository(
             }
             ImportPreview(encoded, importFingerprint(projected), label, checked.createdAt, sections, warnings, devices, 0)
         } } finally { admission.close() }
+    }
+
+    /** Profiles import merges by ID; every other part of the local bundle remains byte-for-byte owned locally. */
+    private fun profileImportProjection(incoming: BackupBundle): BackupBundle {
+        val replacements = incoming.profiles.associateBy { it.id }
+        val current = _profiles.value
+        val currentIds = current.map { it.id }.toSet()
+        return bundle().copy(profiles = current.map { replacements[it.id] ?: it } + incoming.profiles.filter { it.id !in currentIds })
     }
 
     suspend fun previewSnapshot(id: String): ImportPreview? {
@@ -877,10 +890,17 @@ class Repository(
             val checked = BackupCodec.decode(preview.encodedInput)
             val errors = BackupValidator.validate(checked)
             if (errors.isNotEmpty()) throw BackupException(errors)
-            val projected = restoreProjection(checked, now())
+            val projected = if (preview.profilesOnly) profileImportProjection(checked) else restoreProjection(checked, now())
+            val projectedErrors = if (preview.profilesOnly) BackupValidator.validate(projected) else emptyList()
+            if (projectedErrors.isNotEmpty()) throw BackupException(projectedErrors)
             if (importFingerprint(projected) != preview.expectedState)
                 throw BackupException(context.getString(R.string.import_preview_changed), failure = BackupFailure.CHANGED)
-            restoreLocked(checked, preview.snapshotLabel, projected)
+            if (preview.profilesOnly) {
+                snapshots.save(bundle(), preview.snapshotLabel, manual = true)
+                _snapshotList.value = snapshots.list()
+                writeAllOrNone(listOf(Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value),
+                    encode(ListSerializer(Profile.serializer()), projected.profiles)) { _profiles.value = projected.profiles }))
+            } else restoreLocked(checked, preview.snapshotLabel, projected)
         } } finally { admission.close() }
     }
 
@@ -891,12 +911,18 @@ class Repository(
         return true
     }
 
-    /** One profile on its own, for sharing: no settings, devices, originals or history leave the phone. */
-    suspend fun exportProfileTo(uri: Uri, profileId: String) {
+    /** Capture the exact selected profile, with default settings only, in the existing backup format. */
+    internal fun profileShareRequest(profile: Profile): ProfileShareRequest = ProfileShareRequest(
+        BackupCodec.encode(BackupBundle(createdAt = now().toString(), profiles = listOf(profile), settings = Settings())),
+        sessionRevision.value)
+
+    /** A provider result cannot read a new profile or cross a real/demo session boundary. */
+    internal suspend fun exportProfileTo(uri: Uri, request: ProfileShareRequest) {
         val bytes = serially {
-            val profile = _profiles.value.first { it.id == profileId }
-            BackupCodec.encode(BackupBundle(createdAt = now().toString(), profiles = listOf(profile),
-                settings = Settings())).toByteArray(Charsets.UTF_8)
+            requireRealSession()
+            if (request.sessionRevision != sessionRevision.value)
+                throw IOException(context.getString(R.string.parity_profile_share_changed))
+            request.encodedProfile.toByteArray(Charsets.UTF_8)
         }
         withContext(Dispatchers.IO) {
             openOutput(uri)?.use { it.write(bytes) } ?: throw IOException(context.getString(R.string.runtime_export_open_failed))

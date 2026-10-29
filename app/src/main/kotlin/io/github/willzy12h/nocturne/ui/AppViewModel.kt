@@ -200,6 +200,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    private var pendingCommands = 0
     private val _busy = MutableStateFlow(false)
     /** True while a request from this screen waits for a save or for the command owner. */
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
@@ -399,19 +400,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         try { action() } finally { confirmedNight = null }
     }
 
-    fun run(command: NightActions.Command, profileId: String? = null, replacementConfirmed: Boolean = false) {
+    fun run(command: NightActions.Command, profileId: String? = null, replacementConfirmed: Boolean = false, onFinished: () -> Unit = {}) {
         val request = graph.actions.capture(command, profileId, requireIdentity = replacementConfirmed || confirmedNight != null)
             .let { it.copy(expected = confirmedNight ?: it.expected, replacementConfirmed = replacementConfirmed || confirmedNight != null,
                 origin = CommandOrigin.APP) }
         act(hardware = command != NightActions.Command.STOP_TRACKING,
-            deferBluetoothCheck = command == NightActions.Command.RETIME || command == NightActions.Command.RETRY_RETIME) {
+            deferBluetoothCheck = command == NightActions.Command.RETIME || command == NightActions.Command.RETRY_RETIME, onFinished = onFinished) {
             graph.actions.execute(request)
         }
     }
 
     /** The reviewed target, night and one-action preset remain captured across the dialogue. */
-    internal fun runCaptured(request: io.github.willzy12h.nocturne.night.CommandRequest) {
-        act(hardware = request.command != NightActions.Command.STOP_TRACKING) {
+    internal fun runCaptured(request: io.github.willzy12h.nocturne.night.CommandRequest, onFinished: () -> Unit = {}) {
+        act(hardware = request.command != NightActions.Command.STOP_TRACKING, onFinished = onFinished) {
             graph.actions.execute(request.copy(origin = CommandOrigin.APP))
         }
     }
@@ -473,19 +474,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** A message from resources, for outcomes and snackbars. */
     private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
 
-    private fun act(hardware: Boolean = true, deferBluetoothCheck: Boolean = false, work: suspend () -> CommandOutcome) {
+    private fun act(hardware: Boolean = true, deferBluetoothCheck: Boolean = false, onFinished: () -> Unit = {}, work: suspend () -> CommandOutcome) {
         // A tap is pending before its coroutine can wait for earlier saves or reach the service/owner.
         val admission = repo.operationAdmission.tryCommand() ?: run {
             report(refusal(text(R.string.import_command_blocked)))
+            onFinished()
             return
         }
         val pending = lastSave
+        pendingCommands++
+        _busy.value = true
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
         val feedback = if (hardware) tapHaptics.capture() else null
         viewModelScope.launch {
             var radio: BluetoothAdmission? = null
             try {
-                _busy.value = true
                 val outcome = try {
                     // The UI submission includes its save wait. Observe radio interruptions from here,
                     // retain the same marker through service/owner admission, and bound its whole lifetime.
@@ -505,11 +508,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (_: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
                 } catch (e: CancellationException) { throw e
                 } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.planMessage(getApplication()) ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
-                finally { _busy.value = false }
                 feedback?.complete(outcome)
                 report(outcome)
             } finally { radio?.close(); feedback?.close(); admission.close() }
-        }.invokeOnCompletion { admission.close() }
+        }.invokeOnCompletion {
+            admission.close()
+            pendingCommands--
+            _busy.value = pendingCommands > 0
+            onFinished()
+        }
     }
 
     // Profiles, settings, backups
@@ -615,7 +622,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 repo.applyImport(preview)
                 _importPreview.value = null
-                _messages.tryEmit(text(R.string.runtime_backup_restored))
+                _messages.tryEmit(text(if (preview.profilesOnly) R.string.parity_profiles_imported else R.string.runtime_backup_restored))
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 if (e is BackupException && e.failure == BackupFailure.CHANGED) _importPreview.value = null
@@ -641,15 +648,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         graph.scope.launch {
             runCatching { repo.exportTo(uri) }
                 .onSuccess { _messages.tryEmit(text(R.string.runtime_backup_saved)) }
-                .onFailure { _messages.tryEmit(text(R.string.runtime_backup_save_failed, it.message.toString())) }
+                .onFailure { if (it is CancellationException) throw it
+                    _messages.tryEmit(text(R.string.runtime_backup_save_failed, it.message.toString())) }
         }
     }
 
-    fun shareProfile(uri: android.net.Uri, profileId: String) {
+    internal fun profileShareRequest(profile: Profile) = repo.profileShareRequest(profile)
+
+    internal fun shareProfile(uri: android.net.Uri, request: io.github.willzy12h.nocturne.data.ProfileShareRequest) {
         graph.scope.launch {
-            runCatching { repo.exportProfileTo(uri, profileId) }
+            runCatching { repo.exportProfileTo(uri, request) }
                 .onSuccess { _messages.tryEmit(text(R.string.parity_profile_shared)) }
-                .onFailure { _messages.tryEmit(text(R.string.runtime_backup_save_failed, it.message.toString())) }
+                .onFailure { if (it is CancellationException) throw it
+                    _messages.tryEmit(text(R.string.runtime_backup_save_failed, it.message.toString())) }
         }
     }
 
@@ -666,6 +677,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun import(uri: android.net.Uri) = stageImport { repo.previewImport(repo.importFrom(uri)) }
+    fun importProfiles(uri: android.net.Uri) = stageImport { repo.previewImport(repo.importFrom(uri), profilesOnly = true) }
 
     /** The latest save, which later saves and commands wait for. Only touched on the main thread. */
     private var lastSave: Job? = null

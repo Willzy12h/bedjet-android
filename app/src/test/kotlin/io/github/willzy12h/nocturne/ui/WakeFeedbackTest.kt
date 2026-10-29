@@ -113,8 +113,8 @@ class WakeFeedbackTest {
         } }
         waitFor(s(R.string.wake_requested, Format.clock(requested)))
         compose.onNodeWithTag("tonight-fixed-wake")
-            .assertTextContains(s(R.string.gpt12_wake_profile_fallback), substring = true)
-            .assertTextContains(Format.clock(night.wakeAt), substring = true)
+            .assert(hasAnyDescendant(hasText(s(R.string.gpt12_wake_profile_fallback), substring = true)))
+            .assert(hasAnyDescendant(hasText(Format.clock(night.wakeAt), substring = true)))
     }
 
     @Test fun anEditSavedForTheNextNightSaysSoOnTonight() {

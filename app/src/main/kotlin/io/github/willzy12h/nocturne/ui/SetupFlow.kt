@@ -74,7 +74,7 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false, showDemoChoice: 
                         ?: model.graph.bleLink.deviceNameFor(target)
                         ?: stringResource(R.string.setup_unit_fallback)
                     val chosen = settings.targetDevice == target
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tokens.tint(tokens.cool))
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                         .sideStripe(tokens.cool, tokens).clickable(role = Role.Button, onClickLabel = stringResource(R.string.setup_choose_unit, name, address)) {
                             model.selectBedJet(address)
                         }.padding(start = 16.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),

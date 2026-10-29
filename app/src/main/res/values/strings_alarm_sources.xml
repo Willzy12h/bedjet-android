@@ -2,7 +2,6 @@
 <resources>
     <string name="alarm_source_samsung_clock">Samsung Clock</string>
     <string name="alarm_source_google_clock">Google Clock</string>
-    <string name="alarm_source_unknown_app">Unknown app</string>
     <string name="alarm_source_used">Next alarm %1$s · %2$s — used</string>
     <string name="alarm_source_ignored">Alarm %1$s ignored: %2$s — tap to change</string>
     <string name="alarm_source_no_alarm">No alarm set — profile wake %1$s</string>

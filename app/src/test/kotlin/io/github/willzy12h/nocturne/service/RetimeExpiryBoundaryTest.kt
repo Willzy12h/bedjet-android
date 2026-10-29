@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.service
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -146,7 +147,7 @@ class RetimeExpiryBoundaryTest {
         assertEquals(1, graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM })
         assertFalse(graph.actions.retimePending)
         assertFalse(shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.any {
-            shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+            shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY
         })
     }
 

@@ -25,7 +25,10 @@
     <string name="uat_quick_minutes">%1$s %2$dm</string>
     <string name="uat_quick_edit">Edit %1$s</string>
     <string name="uat_quick_invalid">These saved values exceed the current safety limits. They have been kept; review and save safe values before using this action.</string>
-    <string name="uat_quick_summary">%1$s · Fan %2$d%% · %3$d minutes</string>
+    <plurals name="uat_quick_summary">
+        <item quantity="one">%1$s · Fan %2$d%% · %3$d minute</item>
+        <item quantity="other">%1$s · Fan %2$d%% · %3$d minutes</item>
+    </plurals>
     <string name="uat_quick_save">Save</string>
     <string name="uat_quick_cancel">Cancel</string>
     <string name="uat_quick_off_help">Off has no temperature, fan or duration. It always asks for confirmation during a tracked night.</string>

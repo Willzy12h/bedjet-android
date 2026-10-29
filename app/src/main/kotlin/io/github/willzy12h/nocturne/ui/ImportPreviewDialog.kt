@@ -48,13 +48,13 @@ fun ImportPreviewDialog(preview: ImportPreview, applying: Boolean, onApply: () -
     var deviceCount by remember(preview) { mutableIntStateOf(20) }
     AlertDialog(
         onDismissRequest = { if (!applying) onCancel() },
-        title = { Text(stringResource(R.string.import_review_title)) },
+        title = { Text(stringResource(if (preview.profilesOnly) R.string.parity_profile_import_title else R.string.import_review_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (!preview.canApply) {
                     Text(stringResource(R.string.import_incompatible), color = MaterialTheme.colorScheme.onSurface)
                 } else {
-                    Text(stringResource(R.string.import_review_help))
+                    Text(stringResource(if (preview.profilesOnly) R.string.parity_profile_import_help else R.string.import_review_help))
                     Text(stringResource(R.string.import_created_at, readableImportTime(preview.createdAt)), style = MaterialTheme.typography.bodySmall)
                     preview.warnings.forEach { warning -> Text(stringResource(importWarning(warning))) }
                     if (preview.deviceAssociations.isNotEmpty()) {

@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationManager
@@ -93,7 +94,7 @@ class ReceiverTimeoutMessageTest {
             assertEquals(night.identity, graph.repository.activeNight.value?.identity)
             assertTrue("The prearmed local retry remains available after storage timeout",
                 shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.any {
-                    shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_LOCAL_RETRY
+                    shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_LOCAL_RETRY
                 })
         } finally { timeoutNextRuntimeWrite = false; app.unregisterReceiver(receiver) }
     }

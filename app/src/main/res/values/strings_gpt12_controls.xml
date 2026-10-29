@@ -1,13 +1,10 @@
 <resources>
     <string name="status_connected">Connected</string>
-    <string name="status_connecting">Connecting</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="status_bluetooth_off">Bluetooth off</string>
     <string name="status_demo">Demo</string>
     <string name="status_demo_device">Demo</string>
     <string name="status_no_device">No BedJet selected</string>
-    <string name="status_temperature_unavailable">Temperature unavailable</string>
-    <string name="status_last_temperature">Last reported %1$s</string>
     <string name="remote_fan_minimum">The lowest running fan speed is 5%.</string>
     <string name="remote_percent_tick">%1$d%%</string>
     <string name="remote_custom">Custom…</string>

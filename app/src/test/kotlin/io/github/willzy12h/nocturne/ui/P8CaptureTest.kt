@@ -21,8 +21,11 @@ import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.coroutines.runBlocking
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.*
@@ -80,9 +83,9 @@ class P8CaptureTest {
                 HistoryEvent(wake.toString(), EventKind.ERROR, "Outcome unknown"),
                 HistoryEvent(now.toString(), EventKind.ENDED, "Ended")))
         ui.graph.repository.addRecord(record)
-        for (palette in listOf(Palette.MIDNIGHT_INK, Palette.OVERCAST)) {
+        for (palette in Palette.entries) {
             ui.graph.repository.updateSettings { it.copy(themeMode = if (palette.dark) ThemeMode.DARK else ThemeMode.LIGHT,
-                nightPalette = Palette.MIDNIGHT_INK, dayPalette = Palette.OVERCAST) }
+                nightPalette = if (palette.dark) palette else Palette.MIDNIGHT_INK, dayPalette = Palette.OVERCAST) }
             ui.compose.runOnUiThread { ui.compose.activity.setContent {
                 NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette) {
                     Surface(Modifier.fillMaxSize(), color = palette.tokens.ground) { HistoryScreen(ui.model, Modifier) }
@@ -117,10 +120,38 @@ class P8CaptureTest {
     }
 
     @Test fun settingsIndexAndEverySubpageInBothPalettes() {
-        for (palette in listOf(Palette.MIDNIGHT_INK, Palette.OVERCAST)) {
+        // These first captures use the complete Activity, including navigation and real light-theme consent.
+        for (palette in Palette.entries) {
+            ui.compose.runOnUiThread { runBlocking {
+                ui.graph.repository.updateSettings { it.copy(themeMode = if (palette.dark) ThemeMode.DARK else ThemeMode.LIGHT,
+                    nightPalette = if (palette.dark) palette else Palette.MIDNIGHT_INK, dayPalette = Palette.OVERCAST) }
+            } }
+            ui.compose.waitForIdle()
+            if (!palette.dark) {
+                val switch = ui.s(io.github.willzy12h.nocturne.R.string.theme_switch_now)
+                if (ui.compose.onAllNodesWithText(switch).fetchSemanticsNodes().isNotEmpty()) {
+                    capture("p8-${palette.name.lowercase()}-light-consent")
+                    ui.compose.onNodeWithText(switch).performClick()
+                }
+                ui.compose.onNodeWithText(switch).assertDoesNotExist()
+            }
+            ui.tab("Tonight")
+            ui.compose.onNodeWithTag("status-header").performScrollTo()
+            capture("p8-${palette.name.lowercase()}-tonight")
+            ui.compose.onNodeWithTag("quick-controls").performScrollTo()
+            capture("p8-${palette.name.lowercase()}-quick-controls")
+            captureTonightSurfaces(ui) { capture("p8-${palette.name.lowercase()}-$it") }
+            ui.compose.onNodeWithTag("open-remote").performScrollTo().performClick()
+            capture("p8-${palette.name.lowercase()}-remote")
+            ui.compose.onNodeWithTag("remote-back").performClick()
+            ui.tab("Profiles")
+            capture("p8-${palette.name.lowercase()}-profiles")
+            captureProfileSurfaces(ui) { capture("p8-${palette.name.lowercase()}-$it") }
+        }
+        for (palette in Palette.entries) {
             ui.compose.runOnUiThread { ui.compose.activity.setContent {
                 NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette) {
-                    Surface(Modifier.fillMaxSize(), color = palette.tokens.ground) { SettingsScreen(ui.model, Modifier) }
+                    Surface(Modifier.fillMaxSize(), color = palette.tokens.ground) { key(palette) { SettingsScreen(ui.model, Modifier) } }
                 }
             } }
             ui.compose.onNodeWithTag("settings-page-bedjet").assertExists()
@@ -136,28 +167,26 @@ class P8CaptureTest {
 
     @Test fun editorAndSetupInBothPalettes() {
         val profile = ui.graph.repository.profiles.value.first()
-        for (palette in listOf(Palette.MIDNIGHT_INK, Palette.OVERCAST)) {
+        for (palette in Palette.entries) {
             ui.compose.runOnUiThread { ui.compose.activity.setContent {
                 NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette) {
-                    Surface(Modifier.fillMaxSize(), color = palette.tokens.ground) { ProfileEditor(ui.model, profile, onDone = {}) }
+                    Surface(Modifier.fillMaxSize(), color = palette.tokens.ground) { key(palette) { ProfileEditor(ui.model, profile, onDone = {}) } }
                 }
             } }
             ui.compose.onNodeWithTag("editor-back").assertExists()
-            capture("p8-${palette.name.lowercase()}-editor")
-            ui.compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
-            ui.compose.onNodeWithTag("editor-middle-sheet").assertIsDisplayed()
-            capture("p8-${palette.name.lowercase()}-middle")
-            ui.compose.onNodeWithText("Done").performClick()
-            ui.compose.onNodeWithTag("editor-phase-START-0").performScrollTo().performClick()
-            ui.compose.onNodeWithTag("editor-phase-controls-START-0").assertIsDisplayed()
-            capture("p8-${palette.name.lowercase()}-step")
+            captureEditorSurfaces(ui) { capture("p8-${palette.name.lowercase()}-$it") }
+            runBlocking { ui.graph.repository.updateSettings {
+                it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF")
+            } }
             ui.compose.runOnUiThread { ui.compose.activity.setContent {
                 NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette) {
-                    Surface(Modifier.fillMaxSize(), color = palette.tokens.ground) { SetupFlow(ui.model) }
+                    Surface(Modifier.fillMaxSize(), color = palette.tokens.ground) { androidx.compose.foundation.layout.Column(Modifier.verticalScroll(rememberScrollState())) { SetupFlow(ui.model) } }
                 }
             } }
             ui.compose.onNodeWithText("Choose your BedJet", substring = true).assertExists()
             capture("p8-${palette.name.lowercase()}-setup")
+            ui.compose.onNode(hasText("AA:BB:CC:DD:EE:FF") and hasClickAction()).performScrollTo().assertIsDisplayed()
+            capture("p8-${palette.name.lowercase()}-setup-remembered")
         }
     }
 }

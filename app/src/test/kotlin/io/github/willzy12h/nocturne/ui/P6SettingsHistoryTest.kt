@@ -11,6 +11,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import io.github.willzy12h.nocturne.core.store.Palette
 import androidx.compose.ui.test.*
@@ -61,7 +62,7 @@ class P6SettingsHistoryTest {
         assertEquals(base.getString(R.string.settings_source_unavailable), ShadowToast.getTextOfLatestToast())
     }
 
-    @Test fun historyIssueChipUsesWarnInBothPalettes() {
+    @Test fun historyIssueChipUsesLegibleWarningInkInBothPalettes() {
         val record = NightRecord("p6-warning", "p", "Problem night", "2026-10-22T22:30Z", "2026-10-23T07:00Z", false,
             events = listOf(HistoryEvent("2026-10-23T01:00Z", EventKind.ERROR, "Outcome unknown")))
         ui.compose.runOnUiThread { runBlocking { ui.graph.repository.addRecord(record) } }
@@ -80,12 +81,14 @@ class P6SettingsHistoryTest {
             val view = ui.compose.activity.window.decorView
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             ui.compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+            val tokens = choice.tokens
+            val ink = tokens.readableText(tokens.warn, tokens.surface2.compositeOver(tokens.surface.compositeOver(tokens.ground)))
             var matches = 0
             for (y in bounds.top.toInt().coerceAtLeast(0) until bounds.bottom.toInt().coerceAtMost(bitmap.height))
                 for (x in bounds.left.toInt().coerceAtLeast(0) until bounds.right.toInt().coerceAtMost(bitmap.width))
-                    if (bitmap.getPixel(x, y) == choice.tokens.warn.toArgb()) matches++
+                    if (bitmap.getPixel(x, y) == ink.toArgb()) matches++
             bitmap.recycle()
-            assertTrue("$choice issue chip should draw the warning token", matches > 0)
+            assertTrue("$choice issue chip should draw legible warning ink", matches > 0)
         }
     }
 

@@ -52,7 +52,7 @@ class RecoveryNotificationActionsTest {
     private fun action(id: Int, label: String): Intent {
         val notification = shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(id)!!
         val action = notification.actions.single { it.title.toString() == label }
-        assertTrue("$label must ask before changing a tracked night", shadowOf(action.actionIntent).isActivityIntent)
+        assertTrue("$label must ask before changing a tracked night", shadowOf(action.actionIntent).isActivity)
         return shadowOf(action.actionIntent).savedIntent
     }
 

@@ -1,11 +1,13 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -20,6 +22,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +42,14 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -92,7 +105,7 @@ internal fun phaseIcon(mode: Mode): Int = when (mode) {
 
 /**
  * One step: grip, icon, "Heat 36°" over "Fan 40%", and its length. Dragging the grip after a long press moves
- * it ([onMove] gets -1 or +1 each time it passes a neighbour); screen readers get Move up and Move down instead.
+ * it on release ([onMove] receives the number of crossed rows). Screen readers can move one row at a time.
  */
 @Composable
 internal fun StepCard(phase: Phase, title: String, subtitle: String, length: String, modifier: Modifier,
@@ -103,16 +116,18 @@ internal fun StepCard(phase: Phase, title: String, subtitle: String, length: Str
     val shape = RoundedCornerShape(16.dp)
     var drag by remember { mutableFloatStateOf(0f) }
     var lifted by remember { mutableStateOf(false) }
-    val threshold = with(LocalDensity.current) { 72.dp.toPx() }
+    val gap = with(LocalDensity.current) { 8.dp.toPx() }
+    var threshold by remember { mutableFloatStateOf(72f) }
+    val largeText = LocalConfiguration.current.fontScale >= 1.5f
     val move by rememberUpdatedState(onMove)
     val up by rememberUpdatedState(canMoveUp)
     val down by rememberUpdatedState(canMoveDown)
     val moveUp = stringResource(R.string.parity_move_up)
     val moveDown = stringResource(R.string.parity_move_down)
-    Row(modifier.fillMaxWidth()
+    Row(modifier.fillMaxWidth().onSizeChanged { threshold = it.height + gap }
         .graphicsLayer { if (lifted) { translationY = drag; rotationZ = -2f } }
         .then(if (lifted) Modifier.shadow(14.dp, shape) else Modifier)
-        .clip(shape).background(if (lifted) Color(0xFF262A45) else tokens.surface)
+        .clip(shape).background(if (lifted) { if (tokens.dark) Color(0xFF262A45) else tokens.surface2 } else tokens.surface)
         .sideStripe(stripe, tokens, width = 5.dp, level = TintLevel.STEP)
         .then(when {
             lifted -> Modifier.border(1.5.dp, stripe, shape)
@@ -127,25 +142,30 @@ internal fun StepCard(phase: Phase, title: String, subtitle: String, length: Str
         }
         .heightIn(min = 64.dp).padding(start = 14.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(painterResource(R.drawable.ic_nc_grip), null, Modifier.size(18.dp)
+        Box(Modifier.size(48.dp)
             .pointerInput(Unit) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { lifted = true; drag = 0f },
-                    onDragEnd = { lifted = false; drag = 0f },
+                    onDragEnd = {
+                        val rows = (drag / threshold).roundToInt()
+                        if ((rows > 0 && down) || (rows < 0 && up)) move(rows)
+                        lifted = false; drag = 0f
+                    },
                     onDragCancel = { lifted = false; drag = 0f },
                 ) { change, amount ->
                     change.consume()
                     drag += amount.y
-                    if (drag > threshold && down) { move(1); drag -= threshold }
-                    else if (drag < -threshold && up) { move(-1); drag += threshold }
                 }
-            }, tint = tokens.ink3)
-        IconBox(phaseIcon(phase.mode), stripe)
+            }, contentAlignment = Alignment.Center) {
+            Icon(painterResource(R.drawable.ic_nc_grip), null, Modifier.size(18.dp), tint = tokens.ink2)
+        }
+        if (!largeText) IconBox(phaseIcon(phase.mode), stripe)
         Column(Modifier.weight(1f)) {
             Text(title, color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Text(subtitle, color = tokens.ink2, fontSize = 14.sp)
+            if (largeText) Text(length, color = tokens.ink2, fontSize = 15.sp)
         }
-        Text(length, color = tokens.ink2, fontSize = 15.sp)
+        if (!largeText) Text(length, color = tokens.ink2, fontSize = 15.sp)
     }
 }
 
@@ -160,14 +180,17 @@ internal fun MiddleCard(middle: Middle, title: String, modifier: Modifier, onCli
         !middle.mode.usesTemperature || middle.rampSteps <= 1 || middle.tempStart == middle.tempEnd -> stringResource(R.string.parity_mid_stay)
         middle.rampSteps == 2 -> stringResource(if (down) R.string.parity_mid_once_down else R.string.parity_mid_once_up)
         middle.rampSteps == 3 -> stringResource(if (down) R.string.parity_mid_twice_down else R.string.parity_mid_twice_up)
-        else -> stringResource(R.string.parity_mid_gently, middle.rampSteps)
+        else -> pluralStringResource(R.plurals.parity_mid_gently, middle.rampSteps, middle.rampSteps)
     }
     val fan = if (!middle.mode.usesFan) null else stringResource(when (middle.fanShape) {
         FanShape.STEADY -> R.string.parity_fan_steady_sub
         FanShape.EASE -> R.string.parity_fan_ease_sub
         FanShape.QUIET_MIDDLE -> R.string.parity_fan_quiet_sub
     })
-    Row(modifier.fillMaxWidth().clip(shape).background(tokens.surface)
+    val fanDescription = middle.quietFan?.takeIf { middle.fanShape == FanShape.QUIET_MIDDLE }?.let {
+        stringResource(R.string.profiles_quiet_middle_short, modeName(middle.mode), it.settle, it.asleep, it.rise)
+    } ?: stringResource(R.string.profiles_middle_short, modeName(middle.mode), middle.fanStart, middle.fanEnd)
+    Row(modifier.fillMaxWidth().semantics { contentDescription = "$title. $fanDescription" }.clip(shape).background(tokens.surface)
         .sideStripe(stripe, tokens, width = 5.dp, level = TintLevel.STEP)
         .then(tokens.edge?.let { Modifier.border(1.dp, it, shape) } ?: Modifier)
         .clickable(role = Role.Button, onClick = onClick)
@@ -183,20 +206,24 @@ internal fun MiddleCard(middle: Middle, title: String, modifier: Modifier, onCli
 }
 
 /** The design's segmented control: a surface2 track with the selected option in a light pill. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun <T> Segmented(options: List<Pair<T, String>>, selected: T, modifier: Modifier = Modifier, tag: String = "segmented",
-    onSelect: (T) -> Unit) {
+    description: @Composable (T) -> String? = { null }, onSelect: (T) -> Unit) {
     val tokens = paletteTokens
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tokens.surface2).padding(4.dp)
-        .testTag(tag), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    val columns = if (LocalConfiguration.current.fontScale >= 1.5f) minOf(2, options.size) else options.size
+    FlowRow(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tokens.surface2).padding(4.dp)
+        .testTag(tag), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp),
+        maxItemsInEachRow = columns) {
         options.forEach { (value, label) ->
             val on = value == selected
-            Box(Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
+            val spoken = description(value)
+            Box(Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(10.dp))
                 .background(if (on) tokens.ink else Color.Transparent)
-                .clickable(role = Role.Tab) { onSelect(value) }.semantics { this.selected = on }
+                .clickable(role = Role.Tab) { onSelect(value) }.semantics { this.selected = on; spoken?.let { contentDescription = it } }
                 .testTag("$tag-$value"), contentAlignment = Alignment.Center) {
                 Text(label, color = if (on) tokens.ground else tokens.ink2, fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold, maxLines = 1, textAlign = TextAlign.Center)
+                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.padding(4.dp))
             }
         }
     }
@@ -206,10 +233,31 @@ internal fun <T> Segmented(options: List<Pair<T, String>>, selected: T, modifier
 @Composable
 internal fun RoundStep(text: String, description: String, size: Int, enabled: Boolean = true, tag: String, onClick: () -> Unit) {
     val tokens = paletteTokens
-    Box(Modifier.size(size.dp).clip(CircleShape).background(tokens.surface2).alpha(if (enabled) 1f else .4f)
-        .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+    Box(Modifier.size(maxOf(48, size).dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
         .semantics { contentDescription = description }.testTag(tag), contentAlignment = Alignment.Center) {
-        Text(text, color = tokens.ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Box(Modifier.size(size.dp).clip(CircleShape).background(tokens.surface2).alpha(if (enabled) 1f else .4f),
+            contentAlignment = Alignment.Center) {
+            Icon(if (text == "+") Icons.Default.Add else Icons.Default.Remove, null, Modifier.size(24.dp), tint = tokens.ink)
+        }
+    }
+}
+
+/** Keep a complete value between the controls when it fits, and above them at large text or narrow widths. */
+@Composable
+internal fun StepperLayout(modifier: Modifier = Modifier, controls: Boolean = true,
+    down: @Composable () -> Unit, up: @Composable () -> Unit, value: @Composable (Modifier) -> Unit) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        if (!controls) value(Modifier.fillMaxWidth())
+        else if (LocalConfiguration.current.fontScale >= 1.5f || maxWidth < 216.dp * LocalConfiguration.current.fontScale) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                value(Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) { down(); up() }
+            }
+        } else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            down(); value(Modifier.weight(1f)); up()
+        }
     }
 }
 
@@ -217,7 +265,7 @@ internal fun RoundStep(text: String, description: String, size: Int, enabled: Bo
 @Composable
 internal fun SmallChip(text: String, selected: Boolean, tag: String, onClick: () -> Unit) {
     val tokens = paletteTokens
-    Box(Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(50)).background(if (selected) tokens.ink else tokens.surface2)
+    Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(50)).background(if (selected) tokens.ink else tokens.surface2)
         .clickable(role = Role.Button, onClick = onClick).semantics { this.selected = selected }
         .testTag(tag).padding(horizontal = 11.dp), contentAlignment = Alignment.Center) {
         Text(text, color = if (selected) tokens.ground else tokens.ink2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
@@ -239,10 +287,10 @@ internal fun TypeTimeDialog(minutes: Int, onDismiss: () -> Unit, onSet: (Int) ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(hours, { hours = it.filter(Char::isDigit).take(2) }, Modifier.weight(1f).testTag("type-time-hours"),
                         label = { Text(stringResource(R.string.parity_hours)) }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = nocturneTextFieldColors())
                     OutlinedTextField(mins, { mins = it.filter(Char::isDigit).take(2) }, Modifier.weight(1f).testTag("type-time-minutes"),
                         label = { Text(stringResource(R.string.parity_minutes)) }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = nocturneTextFieldColors())
                 }
                 if (!valid) Text(stringResource(R.string.parity_type_time_range), color = paletteTokens.ink2, fontSize = 13.sp)
             }
@@ -268,7 +316,8 @@ internal fun AddStepContent(initial: Block, fahrenheit: Boolean, onCancel: () ->
     val tokens = paletteTokens
     var block by remember { mutableStateOf(initial) }
     var choice by remember { mutableStateOf(ADD_STEP_CHOICES[1]) }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp).testTag("editor-add-sheet"),
+    Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * .85f).dp)
+        .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp).testTag("editor-add-sheet"),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.parity_add_step), Modifier.weight(1f), color = tokens.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -277,7 +326,7 @@ internal fun AddStepContent(initial: Block, fahrenheit: Boolean, onCancel: () ->
         Segmented(listOf(Block.START to stringResource(R.string.parity_group_start), Block.WAKE to stringResource(R.string.parity_group_wake),
             Block.AFTER_WAKE to stringResource(R.string.parity_group_after)), block, tag = "add-group") { block = it }
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
-            maxItemsInEachRow = 3) {
+            maxItemsInEachRow = if (LocalConfiguration.current.fontScale >= 1.5f) 2 else 3) {
             ADD_STEP_CHOICES.forEach { phase ->
                 val temperature = tempText(phase.temperature, fahrenheit)
                 val detail = when (phase.mode) {
@@ -295,13 +344,14 @@ internal fun AddStepContent(initial: Block, fahrenheit: Boolean, onCancel: () ->
                         .semantics { this.selected = on }.clickable(role = Role.Button) { choice = phase })
             }
         }
-        Text(stringResource(R.string.parity_add_hint), color = tokens.ink3, fontSize = 13.sp, textAlign = TextAlign.Center,
+        Text(stringResource(R.string.parity_add_hint), color = tokens.ink2, fontSize = 13.sp, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth())
         BigButton(stringResource(R.string.parity_add_next), { onAdd(block, choice) }, modifier = Modifier.testTag("add-next"))
     }
 }
 
 /** The design's step editor body: mode, temperature, fan, how long and when it runs. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StepEditorContent(title: String, phase: Phase, fahrenheit: Boolean, runs: String?, tag: String,
     fanSlider: @Composable (Int, (Int) -> Unit) -> Unit, onDone: () -> Unit, onDelete: () -> Unit, onChange: (Phase) -> Unit) {
@@ -318,7 +368,10 @@ internal fun StepEditorContent(title: String, phase: Phase, fahrenheit: Boolean,
         }
         val modes = listOf(Mode.TURBO, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY, Mode.WAIT)
         Segmented(modes.map { it to if (it == Mode.EXTENDED_HEAT) stringResource(R.string.parity_long) else modeName(it) },
-            phase.mode, tag = "step-mode") { mode ->
+            phase.mode, tag = "step-mode", description = { mode ->
+                if (mode.usesFan) "${modeName(mode)}, ${stringResource(R.string.ux_mode_max, tempText(mode.temperatureRange.last, fahrenheit))}"
+                else modeName(mode)
+            }) { mode ->
             val start = ADD_STEP_CHOICES.first { it.mode == mode }
             onChange(when {
                 mode == phase.mode -> phase
@@ -330,19 +383,26 @@ internal fun StepEditorContent(title: String, phase: Phase, fahrenheit: Boolean,
         if (phase.mode.usesTemperature || turbo) {
             val step = if (fahrenheit) 1 else 2
             val range = phase.mode.temperatureRange
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                if (!turbo) RoundStep("−", stringResource(R.string.parity_cooler), 56, phase.temperature > range.first, "step-temp-down") {
+            val temperatureLabel = stringResource(R.string.slider_temp)
+            val temperatureState = spokenTemp(temperature, fahrenheit)
+            StepperLayout(controls = !turbo,
+                down = { RoundStep("−", stringResource(R.string.parity_cooler), 56, phase.temperature > range.first, "step-temp-down") {
                     onChange(phase.copy(temperature = (phase.temperature - step).coerceIn(range)))
-                } else Box(Modifier.size(56.dp))
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(tempText(temperature, fahrenheit), Modifier.testTag("step-temp"), color = color, fontSize = 52.sp,
-                        fontWeight = FontWeight.Bold, lineHeight = 56.sp)
-                    Text(if (turbo) stringResource(R.string.parity_turbo_always, tempText(86, fahrenheit))
-                        else stringResource(R.string.parity_temperature), color = tokens.ink2, fontSize = 14.sp)
-                }
-                if (!turbo) RoundStep("+", stringResource(R.string.parity_warmer), 56, phase.temperature < range.last, "step-temp-up") {
+                } },
+                up = { RoundStep("+", stringResource(R.string.parity_warmer), 56, phase.temperature < range.last, "step-temp-up") {
                     onChange(phase.copy(temperature = (phase.temperature + step).coerceIn(range)))
-                } else Box(Modifier.size(56.dp))
+                } }) { modifier ->
+                Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(tempText(temperature, fahrenheit), Modifier.testTag("step-temp")
+                        .then(if (turbo) Modifier else Modifier.sliderSemantics(temperatureLabel, temperatureState).semantics {
+                            progressBarRangeInfo = ProgressBarRangeInfo(temperature.toFloat(), range.first.toFloat()..range.last.toFloat(),
+                                (range.last - range.first - 1).coerceAtLeast(0))
+                            setProgress { target -> onChange(phase.copy(temperature = target.roundToInt().coerceIn(range))); true }
+                        }), color = tokens.readableText(color, tokens.sheet, minimumContrast = 3f), fontSize = if (LocalConfiguration.current.fontScale >= 1.5f) 40.sp else 52.sp,
+                        fontWeight = FontWeight.Bold)
+                    Text(if (turbo) stringResource(R.string.parity_turbo_always, tempText(86, fahrenheit))
+                        else stringResource(R.string.parity_temperature), color = tokens.ink2, fontSize = 14.sp, textAlign = TextAlign.Center)
+                }
             }
         }
         if (phase.mode.usesFan) {
@@ -353,33 +413,40 @@ internal fun StepEditorContent(title: String, phase: Phase, fahrenheit: Boolean,
             if (!turbo) fanSlider(phase.fanPercent) { onChange(phase.copy(fanPercent = it)) }
         }
         SectionLabel(stringResource(R.string.parity_how_long))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (!turbo) RoundStep("−", stringResource(R.string.parity_shorter), 44, phase.minutes > 1, "step-length-down") {
+        val lengthLabel = stringResource(R.string.slider_length)
+        val lengthState = spokenMinutes(phase.minutes)
+        StepperLayout(controls = !turbo,
+            down = { RoundStep("−", stringResource(R.string.parity_shorter), 44, phase.minutes > 1, "step-length-down") {
                 onChange(phase.copy(minutes = (phase.minutes - 5).coerceAtLeast(1)))
-            } else Box(Modifier.size(44.dp))
-            Text(if (turbo) compactDuration(phase.minutes) else stringResource(R.string.parity_h_min, phase.minutes / 60, phase.minutes % 60),
-                Modifier.weight(1f).testTag("step-length"), color = tokens.ink, fontSize = 30.sp, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center)
-            if (!turbo) RoundStep("+", stringResource(R.string.parity_longer), 44, phase.minutes < 720, "step-length-up") {
+            } },
+            up = { RoundStep("+", stringResource(R.string.parity_longer), 44, phase.minutes < 720, "step-length-up") {
                 onChange(phase.copy(minutes = (phase.minutes + 5).coerceAtMost(720)))
-            } else Box(Modifier.size(44.dp))
+            } }) { modifier ->
+            Text(if (turbo) compactDuration(phase.minutes) else stringResource(R.string.parity_h_min, phase.minutes / 60, phase.minutes % 60),
+                modifier.testTag("step-length")
+                    .then(if (turbo) Modifier else Modifier.sliderSemantics(lengthLabel, lengthState).semantics {
+                        progressBarRangeInfo = ProgressBarRangeInfo(phase.minutes.toFloat(), 1f..720f, 718)
+                        setProgress { target -> onChange(phase.copy(minutes = target.roundToInt().coerceIn(1, 720))); true }
+                    }), color = tokens.ink, fontSize = 30.sp, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center)
         }
         if (!turbo) {
             val chips = if (phase.mode == Mode.EXTENDED_HEAT || phase.minutes >= 180) listOf(60, 120, 240, 300) else listOf(30, 45, 60, 120)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)) {
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 chips.forEach { m -> SmallChip(compactDuration(m), phase.minutes == m, "step-chip-$m") { onChange(phase.copy(minutes = m)) } }
                 SmallChip(stringResource(R.string.parity_type_time), false, "step-type-time") { typing = true }
             }
-        } else Text(stringResource(R.string.parity_turbo_hint), color = tokens.ink3, fontSize = 13.sp)
-        runs?.let { Text(it, Modifier.fillMaxWidth(), color = tokens.ink3, fontSize = 14.sp, textAlign = TextAlign.Center) }
+        } else Text(stringResource(R.string.parity_turbo_hint), color = tokens.ink2, fontSize = 13.sp)
+        runs?.let { Text(it, Modifier.fillMaxWidth(), color = tokens.ink2, fontSize = 14.sp, textAlign = TextAlign.Center) }
         if (phase.mode == Mode.EXTENDED_HEAT || (phase.mode == Mode.HEAT && phase.minutes > 240))
             Text(stringResource(R.string.parity_long_heat_info), Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                 .background(tokens.surface2).padding(12.dp), color = tokens.ink2, fontSize = 13.sp)
-        Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.parity_delete_step), Modifier.clickable(role = Role.Button, onClick = onDelete)
+        FlowRow(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.parity_delete_step), Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onDelete)
                 .testTag("step-delete").padding(vertical = 12.dp),
                 color = if (tokens.dark) Color(0xFFFF9B91) else tokens.bad, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(stringResource(R.string.parity_adjusts), Modifier.weight(1f), color = tokens.ink3, fontSize = 14.sp, textAlign = TextAlign.End)
+            Text(stringResource(R.string.parity_adjusts), Modifier.weight(1f), color = tokens.ink2, fontSize = 14.sp, textAlign = TextAlign.End)
         }
     }
     if (typing) TypeTimeDialog(phase.minutes, onDismiss = { typing = false }) { onChange(phase.copy(minutes = it)); typing = false }

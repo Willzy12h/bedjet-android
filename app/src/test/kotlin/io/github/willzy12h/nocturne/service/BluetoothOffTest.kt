@@ -51,7 +51,7 @@ class BluetoothOffTest {
         ReflectionHelpers.setField(app, "graph", graph)
         graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.POST_NOTIFICATIONS)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(false)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
         context = ServiceStartContext(app)
     }
 
@@ -103,7 +103,7 @@ class BluetoothOffTest {
         until { graph.repository.notices.value.any { it.kind == NoticeKind.PROBLEM && it.text.contains("Bluetooth is off") } }
         assertTrue(context.requests.isEmpty())
         assertEquals(1, graph.repository.notices.value.count { it.kind == NoticeKind.PROBLEM && it.text.contains("Bluetooth is off") })
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         idle()
         assertTrue("Enabling the radio must not replay refused commands", context.requests.isEmpty())
     }
@@ -127,14 +127,14 @@ class BluetoothOffTest {
 
     @Test fun anOwnerQueuedWhileBluetoothWasOnRechecksBeforeConnecting() = runBlocking {
         val adapter = app.getSystemService(BluetoothManager::class.java).adapter
-        shadowOf(adapter).setEnabled(true)
+        shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         val mutex = ReflectionHelpers.getField<Mutex>(graph.actions, "lock")
         mutex.lock()
         val call = graph.scope.async { graph.actions.execute(graph.actions.capture(NightActions.Command.OFF)) }
         try {
             idle()
             assertFalse(call.isCompleted)
-            shadowOf(adapter).setEnabled(false)
+            shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
             mutex.unlock()
             until { call.isCompleted }
             assertEquals(OutcomeKind.FAILED, call.await().kind)
@@ -148,9 +148,9 @@ class BluetoothOffTest {
 
     @Test fun serviceDeliveryRechecksAnAdapterDisabledAfterTheTap() {
         val adapter = app.getSystemService(BluetoothManager::class.java).adapter
-        shadowOf(adapter).setEnabled(true)
+        shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         assertTrue(BedJetService.start(context, graph.actions.capture(NightActions.Command.OFF).copy(origin = CommandOrigin.WIDGET)))
-        shadowOf(adapter).setEnabled(false)
+        shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
         val controller = Robolectric.buildService(BedJetService::class.java).create()
         try {
             val service = controller.get()
@@ -165,13 +165,13 @@ class BluetoothOffTest {
         val now = graph.now()
         graph.repository.setActiveNight(ActiveNight("ended", "preset-summer", now.toString(), now.plusHours(8).toString(),
             false, 2, now.plusHours(7).toString(), now.plusHours(9).toString(), deviceId = "ble:AA:BB:CC:DD:EE:FF"))
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         val initialReceivers = radioReceivers()
         assertTrue(BedJetService.start(context, NightActions.Command.RETRY_RETIME))
         assertEquals(initialReceivers + 1, radioReceivers())
         val delivery = context.delivered
         graph.repository.setActiveNight(null)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(false)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
         val controller = Robolectric.buildService(BedJetService::class.java).create()
         try {
             controller.get().onStartCommand(delivery, 0, 1)

@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.platform
 
+import androidx.core.net.toUri
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -123,7 +124,7 @@ class PlatformActionActivity : ComponentActivity() {
             .putExtra("device",request.deviceId).putExtra("night",request.expected?.nightId)
             .putExtra("revision",request.expected?.revision ?: -1).putExtra("strict",request.requireIdentity)
             // Glance/PendingIntent equality must not replace an older widget's identity with a newer one.
-            .setData(android.net.Uri.parse("nocturne://widget/${request.command}/${request.profileId}/${request.deviceId}/${request.expected?.nightId}/${request.expected?.revision}"))
+            .setData("nocturne://widget/${request.command}/${request.profileId}/${request.deviceId}/${request.expected?.nightId}/${request.expected?.revision}".toUri())
         fun readRequest(intent: Intent) = CommandRequest(
             NightActions.Command.valueOf(intent.getStringExtra("command")!!),intent.getStringExtra("profile"),intent.getStringExtra("device"),
             intent.getStringExtra("night")?.let { NightIdentity(it,intent.getIntExtra("revision",-1)) },intent.getBooleanExtra("strict",true))

@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
@@ -65,8 +66,8 @@ class UatLayoutAndSetupTest {
     private fun model(demo: Boolean): AppViewModel {
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT,
             Manifest.permission.POST_NOTIFICATIONS)
-        @Suppress("DEPRECATION")
-        shadowOf(BluetoothAdapter.getDefaultAdapter()).setEnabled(true)
+        shadowOf(app.getSystemService(android.bluetooth.BluetoothManager::class.java).adapter)
+            .setState(BluetoothAdapter.STATE_ON)
         org.robolectric.shadows.ShadowAlarmManager.setCanScheduleExactAlarms(true)
         shadowOf(app.getSystemService(PowerManager::class.java)).setIgnoringBatteryOptimizations(app.packageName, true)
         val link = object : BedJetLink {
@@ -150,27 +151,31 @@ class UatLayoutAndSetupTest {
         val settings = model.settings.value
         compose.setContent {
             val density = LocalDensity.current.density
-            CompositionLocalProvider(LocalDensity provides Density(density, 2f)) {
+            val configuration = android.content.res.Configuration(LocalConfiguration.current).apply {
+                fontScale = 2f; screenWidthDp = 320
+            }
+            CompositionLocalProvider(LocalConfiguration provides configuration, LocalDensity provides Density(density, 2f)) {
                 NocturneTheme(settings, model.now()) {
                     Column(Modifier.width(320.dp).height(700.dp).verticalScroll(rememberScrollState())) {
-                        ModeQuickButtons(model, settings, rememberNightGuard(model))
+                        QuickPresets(model, rememberNightGuard(model), rememberPresetSending(), onEdit = {})
                     }
                 }
             }
         }
-        val modes = QuickDefaults.modes + Mode.STANDBY
+        val modes = listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY)
         modes.forEach { mode ->
-            val node = compose.onNodeWithTag("quick-mode-${mode.name}")
+            val tag = "quick-mode-${mode?.name ?: "BOOST"}"
+            val node = compose.onNodeWithTag(tag)
             node.performScrollTo().assertIsDisplayed().assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
             fun checkText(text: String) {
                 val results = mutableListOf<TextLayoutResult>()
-                compose.onNode(hasText(text) and hasAnyAncestor(hasTestTag("quick-mode-${mode.name}")), useUnmergedTree = true)
+                compose.onNode(hasText(text) and hasAnyAncestor(hasTestTag(tag)), useUnmergedTree = true)
                     .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
                 assertTrue(text, results.isNotEmpty())
                 assertFalse("No clipped label: $text; size=${results.single().size}; lines=${results.single().lineCount}; width=${results.single().didOverflowWidth}; height=${results.single().didOverflowHeight}", results.single().hasVisualOverflow)
             }
-            checkText(app.getString(Format.modeNameRes(mode)))
-            if (mode != Mode.STANDBY) {
+            checkText(app.getString(mode?.let(Format::modeNameRes) ?: R.string.shortcut_boost))
+            if (mode != null && mode != Mode.STANDBY) {
                 val preset = QuickDefaults.resolve(settings, mode)
                 val words = Format.Words { id, args -> app.getString(id, *args) }
                 val duration = Format.duration(preset.minutes, words)

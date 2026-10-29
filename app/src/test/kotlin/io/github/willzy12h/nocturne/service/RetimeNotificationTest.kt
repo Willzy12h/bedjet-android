@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.service
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -163,7 +164,7 @@ class RetimeNotificationTest {
     }
     private fun error() = shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(3)
     private fun retryScheduled() = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms
-        .any { shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY }
+        .any { shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY }
     private fun assertQuiet() {
         assertNull("Routine alarm handling must not post a service error", error())
         assertTrue(graph.repository.notices.value.none { it.kind == NoticeKind.PROBLEM })
@@ -314,10 +315,10 @@ class RetimeNotificationTest {
         assertTrue("The notice must distinguish the local record from the confirmed BedJet change", notice.text.contains("record"))
         assertTrue("Keep the local persistence error available", notice.text.contains("Could not save the confirmed re-time history"))
         val wakeAlarm = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.single {
-            shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_WAKE_UP
+            shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_WAKE_UP
         }
-        assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(wakeAlarm.operation).savedIntent))
-        assertEquals(ZonedDateTime.parse(confirmed.wakeUpStart).toInstant().toEpochMilli(), wakeAlarm.triggerAtTime)
+        assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(wakeAlarm.operationIntent).savedIntent))
+        assertEquals(ZonedDateTime.parse(confirmed.wakeUpStart).toInstant().toEpochMilli(), wakeAlarm.triggerAtMs)
         val count = writes
         val repeated = ServiceStartContext(app)
         NightAlarmReceiver().onReceive(repeated, Intent(NightAlarms.ACTION_RETRY))
@@ -356,9 +357,9 @@ class RetimeNotificationTest {
         val notice = graph.repository.notices.value.single { it.kind == NoticeKind.INFO }
         assertTrue(notice.text.contains("Could not save the confirmed re-time runtime"))
         val wakeAlarm = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.single {
-            shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_WAKE_UP
+            shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_WAKE_UP
         }
-        assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(wakeAlarm.operation).savedIntent))
+        assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(wakeAlarm.operationIntent).savedIntent))
         val count = writes
         runtimeWriteFailure = null
         assertEquals(OutcomeKind.STALE, retryReceiver().kind)
@@ -794,9 +795,9 @@ class RetimeNotificationTest {
             assertTrue("A no-write timeout stays quiet even after the deadline", graph.repository.notices.value.isEmpty())
             assertQuiet()
             val retry = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.single {
-                shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+                shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY
             }
-            assertTrue("Schedule a future observation so the normal expiry owner can finish", retry.triggerAtTime > graph.clock.millis())
+            assertTrue("Schedule a future observation so the normal expiry owner can finish", retry.triggerAtMs > graph.clock.millis())
         } finally {
             release.complete(Unit)
             holder?.await()
@@ -994,9 +995,9 @@ class RetimeNotificationTest {
             assertFalse(graph.actions.retimePending)
             assertFalse(retryScheduled())
             val wakeAlarm = shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.single {
-                shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_WAKE_UP
+                shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_WAKE_UP
             }
-            assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(wakeAlarm.operation).savedIntent))
+            assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(wakeAlarm.operationIntent).savedIntent))
         } finally { controller.destroy() }
     }
 

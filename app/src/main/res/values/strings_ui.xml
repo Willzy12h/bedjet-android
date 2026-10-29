@@ -106,13 +106,10 @@
     <string name="block_after_wake">After wake</string>
     <!-- Settings (P6) -->
     <string name="settings_title">Settings</string>
-    <string name="settings_appearance">Appearance</string>
-    <string name="settings_theme">Theme</string>
     <string name="theme_system">System</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="theme_scheduled">Scheduled</string>
-    <string name="settings_dark_from">Midnight Ink from</string>
     <string name="settings_simple_view">Simple view</string>
     <string name="settings_simple_view_help">Show tonight as a list of steps instead of the curve.</string>
     <string name="settings_bedjet">BedJet</string>
@@ -143,7 +140,6 @@
     <string name="settings_no_alarm">No alarm is set on this phone.</string>
     <string name="settings_next_alarm">Next alarm %1$s from %2$s.</string>
     <string name="settings_next_alarm_unused">Next alarm %1$s from %2$s — not used.</string>
-    <string name="settings_unknown_app">an unknown app</string>
     <string name="settings_use_alarms_from">Use alarms from %1$s</string>
     <string name="settings_used_from">Used from: %1$s</string>
     <string name="settings_phone_setup">Phone setup</string>
@@ -176,35 +172,22 @@
     <string name="settings_slot_step">%1$d. %2$s, fan %3$d%%, %4$s</string>
     <string name="settings_put_original_back">Put original back</string>
     <!-- Tonight (P6) -->
-    <string name="tonight_title">Tonight</string>
     <string name="tonight_state_pending">Change pending: the BedJet has not confirmed it.</string>
     <string name="tonight_state_failed">Change failed. Check the BedJet before trying again.</string>
     <string name="tonight_state_unknown">BedJet state unknown. Check the unit before another programme.</string>
     <string name="tonight_state_manual">Tracking manually. Nocturne has not resumed the programme.</string>
     <string name="tonight_waking_at">Waking you at</string>
     <!-- The step running now: block, mode and fan. -->
-    <string name="tonight_now">Now: %1$s · %2$s · fan %3$d%%</string>
     <string name="tonight_end_night">Stop night</string>
     <string name="tonight_start_now">Start night now</string>
     <string name="tonight_set_wake">Set tonight-only wake</string>
-    <string name="tonight_change_wake">Change tonight-only wake · %1$s</string>
     <string name="tonight_clear_wake">Clear wake override</string>
     <string name="tonight_follow_schedule">Tonight only · Follow schedule</string>
     <string name="tonight_the_night">The night</string>
-    <string name="tonight_quick">Quick</string>
     <!-- The connection chip: mode, room and air temperatures. -->
-    <string name="connection_status">%1$s · room %2$s · air %3$s</string>
-    <string name="connection_ready">Connected</string>
-    <string name="connection_connecting">Connecting to your BedJet…</string>
-    <string name="connection_searching">Not connected</string>
-    <string name="connection_bluetooth_off">Bluetooth is off</string>
-    <string name="connection_unauthorized">Allow Nearby devices to reach your BedJet</string>
-    <string name="connection_demo">Demo · %1$s</string>
     <!-- Night guard: "This will …" completions, and the dialog itself. -->
     <string name="guard_turn_off">turn the BedJet off</string>
     <string name="guard_start_boost">start the boost</string>
-    <string name="guard_start_warming">start warming</string>
-    <string name="guard_start_cooling">start cooling</string>
     <string name="guard_resume_saved">resume the saved programme</string>
     <string name="guard_resume_previous">resume the previous night</string>
     <string name="guard_switch_to">switch to %1$s</string>
@@ -250,10 +233,8 @@
     <string name="editor_update_tonight_text">%1$s is linked to the tracked night. Your changes can wait for the next night, or replace the rest of tonight on the BedJet.</string>
     <string name="editor_update_tonight">Update tonight</string>
     <string name="editor_next_night">Next night</string>
-    <string name="editor_title">Edit profile</string>
     <string name="editor_save">Save</string>
     <string name="editor_running_tonight">This profile is linked to the tracked night. When you save, you can choose to update tonight or start with the next night.</string>
-    <string name="editor_preview">Tonight at %1$s: %2$d of 32 BedJet steps</string>
     <string name="editor_name">Name</string>
     <string name="editor_timing">Timing</string>
     <string name="editor_bedtime">Usual bedtime</string>
@@ -266,20 +247,12 @@
     <string name="editor_fan_limits">Fan %1$d–%2$d%%</string>
     <string name="editor_temp_limits">Temperature %1$s–%2$s</string>
     <string name="editor_reset_limits">Reset limits</string>
-    <string name="editor_start_help">Runs as soon as the night starts.</string>
     <string name="editor_middle_help">Fills the time between Start and Wake-up, moving gently from the first values to the second.</string>
     <string name="editor_fan_start">Fan at the start: %1$d%%</string>
     <string name="editor_fan_end">Fan at the end: %1$d%%</string>
-    <string name="editor_temp_start">Temperature at the start: %1$s</string>
-    <string name="editor_temp_end">Temperature at the end: %1$s</string>
     <string name="editor_steps">Steps: %1$d</string>
-    <string name="editor_wake_help">Ends exactly at your wake time.</string>
-    <string name="editor_after_wake_help">Keeps going after the wake time, e.g. stay warm while you get up. Optional.</string>
     <string name="editor_repeat_turbo">Repeat Turbo past 10 minutes</string>
     <string name="editor_repeat_turbo_help">The BedJet runs Turbo for 10 minutes at a time. Off: carry on as Heat at your top temperature. On: start Turbo again (the BedJet runs the repeat at about 40 °C).</string>
-    <string name="editor_remove">Remove</string>
-    <string name="editor_length">Length %1$s</string>
-    <string name="editor_add_phase">Add phase</string>
     <string name="season_any">any time</string>
     <string name="season_summer">summer</string>
     <string name="season_winter">winter</string>
@@ -290,7 +263,6 @@
     <string name="profiles_wake_alarm">Would wake you at %1$s · your alarm</string>
     <string name="profiles_wake_default">Would wake you at %1$s · default %2$s</string>
     <string name="profiles_use_tonight">Use tonight</string>
-    <string name="profiles_copy">Copy</string>
     <!-- The name a copied profile gets. -->
     <string name="profiles_copy_name">%1$s copy</string>
     <string name="profiles_delete">Delete</string>
@@ -306,8 +278,6 @@
     <!-- History (P6) -->
     <string name="history_title">History</string>
     <string name="history_empty">Nights you run appear here, with every change made during them.</string>
-    <string name="history_times">%1$s → wake %2$s</string>
-    <string name="history_times_alarm">%1$s → wake %2$s (alarm)</string>
     <!-- A recorded step: time, block, mode, [temperature,] fan and length. -->
     <string name="history_step_temp">%1$s  %2$s: %3$s, %4$s, fan %5$d%%, %6$s</string>
     <string name="history_step">%1$s  %2$s: %3$s, fan %4$d%%, %5$s</string>

@@ -6,6 +6,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.core.plan.HeatScale
@@ -57,6 +59,14 @@ data class PaletteTokens(
 
     /** The flat, soft tint of [stripe] drawn over the surface of a side-stripe tile, at the design's [level]. */
     fun tint(stripe: Color, level: TintLevel = TintLevel.TILE): Color = stripe.copy(alpha = level.alpha)
+
+    /** Keep the approved mode colour where it is readable; use the palette's ink for text otherwise. */
+    fun readableText(color: Color, background: Color = ground, minimumContrast: Float = 4.5f): Color {
+        val foreground = color.compositeOver(background).luminance()
+        val behind = background.luminance()
+        val contrast = (maxOf(foreground, behind) + .05f) / (minOf(foreground, behind) + .05f)
+        return if (contrast >= minimumContrast) color else ink
+    }
 }
 
 /** The design's stripe-tint strengths, the same in every palette. */
@@ -81,7 +91,7 @@ private fun darkPalette(ground: Long, glow: Long, glass: Long, glass2: Long, hai
     cool = Color(0xFF4FB3FF), cool2 = Color(0xFF9DD6FF), dry = Color(0xFFE6C35C), off = Color(0xFF9AA3B6),
 )
 
-// Menus use the design's --menubg fallback in every dark palette. Alpha: .07 = 0x12, .075 = 0x13, .085 = 0x16, .12 = 0x1F, .13 = 0x21. Forest, Graphite and Plum don't set --sheetbg in the design, so they inherit Midnight Ink's #171A2C (awaiting design).
+// Menus use the design's --menubg fallback in every dark palette. Alpha: .07 = 0x12, .075 = 0x13, .085 = 0x16, .12 = 0x1F, .13 = 0x21. Forest, Graphite and Plum inherit the approved Midnight Ink sheet fallback, #171A2C.
 private val MIDNIGHT_INK = darkPalette(0xFF0B0D18, 0xFF1A1F3A, 0x13FFFFFF, 0x1FFFFFFF, 0x12FFFFFF, 0xFFF1F3F9, 0xFFBCC2D4, 0xFF858CA2, 0xFFB48CFF, 0xFF12152A, 0xFF171A2C)
 private val FOREST = darkPalette(0xFF08120E, 0xFF183428, 0x12D2FFE6, 0x1FD2FFE6, 0x14D2FFE6, 0xFFEEF6F1, 0xFFB5C8BC, 0xFF7E9587, 0xFF7FDCA6, 0xFF0C1A13, 0xFF171A2C)
 private val GRAPHITE = darkPalette(0xFF000000, 0xFF161616, 0x12FFFFFF, 0x1FFFFFFF, 0x14FFFFFF, 0xFFF3F3F3, 0xFFBDBDBD, 0xFF858585, 0xFFDCDFE6, 0xFF000000, 0xFF171A2C)

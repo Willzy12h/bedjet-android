@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.platform
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.job.JobScheduler
@@ -42,7 +43,7 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         return graph
     }
     private fun alarms() = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms.filter {
-        shadowOf(it.operation).savedIntent.component?.className == AutoStartReceiver::class.java.name
+        shadowOf(it.operationIntent).savedIntent.component?.className == AutoStartReceiver::class.java.name
     }
 
     @Test fun exactPermissionUsesOneExactImmutableAlarmWithoutARepeatingJob() = runBlocking {
@@ -52,7 +53,7 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         assertEquals(0L, alarm.windowLengthMs)
         assertEquals(0L, alarm.intervalMs)
         assertTrue(alarm.isAllowWhileIdle)
-        assertTrue(alarm.operation!!.isImmutable)
+        assertTrue(alarm.operationIntent!!.isImmutable)
         assertNull(context.getSystemService(JobScheduler::class.java).getPendingJob(ChargerJobs.ID))
     }
 
@@ -62,7 +63,7 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         val alarm = alarms().single()
         assertEquals(15 * 60 * 1000L, alarm.windowLengthMs)
         assertEquals(0L, alarm.intervalMs)
-        assertTrue(alarm.operation!!.isImmutable)
+        assertTrue(alarm.operationIntent!!.isImmutable)
     }
 
     @Test fun aRelativeStartExactlyAtTheCurrentInstantIsNotMovedToTheFallback() = runBlocking {
@@ -80,7 +81,7 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         val graph = setup()
         val manager = context.getSystemService(AlarmManager::class.java)
         for (action in listOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) {
-            alarms().forEach { manager.cancel(it.operation!!) }
+            alarms().forEach { manager.cancel(it.operationIntent!!) }
             context.sendBroadcast(Intent(context, PlatformClockReceiver::class.java).setAction(action))
             shadowOf(Looper.getMainLooper()).idle()
             assertEquals("Re-arm on $action", 1, alarms().size)

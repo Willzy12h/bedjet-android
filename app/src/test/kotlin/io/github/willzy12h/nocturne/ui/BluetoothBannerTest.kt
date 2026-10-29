@@ -21,7 +21,7 @@ class BluetoothBannerTest {
     private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { f, _ ->
         val app = RuntimeEnvironment.getApplication()
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(false)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
         runBlocking { f.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
     }
     @get:Rule val rules = ui.rules
@@ -31,7 +31,7 @@ class BluetoothBannerTest {
         ui.compose.openRemote()
         ui.compose.onNodeWithText("Enable Bluetooth").assertIsDisplayed()
         val app = RuntimeEnvironment.getApplication()
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         app.sendBroadcast(Intent(BluetoothAdapter.ACTION_STATE_CHANGED).putExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_ON))
         ui.waitUntil { ui.compose.onAllNodesWithText("Enable Bluetooth").fetchSemanticsNodes().isEmpty() }
     }

@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationManager
@@ -315,7 +316,7 @@ class TemporaryActionBoundariesTest {
         assertEquals(Instant.parse("2026-10-22T07:00:00Z"), ZonedDateTime.parse(temporary.wakeAt).toInstant())
         assertEquals(1, starts(before.slot))
         assertTrue("The phone must not schedule a return command at the temporary boundary",
-            shadowOf(alarms).scheduledAlarms.none { it.triggerAtTime == returnsAt.toInstant().toEpochMilli() })
+            shadowOf(alarms).scheduledAlarms.none { it.triggerAtMs == returnsAt.toInstant().toEpochMilli() })
         val history = graph.repository.history.value
         sent.clear()
 
@@ -462,10 +463,10 @@ class TemporaryActionBoundariesTest {
         assertEquals(night.deviceId, observed.deviceId)
         assertEquals(runtime, diskRuntime())
         val retry = shadowOf(alarms).scheduledAlarms.single {
-            shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+            shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY
         }
         assertNull("The retry must read the current revision, not deliver the obsolete identity",
-            NightAlarms.identity(shadowOf(retry.operation).savedIntent))
+            NightAlarms.identity(shadowOf(retry.operationIntent).savedIntent))
     }
 
     private suspend fun applyObservedWake(expected: String): ActiveNight {
@@ -636,10 +637,10 @@ class TemporaryActionBoundariesTest {
         assertEquals(confirmed!!.deviceId, observation.deviceId)
         assertEquals(graph.repository.runtime.value, diskRuntime())
         val retry = shadowOf(alarms).scheduledAlarms.single {
-            shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+            shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY
         }
         assertNull("Recovery must reobserve the new revision rather than replay the old request",
-            NightAlarms.identity(shadowOf(retry.operation).savedIntent))
+            NightAlarms.identity(shadowOf(retry.operationIntent).savedIntent))
         assertTrue("Recovering a confirmed programme must not send a second temporary START", sent.isEmpty())
         val repairedHistory = graph.repository.history.value
         graph.actions.reconcile()
@@ -670,7 +671,7 @@ class TemporaryActionBoundariesTest {
         assertEquals(confirmed.deviceId, observation.deviceId)
         NightAlarms.cancel(app)
         val ownedAlarmActions = setOf(NightAlarms.ACTION_WAKE_UP, NightAlarms.ACTION_NIGHT_END, NightAlarms.ACTION_RETRY)
-        assertTrue(shadowOf(alarms).scheduledAlarms.none { shadowOf(it.operation).savedIntent.action in ownedAlarmActions })
+        assertTrue(shadowOf(alarms).scheduledAlarms.none { shadowOf(it.operationIntent).savedIntent.action in ownedAlarmActions })
         sent.clear()
         connects = 0
         queries = 0
@@ -693,18 +694,18 @@ class TemporaryActionBoundariesTest {
         assertEquals(observation, graph.repository.runtime.value.alarmInbox)
         assertEquals(graph.repository.runtime.value, diskRuntime())
         fun scheduled(action: String) = shadowOf(alarms).scheduledAlarms.single {
-            shadowOf(it.operation).savedIntent.action == action
+            shadowOf(it.operationIntent).savedIntent.action == action
         }
         val wake = scheduled(NightAlarms.ACTION_WAKE_UP)
-        assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(wake.operation).savedIntent))
-        assertEquals(ZonedDateTime.parse(confirmed.wakeUpStart).toInstant().toEpochMilli(), wake.triggerAtTime)
+        assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(wake.operationIntent).savedIntent))
+        assertEquals(ZonedDateTime.parse(confirmed.wakeUpStart).toInstant().toEpochMilli(), wake.triggerAtMs)
         val end = scheduled(NightAlarms.ACTION_NIGHT_END)
-        assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(end.operation).savedIntent))
-        assertEquals(ZonedDateTime.parse(confirmed.endsAt).toInstant().toEpochMilli(), end.triggerAtTime)
+        assertEquals(confirmed.identity, NightAlarms.identity(shadowOf(end.operationIntent).savedIntent))
+        assertEquals(ZonedDateTime.parse(confirmed.endsAt).toInstant().toEpochMilli(), end.triggerAtMs)
         val retry = scheduled(NightAlarms.ACTION_RETRY)
         assertNull("The preserved inbox must reobserve the current revision",
-            NightAlarms.identity(shadowOf(retry.operation).savedIntent))
-        assertEquals(graph.now().plusMinutes(10).toInstant().toEpochMilli(), retry.triggerAtTime)
+            NightAlarms.identity(shadowOf(retry.operationIntent).savedIntent))
+        assertEquals(graph.now().plusMinutes(10).toInstant().toEpochMilli(), retry.triggerAtMs)
         assertTrue(sent.isEmpty())
         assertEquals(0, connects)
         assertEquals(0, queries)

@@ -73,6 +73,13 @@ class RemediationStateSafetyTest {
         assertTrue("A disabled control cannot issue any transport write", link.writes.isEmpty())
     }
 
+    @Test fun settingsWithoutAFreshReportDoesNotClaimAConfirmedConnection() {
+        assertFalse(ui.model.hasLiveStatus.value)
+        ui.tab("Settings")
+        ui.compose.onNodeWithTag("settings-page-bedjet")
+            .assertTextContains(ui.s(io.github.willzy12h.nocturne.R.string.uat_connecting), substring = true)
+    }
+
     private class ReceiptLink : BedJetLink {
         override val state = MutableStateFlow(LinkState.READY)
         override val status = MutableStateFlow<DeviceStatus?>(DeviceStatus(600, 50, 64, Mode.HEAT, 9, 600, 38, 86, 44, 0,

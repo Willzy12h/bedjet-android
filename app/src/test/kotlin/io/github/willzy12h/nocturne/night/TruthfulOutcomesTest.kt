@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
@@ -85,7 +86,7 @@ class TruthfulOutcomesTest {
         return at
     }
     private fun retryScheduled() = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms
-        .any { shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY }
+        .any { shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY }
     /** [NightActions.status] is derived on the main looper. */
     private fun status(): Confidence? { shadowOf(android.os.Looper.getMainLooper()).idle(); return graph.actions.status.value.confidence }
     private fun isSlotWriteOrStart(b: ByteArray) = b[0] == 0x40.toByte() || (b[0] == 0x01.toByte() && b[1].toInt() and 0xff in 0x80..0x85)

@@ -164,7 +164,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
     var remoteOpen by rememberSaveable { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = remoteOpen) { remoteOpen = false }
     val setupRequest by model.setupChecklistRequest.collectAsState()
-    LaunchedEffect(setupRequest) { if (setupRequest > 0) tab = Tab.TONIGHT }
+    var handledSetupRequest by rememberSaveable { mutableIntStateOf(0) }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
     // Every interrupted editor keeps its own baseline and edits, including profiles not yet saved to the repository.
     var parkedDrafts by rememberSaveable { mutableStateOf(emptyList<String>()) }
@@ -182,6 +182,14 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
             val saved = Json.decodeFromString<ProfileDraft>(encoded)
             // A parked draft can have different phase indices from the curve the person just selected.
             Json.encodeToString(saved.copy(selection = selection.takeIf { saved.edited == profile }))
+        }
+    }
+    LaunchedEffect(setupRequest) {
+        if (setupRequest > handledSetupRequest) {
+            handledSetupRequest = setupRequest
+            draftJson?.let { parkedDrafts = parkedDrafts + it; draftJson = null }
+            tab = Tab.TONIGHT
+            remoteOpen = false
         }
     }
     val snackbar = remember { SnackbarHostState() }
@@ -269,7 +277,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) } },
                             colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
                                 selectedIconColor = tokens.ink, selectedTextColor = tokens.ink,
-                                unselectedIconColor = tokens.ink3, unselectedTextColor = tokens.ink3,
+                                unselectedIconColor = tokens.ink2, unselectedTextColor = tokens.ink2,
                                 indicatorColor = Color.Transparent),
                         )
                     }
@@ -281,7 +289,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         if (remoteOpen) Column(modifier) {
             NocturneTextButton(onClick = { remoteOpen = false }, modifier = Modifier.testTag("remote-back")) {
                 Text(androidx.compose.ui.res.stringResource(R.string.parity_back,
-                    androidx.compose.ui.res.stringResource(R.string.tab_tonight)), color = paletteTokens.accent)
+                    androidx.compose.ui.res.stringResource(R.string.tab_tonight)), color = if (paletteTokens.dark) paletteTokens.accent else paletteTokens.ink2)
             }
             RemoteScreen(model, Modifier.weight(1f))
         } else when (tab) {

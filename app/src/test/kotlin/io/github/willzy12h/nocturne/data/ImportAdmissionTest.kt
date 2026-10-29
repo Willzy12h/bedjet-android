@@ -41,7 +41,7 @@ class ImportAdmissionTest {
         ReflectionHelpers.setField(app, "graph", graph)
         graph.repository.updateSettings { it.copy(targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         context = ServiceStartContext(app)
     }
 

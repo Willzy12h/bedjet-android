@@ -70,7 +70,7 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
                         if (temporary.maximumMinutes > 1) Slider(minutes.toFloat().coerceIn(1f, temporary.maximumMinutes.toFloat()),
                             { minutes = it.roundToInt() }, valueRange = 1f..temporary.maximumMinutes.toFloat(),
                             steps = temporary.maximumMinutes - 2,
-                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(minutes)))
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(minutes)), colors = nocturneSliderColors())
                         temporaryReturn(context, preview)?.let { Text(it) }
                         Text(stringResource(R.string.temporary_schedule))
                         temporary.endPreset?.takeIf { temporary.canEnd && it.minutes > temporary.maximumMinutes }?.let {

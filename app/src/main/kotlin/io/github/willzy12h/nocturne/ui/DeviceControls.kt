@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,8 +35,8 @@ internal fun DeviceControls(model: AppViewModel, scroll: ScrollState, viewportHe
     val beepsRequester = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
     var pending by remember { mutableStateOf<BringIntoViewRequester?>(null) }
-    var scrollAtTap by remember { mutableStateOf(0) }
-    var heightAtTap by remember { mutableStateOf(0) }
+    var scrollAtTap by remember { mutableIntStateOf(0) }
+    var heightAtTap by remember { mutableIntStateOf(0) }
     LaunchedEffect(viewportHeight, scroll.value, pending) {
         val requester = pending ?: return@LaunchedEffect
         if (scroll.value != scrollAtTap) pending = null

@@ -28,7 +28,6 @@
     <string name="setup_fan_run">Run supervised fan check</string>
     <string name="setup_fan_repeat">Repeat supervised fan check</string>
     <string name="checkin_button">Morning check-in</string>
-    <string name="checkin_saved">Morning check-in: %1$s</string>
     <string name="checkin_review">Review Middle suggestion</string>
     <string name="checkin_title">How did the night feel?</string>
     <string name="checkin_help">Your answer is saved with this completed night. Any profile change is shown for you to accept separately.</string>
@@ -115,21 +114,13 @@
 
     <!-- P8 Settings navigation -->
     <string name="settings_nav_bedjet">BedJet 3</string>
-    <string name="settings_nav_bedjet_detail">Device and working slot</string>
     <string name="settings_nav_night">Night and wake-up</string>
-    <string name="settings_nav_night_detail">Alarms and automatic starts</string>
     <string name="settings_nav_appearance">Appearance</string>
-    <string name="settings_nav_appearance_detail">Theme, palettes and units</string>
     <string name="settings_nav_permissions">Permissions</string>
-    <string name="settings_nav_permissions_detail">Setup checks and permissions</string>
     <string name="settings_nav_backups">Profiles and backups</string>
-    <string name="settings_nav_backups_detail">Export, import and snapshots</string>
     <string name="settings_nav_notifications">Notifications</string>
-    <string name="settings_nav_notifications_detail">Wake-up controls and notification log</string>
     <string name="settings_nav_health">Health Connect</string>
-    <string name="settings_nav_health_detail">Sleep overlay and programme export</string>
     <string name="settings_nav_about">Help and about</string>
-    <string name="settings_nav_about_detail">Version, source and diagnostics</string>
     <string name="settings_nav_back">Settings</string>
     <string name="settings_nav_chevron">›</string>
     <string name="settings_scheduled_help">Use your night palette and day palette at these times. Equal times keep your night palette all day.</string>

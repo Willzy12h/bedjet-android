@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.platform
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.Manifest
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -47,7 +48,7 @@ class AutoStartMidnightCadenceTest : PlatformGraphFixture() {
         assertEquals(Confidence.CONFIRMED, graph.repository.activeNight.value?.confidence)
         ChargerJobs.sync(graph)
         val pending = shadowOf(alarms).scheduledAlarms.filter {
-            shadowOf(it.operation).savedIntent.component?.className == AutoStartReceiver::class.java.name
+            shadowOf(it.operationIntent).savedIntent.component?.className == AutoStartReceiver::class.java.name
         }.single()
         assertEquals("A midnight run belongs to the morning it serves, not the following evening's night",
             Instant.parse("2026-10-27T23:00:00Z").toEpochMilli(), pending.triggerAtMs)

@@ -62,7 +62,7 @@ internal fun ScaledSlider(
         Slider(value, onValueChange, modifier = modifier.fillMaxWidth().padding(horizontal = inset),
             valueRange = range, steps = steps, enabled = enabled, onValueChangeFinished = onValueChangeFinished,
             interactionSource = interaction,
-            thumb = { SliderDefaults.Thumb(interaction, enabled = enabled, thumbSize = DpSize(20.dp, 20.dp)) })
+            thumb = { SliderDefaults.Thumb(interaction, enabled = enabled, thumbSize = DpSize(20.dp, 20.dp), colors = nocturneSliderColors()) }, colors = nocturneSliderColors())
         Layout(content = {
             ticks.forEachIndexed { index, (_, text) -> Text(text, style = style, modifier = Modifier.testTag("$tag-tick-$index")) }
         }, modifier = Modifier.fillMaxWidth()) { children, constraints ->

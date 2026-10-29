@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.content.Context
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
@@ -121,7 +122,7 @@ class TruthfulStateTest {
         NightAlarms.scheduleRetry(context, pending, graph.now())
         val alarms = org.robolectric.Shadows.shadowOf(context.getSystemService(android.app.AlarmManager::class.java))
         fun hasRetry() = alarms.scheduledAlarms.any {
-            org.robolectric.Shadows.shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY
+            org.robolectric.Shadows.shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY
         }
         assertTrue(hasRetry())
         demo.send(Codec.setMode(Mode.COOL)!!)

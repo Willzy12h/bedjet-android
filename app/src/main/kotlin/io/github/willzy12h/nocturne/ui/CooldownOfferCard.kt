@@ -32,7 +32,7 @@ internal fun CooldownOfferCard(model: AppViewModel, profiles: List<Profile>, fah
                 .toggleable(value = checked, enabled = !saving, role = Role.Checkbox,
                     onValueChange = { choices = choices + (profile.id to it) }),
                 verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = checked, onCheckedChange = null, enabled = !saving)
+                Checkbox(checked = checked, onCheckedChange = null, enabled = !saving, colors = nocturneCheckboxColors())
                 Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
                     Text(profile.name)
                     val replacement = profile.afterWake.map { phase ->

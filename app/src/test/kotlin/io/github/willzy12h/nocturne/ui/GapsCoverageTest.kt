@@ -102,7 +102,7 @@ class GapsCoverageTest {
         compose.onNodeWithTag("tonight-change").performScrollTo().performClick()
         compose.onNodeWithTag("tonight-choose-${other.id}").performScrollTo().performClick()
         waitUntil { graph.repository.settings.value.tonightChoice?.profileId == other.id }
-        compose.onNodeWithTag("tonight-card").assertTextContains(other.name, substring = true)
+        compose.onNode(hasText(other.name, substring = true, ignoreCase = true) and hasAnyAncestor(hasTestTag("tonight-card")), useUnmergedTree = true).assertExists()
         return scheduled.name
     }
 
@@ -111,7 +111,7 @@ class GapsCoverageTest {
         compose.onNodeWithText(s(R.string.tonight_follow_schedule)).performScrollTo().performClick()
         waitUntil { graph.repository.settings.value.tonightChoice == null }
         compose.onNodeWithText(s(R.string.tonight_follow_schedule)).assertDoesNotExist()
-        compose.onNodeWithTag("tonight-card").assertTextContains(scheduledName, substring = true)
+        compose.onNode(hasText(scheduledName, substring = true, ignoreCase = true) and hasAnyAncestor(hasTestTag("tonight-card")), useUnmergedTree = true).assertExists()
     }
 
     @Test fun heldOpenTonightReturnsItsChipToTheScheduleAfterNoonAndARefreshTick() {
@@ -123,7 +123,7 @@ class GapsCoverageTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(31))
         compose.waitForIdle()
         val scheduled = graph.repository.settings.value.resolveProfile(graph.repository.profiles.value, graph.now())!!
-        compose.onNodeWithTag("tonight-card").assertTextContains(scheduled.name, substring = true)
+        compose.onNode(hasText(scheduled.name, substring = true, ignoreCase = true) and hasAnyAncestor(hasTestTag("tonight-card")), useUnmergedTree = true).assertExists()
         compose.onNodeWithText(s(R.string.tonight_follow_schedule)).assertDoesNotExist()
     }
 

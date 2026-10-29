@@ -1,6 +1,10 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.text.TextLayoutResult
+import org.junit.Assert.assertTrue
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import org.junit.Rule
 import org.junit.Test
@@ -30,7 +34,7 @@ class EditorLargeTextReachabilityTest(private val look: U06Look) {
         for (tag in listOf("step-temp-down", "step-temp-up", "step-length-down", "step-length-up", "step-chip-30", "step-chip-45", "step-chip-60", "step-chip-120", "step-type-time", "step-delete", "step-done"))
             ui.checkControl(ui.compose.onNodeWithTag(tag), tag)
         ui.compose.onNodeWithTag("step-type-time").performScrollTo().performClick()
-        ui.checkControl(ui.compose.onNode(hasText("Done") and hasClickAction() and hasAnyAncestor(isDialog())), "Accept typed time", scroll = false)
+        ui.checkControl(ui.compose.onNode(hasText("Done") and hasClickAction() and hasAnyAncestor(isDialog() and hasAnyDescendant(hasTestTag("type-time-hours")))), "Accept typed time", scroll = false)
     }
     @Test fun allAddStepChoicesAndNextRemainReachable() {
         ui.compose.openTonightProfileEditor()
@@ -46,5 +50,15 @@ class EditorLargeTextReachabilityTest(private val look: U06Look) {
         for (tag in listOf("middle-temp-start", "middle-temp-end")) ui.checkLayout(ui.compose.onNodeWithTag(tag), tag)
         for (tag in listOf("middle-temp-start-down", "middle-temp-start-up", "middle-temp-end-down", "middle-temp-end-up", "middle-shape-1", "middle-shape-2", "middle-shape-3", "middle-shape-6"))
             ui.checkControl(ui.compose.onNodeWithTag(tag), tag)
+        val plotLabels = ui.compose.onAllNodes(hasAnyAncestor(hasTestTag("editor-middle-sheet")), useUnmergedTree = true)
+            .fetchSemanticsNodes().mapNotNull { node ->
+                val layouts = mutableListOf<TextLayoutResult>()
+                node.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(layouts)
+                layouts.singleOrNull()?.takeIf { result ->
+                    result.layoutInput.text.text.matches(Regex("[0-9.:–]+(?:°C)?")) && result.layoutInput.style.fontSize.value in 12f..13f
+                }
+            }
+        assertTrue("Inspect the actual temperature and time labels below the shape controls", plotLabels.size >= 3)
+        plotLabels.forEach { ui.assertLinesFit(it, "Middle plot ${it.layoutInput.text}") }
     }
 }

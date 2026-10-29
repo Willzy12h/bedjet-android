@@ -273,7 +273,7 @@ class CommandOriginsTest {
 
     @Test fun widgetEntryCarriesItsOriginAcrossTheServiceHandoff() = runBlocking {
         graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         val rendered = PlatformActionActivity.intent(app,
             graph.actions.capture(NightActions.Command.STOP_TRACKING, requireIdentity = true))
         val activity = Robolectric.buildActivity(PlatformActionActivity::class.java, rendered).setup()

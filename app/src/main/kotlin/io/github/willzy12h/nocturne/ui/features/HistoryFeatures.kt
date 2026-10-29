@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import io.github.willzy12h.nocturne.ui.nocturneCheckboxColors
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -55,7 +56,7 @@ import java.time.format.DateTimeFormatter
     if(dialog && !settings.demoMode) AlertDialog(onDismissRequest={dialog=false},title={Text(stringResource(R.string.feature_csv))},text={
         Column {
             Text(stringResource(R.string.feature_csv_help))
-            Row(Modifier.toggleable(identifiers,role=Role.Checkbox,onValueChange={identifiers=it})) {Checkbox(identifiers,null);Text(stringResource(R.string.feature_identifiers))}
+            Row(Modifier.toggleable(identifiers,role=Role.Checkbox,onValueChange={identifiers=it})) {Checkbox(identifiers,null, colors = nocturneCheckboxColors());Text(stringResource(R.string.feature_identifiers))}
         }
     },confirmButton={TextButton({dialog=false;picker.launch("nocturne-history-${graph.now().toLocalDate()}.csv")}) {Text(stringResource(R.string.feature_save))}},
         dismissButton={TextButton({dialog=false}){Text(stringResource(R.string.feature_cancel))}})

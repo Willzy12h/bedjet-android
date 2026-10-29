@@ -12,7 +12,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.text.TextLayoutResult
@@ -78,7 +85,7 @@ class RedesignStripeTilesTest {
     @Test fun presetSubtitleIsCompleteAndWrapsOnNarrowTile() {
         showPresets(120)
         val preset = QuickDefaults.resolve(ui.graph.repository.settings.value, Mode.HEAT)
-        val subtitle = ui.s(R.string.uat_quick_summary, Format.temp(preset.temperature, false, Format.Words { id, args -> ui.s(id, *args) }), preset.fanPercent, preset.minutes)
+        val subtitle = ui.compose.activity.resources.getQuantityString(R.plurals.uat_quick_summary, preset.minutes, Format.temp(preset.temperature, false, Format.Words { id, args -> ui.s(id, *args) }), preset.fanPercent, preset.minutes)
         val node = ui.compose.onNodeWithText(subtitle, useUnmergedTree = true).performScrollTo().assertExists()
         val layouts = mutableListOf<TextLayoutResult>()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
@@ -88,4 +95,70 @@ class RedesignStripeTilesTest {
         assertEquals(subtitle.length, result.getLineEnd(result.lineCount - 1))
         repeat(result.lineCount) { assertFalse("Subtitle must not ellipsise", result.isLineEllipsized(it)) }
     }
+    private fun assertBodyPixel(tag: SemanticsNodeInteraction, tint: Color, label: String,
+        base: SemanticsNodeInteraction? = null) {
+        val bounds = tag.performScrollTo().fetchSemanticsNode().boundsInRoot
+        val view = ui.compose.activity.window.decorView
+        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        ui.compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+        try {
+            val density = ui.compose.density.density
+            val actual = bitmap.getPixel((bounds.left + 8 * density).toInt(), bounds.center.y.toInt())
+            // Sample the rendered underlying surface: native View layers quantise each alpha blend.
+            // Comparing one new tint layer retains a one-channel tolerance without accumulating base-layer error.
+            val behind = base?.fetchSemanticsNode()?.boundsInRoot?.center
+                ?: Offset(bounds.left - 8 * density, bounds.center.y)
+            val background = Color(bitmap.getPixel(behind.x.toInt(), behind.y.toInt()))
+            val want = tint.compositeOver(background).toArgb()
+            for (shift in listOf(0, 8, 16, 24)) assertTrue(
+                "$label: expected ${want.toUInt().toString(16)}, got ${actual.toUInt().toString(16)}",
+                kotlin.math.abs(((want ushr shift) and 255) - ((actual ushr shift) and 255)) <= 1)
+        } finally { bitmap.recycle() }
+    }
+
+    @Test fun rememberedBedJetRowAppliesTheApprovedTintExactlyOnce() {
+        kotlinx.coroutines.runBlocking {
+            ui.graph.repository.exitDemoSession()
+            ui.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
+        }
+        ui.compose.runOnUiThread { ui.compose.activity.setContent {
+            NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
+                Surface(color = palette.value.tokens.ground) {
+                    Column(Modifier.verticalScroll(rememberScrollState())) { BedJetPicker(ui.model, compact = true) }
+                }
+            }
+        } }
+        Palette.entries.forEach { choice ->
+            ui.compose.runOnIdle { palette.value = choice }
+            val t = choice.tokens
+            val row = ui.compose.onNode(hasText("AA:BB:CC:DD:EE:FF") and hasClickAction())
+            assertBodyPixel(row, t.cool.copy(alpha = .10f), "$choice remembered BedJet tint")
+        }
+    }
+
+    @Test fun everyTintStrengthRendersItsSpecifiedCompositeInEveryPalette() {
+        ui.compose.runOnUiThread { ui.compose.activity.setContent {
+            NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
+                Surface(color = palette.value.tokens.ground) {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        Box(Modifier.size(180.dp, 64.dp).background(palette.value.tokens.surface).testTag("tint-base"))
+                        TintLevel.entries.forEach { level ->
+                            Box(Modifier.size(180.dp, 64.dp).background(palette.value.tokens.surface)
+                                .sideStripe(palette.value.tokens.cool, palette.value.tokens, level = level).testTag("tint-$level"))
+                        }
+                    }
+                }
+            }
+        } }
+        val alphas = listOf(.10f, .24f, .09f, .08f)
+        Palette.entries.forEach { choice ->
+            ui.compose.runOnIdle { palette.value = choice }
+            TintLevel.entries.forEachIndexed { index, level ->
+                val t = choice.tokens
+                assertBodyPixel(ui.compose.onNodeWithTag("tint-$level"),
+                    t.cool.copy(alpha = alphas[index]), "$choice $level", ui.compose.onNodeWithTag("tint-base"))
+            }
+        }
+    }
+
 }

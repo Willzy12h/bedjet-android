@@ -119,7 +119,7 @@ class TonightLayoutTest {
         val selected = requireNotNull(ui.model.tonightsProfile())
         val renamed = selected.copy(name = "Renamed current profile")
         ui.compose.runOnUiThread { runBlocking { ui.graph.repository.saveProfile(renamed) } }
-        ui.compose.onNodeWithText(renamed.name, substring = true).assertExists()
+        ui.compose.onNodeWithText(renamed.name, substring = true, ignoreCase = true).assertExists()
         ui.compose.openTonightDetail()
         ui.compose.onNodeWithTag("night-curve").performScrollTo().performTouchInput {
             longClick(Offset(width * .03f, height / 2f))

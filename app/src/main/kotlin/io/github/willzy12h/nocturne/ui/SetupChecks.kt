@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -108,7 +109,7 @@ internal fun checks(context: Context, request: (Array<String>) -> Unit): List<Se
             }
         },
         SetupCheck(context.getString(R.string.setup_checks_alarms), context.getString(R.string.setup_checks_alarms_why), NightAlarms.canScheduleExact(context)) {
-            context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
+            context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, "package:${context.packageName}".toUri()))
         },
         SetupCheck(
             context.getString(R.string.setup_checks_battery),
@@ -116,7 +117,7 @@ internal fun checks(context: Context, request: (Array<String>) -> Unit): List<Se
             power.isIgnoringBatteryOptimizations(context.packageName),
         ) {
             @Suppress("BatteryLife")
-            context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}")))
+            context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:${context.packageName}".toUri()))
         },
     )
 }

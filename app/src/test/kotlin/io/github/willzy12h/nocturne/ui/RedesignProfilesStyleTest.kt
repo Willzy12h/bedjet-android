@@ -1,5 +1,11 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.compositeOver
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.inspector.WindowInspector
@@ -42,30 +48,38 @@ class RedesignProfilesStyleTest {
         assertTrue("Profile stripe should use the middle step colour", matches > 20)
     }
 
-    @Test fun overcastOverflowMenuRendersPaletteBackgroundInkAndBorder() {
-        ui.compose.onNode(hasText(ui.s(R.string.tab_profiles)) and hasClickAction()).performClick()
+    @Test fun everyOverflowMenuRendersOpaquePaletteBackgroundInkAndBorder() {
+        val palette = mutableStateOf(Palette.MIDNIGHT_INK)
+        ui.compose.runOnUiThread { ui.compose.activity.setContent {
+            NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
+                Surface(color = palette.value.tokens.ground) { ProfilesScreen(ui.model, Modifier, onEdit = {}) }
+            }
+        } }
         ui.compose.onNodeWithTag("profile-more-${ui.graph.repository.profiles.value.first().id}")
             .performScrollTo().performClick()
         ui.compose.onNodeWithText(ui.s(R.string.pin_menu)).assertIsDisplayed()
+        for (choice in Palette.entries) {
+        ui.compose.runOnIdle { palette.value = choice }
         ui.compose.waitForIdle()
         val popup = WindowInspector.getGlobalWindowViews().single {
             it.isShown && it.width > 0 && it.height > 0 && it !== ui.compose.activity.window.decorView
         }
         val pixels = draw(popup)
-        val tokens = Palette.OVERCAST.tokens
+        val tokens = choice.tokens
         var background = 0
         var ink = 0
         var border = 0
         for (y in 0 until pixels.height) for (x in 0 until pixels.width) {
             val pixel = Color(pixels.getPixel(x, y))
-            if (close(pixel, tokens.menu)) background++
+            if (pixel.toArgb() == tokens.menu.toArgb()) background++
             if (close(pixel, tokens.ink)) ink++
-            if (close(pixel, tokens.outline)) border++
+            if (close(pixel, tokens.outline.compositeOver(tokens.menu))) border++
         }
         pixels.recycle()
         assertTrue("Menu must render its palette background", background > 100)
         assertTrue("Menu labels must render in palette ink", ink > 5)
-        assertTrue("Menu must render the palette edge border", border > 5)
+        assertTrue("$choice menu must render the palette edge border", border > 5)
+        }
     }
 
     @Test fun tappingProfileHeaderOpensExistingEditor() {

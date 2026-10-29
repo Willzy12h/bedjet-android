@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.platform
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.content.Context
 import androidx.compose.foundation.layout.Column
@@ -54,7 +55,7 @@ class AutoStartPreviewTest : PlatformGraphFixture() {
         runBlocking { graph.repository.claimAutomation("charger:$device:2026-10-26") }
         ChargerJobs.sync(graph)
         val actual = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms.filter {
-            shadowOf(it.operation).savedIntent.component?.className == AutoStartReceiver::class.java.name
+            shadowOf(it.operationIntent).savedIntent.component?.className == AutoStartReceiver::class.java.name
         }.single()
         assertEquals(Instant.parse("2026-10-27T23:00:00Z").toEpochMilli(), actual.triggerAtMs)
         compose.waitForIdle()

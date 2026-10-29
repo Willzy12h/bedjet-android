@@ -109,6 +109,28 @@ class ActiveIndicatorTest {
         ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertDoesNotExist()
     }
 
+    @Test fun aConfirmedSlotJournalDoesNotHideLaterManualReceiptsButUncertainWritesDo() {
+        aConfirmedBoostWithMatchingProgrammeProgressGetsTheQuickMarker()
+        val journal = requireNotNull(ui.graph.repository.runtime.value.slotWrite)
+        ui.compose.runOnUiThread { ui.model.run(Command.OFF) }
+        ui.waitUntil { ui.graph.link.status.value?.mode == Mode.STANDBY && ui.graph.actions.busy.value.runningLabel == null }
+        ui.compose.onNodeWithTag("quick-active-STANDBY", useUnmergedTree = true).assertExists()
+        ui.compose.onNodeWithTag("quick-active-BOOST", useUnmergedTree = true).assertDoesNotExist()
+        ui.compose.runOnUiThread { ui.model.runCaptured(captureModeQuick(ui.model,
+            io.github.willzy12h.nocturne.core.store.QuickDefaults.resolve(ui.model.settings.value, Mode.HEAT)).end) }
+        ui.waitUntil { ui.graph.link.status.value?.mode == Mode.HEAT && ui.graph.actions.busy.value.runningLabel == null }
+        ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertExists()
+        assertEquals("Presentation must not erase recovery evidence", journal, ui.graph.repository.runtime.value.slotWrite)
+        for (confidence in listOf(io.github.willzy12h.nocturne.core.night.Confidence.PENDING,
+            io.github.willzy12h.nocturne.core.night.Confidence.FAILED, io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN)) {
+            ui.compose.runOnUiThread { kotlinx.coroutines.runBlocking {
+                ui.graph.repository.updateRuntime { it.copy(slotWrite = journal.copy(confidence = confidence)) }
+            } }
+            ui.compose.waitForIdle()
+            ui.compose.onNodeWithTag("quick-active-HEAT", useUnmergedTree = true).assertDoesNotExist()
+        }
+    }
+
     @Test fun changingTheConfiguredBoostDurationDoesNotRelabelTheRunningProgrammeAsActive() {
         aConfirmedBoostWithMatchingProgrammeProgressGetsTheQuickMarker()
         ui.compose.runOnUiThread { kotlinx.coroutines.runBlocking {

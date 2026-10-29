@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ble
 
+import androidx.core.content.edit
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
@@ -69,7 +70,7 @@ class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, 
 
     /** Forgets the remembered unit and its name. */
     fun forget() {
-        prefs.edit().remove(KEY_ADDRESS).remove(KEY_NAME).apply()
+        prefs.edit { remove(KEY_ADDRESS).remove(KEY_NAME) }
         names.forget()
     }
 
@@ -263,17 +264,17 @@ internal class DeviceNames(context: Context, private val target: () -> String?) 
     })
     val verified: StateFlow<Pair<String, String?>?> = mutable
     fun display(device: String, name: String) {
-        prefs.edit().putString("name", name).putString("nameDevice", device).apply()
+        prefs.edit { putString("name", name).putString("nameDevice", device) }
         mutableDisplay.value = device to name
     }
     fun verify(device: String, name: String?) {
-        prefs.edit().putString("verifiedNameDevice", device).putString("verifiedName", name).apply()
+        prefs.edit { putString("verifiedNameDevice", device).putString("verifiedName", name) }
         mutable.value = device to name
     }
     fun displayName(): String? = if (prefs.getString("nameDevice", null) == target()) prefs.getString("name", null) else null
     fun verifiedName(device: String): String? = mutable.value?.takeIf { it.first == device }?.second
     fun forget() {
-        prefs.edit().remove("name").remove("nameDevice").remove("verifiedName").remove("verifiedNameDevice").apply()
+        prefs.edit { remove("name").remove("nameDevice").remove("verifiedName").remove("verifiedNameDevice") }
         mutable.value = null
         mutableDisplay.value = null
     }

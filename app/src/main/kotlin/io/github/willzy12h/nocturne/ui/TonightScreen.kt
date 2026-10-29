@@ -91,7 +91,7 @@ import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.delay
 import java.time.ZonedDateTime
 
-/** Fixed wake and explanation above Tonight's card, presets and saved section order. */
+/** Compact Tonight card, expandable plan details and the existing guarded quick controls. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenBackups: () -> Unit = {},
@@ -164,7 +164,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     var showDetail by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     var editingQuick by remember { mutableStateOf(false) }
-    val sending = rememberPresetSending(model)
+    val sending = rememberPresetSending()
     val tokens = paletteTokens
     val current = if (confirmed) plan?.stepAt(now) else null
     val profileName = profile?.name ?: night?.profile?.name ?: stringResource(R.string.tonights_night)
@@ -172,7 +172,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     Box(modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("tonight-content")
         .padding(horizontal = 16.dp).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatusLine(model, runningName = night?.let { profileName }, onRemote = onOpenRemote)
+        StatusLine(model, runningName = profileName.takeIf { confirmed && night?.trackingManual == false }, onRemote = onOpenRemote)
         BluetoothBanner(model)
         HomeReading(model, settings, current?.let { (index, step) -> Triple(step, index + 1, plan?.steps?.size ?: 0) }, sending.value)
         SetupChecklistCard(model)
@@ -183,10 +183,12 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             if (night == null) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 SectionLabel(stringResource(R.string.parity_tonight_label, profileName),
                     Modifier.weight(1f).semantics { heading() })
-                if (night == null && profiles.isNotEmpty()) AccentLink(stringResource(R.string.parity_change), { choosing = true },
+                if (profiles.isNotEmpty()) AccentLink(stringResource(R.string.parity_change), { choosing = true },
                     Modifier.testTag("tonight-change"))
             }
             if (night != null) {
+                if (settings.demoMode || !confirmed || night.trackingManual || night.isTestRun)
+                    Text(profileName, color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 if (!confirmed || night.trackingManual) {
                     val state = stringResource(when (nightStatus.confidence ?: night.confidence) {
                         Confidence.PENDING -> R.string.tonight_state_pending
@@ -216,7 +218,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 val detail = stringResource(R.string.parity_show_detail)
                 NightBar(p, now.takeIf { night != null && confirmed }, Modifier
                     .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = detail) { showDetail = !showDetail }
-                    .semantics { contentDescription = summary ?: profileName; stateDescription = if (showDetail) "" else detail })
+                    .semantics { contentDescription = summary ?: profileName; stateDescription = if (showDetail) "" else detail }, minHeight = 48.dp)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     val tick = Modifier.weight(1f)
                     Tick(if (night != null) Format.clock(p.start) else stringResource(R.string.parity_bed, Format.clock(p.start)), tick, TextAlign.Start)
@@ -308,7 +310,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable {
                         chosen = p; model.updateSettings { it.chooseTonight(p.id, model.now()) }; choosing = false
                     }.testTag("tonight-choose-${p.id}"), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = profile?.id == p.id, onClick = null)
+                        RadioButton(selected = profile?.id == p.id, onClick = null, colors = nocturneRadioColors())
                         Text(p.name, Modifier.padding(start = 12.dp))
                     }
                 }
@@ -325,10 +327,15 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         confirmButton = { TextButton(onClick = { editingQuick = false }) { Text(stringResource(R.string.uat_setup_done)) } })
 }
 
-/** The design's 10 px ink3 tick under the night bar. */
+/** Compact visual ticks with a complete, readable wake source and a 48 dp tap area. */
 @Composable
-private fun Tick(text: String, modifier: Modifier, align: TextAlign) = Text(text, modifier, color = paletteTokens.ink3,
-    fontSize = 10.sp, textAlign = align, maxLines = 2)
+private fun Tick(text: String, modifier: Modifier, align: TextAlign) {
+    Box(modifier.heightIn(min = 48.dp), contentAlignment = when (align) {
+        TextAlign.Start -> Alignment.CenterStart
+        TextAlign.End -> Alignment.CenterEnd
+        else -> Alignment.Center
+    }) { Text(text, color = paletteTokens.ink2, fontSize = 10.sp, textAlign = align) }
+}
 
 /** The large reading and its context are based only on the current BedJet receipt; a running night adds its step. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -343,7 +350,7 @@ private fun HomeReading(model: AppViewModel, settings: Settings,
     val reading = status.takeIf { live && link == LinkState.READY }
     if (reading == null) {
         Text(stringResource(R.string.home_reading_unavailable),
-            modifier = Modifier.testTag("home-reading-context"), color = tokens.ink3,
+            modifier = Modifier.testTag("home-reading-context"), color = tokens.ink2,
             style = MaterialTheme.typography.bodyMedium)
     } else {
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -354,9 +361,9 @@ private fun HomeReading(model: AppViewModel, settings: Settings,
                 fontWeight = FontWeight.Bold, color = tokens.ink)
             Column(Modifier.align(Alignment.CenterVertically)) {
                 Text(stringResource(R.string.home_air_from_bedjet), modifier = Modifier.testTag("home-reading-context"),
-                    color = tokens.ink3, fontSize = 11.sp)
+                    color = tokens.ink2, fontSize = 11.sp)
                 if (sending != null) {
-                    Text("${sending.title}…", modifier = Modifier.testTag("home-sending"), color = sending.color,
+                    Text("${sending.title}…", modifier = Modifier.testTag("home-sending"), color = tokens.readableText(sending.color),
                         fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Text(stringResource(R.string.parity_waiting_bedjet), color = tokens.ink2, fontSize = 11.sp)
                 } else if (reading.mode == Mode.STANDBY) Text(stringResource(R.string.home_idle), color = tokens.ink2,
@@ -365,7 +372,7 @@ private fun HomeReading(model: AppViewModel, settings: Settings,
                     Icon(painterResource(modeIcon(reading.mode)), null, Modifier.size(16.dp),
                         tint = paletteTokens.stepColor(reading.mode, reading.targetTemperature))
                     Text(modeName(reading.mode) + if (reading.mode.usesTemperature) " " + tempText(reading.targetTemperature, settings.fahrenheit) else "",
-                    color = paletteTokens.stepColor(reading.mode, reading.targetTemperature), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    color = tokens.readableText(tokens.stepColor(reading.mode, reading.targetTemperature)), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 if (sending == null && step != null) Text(stringResource(R.string.parity_fan_step, reading.fanPercent, step.second, step.third),
                     color = tokens.ink2, fontSize = 11.sp)
@@ -419,13 +426,13 @@ private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: Zo
 
 /** The one primary action on the screen: full width, at least 56 dp, 16 dp corners. */
 @Composable
-internal fun BigButton(text: String, onClick: () -> Unit, enabled: Boolean = true, modifier: Modifier = Modifier) {
+internal fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
         shape = RoundedCornerShape(16.dp),
-    ) { Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(text) }
 }
 
 @Composable
@@ -436,34 +443,6 @@ private fun surfaceCard() = CardDefaults.cardColors(containerColor = MaterialThe
 
 @Composable
 private fun cardBorder() = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-
-@Composable
-fun ConnectionLine(model: AppViewModel) {
-    val state by model.linkState.collectAsState()
-    val status by model.status.collectAsState()
-    val hasLiveStatus by model.hasLiveStatus.collectAsState()
-    val settings by model.settings.collectAsState()
-    val colors = nocturneColors
-    val text = when (state) {
-        LinkState.READY -> status?.takeIf { hasLiveStatus }?.let { stringResource(R.string.connection_status, modeName(it.mode), tempText(it.ambientTemperature, settings.fahrenheit),
-            tempText(it.actualTemperature, settings.fahrenheit)) } ?: stringResource(R.string.connection_ready)
-        LinkState.CONNECTING -> stringResource(R.string.connection_connecting)
-        LinkState.SEARCHING -> stringResource(R.string.connection_searching)
-        LinkState.BLUETOOTH_OFF -> stringResource(R.string.connection_bluetooth_off)
-        LinkState.UNAUTHORIZED -> stringResource(R.string.connection_unauthorized)
-    }
-    // The dot repeats the text's meaning in colour; the label still says it in words.
-    val dot = when (state) {
-        LinkState.READY -> colors.connected
-        LinkState.CONNECTING -> colors.heat
-        else -> colors.idle
-    }
-    AssistChip(
-        onClick = model::reconnect,
-        label = { Text(if (settings.demoMode) stringResource(R.string.connection_demo, text) else text) },
-        leadingIcon = { Dot(dot, 8) },
-    )
-}
 
 @Composable
 fun blockName(block: Block): String = stringResource(when (block) {

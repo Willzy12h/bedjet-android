@@ -44,6 +44,7 @@ class ImportPreview internal constructor(
     val warnings: Set<ImportWarning>,
     val deviceAssociations: List<String>,
     val incompatibleFields: Int,
+    val profilesOnly: Boolean = false,
 ) {
     val canApply: Boolean get() = incompatibleFields == 0
 }

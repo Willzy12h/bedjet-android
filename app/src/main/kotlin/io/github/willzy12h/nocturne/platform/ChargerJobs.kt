@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.platform
 
+import androidx.core.net.toUri
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -41,7 +42,7 @@ object PlatformNotifications {
         channel(context)
         if (!available(context)) return false
         fun action(disable: Boolean): PendingIntent = PendingIntent.getBroadcast(context,if(disable) 2 else 1,
-            Intent(context,AutomationCancelReceiver::class.java).setData(android.net.Uri.parse("nocturne://automation/${android.net.Uri.encode(key)}/$disable"))
+            Intent(context,AutomationCancelReceiver::class.java).setData("nocturne://automation/${android.net.Uri.encode(key)}/$disable".toUri())
                 .putExtra("key",key).putExtra("disable",disable),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return try {
             NotificationManagerCompat.from(context).notify(CHARGER_ID,NotificationCompat.Builder(context,CHANNEL)
@@ -141,6 +142,9 @@ object ChargerJobs {
         listOf(Manifest.permission.BLUETOOTH_CONNECT,Manifest.permission.BLUETOOTH_SCAN).all {context.checkSelfPermission(it)==PackageManager.PERMISSION_GRANTED}
 }
 
+// ChargerJobs.ID is negative; the transitive WorkManager default range is nonnegative.
+// PlatformAdapterTest verifies the installed WorkManager Configuration range and native ID do not overlap.
+@android.annotation.SuppressLint("SpecifyJobSchedulerIdRange")
 class ChargerJobService : JobService() {
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
     private data class Running(val params: JobParameters, val admission: OperationAdmission.Lease, var stopped: Boolean=false, var job: Job?=null)

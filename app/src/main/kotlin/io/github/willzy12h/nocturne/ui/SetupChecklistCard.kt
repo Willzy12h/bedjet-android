@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.core.net.toUri
 import android.Manifest
 import android.app.ActivityManager
 import android.appwidget.AppWidgetManager
@@ -120,12 +121,12 @@ internal fun SetupChecklistCard(model: AppViewModel) {
                     context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                     permission.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                 else open(Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName))
-            SetupItem.EXACT_ALARMS -> open(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
+            SetupItem.EXACT_ALARMS -> open(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, "package:${context.packageName}".toUri()))
             SetupItem.BATTERY -> {
                 @Suppress("BatteryLife")
                 val intent = Intent(if (context.getSystemService(ActivityManager::class.java)?.isBackgroundRestricted == true)
                     AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS else AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Uri.parse("package:${context.packageName}"))
+                    "package:${context.packageName}".toUri())
                 open(intent)
             }
             SetupItem.HEALTH -> if (HealthConnectAccess.available(context))

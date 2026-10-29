@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.core.net.toUri
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -9,7 +10,7 @@ import android.widget.Toast
 import io.github.willzy12h.nocturne.R
 
 internal fun openSourceCode(context: Context): Boolean {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(context.getString(R.string.settings_source_url)))
+    val intent = Intent(Intent.ACTION_VIEW, context.getString(R.string.settings_source_url).toUri())
     if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     return try {
         context.startActivity(intent)

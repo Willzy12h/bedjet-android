@@ -1,12 +1,9 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.foundation.Canvas
-import kotlinx.coroutines.delay
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.infiniteRepeatable
@@ -19,6 +16,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,6 +34,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -69,23 +70,23 @@ private val BoostColor = Color(0xFFFF6FA0)
 /** The design's `.lbl`: 10.5, bold, uppercase, ink3. */
 @Composable
 internal fun SectionLabel(text: String, modifier: Modifier = Modifier) = Text(text.uppercase(), modifier,
-    color = paletteTokens.ink3, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
+    color = paletteTokens.ink2, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
 
 /** A text link in the accent colour (600, 11.5), with a 48 dp touch target. */
 @Composable
 internal fun AccentLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Int? = null,
     enabled: Boolean = true, fontSize: TextUnit = 11.5.sp) {
-    Row(modifier.heightIn(min = 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 4.dp)
+    Row(modifier.heightIn(min = 48.dp).widthIn(min = 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 4.dp)
         .alpha(if (enabled) 1f else .4f),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         icon?.let { Icon(painterResource(it), null, Modifier.size(12.dp), tint = paletteTokens.accent) }
-        Text(text, color = paletteTokens.accent, fontSize = fontSize, fontWeight = FontWeight.SemiBold)
+        Text(text, color = if (paletteTokens.dark) paletteTokens.accent else paletteTokens.ink2, fontSize = fontSize, fontWeight = FontWeight.SemiBold)
     }
 }
 
 /** The design's status line: a dot and one short sentence, with Remote on the right. */
 @Composable
-internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: () -> Unit) {
+internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (() -> Unit)? = null) {
     val settings by model.settings.collectAsState()
     val state by model.linkState.collectAsState()
     val status by model.status.collectAsState()
@@ -103,8 +104,7 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: () 
         else -> selectedName ?: DeviceId.address(settings.targetDevice!!) ?: stringResource(R.string.settings_bedjet)
     }
     val sending = owner.runningLabel != null
-    val text = when {
-        sending -> stringResource(R.string.parity_status_sending)
+    val connectionText = when {
         connection == HeaderConnection.DEMO -> stringResource(R.string.parity_status_demo)
         connection == HeaderConnection.BLUETOOTH_OFF -> stringResource(R.string.status_bluetooth_off)
         runningName != null && connection == HeaderConnection.CONNECTED -> stringResource(R.string.parity_status_running, runningName)
@@ -119,13 +119,29 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: () 
         else -> connectionSymbolColour(connection, tokens.dark)
     }
     val description = stringResource(R.string.uat_connection_description, name, stringResource(connection.text))
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("status-header"), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Dot(dot, 8, Modifier.testTag("status-symbol-${connection.name}"))
-        Text(text, Modifier.weight(1f).testTag("status-connection").semantics { contentDescription = "$description. $text" },
-            color = tokens.ink2, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+    val text = if (sending) stringResource(R.string.parity_status_sending) else connectionText
+    val stackActions = LocalConfiguration.current.fontScale >= 1.5f
+    val actions: @Composable () -> Unit = {
         if (settings.demoMode) AccentLink(stringResource(R.string.gpt12_exit_demo), model::exitDemo)
-        AccentLink(stringResource(R.string.parity_remote_link), onRemote, Modifier.testTag("open-remote"))
+        onRemote?.let { AccentLink(stringResource(R.string.parity_remote_link), it, Modifier.testTag("open-remote")) }
+    }
+    Column(Modifier.fillMaxWidth().testTag("status-header")) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Dot(dot, Modifier.testTag("status-symbol-${connection.name}"), sizeDp = 8)
+            Box(Modifier.weight(1f)) {
+                // Keep targets below this line still when Sending replaces a wrapped device/profile name.
+                if (sending) Text(connectionText, Modifier.alpha(0f).clearAndSetSemantics { },
+                    color = tokens.ink2, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                Text(text, Modifier.testTag("status-connection").semantics { contentDescription = "$description. $text" },
+                    color = tokens.ink2, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+            }
+            if (!stackActions) actions()
+        }
+        if (stackActions && (settings.demoMode || onRemote != null)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically) { actions() }
+        }
     }
 }
 
@@ -150,13 +166,14 @@ private fun barSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> {
 
 /** The design's segmented night: 2 dp gaps, round outer ends, a gradient across the Middle ramp, and a Now marker. */
 @Composable
-internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp) {
+internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp, minHeight: Dp = height) {
     val tokens = paletteTokens
     val segments = barSegments(plan, tokens)
     val total = segments.sumOf { it.minutes }.coerceAtLeast(1)
     val span = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1)
     val nowFraction = now?.let { (Duration.between(plan.start, it).toMinutes().toFloat() / span).coerceIn(0f, 1f) }
-    Canvas(modifier.fillMaxWidth().height(height).testTag("night-bar")) {
+    Box(modifier.fillMaxWidth().heightIn(min = minHeight).testTag("night-bar"), contentAlignment = Alignment.Center) {
+    Canvas(Modifier.fillMaxWidth().height(height)) {
         val gap = 2.dp.toPx()
         val outer = CornerRadius(minOf(10.dp.toPx(), size.height / 2))
         val inner = CornerRadius(minOf(3.dp.toPx(), size.height / 2))
@@ -177,8 +194,9 @@ internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modi
         }
         nowFraction?.let {
             val at = (size.width * it).coerceIn(1.5.dp.toPx(), size.width - 1.5.dp.toPx())
-            drawLine(Color.White, Offset(at, -2.dp.toPx()), Offset(at, size.height + 2.dp.toPx()), 3.dp.toPx(), StrokeCap.Round)
+            drawLine(if (tokens.dark) Color.White else tokens.ink, Offset(at, -2.dp.toPx()), Offset(at, size.height + 2.dp.toPx()), 3.dp.toPx(), StrokeCap.Round)
         }
+    }
     }
 }
 
@@ -204,22 +222,15 @@ internal fun modeIcon(mode: Mode): Int = when (mode) {
 }
 
 /** The preset the person tapped, shown as "Heat… / Sending" until the BedJet has taken the command. */
-internal data class PresetSending(val key: String, val title: String, val color: Color)
+internal class PresetSending(val key: String, val title: String, val color: Color)
 
-/** Holds [PresetSending] and clears it once the command queue has drained (or after 15 s if it never started). */
+/** Each marker belongs to its submitted command, including time waiting in the existing owner's queue. */
 @Composable
-internal fun rememberPresetSending(model: AppViewModel): MutableState<PresetSending?> {
-    val state = remember { mutableStateOf<PresetSending?>(null) }
-    val owner by model.commandBusy.collectAsState()
-    val busy = owner.runningLabel != null || owner.queuedCount > 0
-    var seenBusy by remember { mutableStateOf(false) }
-    LaunchedEffect(busy, state.value) {
-        if (state.value == null) seenBusy = false
-        else if (busy) seenBusy = true
-        else if (seenBusy) { state.value = null; seenBusy = false }
-    }
-    LaunchedEffect(state.value) { if (state.value != null) { delay(15_000); state.value = null } }
-    return state
+internal fun rememberPresetSending(): MutableState<PresetSending?> = remember { mutableStateOf(null) }
+
+private fun MutableState<PresetSending?>.submit(marker: PresetSending, action: (() -> Unit) -> Unit) {
+    value = marker
+    action { if (value === marker) value = null }
 }
 
 /** The design's `.tile .pd`: a small amber dot that pulses while a command is on its way. */
@@ -227,7 +238,7 @@ internal fun rememberPresetSending(model: AppViewModel): MutableState<PresetSend
 private fun SendingDot(tag: String) {
     val alpha = if (rememberMotionAllowed()) rememberInfiniteTransition(label = "pd").animateFloat(1f, .35f,
         infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pd").value else 1f
-    Box(Modifier.testTag(tag).alpha(alpha)) { Dot(paletteTokens.warn, 7) }
+    Box(Modifier.testTag(tag).alpha(alpha)) { Dot(paletteTokens.warn, sizeDp = 7) }
 }
 
 /** One `.tile`: stripe, icon and name on one line, the detail below. */
@@ -241,21 +252,21 @@ private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?,
         icon = { Icon(painterResource(icon), null, Modifier.size(16.dp), tint = stripe) },
         trailing = {
             if (sending) SendingDot(tag.replace("quick-mode-", "quick-sending-"))
-            else if (active) Box(Modifier.testTag(tag.replace("quick-mode-", "quick-active-"))) { Dot(stripe, 7) }
+            else if (active) ActiveIndicator(paletteTokens.readableText(stripe,
+                paletteTokens.tint(stripe, TintLevel.ON).compositeOver(paletteTokens.surface.compositeOver(paletteTokens.ground)),
+                minimumContrast = 3f), true, Modifier.testTag(tag.replace("quick-mode-", "quick-active-")), sizeDp = 7)
         },
         modifier = modifier.heightIn(min = 56.dp).alpha(if (enabled) 1f else .5f).testTag(tag)
-            .semantics { contentDescription = description }.clickable(role = Role.Button, onClick = onClick))
+            .semantics { contentDescription = description }.clickable(enabled = enabled, role = Role.Button, onClick = onClick))
 }
 
 /** The design's QUICK PRESETS: three columns of Turbo, Heat, Cool, Dry, Boost and Off. */
 @Composable
 internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit) {
-    val context = LocalContext.current
     val settings by model.settings.collectAsState()
-    val status by model.status.collectAsState()
     val live by model.hasLiveStatus.collectAsState()
     val link by model.linkState.collectAsState()
-    val tokens = paletteTokens
+    val columns = if (LocalConfiguration.current.fontScale >= 1.5f) 2 else 3
     val canControl = live && link == io.github.willzy12h.nocturne.core.link.LinkState.READY
     val evidence = quickEvidence(model)
     Column(Modifier.testTag("quick-controls"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -264,7 +275,7 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: Mutab
             AccentLink(stringResource(R.string.action_edit), onEdit, icon = R.drawable.ic_nc_edit)
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY).chunked(3).forEach { row ->
+            listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY).chunked(columns).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f)) }
                 }
@@ -283,17 +294,26 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
     val context = LocalContext.current
     val settings by model.settings.collectAsState()
     val tokens = paletteTokens
+    val status by model.status.collectAsState()
+    val link by model.linkState.collectAsState()
+    val night by model.activeNight.collectAsState()
+    val runtime by model.runtime.collectAsState()
+    val owner by model.commandBusy.collectAsState()
     when (mode) {
         null -> {
+            val profiles by model.profiles.collectAsState()
+            val limits = settings.resolveProfile(profiles, model.now())?.limits ?: io.github.willzy12h.nocturne.core.plan.ProfileLimits()
             val startBoost = stringResource(R.string.guard_start_boost)
             PresetTile(BoostColor, R.drawable.ic_nc_ramp, stringResource(R.string.shortcut_boost),
-                stringResource(R.string.boost_label_turbo_then_heat_compact), false, canControl,
+                stringResource(R.string.boost_label_turbo_then_heat_compact),
+                canControl && owner.runningLabel == null && owner.queuedCount == 0 && reportedQuickAction(
+                    status, link, settings, night, runtime.slotWrite, limits) == Command.BOOST, canControl,
                 boostDescription(context, settings.boostMinutes), "quick-mode-BOOST", modifier,
                 sending.value?.key == "BOOST") {
                 val captured = model.quickAction(Command.BOOST)
                 val title = context.getString(R.string.shortcut_boost)
                 guard.confirm(startBoost, captured.temporary) {
-                    sending.value = PresetSending("BOOST", title, BoostColor); model.runCaptured(captured.end)
+                    sending.submit(PresetSending("BOOST", title, BoostColor)) { finished -> model.runCaptured(captured.end, finished) }
                 }
             }
         }
@@ -302,7 +322,7 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
             PresetTile(tokens.off, R.drawable.ic_nc_off, label, null, evidence?.mode == Mode.STANDBY, canControl,
                 label, "quick-mode-${Mode.STANDBY.name}", modifier, sending.value?.key == Mode.STANDBY.name) {
                 guard.confirm(context.getString(R.string.guard_turn_off)) {
-                    sending.value = PresetSending(Mode.STANDBY.name, label, tokens.off); model.run(Command.OFF)
+                    sending.submit(PresetSending(Mode.STANDBY.name, label, tokens.off)) { finished -> model.run(Command.OFF, onFinished = finished) }
                 }
             }
         }
@@ -321,7 +341,7 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
                 val captured = captureModeQuick(model, preset)
                 val color = tokens.stepColor(mode, preset.temperature)
                 guard.confirm(context.getString(R.string.guard_switch_to, label), captured.temporary) {
-                    sending.value = PresetSending(mode.name, label, color); model.runCaptured(captured.end)
+                    sending.submit(PresetSending(mode.name, label, color)) { finished -> model.runCaptured(captured.end, finished) }
                 }
             }
         }

@@ -164,11 +164,13 @@ class ScreenshotCapture {
             graph.repository.updateSettings { it.copy(demoMode = true, themeMode = theme, simpleView = simple) }
             graph.repository.setActiveNight(null)
         }
+        acceptLight(theme)
         tab("Profiles")
         val profileId = graph.repository.profiles.value.first().id
         compose.onNode(hasScrollToKeyAction()).performScrollToKey(profileId)
         compose.onNodeWithTag("profile-more-$profileId", useUnmergedTree = true).performScrollTo().performClick()
         settle()
+        shot("gaps-$look-00-profile-menu")
         tap(s(R.string.pin_menu), scroll = false)
         compose.onNodeWithText(compose.activity.getString(R.string.pin_slot_help, graph.repository.settings.value.workingSlot + 1)).assertExists()
         shot("gaps-$look-01-slot-pin")
@@ -177,7 +179,7 @@ class ScreenshotCapture {
         save { graph.repository.updateSettings { it.setWakeOverride(graph.now().plusHours(7), graph.now()) } }
         val expiry = graph.now().plusHours(7)
         compose.onNodeWithTag("tonight-fixed-wake").performScrollTo()
-            .assertTextContains(Format.clock(expiry), substring = true)
+            .assert(hasText(Format.clock(expiry), substring = true))
         shot("gaps-$look-02-wake-expiry")
         compose.onNodeWithTag("tonight-fixed-wake").performClick()
         settle()
@@ -246,6 +248,7 @@ class ScreenshotCapture {
             }
         }
         settle()
+        acceptLight(theme)
         shot("$look-01-tonight")
         compose.onNodeWithText(compose.activity.getString(R.string.tonight_start_now)).performScrollTo()
         settle()
@@ -283,6 +286,17 @@ class ScreenshotCapture {
         assertEquals("Running capture must not show a pending adjustment", Confidence.CONFIRMED, graph.actions.status.value.confidence)
         assertEquals("Running capture waits for its command owner", null, graph.actions.busy.value.runningLabel)
         shot("$look-06-tonight-running")
+    }
+
+    private fun acceptLight(theme: ThemeMode) {
+        if (theme == ThemeMode.LIGHT) {
+            val switch = compose.activity.getString(R.string.theme_switch_now)
+            if (compose.onAllNodesWithText(switch).fetchSemanticsNodes().isNotEmpty()) {
+                compose.onNodeWithText(switch).performClick()
+                settle()
+            }
+            compose.onNodeWithText(switch).assertDoesNotExist()
+        }
     }
 
     private fun settle(ms: Long = 500) {
@@ -373,13 +387,19 @@ class ScreenshotCapture {
         assertEquals("Capture width in dp", expectedWidthDp, config.screenWidthDp)
         assertEquals("Capture font scale", expectedFontScale, config.fontScale, 0.001f)
         // Drawing the window directly; captureToImage waits on frame callbacks Robolectric's paused clock never sends.
-        val view = windowView ?: org.robolectric.shadows.ShadowDialog.getLatestDialog()?.takeIf { it.isShowing }?.window?.decorView ?: compose.activity.window.decorView
-        assertTrue("Capture window must be laid out", view.width > 0 && view.height > 0)
-        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-        compose.runOnUiThread { view.draw(Canvas(bitmap)) }
-        File(dir, "$name.png").outputStream().use {
-            assertTrue("PNG compression must succeed", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+        val views = windowView?.let(::listOf) ?: android.view.inspector.WindowInspector.getGlobalWindowViews()
+            .filter { it.isShown && it.width > 0 && it.height > 0 }
+        assertTrue("Capture must include a visible window", views.isNotEmpty())
+        views.forEachIndexed { index, view ->
+            assertTrue("Capture window must be laid out", view.width > 0 && view.height > 0)
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+            File(dir, if (index == 0) "$name.png" else "$name-window$index.png").outputStream().use {
+                assertTrue("PNG compression must succeed", bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }
+            bitmap.recycle()
         }
+        val view = views.first()
         File(dir, "$name.json").writeText("""
             {"renderer":"Robolectric native graphics","sdk":34,"tag":"$tag",
              "clockInstant":"${graph.clock.instant()}","clockZone":"${graph.clock.zone}",
@@ -390,6 +410,5 @@ class ScreenshotCapture {
              "theme":"${graph.repository.settings.value.themeMode}",
              "simpleView":${graph.repository.settings.value.simpleView},"demoMode":${graph.repository.settings.value.demoMode}}
         """.trimIndent() + "\n")
-        bitmap.recycle()
     }
 }
