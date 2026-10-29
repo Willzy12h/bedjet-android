@@ -9,7 +9,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class) @Config(sdk = [34])
+@RunWith(RobolectricTestRunner::class) @Config(sdk = [31, 33, 34, 36])
 class UatAlarmIdentityTest {
     @Test fun everyExplicitSamsungAliasHasTheSamsungClockLabel() {
         val context = RuntimeEnvironment.getApplication()
@@ -41,4 +41,27 @@ class UatAlarmIdentityTest {
         assertFalse(AlarmPolicy(settings).acceptsSource(null))
         assertFalse(AlarmPolicy(settings).acceptsSource("android"))
     }
+    @Test fun packageManagerLookupRejectsSharedOrMismatchedUidEvidenceOnEverySupportedApi() {
+        val context = RuntimeEnvironment.getApplication()
+        val pm = org.robolectric.Shadows.shadowOf(context.packageManager)
+        val name = "com.example.clock"
+        val info = android.content.pm.PackageInfo().apply {
+            packageName = name
+            applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = name; uid = 10123 }
+        }
+        pm.installPackage(info)
+        pm.setPackagesForUid(10123, name)
+        assertEquals(name, identifyAlarmCreator(context, null, 10123))
+        @Suppress("DEPRECATION") // Explicit legacy shared-UID fixture exercises the fail-closed check.
+        fun markShared(value: String?) { info.sharedUserId = value }
+        markShared("legacy.shared.uid")
+        pm.installPackage(info)
+        assertNull(identifyAlarmCreator(context, null, 10123))
+        markShared(null)
+        info.applicationInfo!!.uid = 10999
+        pm.installPackage(info)
+        assertNull(identifyAlarmCreator(context, null, 10123))
+        assertEquals("android", identifyAlarmCreator(context, "android", 10123))
+    }
+
 }

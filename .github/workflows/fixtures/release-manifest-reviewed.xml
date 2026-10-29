@@ -4,7 +4,7 @@
      the release overlay makes the five system/widget receivers private. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.github.willzy12h.nocturne" android:versionCode="1" android:versionName="fixture">
-    <uses-sdk android:minSdkVersion="31" android:targetSdkVersion="35" />
+    <uses-sdk android:minSdkVersion="31" android:targetSdkVersion="36" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

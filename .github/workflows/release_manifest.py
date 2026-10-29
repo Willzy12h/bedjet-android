@@ -86,8 +86,8 @@ def audit(path):
     issues = []
     if root.get("package") != PACKAGE:
         issues.append(f"Unexpected package: {root.get('package')}")
-    if sdk is None or sdk.get(A + "minSdkVersion") != "31" or sdk.get(A + "targetSdkVersion") != "35":
-        issues.append("Expected merged release SDK declarations minSdk=31, targetSdk=35")
+    if sdk is None or sdk.get(A + "minSdkVersion") != "31" or sdk.get(A + "targetSdkVersion") != "36":
+        issues.append("Expected merged release SDK declarations minSdk=31, targetSdk=36")
     for name, expected in (("debuggable", "false"), ("testOnly", "false"), ("allowBackup", "false")):
         actual = application.get(A + name, "false" if name != "allowBackup" else "true")
         if actual != expected:
