@@ -2,6 +2,7 @@ package io.github.willzy12h.nocturne.ui.features
 
 import io.github.willzy12h.nocturne.ui.nocturneRadioColors
 import io.github.willzy12h.nocturne.ui.nocturneSliderColors
+import io.github.willzy12h.nocturne.ui.nocturneSwitchColors
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -46,7 +47,7 @@ import kotlin.math.roundToInt
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).toggleable(checked, enabled, Role.Switch, change)
         .semantics { contentDescription = label }, verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f).padding(end = 8.dp))
-        Switch(checked, onCheckedChange = null, enabled = enabled)
+        Switch(checked, onCheckedChange = null, enabled = enabled, colors = nocturneSwitchColors())
     }
 }
 

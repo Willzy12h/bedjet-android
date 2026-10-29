@@ -34,7 +34,7 @@ object PlanCompiler {
 
         val blocks = buildList {
             startPhases.forEach { add(Block.START to it) }
-            ramp(profile.middle, middleMinutes).forEach { add(Block.MIDDLE to it) }
+            ramp(profile.middle, middleMinutes, profile.limits, profile.turboChain).forEach { add(Block.MIDDLE to it) }
             wakePhases.forEach { add(Block.WAKE to it) }
             profile.afterWake.forEach { add(Block.AFTER_WAKE to it) }
         }
@@ -88,13 +88,23 @@ object PlanCompiler {
 
     // Phase shaping
 
-    /** The Middle's temperature steps, cut again wherever a Quiet middle's fan changes speed. */
-    private fun ramp(middle: Middle, minutes: Int): List<Phase> {
+    /** Temperature steps cut again at independent fan boundaries, including Ease when temperature stays. */
+    private fun ramp(middle: Middle, minutes: Int, limits: ProfileLimits, turboChain: TurboChain): List<Phase> {
         val temperatures = temperatureSteps(middle, minutes)
-        val quiet = middle.quietFan ?: return temperatures
-        val rise = minOf(quiet.riseMinutes, minutes)
-        val settle = minOf(quiet.settleMinutes, minutes - rise)
-        val fans = listOf(settle to quiet.settle, minutes - settle - rise to quiet.asleep, rise to quiet.rise).filter { it.first > 0 }
+        if (temperatures.isEmpty()) return temperatures
+        val fans = middle.quietFan?.let { quiet ->
+            val rise = minOf(quiet.riseMinutes, minutes)
+            val settle = minOf(quiet.settleMinutes, minutes - rise)
+            listOf(settle to quiet.settle, minutes - settle - rise to quiet.asleep, rise to quiet.rise).filter { it.first > 0 }
+        } ?: run {
+            // Existing multi-step Ease already carries both endpoints. Stay needs fan-only boundaries;
+            // increasing the temperature count would also activate its unused temperature endpoint.
+            if (temperatures.size > 1 || !middle.mode.usesFan || middle.fanStart == middle.fanEnd) return temperatures
+            if (minutes < 2) throw PlanException(
+                "This Middle needs at least two minutes to use both fan speeds. Choose Steady or allow more time before wake-up.")
+            val first = minutes / 2
+            listOf(first to middle.fanStart, minutes - first to middle.fanEnd)
+        }
         val out = mutableListOf<Phase>()
         var t = 0
         var f = 0
@@ -102,7 +112,17 @@ object PlanCompiler {
         var fLeft = fans.firstOrNull()?.first ?: 0
         while (t < temperatures.size && f < fans.size) {
             val take = minOf(tLeft, fLeft)
-            out += temperatures[t].copy(fanPercent = fans[f].second, minutes = take)
+            val phase = temperatures[t].copy(fanPercent = fans[f].second, minutes = take)
+            if (phase.mode == Mode.TURBO && turboChain == TurboChain.TURBO_THEN_HEAT) {
+                // A fan boundary must not restart this temperature phase's ten-minute Turbo allowance.
+                val elapsed = temperatures[t].minutes - tLeft
+                val turboMinutes = (Limits.TURBO_MINUTES - elapsed).coerceIn(0, take)
+                if (turboMinutes > 0) out += phase.copy(minutes = turboMinutes)
+                if (take > turboMinutes) out += phase.copy(mode = Mode.HEAT, temperature = limits.maxTemp,
+                    minutes = take - turboMinutes)
+            } else {
+                out += phase
+            }
             tLeft -= take
             fLeft -= take
             if (tLeft == 0 && ++t < temperatures.size) tLeft = temperatures[t].minutes

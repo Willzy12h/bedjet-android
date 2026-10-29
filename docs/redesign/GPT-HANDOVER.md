@@ -1,5 +1,7 @@
 # Nocturne redesign remediation handover
 
+> **Current correction round:** see [INDEPENDENT-FIX-REGISTER.md](INDEPENDENT-FIX-REGISTER.md) for the independent findings, fixes and new verification. The results and capture files below record the original `146501a69814f28d3879ca835bb93d2442b455a1` review base (application source `c9704ee`). They are historical evidence, not verification of the new fixes or a hardware sign-off.
+
 Date: 29 October 2026. Branch: `gpt/nocturne-redesign-remediation`.
 
 **Final automated verification passed; independent review remains.** This document replaces the conflicting historical counts and ownership restrictions in the previous handover. The unmodified starting reports are retained in `evidence/remediation/historical/`. This is the implementer's handover and self-review, not Claude's independent sign-off.

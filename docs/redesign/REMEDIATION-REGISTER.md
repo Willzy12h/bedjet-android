@@ -1,5 +1,7 @@
 # Nocturne redesign remediation register
 
+> **Current correction round:** see [INDEPENDENT-FIX-REGISTER.md](INDEPENDENT-FIX-REGISTER.md) for the independent findings, fixes and new verification. The results and capture files below record the original `146501a69814f28d3879ca835bb93d2442b455a1` review base (application source `c9704ee`). They are historical evidence, not verification of the new fixes or a hardware sign-off.
+
 Starting branch: `gpt/nocturne-redesign-final-review`.
 Starting SHA: `e4be250fb9f340800fa89aea8e358d5bddbf5054` (remote fetched and verified).
 Working branch: `gpt/nocturne-redesign-remediation`.

@@ -2,7 +2,8 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    # A reviewed candidate can use the existing permanent TEST identity without a PR or merge.
+    branches: [main, gpt/nocturne-independent-fixes]
     tags: ["v*"]
   pull_request:
 

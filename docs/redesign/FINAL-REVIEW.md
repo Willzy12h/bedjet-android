@@ -1,5 +1,7 @@
 # Nocturne remediation: final self-review
 
+> **Current correction round:** see [INDEPENDENT-FIX-REGISTER.md](INDEPENDENT-FIX-REGISTER.md) for the independent findings, fixes and new verification. The results and capture files below record the original `146501a69814f28d3879ca835bb93d2442b455a1` review base (application source `c9704ee`). They are historical evidence, not verification of the new fixes or a hardware sign-off.
+
 Date: 29 October 2026. Branch: `gpt/nocturne-redesign-remediation`.
 Starting SHA: `e4be250fb9f340800fa89aea8e358d5bddbf5054`.
 Verified application/test SHA: **c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd**.

@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -217,6 +218,7 @@ class QuickControlsWidget : GlanceAppWidget() {
             val observed by repo.automation.collectAsState()
             val profiles by repo.profiles.collectAsState()
             val runtime by repo.runtime.collectAsState()
+            val ownerStatus by context.graph.actions.status.collectAsState()
             val prefs = currentState<Preferences>()
             val layout = WidgetLayout.forSize(LocalSize.current)
             val largeText = context.resources.configuration.fontScale > 1.3f
@@ -238,7 +240,8 @@ class QuickControlsWidget : GlanceAppWidget() {
                         }
                         PageButton(context, false, pages[(selected + 1) % pages.size])
                     }
-                    Details(context, layout, largeText, observed.observed, active, runtime)
+                    // Status triggers a fresh read of the owner's identity/target-scoped uncertainty.
+                    key(ownerStatus) { Details(context, layout, largeText, observed.observed, active, runtime) }
                     Spacer(GlanceModifier.defaultWeight())
                     Row(GlanceModifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (page.opensApp) OpenAppButton(context, GlanceModifier.fillMaxWidth())
@@ -268,6 +271,7 @@ class SingleActionWidget : GlanceAppWidget() {
             val active by repo.activeNight.collectAsState()
             val observed by repo.automation.collectAsState()
             val runtime by repo.runtime.collectAsState()
+            val ownerStatus by context.graph.actions.status.collectAsState()
             val prefs = currentState<Preferences>()
             val command = prefs[KEY_COMMAND]?.let { runCatching { Command.valueOf(it) }.getOrNull() } ?: Command.START_NIGHT
             val configured = configuredWidgetAction(context, command,
@@ -288,7 +292,7 @@ class SingleActionWidget : GlanceAppWidget() {
                         }
                         OpenAppButton(context, GlanceModifier.width(if (largeText) 132.dp else 80.dp))
                     }
-                    Details(context, layout, largeText, observed.observed, active, runtime)
+                    key(ownerStatus) { Details(context, layout, largeText, observed.observed, active, runtime) }
                     Spacer(GlanceModifier.defaultWeight())
                     ActionButton(context, configured, WidgetActionCallback.SINGLE, id, GlanceModifier.fillMaxWidth(), settings, appearanceAt)
                 }

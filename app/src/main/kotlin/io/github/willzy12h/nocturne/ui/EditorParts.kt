@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -51,7 +52,6 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.setProgress
 import kotlin.math.roundToInt
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -106,26 +106,25 @@ internal fun phaseIcon(mode: Mode): Int = when (mode) {
 
 /**
  * One step: grip, icon, "Heat 36°" over "Fan 40%", and its length. Dragging the grip after a long press moves
- * it on release ([onMove] receives the number of crossed rows). Screen readers can move one row at a time.
+ * it on release. The parent measures rows and resolves the drop; screen readers move one row at a time.
  */
 @Composable
 internal fun StepCard(phase: Phase, title: String, subtitle: String, length: String, modifier: Modifier,
-    canMoveUp: Boolean, canMoveDown: Boolean, onMove: (Int) -> Unit, onClick: () -> Unit) {
+    canMoveUp: Boolean, canMoveDown: Boolean, onMove: (Int) -> Unit, onDrop: (Float) -> Unit,
+    onHeightChanged: (Int) -> Unit, onClick: () -> Unit) {
     val tokens = paletteTokens
     val temperature = if (phase.mode == Mode.TURBO) 86 else phase.temperature
     val stripe = tokens.stepColor(phase.mode, temperature)
     val shape = RoundedCornerShape(16.dp)
     var drag by remember { mutableFloatStateOf(0f) }
     var lifted by remember { mutableStateOf(false) }
-    val gap = with(LocalDensity.current) { 8.dp.toPx() }
-    var threshold by remember { mutableFloatStateOf(72f) }
     val largeText = LocalConfiguration.current.fontScale >= 1.5f
     val move by rememberUpdatedState(onMove)
-    val up by rememberUpdatedState(canMoveUp)
-    val down by rememberUpdatedState(canMoveDown)
+    val drop by rememberUpdatedState(onDrop)
     val moveUp = stringResource(R.string.parity_move_up)
     val moveDown = stringResource(R.string.parity_move_down)
-    Row(modifier.fillMaxWidth().onSizeChanged { threshold = it.height + gap }
+    Row(modifier.fillMaxWidth().onSizeChanged { onHeightChanged(it.height) }
+        .zIndex(if (lifted) 1f else 0f)
         .graphicsLayer { if (lifted) { translationY = drag; rotationZ = -2f } }
         .then(if (lifted) Modifier.shadow(14.dp, shape) else Modifier)
         .clip(shape).background(if (lifted) { if (tokens.dark) Color(0xFF262A45) else tokens.surface2 } else tokens.surface)
@@ -148,9 +147,9 @@ internal fun StepCard(phase: Phase, title: String, subtitle: String, length: Str
                 detectDragGesturesAfterLongPress(
                     onDragStart = { lifted = true; drag = 0f },
                     onDragEnd = {
-                        val rows = (drag / threshold).roundToInt()
-                        if ((rows > 0 && down) || (rows < 0 && up)) move(rows)
+                        val distance = drag
                         lifted = false; drag = 0f
+                        drop(distance)
                     },
                     onDragCancel = { lifted = false; drag = 0f },
                 ) { change, amount ->

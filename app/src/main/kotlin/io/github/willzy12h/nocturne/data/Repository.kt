@@ -71,6 +71,7 @@ import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.security.MessageDigest
 import java.time.ZonedDateTime
 import java.util.Base64
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /** A proposed edit to the reusable profile; the expected values make an old preview safe to refuse. */
@@ -177,6 +178,8 @@ class Repository(
     // Unlike demoMode, this cannot conflate an enter/exit round trip back to the same value.
     private val _sessionRevision = MutableStateFlow(0L)
     internal val sessionRevision: StateFlow<Long> = _sessionRevision.asStateFlow()
+    // Activity recreation keeps this instance; a new process/repository must invalidate every pending Share.
+    private val shareInstanceNonce = UUID.randomUUID().toString()
     private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now()))
     val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     private val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
@@ -273,7 +276,8 @@ class Repository(
         demoOriginals.clear()
         publishSession(real.copy(
             settings = Settings(demoMode = true, fahrenheit = appearance.fahrenheit, simpleView = appearance.simpleView,
-                themeMode = appearance.themeMode, scheduledDarkMinute = appearance.scheduledDarkMinute,
+                themeMode = appearance.themeMode, nightPalette = appearance.nightPalette, dayPalette = appearance.dayPalette,
+                scheduledDarkMinute = appearance.scheduledDarkMinute,
                 scheduledLightMinute = appearance.scheduledLightMinute, alarmPackages = appearance.alarmPackages,
                 acceptUnknownAlarmSource = appearance.acceptUnknownAlarmSource,
                 quickControlsCollapsed = appearance.quickControlsCollapsed, collapsedTonightSections = appearance.collapsedTonightSections,
@@ -914,13 +918,13 @@ class Repository(
     /** Capture the exact selected profile, with default settings only, in the existing backup format. */
     internal fun profileShareRequest(profile: Profile): ProfileShareRequest = ProfileShareRequest(
         BackupCodec.encode(BackupBundle(createdAt = now().toString(), profiles = listOf(profile), settings = Settings())),
-        sessionRevision.value)
+        sessionRevision.value, shareInstanceNonce)
 
     /** A provider result cannot read a new profile or cross a real/demo session boundary. */
     internal suspend fun exportProfileTo(uri: Uri, request: ProfileShareRequest) {
         val bytes = serially {
             requireRealSession()
-            if (request.sessionRevision != sessionRevision.value)
+            if (request.repositoryNonce != shareInstanceNonce || request.sessionRevision != sessionRevision.value)
                 throw IOException(context.getString(R.string.parity_profile_share_changed))
             request.encodedProfile.toByteArray(Charsets.UTF_8)
         }
@@ -1098,7 +1102,8 @@ class Repository(
             catch (e: IllegalArgumentException) { throw IOException("The restore journal is unreadable.", e) }
         val names = journal.writes.map { it.name }
         if (names.size != names.toSet().size || names.toSet() !in setOf(setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS),
-                setOf(PROFILES, HISTORY), setOf(SETTINGS, ACTIVE_NIGHT, RUNTIME))) {
+                setOf(PROFILES, HISTORY), setOf(SETTINGS, ACTIVE_NIGHT, RUNTIME),
+                setOf(PROFILES), setOf(PROFILES, SETTINGS))) {
             throw IOException("The restore journal does not name the expected files.")
         }
         return journal.writes.associate { entry ->

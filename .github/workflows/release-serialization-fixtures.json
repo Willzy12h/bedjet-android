@@ -16,6 +16,24 @@
       "tempEnd": 46,
       "rampSteps": 4
     },
+    "quietFan": {
+      "settle": 35,
+      "settleMinutes": 20,
+      "asleep": 15,
+      "rise": 25,
+      "riseMinutes": 30
+    },
+    "quietMiddle": {
+      "mode": "COOL",
+      "fanStart": 35,
+      "fanEnd": 25,
+      "tempStart": 44,
+      "tempEnd": 46,
+      "rampSteps": 4,
+      "quietFan": {
+        "$ref": "quietFan"
+      }
+    },
     "limits": {
       "minFan": 10,
       "maxFan": 85,
@@ -36,7 +54,7 @@
         }
       ],
       "middle": {
-        "$ref": "middle"
+        "$ref": "quietMiddle"
       },
       "wake": [
         {
@@ -154,10 +172,13 @@
         "clock.example.two"
       ],
       "themeMode": "SCHEDULED",
+      "nightPalette": "FOREST",
+      "dayPalette": "PLUM",
       "scheduledDarkMinute": 1260,
       "scheduledLightMinute": 465,
       "simpleView": false,
       "quietNightNotification": true,
+      "cooldownOfferAnswered": true,
       "platform": {
         "$ref": "platform"
       },
@@ -316,7 +337,7 @@
       "commandVersion": 9
     },
     "backup": {
-      "schema": 2,
+      "schema": 3,
       "createdAt": "2026-10-23T22:30Z",
       "profiles": [
         {
@@ -530,7 +551,8 @@
       "selection": {
         "$ref": "editorPhase"
       }
-    }
+    },
+    "encodedSharedProfile": "{\"schema\":3,\"createdAt\":\"2026-10-23T22:30Z\",\"profiles\":[{\"id\":\"release-shared-profile\",\"name\":\"Saved \\\"profile\\\" · 夜\",\"start\":[],\"middle\":{\"mode\":\"COOL\",\"fanStart\":35,\"fanEnd\":25,\"tempStart\":44,\"tempEnd\":46,\"rampSteps\":4},\"wake\":[]}],\"settings\":{},\"slotBackups\":[],\"history\":[]}"
   },
   "models": {
     "io.github.willzy12h.nocturne.core.night.ActiveNight": [
@@ -598,6 +620,9 @@
     "io.github.willzy12h.nocturne.core.plan.Middle": [
       {
         "$ref": "middle"
+      },
+      {
+        "$ref": "quietMiddle"
       }
     ],
     "io.github.willzy12h.nocturne.core.plan.Phase": [
@@ -615,6 +640,11 @@
         "$ref": "limits"
       },
       {}
+    ],
+    "io.github.willzy12h.nocturne.core.plan.QuietFan": [
+      {
+        "$ref": "quietFan"
+      }
     ],
     "io.github.willzy12h.nocturne.core.plan.Season": [
       "NONE",
@@ -679,6 +709,24 @@
     "io.github.willzy12h.nocturne.core.store.BackupBundle": [
       {
         "$ref": "backup"
+      },
+      {
+        "schema": 2,
+        "createdAt": "2026-10-23T22:30Z",
+        "profiles": [
+          {
+            "id": "release-legacy-profile",
+            "name": "Before palette settings",
+            "start": [],
+            "middle": {
+              "$ref": "middle"
+            },
+            "wake": []
+          }
+        ],
+        "settings": {},
+        "slotBackups": [],
+        "history": []
       }
     ],
     "io.github.willzy12h.nocturne.core.store.EventKind": [
@@ -727,6 +775,15 @@
       "WAKE_UP",
       "PROBLEM",
       "UPDATE"
+    ],
+    "io.github.willzy12h.nocturne.core.store.Palette": [
+      "MIDNIGHT_INK",
+      "FOREST",
+      "GRAPHITE",
+      "PLUM",
+      "AUTUMN_RUST",
+      "WINTER_STORM",
+      "OVERCAST"
     ],
     "io.github.willzy12h.nocturne.core.store.PlatformSettings": [
       {
@@ -781,6 +838,28 @@
       "EXTEND_WARM",
       "EXTEND_COOL",
       "OFF"
+    ],
+    "io.github.willzy12h.nocturne.data.ProfileShareRequest": [
+      {
+        "encodedProfile": {
+          "$ref": "encodedSharedProfile"
+        },
+        "sessionRevision": 4294967298,
+        "repositoryNonce": "12345678-1234-4234-9234-123456789abc"
+      },
+      {
+        "encodedProfile": {
+          "$ref": "encodedSharedProfile"
+        },
+        "sessionRevision": 2
+      },
+      {
+        "encodedProfile": {
+          "$ref": "encodedSharedProfile"
+        },
+        "sessionRevision": 0,
+        "repositoryNonce": null
+      }
     ],
     "io.github.willzy12h.nocturne.data.Repository$JournalWrite": [
       {

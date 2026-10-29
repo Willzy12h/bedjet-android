@@ -1,5 +1,7 @@
 # Published design to remediation capture pairing
 
+> **Current correction round:** see [INDEPENDENT-FIX-REGISTER.md](INDEPENDENT-FIX-REGISTER.md) for the independent findings, fixes and new verification. The results and capture files below record the original `146501a69814f28d3879ca835bb93d2442b455a1` review base (application source `c9704ee`). They are historical evidence, not verification of the new fixes or a hardware sign-off.
+
 All **59** published PNG references are accounted for below. Reference paths are relative to `reference/screenshots/as-published/`; capture paths are the unchanged PNG members under `remediation/` in the numbered ZIPs. `capture-manifest.csv` supplies each file's archive, SHA-256, dimensions and contact-sheet cell. The comparison also uses `reference/nocturne-final-design.published.html`.
 
 These are native Robolectric captures, not physical-device images or pixel-diff goldens. Differences are stated per reference; no exact mock sample data, platform chrome, unimplemented wizard or installed widget is claimed. Contact sheets are thumbnails, so use the full-resolution PNGs to assess detail.

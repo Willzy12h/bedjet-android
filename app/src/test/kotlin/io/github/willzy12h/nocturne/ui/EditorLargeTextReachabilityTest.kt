@@ -1,10 +1,16 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.*
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.text.TextLayoutResult
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
+import io.github.willzy12h.nocturne.core.plan.Phase
+import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import org.junit.Rule
 import org.junit.Test
@@ -60,5 +66,33 @@ class EditorLargeTextReachabilityTest(private val look: U06Look) {
             }
         assertTrue("Inspect the actual temperature and time labels below the shape controls", plotLabels.size >= 3)
         plotLabels.forEach { ui.assertLinesFit(it, "Middle plot ${it.layoutInput.text}") }
+    }
+
+    @Test fun aVisibleNeighbourCanBeReachedByDraggingAtLargeText() {
+        val cool = Phase(Mode.COOL, 44, 30, 30)
+        val heat = Phase(Mode.EXTENDED_HEAT, 67, 40, 40)
+        val stored = ui.graph.repository.profiles.value.toList()
+        val original = stored.first().copy(start = listOf(cool, heat))
+        var draft: Profile = original
+        ui.compose.runOnUiThread { ui.compose.activity.setContent {
+            NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now()) {
+                ProfileEditor(ui.model, original, onDone = {}, onDraftChange = { draft = it })
+            }
+        } }
+        val target = ui.compose.onNodeWithTag("editor-phase-START-1").performScrollTo()
+        val source = ui.compose.onNodeWithTag("editor-phase-START-0")
+        ui.checkControl(source, "Large-text source row", scroll = false)
+        ui.checkControl(target, "Large-text target row", scroll = false)
+        val distance = target.fetchSemanticsNode().boundsInRoot.center.y - source.fetchSemanticsNode().boundsInRoot.center.y
+        source.performTouchInput {
+            down(Offset(23f * ui.compose.density.density, centerY))
+            advanceEventTime(android.view.ViewConfiguration.getLongPressTimeout().toLong() + 1)
+            moveBy(Offset(0f, distance))
+            up()
+        }
+        ui.compose.waitForIdle()
+        assertEquals("The visible neighbour is the drop destination", listOf(heat, cool), draft.start)
+        assertEquals("Large-text reordering is still an unsaved draft", stored, ui.graph.repository.profiles.value)
+        ui.capture("large-text-reordered-rows")
     }
 }

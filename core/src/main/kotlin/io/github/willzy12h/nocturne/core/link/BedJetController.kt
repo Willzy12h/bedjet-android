@@ -61,15 +61,19 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
     /**
      * Sets the unit's clock and starts a slot, then waits for the unit to report the first step running.
      * A unit that can't run the program stays off and raises a notification instead, which is cleared here.
-     * [beforePrepare] may read fresh status after clock sync and before start preparation.
+     * [onConfirmed] receives the original receipt that confirmed the requested first step, so the command owner
+     * can reconcile later observations across its durable publication. [beforePrepare] may read fresh status after clock sync
+     * and before start preparation.
      * [beforeStart] can reject an expired request after clock sync/status preparation, immediately before sending
      * the start command. If it throws, this scope cancels the confirmation waiter without issuing a start.
      */
     suspend fun startProgram(slot: Int, onStartAttempt: () -> Unit = {},
-        beforePrepare: suspend () -> Unit = {}, beforeStart: () -> Unit = {}) = coroutineScope {
+        beforePrepare: suspend () -> Unit = {}, onConfirmed: (SourcedStatus) -> Unit = {},
+        beforeStart: () -> Unit = {}): Unit = coroutineScope {
         validateSlot(slot)
         val programme = StoredProgram("", programSteps(slot))
         validateProgram(programme)
+        val firstStep = programme.steps.firstOrNull() ?: throw BedJetError.BadResponse()
         syncClock()
         beforePrepare()
         // Only reports that arrive after this count: a program already running would otherwise look like this one
@@ -78,9 +82,9 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
             link.prepareForStart()
             val reply = async(start = CoroutineStart.UNDISPATCHED) {
                 withTimeoutOrNull(START_CONFIRMATION_MS) {
-                    link.status.drop(1).first { status ->
-                        val extra = status?.extra ?: return@first false
-                        extra.programStep == 1 || extra.notification in REFUSALS
+                    link.sourcedStatus.drop(1).first { report ->
+                        val status = report?.status ?: return@first false
+                        status.extra?.notification in REFUSALS || matchesFirstStep(status, firstStep, requireProgress = true)
                     }
                 }
             }
@@ -91,21 +95,34 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
                 // This runs at the transport write boundary, after the final temporal guard.
                 onStartAttempt()
             }
-            var outcome = reply.await() ?: throw BedJetError.Timeout()
-            if (outcome.extra?.notification !in REFUSALS) {
+            val confirmed = reply.await() ?: throw BedJetError.Timeout()
+            var outcome = confirmed
+            if (outcome.status.extra?.notification !in REFUSALS) {
                 // A refusal can follow the first report; give it a moment.
                 outcome = withTimeoutOrNull(REFUSAL_GRACE_MS) {
-                    link.status.first { it?.extra?.notification in REFUSALS }
+                    link.sourcedStatus.first { it?.status?.extra?.notification in REFUSALS }
                 } ?: outcome
             }
-            when (outcome.extra?.notification) {
+            when (outcome.status.extra?.notification) {
                 Codec.Notification.PROGRAM_TOO_LONG -> { acknowledge(); throw BedJetError.ProgramTooLong() }
                 Codec.Notification.PROGRAM_NEEDS_CLOCK -> { acknowledge(); throw BedJetError.ClockNotSet() }
             }
+            // A successful first report cannot overrule a newer Off/manual change received during the grace.
+            // A head without progress may still contradict the mode/controls; it cannot replace the full receipt.
+            val latest = link.latestSourcedStatus()
+            if (latest != null && latest.receiptOrder >= confirmed.receiptOrder &&
+                (!latest.isFrom(confirmed.source) || !matchesFirstStep(latest.status, firstStep, requireProgress = false)))
+                throw BedJetError.BadResponse()
+            onConfirmed(confirmed)
         } finally {
             link.cancelPreparedStart()
         }
     }
+
+    private fun matchesFirstStep(status: DeviceStatus, step: ProgramStep, requireProgress: Boolean): Boolean =
+        status.mode == step.mode && (!step.mode.usesFan || status.fanStep == step.fanStep) &&
+            (!step.mode.usesTemperature || status.targetTemperature == step.temperature) &&
+            (status.extra?.programStep == 1 || (!requireProgress && status.extra == null))
 
     suspend fun syncClock() {
         val time = now()

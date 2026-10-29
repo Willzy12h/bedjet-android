@@ -32,7 +32,7 @@ fun configuredWidgetAction(context: Context, command: io.github.willzy12h.noctur
 fun widgetWake(context: Context, night: io.github.willzy12h.nocturne.core.night.ActiveNight?,
     runtime: io.github.willzy12h.nocturne.night.RuntimeState = context.graph.repository.runtime.value): String {
     if (night == null) return context.getString(io.github.willzy12h.nocturne.R.string.feature_no_wake)
-    when (widgetConfidence(night, runtime)) {
+    when (widgetConfidence(context, night, runtime)) {
         io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN -> return context.getString(io.github.willzy12h.nocturne.R.string.widget_wake_unknown)
         io.github.willzy12h.nocturne.core.night.Confidence.FAILED -> return context.getString(io.github.willzy12h.nocturne.R.string.widget_wake_failed)
         io.github.willzy12h.nocturne.core.night.Confidence.PENDING -> return context.getString(io.github.willzy12h.nocturne.R.string.feature_pending_wake)
@@ -123,10 +123,12 @@ internal fun widgetTemperature(context: Context, compact: Boolean = false): Stri
             io.github.willzy12h.nocturne.ui.Format.Words { id, args -> context.getString(id, *args) }))
 }
 
-/** The owner's unresolved-slot rule applies only to the exact displaced night. */
-private fun widgetConfidence(night: io.github.willzy12h.nocturne.core.night.ActiveNight,
+/** A retained receipt can downgrade only its exact night/target; a new pending command remains pending. */
+private fun widgetConfidence(context: Context, night: io.github.willzy12h.nocturne.core.night.ActiveNight,
     runtime: io.github.willzy12h.nocturne.night.RuntimeState): io.github.willzy12h.nocturne.core.night.Confidence =
-    runtime.unresolvedSlotWrite?.takeIf { it.displaced == night.identity }?.confidence ?: night.confidence
+    if (night.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED &&
+        context.graph.actions.hasProgrammeUncertainty(night)) io.github.willzy12h.nocturne.core.night.Confidence.UNKNOWN
+    else runtime.unresolvedSlotWrite?.takeIf { it.displaced == night.identity }?.confidence ?: night.confidence
 
 internal data class WidgetPhaseText(val title: String, val span: String? = null)
 
@@ -136,7 +138,7 @@ internal fun widgetPhase(context: Context, night: io.github.willzy12h.nocturne.c
 
 internal fun widgetPhaseText(context: Context, night: io.github.willzy12h.nocturne.core.night.ActiveNight?, compact: Boolean = false): WidgetPhaseText {
     if (night == null) return WidgetPhaseText(context.getString(io.github.willzy12h.nocturne.R.string.widget_no_tracked_night))
-    if (widgetConfidence(night, context.graph.repository.runtime.value) != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED || night.pending != null)
+    if (widgetConfidence(context, night, context.graph.repository.runtime.value) != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED || night.pending != null)
         return WidgetPhaseText(context.getString(io.github.willzy12h.nocturne.R.string.widget_phase_unknown))
     if (night.trackingManual) return WidgetPhaseText(context.getString(io.github.willzy12h.nocturne.R.string.widget_phase_manual))
     val now = context.graph.now()

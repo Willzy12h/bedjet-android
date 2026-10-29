@@ -39,6 +39,18 @@ class NightActions(private val graph: Graph) {
     private fun receiptOf(report: SourcedStatus) = StatusReceipt(statusEpoch, report.receiptOrder)
     private fun receiptOf(status: DeviceStatus, target: String?): StatusReceipt? =
         graph.link.latestSourcedStatus()?.takeIf { it.status === status && it.isFrom(target) }?.let(::receiptOf)
+    private data class StatusObservation(val status: DeviceStatus, val target: String?, val receivedAt: ZonedDateTime,
+        val source: String?, val receipt: StatusReceipt?)
+    private data class ProgrammeBoundary(val identity: NightIdentity, val target: String, val receipt: Long? = null)
+    private data class ProgrammeReports(val boundary: ProgrammeBoundary, var latest: StatusObservation? = null)
+    private data class ProgrammeObservation(val boundary: ProgrammeBoundary, val report: StatusObservation)
+    /** Queueing a report and the command's final unlock share this short, non-suspending handoff. */
+    private val statusOwnership = Any()
+    private var confirmedProgrammeBoundary: ProgrammeBoundary? = null
+    private var reconciledProgrammeReceipt = Long.MIN_VALUE
+    private var ownedProgrammeReports: ProgrammeReports? = null
+    /** A failed local save cannot turn already-observed uncertainty back into visible confirmation. */
+    private val unreconciledProgramme = MutableStateFlow<ProgrammeObservation?>(null)
     /** Monotonic milliseconds for admission and manual-run elapsed time; tests move it by hand. */
     internal var elapsedMs: () -> Long = { System.nanoTime() / 1_000_000 }
     private val _busy = MutableStateFlow(BusyState())
@@ -47,10 +59,12 @@ class NightActions(private val graph: Graph) {
     val outcomes: SharedFlow<CommandOutcome> = _outcomes.asSharedFlow()
     /** A slot write colours the status only while it is in question and concerns the tracked night, or, with no night,
      * only when a night could depend on it; an unknown pin of another slot is reported by its own outcome (IR-06). */
-    val status: StateFlow<NightStatus> = combine(repo.activeNight, repo.runtime, repo.settings) { n, r, s ->
+    val status: StateFlow<NightStatus> = combine(repo.activeNight, repo.runtime, repo.settings, unreconciledProgramme) { n, r, s, observed ->
         val slot = r.unresolvedSlotWrite?.takeIf { if (n == null) it.affectsNights(s.workingSlot) else it.displaced == n.identity }
-        NightStatus(if (wakeChangePending(n, r, s) && n?.confidence == Confidence.CONFIRMED) Confidence.PENDING
-            else slot?.confidence ?: n?.confidence, r.reason) }
+        val unresolved = observed?.concerns(n, s.deviceId()) == true && n?.confidence != Confidence.PENDING
+        NightStatus(if (unresolved) Confidence.UNKNOWN
+            else if (wakeChangePending(n, r, s) && n?.confidence == Confidence.CONFIRMED) Confidence.PENDING
+            else slot?.confidence ?: n?.confidence, if (unresolved) text(R.string.runtime_takeover) else r.reason) }
         .stateIn(graph.scope, SharingStarted.Eagerly, NightStatus(repo.activeNight.value?.confidence, repo.runtime.value.reason))
 
     enum class Command { START_NIGHT, END_NIGHT, OFF, TURBO, BOOST, COOL, WARM, RETIME, RETRY_RETIME, REAPPLY, SNOOZE_WARM, SNOOZE_COOL, EXTEND_WARM, EXTEND_COOL, RESUME, STOP_TRACKING, KEEP_TRACKING, CHECK_BEDJET, TEMPORARY }
@@ -210,8 +224,9 @@ class NightActions(private val graph: Graph) {
                     currentCoroutineContext()[CommandFeedback]?.admitted(source)
                     withContext(radio ?: kotlin.coroutines.EmptyCoroutineContext) { work() }
                 })
-                _outcomes.emit(result)
-                result
+                val settled = reconcileProgrammeOutcome(result)
+                _outcomes.emit(settled)
+                settled
             }
         } catch (e: CancellationException) { throw e
         } catch (e: SlotBackupsUnreadable) {
@@ -232,8 +247,8 @@ class NightActions(private val graph: Graph) {
             _busy.update { if (acquired) it.copy(runningLabel = null) else it.copy(queuedCount = (it.queuedCount - 1).coerceAtLeast(0)) }
             if (lock.holdsLock(owner)) {
                 // Confirmed-command repair and local delivery share one cleanup grace after the owner budget.
-                val cleanupMs = minOf(8_000L, OPERATION_MS + 8_000L - (elapsedMs() - startedAt))
-                try { drainLocalSafely(cleanupMs) } finally { lock.unlock(owner) }
+                fun cleanupMs() = minOf(8_000L, OPERATION_MS + 8_000L - (elapsedMs() - startedAt))
+                try { drainLocalSafely(cleanupMs()) } finally { releaseProgrammeReports(owner, cleanupMs()) }
             }
             } finally { admission.close() }
         }
@@ -415,7 +430,7 @@ class NightActions(private val graph: Graph) {
     }
     private fun confirmedPreparedProgramme(change: PreparedChange): ActiveNight? = repo.activeNight.value?.takeIf {
         change.request.kind in setOf(ChangeKind.START, ChangeKind.REAPPLY, ChangeKind.RESUME, ChangeKind.TEMPORARY) &&
-            it == change.intended && it.confidence == Confidence.CONFIRMED && !it.trackingManual
+            it == change.intended && it.confidence == Confidence.CONFIRMED && !it.trackingManual && !hasUnreconciledProgramme(it)
     }
     /** A revision and its event share one durable history write, so interrupted settlement can repeat safely. */
     private suspend fun recordConfirmedProgramme(change: PreparedChange, night: ActiveNight, message: Int) {
@@ -486,7 +501,8 @@ class NightActions(private val graph: Graph) {
                         isTestRun = intended.isTestRun))
                 }
                 if (it.confidence != Confidence.CONFIRMED) Notifications.cancelQuiet(context)
-            }, validate = validate, beforeWrite = { backup(change.intended.deviceId, change.intended.slot) }, afterWrite = afterWrite)
+            }, validate = validate, onConfirmed = { programmeConfirmed(change.intended, it) },
+            beforeWrite = { backup(change.intended.deviceId, change.intended.slot) }, afterWrite = afterWrite)
         confirmedPublicationFailure?.let { throw it }
         val outcome = when (result) {
             is NightMutation.Applied -> {
@@ -501,8 +517,7 @@ class NightActions(private val graph: Graph) {
                 NightAlarms.cancelRetry(context)
                 if (repo.runtime.value.alarmInbox != null) NightAlarms.scheduleObservation(context, graph.now())
                 Notifications.cancelWakeUp(context)
-                val settings = repo.settings.value
-                Notifications.showQuiet(context, n, settings, wakeChangePending(n, repo.runtime.value, settings))
+                refreshQuietNotification()
                 if (message != R.string.runtime_resumed && change.previous?.recordId != n.recordId &&
                     repo.runtime.value.resumeOffer != null) Notifications.showResume(context)
                 if (message == R.string.runtime_retimed) Notifications.showInfo(context, text(R.string.runtime_moved_title, clock(n.wakeAt)),
@@ -547,8 +562,8 @@ class NightActions(private val graph: Graph) {
             is NightMutation.Stale -> stale()
         }
         // Every branch, including a late originals barrier, agrees with this request's durable FAILED publication.
-        return if (result is NightMutation.Failed && result.night.confidence == Confidence.FAILED &&
-            result.night.pending?.requestId == change.request.requestId) outcome.copy(kind = OutcomeKind.FAILED) else outcome
+        return reconcileProgrammeOutcome(if (result is NightMutation.Failed && result.night.confidence == Confidence.FAILED &&
+            result.night.pending?.requestId == change.request.requestId) outcome.copy(kind = OutcomeKind.FAILED) else outcome)
     }
     private fun retimeExpired(change: PreparedChange): Boolean = change.request.kind == ChangeKind.RETIME &&
         !graph.now().isBefore(ZonedDateTime.parse(change.request.deadline))
@@ -762,7 +777,7 @@ class NightActions(private val graph: Graph) {
     /** A clock or an ENDED label alone cannot turn uncertain tracking into a confirmed completed programme. */
     private fun confirmedCompletion(night: ActiveNight, kind: EventKind): String? = night.endsAt.takeIf {
         kind == EventKind.ENDED && night.confidence == Confidence.CONFIRMED && night.pending == null &&
-            !night.trackingManual && !night.isTestRun && !repo.settings.value.demoMode &&
+            !night.trackingManual && !hasUnreconciledProgramme(night) && !night.isTestRun && !repo.settings.value.demoMode &&
             !io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(night.deviceId) &&
             repo.runtime.value.retime == null && repo.runtime.value.alarmInbox == null &&
             !graph.now().isBefore(ZonedDateTime.parse(night.endsAt)) &&
@@ -814,7 +829,7 @@ class NightActions(private val graph: Graph) {
     } == true
     /** This describes the current programme only; it never credits a timed-out request with a successful change. */
     internal fun currentConfirmedProgramme(): ActiveNight? = repo.activeNight.value?.takeIf {
-        it.confidence == Confidence.CONFIRMED && !it.trackingManual &&
+        it.confidence == Confidence.CONFIRMED && !it.trackingManual && !hasUnreconciledProgramme(it) &&
             it.deviceId == repo.settings.value.deviceId() && !hasUnfinishedReplacement(it)
     }
     /** Quietly return a no-write timeout to the matching eligibility or expiry owner, including a due deadline. */
@@ -823,7 +838,8 @@ class NightActions(private val graph: Graph) {
         if (night.identity != expected || night.deviceId != target || repo.settings.value.deviceId() != target) return null
         // A queued delivery never reached BLE. After admission, an unchanged confirmed programme is required;
         // a possible write publishes UNKNOWN and must receive its own terminal notice instead.
-        val unchanged = night.confidence == Confidence.CONFIRMED && !night.trackingManual && !hasUnfinishedReplacement(night)
+        val unchanged = night.confidence == Confidence.CONFIRMED && !night.trackingManual &&
+            !hasUnreconciledProgramme(night) && !hasUnfinishedReplacement(night)
         if (admitted && !unchanged) return null
         val runtime = repo.runtime.value
         val now = graph.now()
@@ -1124,7 +1140,8 @@ class NightActions(private val graph: Graph) {
         } catch (e: CancellationException) {
             val current = repo.activeNight.value
             val change = preparedChange
-            if (e is TimeoutCancellationException && current != null && current.identity == change?.intended?.identity && current.confidence == Confidence.CONFIRMED) {
+            if (e is TimeoutCancellationException && current != null && current.identity == change?.intended?.identity &&
+                current.confidence == Confidence.CONFIRMED && !hasUnreconciledProgramme(current)) {
                 withContext(NonCancellable) {
                     try {
                         withTimeout(8_000) {
@@ -1157,6 +1174,8 @@ class NightActions(private val graph: Graph) {
             throw e
         } catch (e: Exception) {
             val current = repo.activeNight.value
+            if (hasUnreconciledProgramme(current))
+                return reconcileProgrammeOutcome(CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover)))
             // Publication of this prepared revision proves the BedJet confirmed it. A later local save failure
             // cannot turn that into a failed change, nor credit some unrelated CONFIRMED revision to this request.
             if (current != null && current.identity == preparedChange?.intended?.identity && current.confidence == Confidence.CONFIRMED) {
@@ -1213,8 +1232,7 @@ class NightActions(private val graph: Graph) {
             NightAlarms.schedule(context, confirmed)
             settleRetimeAlarm(pendingId)
             Notifications.cancelWakeUp(context)
-            val settings = repo.settings.value
-            Notifications.showQuiet(context, confirmed, settings, wakeChangePending(confirmed, repo.runtime.value, settings))
+            refreshQuietNotification()
         }
     }
     private fun retimeFailureEvent(kind: OutcomeKind, title: Int, detail: String, at: String = graph.now().toString()) =
@@ -1380,6 +1398,7 @@ class NightActions(private val graph: Graph) {
     }
     suspend fun reconcile() {
         lock.withLock {
+            if (!retryUnreconciledProgramme()) return
             recoverConfirmedRevision()
             completeLocalEnd()
             completeWakeSourceChange()
@@ -1417,7 +1436,7 @@ class NightActions(private val graph: Graph) {
         }
         drainLocalDeliveries()
         expire()
-        repo.activeNight.value?.let { NightAlarms.schedule(context, it); Notifications.showQuiet(context, it, repo.settings.value, wakeChangePending()) }
+        repo.activeNight.value?.let { NightAlarms.schedule(context, it); refreshQuietNotification() }
         repo.runtime.value.retime?.let { pending ->
             val current = repo.activeNight.value
             if (current?.confidence == Confidence.CONFIRMED &&
@@ -1431,30 +1450,234 @@ class NightActions(private val graph: Graph) {
     private suspend fun wakeUpLocked(expected: NightIdentity?) {
         val n = repo.activeNight.value ?: return
         if (n.identity != expected || n.trackingManual || n.confidence != Confidence.CONFIRMED || repo.runtime.value.wakeShown == n.identity ||
+            hasUnreconciledProgramme(n) ||
             graph.now().isBefore(ZonedDateTime.parse(n.wakeUpStart)) || !graph.now().isBefore(ZonedDateTime.parse(n.endsAt))) return
         repo.updateRuntime { it.copy(wakeShown = n.identity, manualWakeShown = false) }
         Notifications.showWakeUp(context, n, repo.settings.value)
     }
+    /** Keep the original receipt even if a later packet became the link's current value before collection. */
+    suspend fun observeStatus(report: SourcedStatus, target: String?, receivedAt: ZonedDateTime = graph.now()) =
+        observeStatus(report.status, target, receivedAt, report.source ?: target, receiptOf(report))
+
     suspend fun observeStatus(status: DeviceStatus, target: String?, receivedAt: ZonedDateTime = graph.now(), source: String? = target,
         receipt: StatusReceipt? = receiptOf(status, target)) {
-        // Intermediate reports during our own upload/manual packets must not become a takeover after queuing.
-        if (lock.isLocked) return
-        lock.withLock {
-            // [source] is the unit that reported [status]; one from another BedJet is never this target's state.
-            if (target != repo.settings.value.deviceId() || !DeviceId.same(source, target) ||
-                graph.link.state.value != LinkState.READY) return@withLock
-            val n = repo.activeNight.value ?: return@withLock
-            if (finishRequestedEnd(status, receipt)) return@withLock
-            val extra = status.extra ?: return@withLock
-            if (extra.notification != 0 && lastNotice != (n.recordId to extra.notification)) {
-                lastNotice = n.recordId to extra.notification
-                repo.addEvent(n.recordId, event(EventKind.UNIT_NOTICE, text(R.string.runtime_unit_notice, extra.notification)))
-            } else if (extra.notification == 0) lastNotice = null
-            if (n.confidence != Confidence.CONFIRMED) return@withLock
-            // IR-08: a kept manual run is watched against its own step.
-            if (n.trackingManual) { if (contradictsManual(n, status, receivedAt)) recordTakeover(n); return@withLock }
-            if (matchesCurrentProgramme(n, status, receivedAt)) return@withLock
+        val observed = StatusObservation(status, target, receivedAt, source, receipt)
+        val acquired = synchronized(statusOwnership) {
+            if (lock.tryLock()) true else { queueProgrammeReport(observed); false }
+        }
+        if (!acquired) return
+        try {
+            if (!retryUnreconciledProgramme()) return
+            val night = repo.activeNight.value
+            if (night?.confidence != Confidence.CONFIRMED || night.trackingManual ||
+                night.deviceId != target || target != repo.settings.value.deviceId() ||
+                !DeviceId.same(source, target) || graph.link.state.value != LinkState.READY) {
+                observeStatusLocked(observed)
+            } else {
+                // A restored night has no start receipt in this process. Its live observation still belongs
+                // to this exact identity; the current-target/readiness checks above remain mandatory.
+                val boundary = synchronized(statusOwnership) { confirmedProgrammeBoundary }
+                    ?.takeIf { it.identity == night.identity && it.target == target }
+                    ?: ProgrammeBoundary(night.identity, night.deviceId)
+                try { withTimeoutOrNull(8_000) { observeProgrammeLocked(ProgrammeObservation(boundary, observed)) } }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    if (!hasUnreconciledProgramme(night)) throw e
+                    // The live collector must keep receiving reports while this known contradiction awaits a save.
+                }
+            }
+        } finally { lock.unlock() }
+    }
+
+    private suspend fun observeStatusLocked(observed: StatusObservation, receivedDuringProgramme: Boolean = false) {
+        val (status, target, receivedAt, source, receipt) = observed
+        // A report from another BedJet is never this target's state.
+        if (target != repo.settings.value.deviceId() || !DeviceId.same(source, target) ||
+            (!receivedDuringProgramme && graph.link.state.value != LinkState.READY)) return
+        val n = repo.activeNight.value ?: return
+        if (finishRequestedEnd(status, receipt)) return
+        if (!admitProgrammeReceipt(observed, n)) return
+        // Off is established by the head itself; no optional programme-progress tail can make it running.
+        if (n.confidence == Confidence.CONFIRMED && !n.trackingManual && !status.isRunning) {
             recordTakeover(n)
+            return
+        }
+        val extra = status.extra ?: return
+        if (extra.notification != 0 && lastNotice != (n.recordId to extra.notification)) {
+            lastNotice = n.recordId to extra.notification
+            repo.addEvent(n.recordId, event(EventKind.UNIT_NOTICE, text(R.string.runtime_unit_notice, extra.notification)))
+        } else if (extra.notification == 0) lastNotice = null
+        if (n.confidence != Confidence.CONFIRMED) return
+        // IR-08: a kept manual run is watched against its own step.
+        if (n.trackingManual) { if (contradictsManual(n, status, receivedAt)) recordTakeover(n); return }
+        if (matchesCurrentProgramme(n, status, receivedAt)) return
+        recordTakeover(n)
+    }
+
+    /** Upload intermediates precede this actual, matching start receipt and can never be replayed as takeover. */
+    private fun programmeConfirmed(night: ActiveNight, report: SourcedStatus) {
+        if (!report.isFrom(night.deviceId)) throw BedJetError.NotConnected()
+        synchronized(statusOwnership) {
+            val boundary = ProgrammeBoundary(night.identity, night.deviceId, report.receiptOrder)
+            confirmedProgrammeBoundary = boundary
+            reconciledProgrammeReceipt = report.receiptOrder
+            ownedProgrammeReports = ProgrammeReports(boundary)
+            // A new packet may have arrived between the controller's return and this callback.
+            graph.link.latestSourcedStatus()?.let { latest ->
+                queueProgrammeReport(StatusObservation(latest.status, night.deviceId, graph.now(),
+                    latest.source ?: night.deviceId, receiptOf(latest)))
+            }
+        }
+    }
+
+    /** Called only under statusOwnership. There is one latest eligible receipt, not a queue of upload packets. */
+    private fun queueProgrammeReport(observed: StatusObservation) {
+        val reports = ownedProgrammeReports ?: return
+        val receipt = observed.receipt ?: return
+        val boundary = reports.boundary
+        val confirmedAt = boundary.receipt ?: return
+        if (observed.target != boundary.target || !DeviceId.same(observed.source, boundary.target) ||
+            receipt.epoch != statusEpoch || receipt.sequence <= confirmedAt || receipt.sequence < reconciledProgrammeReceipt) return
+        val previous = reports.latest
+        val previousSequence = previous?.receipt?.sequence ?: Long.MIN_VALUE
+        if (receipt.sequence > previousSequence || (receipt.sequence == previousSequence && observed.status.extra != null))
+            reports.latest = observed
+    }
+
+    /** Keep receipt order after a queue drains. Equal receipts may carry fresh progress over cached head metadata. */
+    private fun admitProgrammeReceipt(observed: StatusObservation, night: ActiveNight): Boolean = synchronized(statusOwnership) {
+        val boundary = confirmedProgrammeBoundary
+        val receipt = observed.receipt
+        if (boundary?.identity != night.identity || boundary.target != observed.target || receipt?.epoch != statusEpoch) true
+        else if (receipt.sequence <= (boundary.receipt ?: Long.MIN_VALUE) || receipt.sequence < reconciledProgrammeReceipt) false
+        else { reconciledProgrammeReceipt = receipt.sequence; true }
+    }
+
+    private fun pendingProgrammeObservation(): ProgrammeObservation? = ownedProgrammeReports?.let { reports ->
+        reports.latest?.let { ProgrammeObservation(reports.boundary, it) }
+    }
+
+    private fun ProgrammeObservation.concerns(night: ActiveNight?, target: String?): Boolean =
+        boundary.identity == night?.identity && boundary.target == target && night?.deviceId == target
+
+    private fun hasUnreconciledProgramme(night: ActiveNight?): Boolean =
+        unreconciledProgramme.value?.concerns(night, repo.settings.value.deviceId()) == true
+
+    internal fun hasProgrammeUncertainty(night: ActiveNight?): Boolean = hasUnreconciledProgramme(night)
+
+    private fun unreconciledForCurrentNight(): ProgrammeObservation? {
+        val observed = unreconciledProgramme.value ?: return null
+        // Demo has separate disposable state. A real receipt is retained while that state is displayed.
+        if (observed.boundary.target != repo.settings.value.deviceId()) return null
+        if (observed.concerns(repo.activeNight.value, repo.settings.value.deviceId())) return observed
+        unreconciledProgramme.compareAndSet(observed, null)
+        return null
+    }
+
+    private fun retainProgrammeUncertainty(observed: ProgrammeObservation) {
+        val night = repo.activeNight.value ?: return
+        // Demo publication is in memory and must not replace a real session's pending local save.
+        if (repo.isDemoSession || !observed.concerns(night, repo.settings.value.deviceId()) ||
+            night.confidence != Confidence.CONFIRMED || night.trackingManual) return
+        val report = observed.report
+        if (!admitProgrammeReceipt(report, night)) return
+        if ((report.status.extra != null || !report.status.isRunning) &&
+            !matchesCurrentProgramme(night, report.status, report.receivedAt)) {
+            unreconciledProgramme.value = observed
+        }
+    }
+
+    private suspend fun retryUnreconciledProgramme(): Boolean {
+        val observed = unreconciledForCurrentNight() ?: return true
+        return try { withTimeoutOrNull(8_000) { observeProgrammeLocked(observed); true } ?: false }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { false } // Retain the receipt and visible UNKNOWN until a later local save can finish.
+    }
+
+    private suspend fun observeProgrammeLocked(observed: ProgrammeObservation) {
+        val night = repo.activeNight.value
+        if (night == null || !observed.concerns(night, repo.settings.value.deviceId())) {
+            if (observed.boundary.target == repo.settings.value.deviceId()) unreconciledProgramme.compareAndSet(observed, null)
+            return
+        }
+        if (!admitProgrammeReceipt(observed.report, night)) {
+            unreconciledProgramme.compareAndSet(observed, null)
+            return
+        }
+        retainProgrammeUncertainty(observed)
+        if (hasUnreconciledProgramme(repo.activeNight.value)) {
+            Notifications.cancelQuiet(context)
+            Notifications.cancelWakeUp(context)
+        }
+        // This receipt was already admitted for this night and target. A later disconnect cannot undo it.
+        observeStatusLocked(observed.report, receivedDuringProgramme = true)
+        unreconciledProgramme.compareAndSet(observed, null)
+    }
+
+    private suspend fun reconcileProgrammeReports() {
+        while (true) {
+            val observed = unreconciledForCurrentNight()
+                ?: synchronized(statusOwnership) { pendingProgrammeObservation() } ?: return
+            observeProgrammeLocked(observed)
+            synchronized(statusOwnership) {
+                ownedProgrammeReports?.takeIf { it.boundary == observed.boundary && it.latest === observed.report }?.latest = null
+            }
+        }
+    }
+
+    private suspend fun reconcileProgrammeOutcome(outcome: CommandOutcome): CommandOutcome {
+        try { reconcileProgrammeReports() }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            if (unreconciledForCurrentNight() == null) throw e
+            return outcome.copy(kind = OutcomeKind.UNKNOWN, notificationHandled = false,
+                message = text(R.string.runtime_takeover) + " " + text(R.string.runtime_save_failed, e.message ?: text(R.string.runtime_failed)))
+        }
+        val boundary = synchronized(statusOwnership) { ownedProgrammeReports?.boundary }
+        val night = repo.activeNight.value
+        return if (outcome.kind == OutcomeKind.CONFIRMED && boundary?.identity == night?.identity &&
+            night?.confidence == Confidence.UNKNOWN) outcome.copy(kind = OutcomeKind.UNKNOWN, message = text(R.string.runtime_takeover),
+                notificationHandled = true) else outcome
+    }
+
+    /** No report can be queued between the final empty check and unlock. Cancellation retains the same handoff. */
+    private suspend fun releaseProgrammeReports(owner: Any, remainingMs: Long) {
+        var released = false
+        try {
+            if (remainingMs > 0) withContext(NonCancellable) { withTimeout(remainingMs) {
+                while (true) {
+                    reconcileProgrammeReports()
+                    val complete = synchronized(statusOwnership) {
+                        if (ownedProgrammeReports?.latest != null) false else {
+                            ownedProgrammeReports = null
+                            released = true
+                            lock.unlock(owner)
+                            true
+                        }
+                    }
+                    if (complete) break
+                }
+            } }
+        } catch (_: Exception) {
+            // A storage delay must not consume another owner budget; deliver the original observation below.
+        } finally {
+            val pending = if (released) null else synchronized(statusOwnership) {
+                    val observed = pendingProgrammeObservation()
+                    // Admission must see known uncertainty before the next owner resumes from unlock.
+                    try { observed?.let(::retainProgrammeUncertainty) }
+                    finally {
+                        ownedProgrammeReports = null
+                        if (lock.holdsLock(owner)) lock.unlock(owner)
+                    }
+                    observed
+                }
+            if (pending != null) {
+                graph.scope.launch {
+                    try { lock.withLock { withTimeout(8_000) { observeProgrammeLocked(pending) } } }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { /* The original receipt and UNKNOWN remain for a later observation. */ }
+                }
+            }
         }
     }
     /** Receipt order never depends on wall time. Restored/legacy markers require a new report in this runtime. */
@@ -1471,6 +1694,8 @@ class NightActions(private val graph: Graph) {
      * Reads the BedJet first. Null means it still runs the tracked night and the rewrite may go ahead. */
     private suspend fun takeoverBeforeRewrite(n: ActiveNight): CommandOutcome? {
         if (n.confidence != Confidence.CONFIRMED || n.trackingManual) return null
+        if (unreconciledForCurrentNight()?.concerns(n, repo.settings.value.deviceId()) == true)
+            return reconcileProgrammeOutcome(CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover), notificationHandled = true))
         // A local CONFIRMED night is not evidence that the BedJet still runs our programme: a remote Off or
         // manual change may have happened while disconnected.
         if (matchesCurrentProgramme(n, freshStatus(), graph.now())) return null
@@ -1669,7 +1894,7 @@ class NightActions(private val graph: Graph) {
                 return@owned CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_override_cleared))
             }
         }
-        val prepared = if (wake != null) graph.runner().reapply(n, profile, n.identity, wake)
+        val prepared = if (wake != null) graph.runner().prepareWakeOverride(n, profile, n.identity, wake)
             else graph.runner().prepareRetime(n.copy(wakeOrigin = WakeOrigin.PROFILE_DEFAULT), n.identity,
                 alarm?.time, liveProfile = profile, settings = repo.settings.value, alarmOrigin = alarm?.creator)
         if (prepared is Preparation.Refused) return@owned CommandOutcome(OutcomeKind.REFUSED, prepared.refusalText(context))
@@ -1913,7 +2138,7 @@ class NightActions(private val graph: Graph) {
     }
     internal fun refreshQuietNotification() {
         val night = repo.activeNight.value
-        if (night == null) Notifications.cancelQuiet(context)
+        if (night == null || hasUnreconciledProgramme(night)) Notifications.cancelQuiet(context)
         else Notifications.showQuiet(context, night, repo.settings.value, wakeChangePending())
     }
     /** Only work for this displayed night and target makes its wake pending. An obsolete journal can remain

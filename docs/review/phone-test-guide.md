@@ -1,5 +1,7 @@
 # Nocturne — owner's phone test guide
 
+> **Historical guide:** the signing identity, tab count and candidate references below belong to an older build. For the 29 October independent-fixes candidate, follow [current device validation](../redesign/DEVICE-VALIDATION.md) and its delivery manifest. Preserve the permanent TEST certificate; do not uninstall to bypass an update mismatch.
+
 **Status: NOT RUN on a device.** This is a checklist for the owner to complete. No item below has been run on a phone or BedJet 3 by the implementation team. Host tests and a successful APK build do not establish phone behaviour, physical haptics, Samsung compatibility or TalkBack accessibility.
 
 ## Test build and record

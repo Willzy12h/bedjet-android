@@ -9,7 +9,8 @@ import java.time.ZonedDateTime
 @Serializable
 data class Phase(val mode: Mode, val temperature: Int, val fanPercent: Int, val minutes: Int)
 
-/** The part of the night that stretches to fill the time, moving fan and temperature in [rampSteps] equal steps. */
+/** The part of the night that stretches to fill the time, shaping temperature in [rampSteps] equal steps.
+ * Fan boundaries can divide those steps independently, including Ease while temperature stays. */
 @Serializable
 data class Middle(
     val mode: Mode,
@@ -43,7 +44,7 @@ data class Middle(
 enum class FanShape {
     /** One speed all night. */
     STEADY,
-    /** Moves from [Middle.fanStart] to [Middle.fanEnd] across the temperature steps. */
+    /** Moves from [Middle.fanStart] to [Middle.fanEnd] across the temperature steps, or two fan-only steps for Stay. */
     EASE,
     /** [QuietFan.settle] while falling asleep, [QuietFan.asleep] through the night, [QuietFan.rise] before the wake-up. */
     QUIET_MIDDLE,

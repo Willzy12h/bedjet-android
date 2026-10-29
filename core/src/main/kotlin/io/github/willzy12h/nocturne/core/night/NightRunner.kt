@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.core.night
 
 import io.github.willzy12h.nocturne.core.link.BedJetController
+import io.github.willzy12h.nocturne.core.link.SourcedStatus
 import io.github.willzy12h.nocturne.core.plan.AlarmPolicy
 import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.plan.Phase
@@ -146,8 +147,14 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         newWake ?: ZonedDateTime.parse(night.wakeAt), if (newWake == null) night.wakeOrigin else WakeOrigin.OVERRIDE,
         ChangeKind.REAPPLY, now().plusMinutes(1))
 
+    /** A wake-only choice follows the existing retime policy; it does not restart the profile's settling. */
+    fun prepareWakeOverride(night: ActiveNight, profile: Profile, expected: NightIdentity,
+        wake: ZonedDateTime): Preparation = prepareRewrite(night, expected, profile, wake, WakeOrigin.OVERRIDE,
+        ChangeKind.REAPPLY, now().plusMinutes(1), reapplyProfile = false)
+
     private fun prepareRewrite(night: ActiveNight, expected: NightIdentity, profile: Profile, wake: ZonedDateTime,
-        origin: WakeOrigin, kind: ChangeKind, deadline: ZonedDateTime): Preparation {
+        origin: WakeOrigin, kind: ChangeKind, deadline: ZonedDateTime,
+        reapplyProfile: Boolean = kind == ChangeKind.REAPPLY): Preparation {
         val time = now()
         val request = PendingChange(UUID.randomUUID().toString(), kind, wake.toString(), time.toString(), deadline.toString(), expected)
         when (val check = Eligibility.check(night, time, request)) {
@@ -161,7 +168,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         return try {
             val original = night.temporary?.base?.plan() ?: night.activePlan(profile)
                 ?: return Preparation.Refused("The applied programme is unavailable.")
-            val base = if (kind == ChangeKind.REAPPLY) {
+            val base = if (reapplyProfile) {
                 var elapsed = Duration.between(ZonedDateTime.parse(night.startedAt), time).toMinutes().toInt()
                 val remaining = profile.start.mapNotNull { phase ->
                     val skipped = minOf(elapsed.coerceAtLeast(0), phase.minutes)
@@ -238,7 +245,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
      * Task 4 supplies repository callbacks; no callback is invoked for stale/expired requests. */
     suspend fun apply(change: PreparedChange, current: () -> ActiveNight?,
         commandVersion: () -> Long = { 0 }, publish: suspend (ActiveNight) -> Unit = {},
-        validate: () -> Unit = {}, beforeWrite: suspend () -> Unit = {}, afterWrite: suspend () -> Unit = {}): NightMutation {
+        validate: () -> Unit = {}, onConfirmed: (SourcedStatus) -> Unit = {},
+        beforeWrite: suspend () -> Unit = {}, afterWrite: suspend () -> Unit = {}): NightMutation {
         if (change.expectedCommand != null && change.expectedCommand != commandVersion()) return NightMutation.Stale(change.request.expected, current()?.identity)
         when (val check = Eligibility.check(current(), now(), change.request)) {
             is Eligibility.Stale -> return NightMutation.Stale(check.expected, check.actual)
@@ -273,7 +281,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             checkExecutionTime(change)
             validate()
             controller.startProgram(change.intended.slot, onStartAttempt = { startMayHaveHappened = true },
-                beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change); validate() }) {
+                beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change); validate() }, onConfirmed = onConfirmed) {
                 checkOwnership()
                 checkExecutionTime(change)
                 validate()

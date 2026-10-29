@@ -167,6 +167,15 @@ class ProfileFileFlowTest {
         deliver(code); until { done.isCompleted }
         assertEquals(listOf(original), BackupCodec.decode(requireNotNull(output.get()).toString(Charsets.UTF_8)).profiles)
     }
+    @Test fun pendingShareAfterEarlierDemoUseSurvivesParcelledActivityRecreation() {
+        runBlocking { graph.repository.enterDemoSession(); graph.repository.exitDemoSession() }
+        compose.waitForIdle()
+        val code = share()
+        restore()
+        val done = graph.scope.async(start = CoroutineStart.UNDISPATCHED) { model.messages.first() }
+        deliver(code); until { done.isCompleted }
+        assertEquals(listOf(original), BackupCodec.decode(requireNotNull(output.get()).toString(Charsets.UTF_8)).profiles)
+    }
     @Test fun pendingShareCannotReadFromAnotherSessionAfterAConflatedDemoRoundTrip() {
         val code = share()
         runBlocking { graph.repository.enterDemoSession(); graph.repository.exitDemoSession() }

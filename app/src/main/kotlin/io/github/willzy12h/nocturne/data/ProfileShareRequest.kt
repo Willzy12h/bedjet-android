@@ -4,4 +4,9 @@ import kotlinx.serialization.Serializable
 
 /** Saved with the document-picker request; neither a later edit nor a session change can substitute its data. */
 @Serializable
-internal data class ProfileShareRequest(val encodedProfile: String, val sessionRevision: Long)
+internal data class ProfileShareRequest(
+    val encodedProfile: String,
+    val sessionRevision: Long,
+    // Older saved requests still decode, then fail closed because their repository instance is unknown.
+    val repositoryNonce: String? = null,
+)

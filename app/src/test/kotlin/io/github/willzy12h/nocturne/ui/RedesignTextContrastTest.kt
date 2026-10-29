@@ -370,7 +370,7 @@ class RedesignTextContrastTest {
                 Surface(color = choice.tokens.ground) {
                     Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
                         StepCard(Phase(Mode.HEAT, 72, 40, 30), "Heat 36°C", "Fan 40%", "30 min", Modifier.testTag("drag-step"),
-                            canMoveUp = false, canMoveDown = true, onMove = {}, onClick = {})
+                            canMoveUp = false, canMoveDown = true, onMove = {}, onDrop = {}, onHeightChanged = {}, onClick = {})
                     }
                 }
             }

@@ -70,6 +70,7 @@ import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,6 +82,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
@@ -105,6 +107,7 @@ import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
+import kotlin.math.abs
 
 private val PHASE_MODES = listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.TURBO, Mode.DRY, Mode.WAIT)
 
@@ -361,7 +364,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                             val next = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())
                             profile = profile.copy(limits = next, middle = profile.middle.withFanLimits(next))
                         },
-                        valueRange = 5f..100f, steps = 18,
+                        valueRange = 5f..100f, steps = 18, colors = nocturneSliderColors(),
                     )
                     Text(stringResource(R.string.editor_temp_limits, tempText(limits.minTemp, f), tempText(limits.maxTemp, f)))
                     RangeSlider(
@@ -369,7 +372,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                             spokenRange(spokenTemp(limits.minTemp, f), spokenTemp(limits.maxTemp, f))),
                         value = limits.minTemp.toFloat()..limits.maxTemp.toFloat(),
                         onValueChange = { profile = profile.copy(limits = limits.copy(minTemp = it.start.roundToInt(), maxTemp = it.endInclusive.roundToInt())) },
-                        valueRange = 38f..86f, steps = 47,
+                        valueRange = 38f..86f, steps = 47, colors = nocturneSliderColors(),
                     )
                     TextButton(onClick = { profile = profile.copy(limits = ProfileLimits(), middle = profile.middle.withFanLimits(ProfileLimits())) }) { Text(stringResource(R.string.editor_reset_limits)) }
                 }
@@ -393,6 +396,11 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
 private fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boolean, plan: Plan?,
     focus: EditorPhaseSelection?, focusRequest: Int, limits: ProfileLimits, onAdd: () -> Unit, onChange: (List<Phase>) -> Unit) {
     var open by remember(block) { mutableStateOf<Int?>(null) }
+    val rowHeights = remember(block) { mutableMapOf<Int, Int>() }
+    // Keep unchanged measurements across reorders: equal-height rows need not be measured again.
+    SideEffect { rowHeights.keys.retainAll(phases.indices.toSet()) }
+    val rowGap = 8.dp
+    val gapPx = with(LocalDensity.current) { rowGap.toPx() }
     val requested = focus?.takeIf { it.block == block }?.index
     LaunchedEffect(requested, focusRequest) { requested?.let { open = it } }
     val start = when (block) {
@@ -401,7 +409,7 @@ private fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boole
         Block.AFTER_WAKE -> plan?.wake
         Block.MIDDLE, Block.TEMPORARY -> null
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(rowGap)) {
         EditorGroupHeader(label, phases.takeIf { it.isNotEmpty() }?.let { list -> compactDuration(list.sumOf { it.minutes }) })
         phases.forEachIndexed { index, phase ->
             val requester = remember(block, index) { BringIntoViewRequester() }
@@ -429,13 +437,28 @@ private fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boole
             }
             fun move(by: Int) {
                 val to = (index + by).coerceIn(phases.indices)
-                if (to !in phases.indices) return
+                if (to == index) return
                 onChange(phases.toMutableList().apply { add(to, removeAt(index)) })
+            }
+            fun drop(distance: Float) {
+                var top = 0f
+                val centres = phases.indices.map { row ->
+                    val height = rowHeights[row] ?: return
+                    (top + height / 2f).also { top += height + gapPx }
+                }
+                val droppedCentre = centres[index] + distance
+                // A tall row owns its full measured interval, including the area past a centre midpoint.
+                val destination = phases.indices.minByOrNull {
+                    (abs(centres[it] - droppedCentre) - rowHeights.getValue(it) / 2f).coerceAtLeast(0f)
+                } ?: return
+                move(destination - index)
             }
             StepCard(phase, title, subtitle, compactDuration(phase.minutes),
                 Modifier.testTag("editor-phase-${block.name}-$index").bringIntoViewRequester(requester)
                     .semantics { contentDescription = phaseDescription; stateDescription = phaseStart?.let(Format::clock).orEmpty() },
-                canMoveUp = index > 0, canMoveDown = index < phases.lastIndex, onMove = ::move) { open = index }
+                canMoveUp = index > 0, canMoveDown = index < phases.lastIndex,
+                onMove = { by -> move(by) }, onDrop = { distance -> drop(distance) },
+                onHeightChanged = { height -> rowHeights[index] = height }) { open = index }
             if (open == index) ModalBottomSheet(onDismissRequest = { open = null }, containerColor = paletteTokens.sheet,
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
                 Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp).verticalScroll(rememberScrollState())) {

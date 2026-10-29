@@ -64,8 +64,8 @@ object WidgetUpdater {
                     emit(Unit)
                 }
             } }
-        val shownState = combine(repo.activeNight, repo.automation, repo.runtime, boundaries) { active, observation, runtime, _ ->
-            listOf(active, observation, runtime, widgetPhase(app, active), widgetWake(app, active, runtime))
+        val shownState = combine(repo.activeNight, repo.automation, repo.runtime, boundaries, graph.actions.status) { active, observation, runtime, _, status ->
+            listOf(active, observation, runtime, status, widgetPhase(app, active), widgetWake(app, active, runtime))
         }
         combine(repo.profiles, repo.settings, linkState, shownState) { profiles, settings, _, shown ->
             Shown(profiles, settings, widgetBedJetName(app, settings), shown, settings.isDarkTheme(graph.now(), false))

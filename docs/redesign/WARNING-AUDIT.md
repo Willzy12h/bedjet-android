@@ -6,7 +6,7 @@ The final exact clean gate at `c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd` exited 
 
 ## Retained, narrowly justified exceptions
 
-These **38 explicit annotations** remain visible in the source. A zero actionable-warning result does not mean the project has no justified compatibility annotations. Each exception is scoped to its platform boundary, test fixture or invariant copy; none disables an entire lint rule across the app.
+The app/core inventory contains **38 explicit annotations**. The repository-wide inventory is **39**, including the release-serialization fixture listed below. A zero actionable-warning result does not mean the project has no justified compatibility annotations. Each exception is scoped to its platform boundary, test fixture or invariant copy; none disables an entire lint rule across the app.
 
 | Source | Line at audit | Annotation | Technical justification |
 |---|---:|---|---|
@@ -22,8 +22,8 @@ These **38 explicit annotations** remain visible in the source. A zero actionabl
 | `app/src/main/kotlin/io/github/willzy12h/nocturne/night/AlarmIdentity.kt` | 23 | `@Suppress("DEPRECATION") // The flags-object overload starts at API 33.` | Legacy int-flags getPackageInfo exists on API 31/32 only; API 33+ uses PackageInfoFlags. |
 | `app/src/main/kotlin/io/github/willzy12h/nocturne/night/AlarmIdentity.kt` | 27 | `@Suppress("DEPRECATION")` | sharedUserId is deprecated as an application feature, but its value must still be read to reject an existing ambiguous shared-UID creator. API 31/33/34/36 regressions cover the actual package-manager lookup. |
 | `app/src/main/kotlin/io/github/willzy12h/nocturne/platform/ChargerJobs.kt` | 147 | `@android.annotation.SuppressLint("SpecifyJobSchedulerIdRange")` | ChargerJobService uses fixed negative ID -6100, disjoint from WorkManager default non-negative IDs. PlatformAdapterTest verifies the configured range and the pending job. |
-| `app/src/main/kotlin/io/github/willzy12h/nocturne/platform/NightTileService.kt` | 33 | `@android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")` | API 34+ uses the PendingIntent overload; Android 31–33 require the legacy startActivityAndCollapse(Intent) API. |
-| `app/src/main/kotlin/io/github/willzy12h/nocturne/platform/NightTileService.kt` | 34 | `@Suppress("DEPRECATION")` | API 34+ uses the PendingIntent overload; Android 31–33 require the legacy startActivityAndCollapse(Intent) API. |
+| `app/src/main/kotlin/io/github/willzy12h/nocturne/platform/NightTileService.kt` | 37 | `@android.annotation.SuppressLint("StartActivityAndCollapseDeprecated")` | API 34+ uses the PendingIntent overload; Android 31–33 require the legacy startActivityAndCollapse(Intent) API. |
+| `app/src/main/kotlin/io/github/willzy12h/nocturne/platform/NightTileService.kt` | 38 | `@Suppress("DEPRECATION")` | API 34+ uses the PendingIntent overload; Android 31–33 require the legacy startActivityAndCollapse(Intent) API. |
 | `app/src/main/kotlin/io/github/willzy12h/nocturne/service/BedJetService.kt` | 176 | `@Suppress("UNCHECKED_CAST")` | Private in-process generic Handoff<T> stores the paired producer result as Any; the same typed handoff is its only consumer. |
 | `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SetupChecklistCard.kt` | 126 | `@Suppress("BatteryLife")` | Explicit user action for continuous overnight BLE tracking; Android battery exemption is the requested setting, with the existing explanation and no automatic request. |
 | `app/src/main/kotlin/io/github/willzy12h/nocturne/ui/SetupChecks.kt` | 119 | `@Suppress("BatteryLife")` | Explicit user action for continuous overnight BLE tracking; Android battery exemption is the requested setting, with the existing explanation and no automatic request. |
@@ -48,6 +48,7 @@ These **38 explicit annotations** remain visible in the source. A zero actionabl
 | `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/U06Fixture.kt` | 80 | `@Suppress("DEPRECATION")` | Robolectric configuration fixture uses Resources.updateConfiguration to establish screen width/font scale before composition. Production uses current configuration APIs. |
 | `app/src/test/kotlin/io/github/willzy12h/nocturne/ui/UatRound2RegressionTest.kt` | 52 | `@Suppress("DEPRECATION")` | Robolectric configuration fixture uses Resources.updateConfiguration to establish screen width/font scale before composition. Production uses current configuration APIs. |
 | `app/src/test/kotlin/io/github/willzy12h/nocturne/widget/WidgetResponsiveLayoutTest.kt` | 31 | `@Suppress("DEPRECATION")` | Robolectric configuration fixture uses Resources.updateConfiguration to establish screen width/font scale before composition. Production uses current configuration APIs. |
+| `.github/workflows/release-serialization/ReleaseSerializationTest.kt` | 63 | `@Suppress("UNCHECKED_CAST")` | Test-only reflection retrieves the generated serializer for the explicitly named fixture class. The same known class and fixture value are used to exercise encoding/decoding; this does not suppress an application warning or weaken release validation. |
 
 ## Toolchain and dependency remediation
 

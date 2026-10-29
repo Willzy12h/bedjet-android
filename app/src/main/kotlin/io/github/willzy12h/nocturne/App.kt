@@ -107,7 +107,7 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
             }.collect { (target, report) ->
                 // A report from a session still on the previous BedJet says nothing about the chosen one.
                 if (report != null && report.isFrom(target)) {
-                    actions.observeStatus(report.status, target, now(), report.source ?: target)
+                    actions.observeStatus(report, target, now())
                     platform.observe(report.status, target)
                 }
             }
