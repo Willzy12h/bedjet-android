@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.SliderDefaults
@@ -31,4 +32,11 @@ internal fun nocturneRadioColors() = RadioButtonDefaults.colors(selectedColor = 
 @Composable
 internal fun nocturneCheckboxColors() = CheckboxDefaults.colors(
     checkedColor = controlForeground(), checkmarkColor = paletteTokens.ground,
+)
+
+/** A selected choice must remain distinct from its surrounding card or sheet in every palette. */
+@Composable
+internal fun nocturneFilterChipColors() = FilterChipDefaults.filterChipColors(
+    selectedContainerColor = paletteTokens.ink, selectedLabelColor = paletteTokens.ground,
+    selectedLeadingIconColor = paletteTokens.ground, selectedTrailingIconColor = paletteTokens.ground,
 )

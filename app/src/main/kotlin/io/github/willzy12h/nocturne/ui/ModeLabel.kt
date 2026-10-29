@@ -14,6 +14,6 @@ fun ModeLabel(mode: Mode, fahrenheit: Boolean = LocalTemperatureFahrenheit.curre
     Column {
         Text(modeName(mode))
         if (mode.usesFan) Text(stringResource(R.string.ux_mode_max, tempText(mode.temperatureRange.last, fahrenheit)),
-            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            style = MaterialTheme.typography.labelSmall)
     }
 }

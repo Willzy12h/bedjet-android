@@ -96,6 +96,80 @@ class RedesignTextContrastTest {
         } finally { bitmap.recycle() }
     }
 
+    private fun openMiddleForContrast() {
+        val profile = ui.graph.repository.profiles.value.first()
+        ui.compose.runOnUiThread { ui.compose.activity.setContent {
+            NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
+                Surface(color = palette.value.tokens.ground) { ProfileEditor(ui.model, profile, onDone = {}) }
+            }
+        } }
+        ui.compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
+    }
+
+    @Test fun selectedMiddleShapeHasAVisibleBoundaryInEveryPalette() {
+        openMiddleForContrast()
+        Palette.entries.forEach { choice ->
+            ui.compose.runOnIdle { palette.value = choice }
+            val bounds = ui.compose.onNodeWithTag("middle-shape-3").performScrollTo().assertIsSelected()
+                .fetchSemanticsNode().boundsInRoot
+            val density = ui.compose.density.density
+            pixels { bitmap ->
+                val edge = Color(bitmap.getPixel((bounds.right - density).toInt(), bounds.center.y.toInt()))
+                val inside = Color(bitmap.getPixel((bounds.right - 6 * density).toInt(), bounds.center.y.toInt()))
+                checkIndicator("$choice selected Middle shape against its fill", edge, inside)
+                checkIndicator("$choice selected Middle shape against the sheet", edge, choice.tokens.sheet)
+            }
+        }
+    }
+
+    @Test fun selectedMiddleModeIsVisiblyDistinctFromItsSheetInEveryPalette() {
+        openMiddleForContrast()
+        Palette.entries.forEach { choice ->
+            ui.compose.runOnIdle { palette.value = choice }
+            val node = ui.compose.onNode(hasText(ui.s(R.string.mode_cool)) and isSelected() and
+                hasAnyAncestor(hasTestTag("editor-middle-sheet")))
+            val selected = node.performScrollTo().fetchSemanticsNode()
+            val bounds = selected.boundsInRoot
+            var selection = Color.Unspecified
+            pixels { bitmap ->
+                selection = Color(bitmap.getPixel((bounds.left + 4 * ui.compose.density.density).toInt(), bounds.center.y.toInt()))
+                checkIndicator("$choice selected Middle mode", selection, choice.tokens.sheet)
+            }
+            val texts = ui.compose.onAllNodes(SemanticsMatcher("selected mode text") { candidate ->
+                candidate.config.contains(SemanticsActions.GetTextLayoutResult) &&
+                    generateSequence(candidate) { it.parent }.any { it.id == selected.id }
+            }, useUnmergedTree = true).fetchSemanticsNodes()
+            assertTrue("The selected mode must retain its name and temperature limit", texts.size == 2)
+            texts.forEach { text ->
+                val results = mutableListOf<TextLayoutResult>()
+                ui.compose.runOnIdle { text.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results) }
+                checkText("$choice selected mode label", results.single(), selection)
+            }
+        }
+    }
+
+    @Test fun everySelectedAddStepChoiceHasAVisibleBoundaryInEveryPalette() {
+        ui.compose.runOnUiThread { ui.compose.activity.setContent {
+            NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
+                Surface(color = palette.value.tokens.sheet) { AddStepContent(Block.START, false, {}, { _, _ -> }) }
+            }
+        } }
+        Palette.entries.forEach { choice ->
+            ui.compose.runOnIdle { palette.value = choice }
+            ADD_STEP_CHOICES.forEach { phase ->
+                val node = ui.compose.onNodeWithTag("add-choice-${phase.mode}").performScrollTo().performClick().assertIsSelected()
+                val bounds = node.fetchSemanticsNode().boundsInRoot
+                val density = ui.compose.density.density
+                pixels { bitmap ->
+                    val edge = Color(bitmap.getPixel((bounds.right - .75f * density).toInt(), bounds.center.y.toInt()))
+                    val inside = Color(bitmap.getPixel((bounds.right - 6 * density).toInt(), bounds.center.y.toInt()))
+                    checkIndicator("$choice selected ${phase.mode} against its fill", edge, inside)
+                    checkIndicator("$choice selected ${phase.mode} against the sheet", edge, choice.tokens.sheet)
+                }
+            }
+        }
+    }
+
     @Test fun focusedTimeFieldLabelsRemainReadableInEveryPalette() {
         ui.compose.runOnUiThread { ui.compose.activity.setContent {
             NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {

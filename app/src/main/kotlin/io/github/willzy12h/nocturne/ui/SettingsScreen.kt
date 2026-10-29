@@ -222,7 +222,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             Text(stringResource(R.string.settings_slot_title), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.settings_slot_help), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                (0..2).forEach { slot -> FilterChip(settings.workingSlot == slot, { model.updateSettings { it.copy(workingSlot = slot) } }, label = { Text(stringResource(R.string.settings_slot, slot + 1)) }) }
+                (0..2).forEach { slot -> FilterChip(settings.workingSlot == slot, { model.updateSettings { it.copy(workingSlot = slot) } }, label = { Text(stringResource(R.string.settings_slot, slot + 1)) }, colors = nocturneFilterChipColors()) }
             }
             slotBackups.filter { it.deviceId == settings.deviceId() }.forEach { backup ->
                 // An empty-slot marker has nothing to put back yet.
@@ -280,6 +280,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                             }
                         },
                         label = { Text(Notifications.title(context, action, settings)) },
+                        colors = nocturneFilterChipColors(),
                     )
                 }
             }
@@ -643,7 +644,7 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, quickC
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY).forEach { mode ->
-                    FilterChip(preset.mode == mode, { onChange(preset.copy(mode = mode, temperature = preset.temperature.coerceIn(mode.temperatureRange))) }, label = { ModeLabel(mode, f) })
+                    FilterChip(preset.mode == mode, { onChange(preset.copy(mode = mode, temperature = preset.temperature.coerceIn(mode.temperatureRange))) }, label = { ModeLabel(mode, f) }, colors = nocturneFilterChipColors())
                 }
             }
             if (preset.mode.usesTemperature) {

@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -337,7 +338,9 @@ internal fun AddStepContent(initial: Block, fahrenheit: Boolean, onCancel: () ->
                 val stripe = tokens.stepColor(phase.mode, phase.temperature)
                 val on = choice.mode == phase.mode
                 StripeTile(stripe = stripe, title = modeName(phase.mode), subtitle = detail,
-                    level = if (on) TintLevel.ON else TintLevel.TILE, selectedBorder = if (on) stripe else null,
+                    level = if (on) TintLevel.ON else TintLevel.TILE,
+                    selectedBorder = if (on) tokens.readableText(stripe,
+                        tokens.tint(stripe, TintLevel.ON).compositeOver(tokens.surface), minimumContrast = 3f) else null,
                     titleFontWeight = FontWeight.Bold,
                     icon = { Icon(painterResource(phaseIcon(phase.mode)), null, Modifier.size(16.dp), tint = stripe) },
                     modifier = Modifier.weight(1f).heightIn(min = 64.dp).testTag("add-choice-${phase.mode.name}")

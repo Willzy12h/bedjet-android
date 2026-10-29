@@ -62,6 +62,7 @@ import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -327,7 +328,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
 
                 OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneTextFieldColors())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }) }
+                    Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }, colors = nocturneFilterChipColors()) }
                 }
 
                 Section(stringResource(R.string.editor_timing)) {
@@ -343,7 +344,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         DayOfWeek.entries.forEach { day ->
                             FilterChip(day.value in profile.days, {
                                 profile = profile.copy(days = if (day.value in profile.days) profile.days - day.value else profile.days + day.value)
-                            }, label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) })
+                            }, label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) }, colors = nocturneFilterChipColors())
                         }
                     }
                 }
@@ -499,7 +500,8 @@ private fun ShapeCard(count: Int, label: String, selected: Boolean, color: Color
     val tokens = paletteTokens
     val shape = RoundedCornerShape(16.dp)
     Column(modifier.clip(shape).background(if (selected) tokens.tint(color) else tokens.surface2)
-        .then(if (selected) Modifier.border(2.dp, color, shape) else Modifier)
+        .then(if (selected) Modifier.border(2.dp,
+            tokens.readableText(color, tokens.tint(color).compositeOver(tokens.sheet), minimumContrast = 3f), shape) else Modifier)
         .clickable(role = Role.RadioButton, onClick = onClick).semantics { this.selected = selected }
         .testTag("middle-shape-$count").padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -564,7 +566,7 @@ private fun MiddleBars(steps: List<PlannedStep>, fahrenheit: Boolean) {
 @Composable
 private fun ModeChips(selected: Mode, onSelect: (Mode) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PHASE_MODES.forEach { FilterChip(selected == it, { onSelect(it) }, label = { ModeLabel(it) }, modifier = Modifier.heightIn(min = 48.dp)) }
+        PHASE_MODES.forEach { FilterChip(selected == it, { onSelect(it) }, label = { ModeLabel(it) }, modifier = Modifier.heightIn(min = 48.dp), colors = nocturneFilterChipColors()) }
     }
 }
 

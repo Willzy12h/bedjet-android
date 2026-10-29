@@ -101,7 +101,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                         val captured = captureRemoteTemporary(model.graph, mode, s)
                         guard.confirm(what, captured) { model.remoteCaptured(name, captured.request, mode) }
                     }
-                }, enabled = canControl, label = { ModeLabel(mode, f) })
+                }, enabled = canControl, label = { ModeLabel(mode, f) }, colors = nocturneFilterChipColors())
             }
         }
         if (s.isRunning && s.mode.usesTemperature) {

@@ -1,11 +1,17 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.ui.test.*
+import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.core.plan.Middle
+import io.github.willzy12h.nocturne.core.plan.Presets
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,5 +70,38 @@ class HistoryLargeTextReachabilityTest(private val look: U06Look) {
         ui.checkLayout(ui.compose.onNodeWithText("Just right", useUnmergedTree = true), "History comfort")
         ui.checkLayout(ui.compose.onNodeWithTag("history-issues-history-large", useUnmergedTree = true), "History issues")
         ui.checkLayout(ui.compose.onNodeWithText("Last night", useUnmergedTree = true), "History date")
+    }
+
+    @Test fun suggestionActionsStaySeparateAndOnlyApplyChangesTheProfile() {
+        val profile = Presets.summerCool.copy(id = "large-cool", name = "Summer comfort",
+            middle = Middle(Mode.COOL, fanStart = 50, fanEnd = 25, tempStart = 44, tempEnd = 44, rampSteps = 3))
+        val start = ui.graph.now().minusDays(1)
+        val wake = start.plusHours(8)
+        runBlocking {
+            ui.graph.repository.saveProfile(profile)
+            ui.graph.repository.addRecord(NightRecord("large-suggestion", profile.id, profile.name,
+                start.toString(), wake.toString(), false,
+                events = listOf(HistoryEvent(wake.toString(), EventKind.ENDED, "Night ended"))))
+        }
+        ui.tab("History")
+        ui.compose.onNodeWithText(ui.s(R.string.checkin_button)).performScrollTo().performClick()
+        ui.compose.onNodeWithText(ui.s(R.string.checkin_too_hot)).performScrollTo().performClick()
+        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.checkin_change_title)).fetchSemanticsNodes().isNotEmpty() }
+        val apply = ui.compose.onNode(hasText(ui.s(R.string.checkin_apply)) and hasClickAction())
+        val keep = ui.compose.onNode(hasText(ui.s(R.string.checkin_keep)) and hasClickAction())
+        ui.checkControl(apply, "Apply suggestion", scroll = false)
+        ui.checkControl(keep, "Keep profile", scroll = false)
+        val applyBounds = apply.fetchSemanticsNode().touchBoundsInRoot
+        val keepBounds = keep.fetchSemanticsNode().touchBoundsInRoot
+        assertFalse("Suggestion actions overlap: $applyBounds / $keepBounds", applyBounds.overlaps(keepBounds))
+
+        keep.performTouchInput { click() }
+        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.checkin_change_title)).fetchSemanticsNodes().isEmpty() }
+        assertEquals(profile.middle, ui.graph.repository.profile(profile.id)!!.middle)
+        ui.compose.onNodeWithText(ui.s(R.string.checkin_review)).performScrollTo().performClick()
+        ui.checkControl(apply, "Apply reviewed suggestion", scroll = false).performTouchInput { click() }
+        ui.waitUntil { ui.graph.repository.profile(profile.id)!!.middle.fanStart == 60 }
+        assertEquals(35, ui.graph.repository.profile(profile.id)!!.middle.fanEnd)
+        assertEquals(profile.middle.tempStart, ui.graph.repository.profile(profile.id)!!.middle.tempStart)
     }
 }

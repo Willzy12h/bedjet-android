@@ -245,10 +245,16 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                             Text(stringResource(R.string.checkin_future_only))
                         }
                     },
-                    confirmButton = { Button(onClick = {
-                        model.acceptMorningSuggestion(proposal) { showSuggestion = false; suggestion = null }
-                    }) { Text(stringResource(R.string.checkin_apply)) } },
-                    dismissButton = { TextButton(onClick = { showSuggestion = false }) { Text(stringResource(R.string.checkin_keep)) } },
+                    confirmButton = {
+                        // Keep full, multi-line actions separate at large font scales; the dialog's
+                        // baseline-aligned action flow can overlap these differently sized controls.
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.End) {
+                            Button(onClick = {
+                                model.acceptMorningSuggestion(proposal) { showSuggestion = false; suggestion = null }
+                            }) { Text(stringResource(R.string.checkin_apply)) }
+                            TextButton(onClick = { showSuggestion = false }) { Text(stringResource(R.string.checkin_keep)) }
+                        }
+                    },
                 )
             }
 }

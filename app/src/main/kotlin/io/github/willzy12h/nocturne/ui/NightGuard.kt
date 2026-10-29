@@ -61,8 +61,8 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
                 if (temporary == null) Text(if (resume) stringResource(R.string.guard_resume_body)
                     else stringResource(R.string.guard_running_waking, name, what))
                 else Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(useTemporary, { useTemporary = true }, label = { Text(stringResource(R.string.temporary_choice)) }, modifier = Modifier.fillMaxWidth())
-                    FilterChip(!useTemporary, { useTemporary = false }, label = { Text(stringResource(R.string.temporary_end_choice)) }, modifier = Modifier.fillMaxWidth())
+                    FilterChip(useTemporary, { useTemporary = true }, label = { Text(stringResource(R.string.temporary_choice)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneFilterChipColors())
+                    FilterChip(!useTemporary, { useTemporary = false }, label = { Text(stringResource(R.string.temporary_end_choice)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneFilterChipColors())
                     if (useTemporary) {
                         Text(stringResource(R.string.temporary_running, name))
                         temporaryDetails(context, request!!, preview!!, settings.fahrenheit).forEach { Text(it) }
