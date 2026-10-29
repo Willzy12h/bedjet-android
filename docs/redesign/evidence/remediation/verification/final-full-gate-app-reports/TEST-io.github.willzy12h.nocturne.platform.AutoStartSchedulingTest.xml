@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.AutoStartSchedulingTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:25:46.853Z" hostname="f7415c079ba4" time="2.674">
+  <properties/>
+  <testcase name="explicitFixedTimeSchedulesWithoutRequiringChargingAndReplacesItsOwnAlarm" classname="io.github.willzy12h.nocturne.platform.AutoStartSchedulingTest" time="2.423"/>
+  <testcase name="legacyChargingOptInSchedulesOneBedtimeAlarmInsteadOfPeriodicPolling" classname="io.github.willzy12h.nocturne.platform.AutoStartSchedulingTest" time="0.068"/>
+  <testcase name="relativeStartUsesTheAcceptedNextAlarmEvenForAFixedWakeProfile" classname="io.github.willzy12h.nocturne.platform.AutoStartSchedulingTest" time="0.065"/>
+  <testcase name="absentAlarmUsesTheChosenProfilesWakeFallback" classname="io.github.willzy12h.nocturne.platform.AutoStartSchedulingTest" time="0.064"/>
+  <testcase name="enteringDemoCancelsTheRealAutomaticStart" classname="io.github.willzy12h.nocturne.platform.AutoStartSchedulingTest" time="0.054"/>
+</testsuite>

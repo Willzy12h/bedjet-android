@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.QuietMiddleEdgeDescriptionTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:32:38.572Z" hostname="f7415c079ba4" time="0.049">
+  <properties/>
+  <testcase name="equalQuietSpeedsRemainRecognisableWithoutGuessingMissingStages" classname="io.github.willzy12h.nocturne.ui.QuietMiddleEdgeDescriptionTest" time="0.043"/>
+  <testcase name="nonmonotonicAppliedFanPathDoesNotClaimOnlyEasingOff" classname="io.github.willzy12h.nocturne.ui.QuietMiddleEdgeDescriptionTest" time="0.005"/>
+</testsuite>

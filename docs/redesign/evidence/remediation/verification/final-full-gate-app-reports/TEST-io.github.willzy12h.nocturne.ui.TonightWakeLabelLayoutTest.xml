@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:39:47.745Z" hostname="f7415c079ba4" time="9.236">
+  <properties/>
+  <testcase name="overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[MIDNIGHT-320dp-font2]" classname="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" time="7.168"/>
+  <testcase name="overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[DAYLIGHT-320dp-font2]" classname="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" time="0.339"/>
+  <testcase name="overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[SIMPLE_MIDNIGHT-320dp-font2]" classname="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" time="0.309"/>
+  <testcase name="overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[SIMPLE_DAYLIGHT-320dp-font2]" classname="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" time="0.304"/>
+  <testcase name="overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[SIMPLE_MIDNIGHT-320dp-font1]" classname="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" time="0.279"/>
+  <testcase name="overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[SIMPLE_MIDNIGHT-411dp-font2]" classname="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" time="0.231"/>
+  <testcase name="overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[SIMPLE_DAYLIGHT-320dp-font1]" classname="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" time="0.287"/>
+  <testcase name="overrideTitleKeepsWholeWordsAndOnlyCompactsAtNarrowLargeSimpleView[SIMPLE_DAYLIGHT-411dp-font2]" classname="io.github.willzy12h.nocturne.ui.TonightWakeLabelLayoutTest" time="0.292"/>
+</testsuite>

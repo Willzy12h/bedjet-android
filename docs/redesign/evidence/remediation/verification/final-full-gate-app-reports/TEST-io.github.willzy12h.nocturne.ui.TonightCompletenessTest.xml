@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.TonightCompletenessTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:39:38.914Z" hostname="f7415c079ba4" time="7.983">
+  <properties/>
+  <testcase name="stopTrackingSaysItDoesNotTurnTheBedJetOff" classname="io.github.willzy12h.nocturne.ui.TonightCompletenessTest" time="6.394"/>
+  <testcase name="aTapOnTonightIsReportedExactlyOnce" classname="io.github.willzy12h.nocturne.ui.TonightCompletenessTest" time="0.455"/>
+  <testcase name="theRunningCommandAndQueuedCountAreShownWhileTheyWait" classname="io.github.willzy12h.nocturne.ui.TonightCompletenessTest" time="0.332"/>
+  <testcase name="anUnconfirmedSlotWriteIsShownOnTonightAndCanBeMarkedAsChecked" classname="io.github.willzy12h.nocturne.ui.TonightCompletenessTest" time="0.322"/>
+  <testcase name="anOutcomeFromOutsideTheAppIsShownOnceWhileItIsOpen" classname="io.github.willzy12h.nocturne.ui.TonightCompletenessTest" time="0.242"/>
+  <testcase name="aSavedSettingIsNotAnnounced" classname="io.github.willzy12h.nocturne.ui.TonightCompletenessTest" time="0.237"/>
+</testsuite>

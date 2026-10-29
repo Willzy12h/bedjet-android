@@ -1,5 +1,7 @@
 # Design parity: make the app match the approved design
 
+> **Remediation ownership/status:** The owner authorised whole-app remediation on `gpt/nocturne-redesign-remediation`. Earlier Claude-only file reservations are superseded; Claude performs the independent review afterwards. Approved design decisions in this document remain binding. Historical test counts and warning budgets are not the current gate; see [GPT-HANDOVER.md](GPT-HANDOVER.md), [FINAL-REVIEW.md](FINAL-REVIEW.md) and [REMEDIATION-REGISTER.md](REMEDIATION-REGISTER.md).
+
 The P8 renders (Midnight Ink and Overcast) keep the old app's layout with new colours. The approved design
 changes the layout of every main screen. This brief covers closing that gap. The design is the source of truth:
 the images in `reference/screenshots/as-published/`, the HTML in `reference/nocturne-final-design.published.html`

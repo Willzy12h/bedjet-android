@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.085Z" hostname="f7415c079ba4" time="0.008">
+  <properties/>
+  <testcase name="lastMiddleStepEndsAtClockTime()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="middleFillsGap()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.001"/>
+  <testcase name="replanKeepsRemainingStart()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="replanIgnoredAfterWakeBegins()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="shortNightTrimsStartThenWake()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="turboRepeated()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="startIsTakenToTheMinuteLikeTheBedJetClock()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.001"/>
+  <testcase name="turboChainedToHeat()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="limitsClampEveryStep()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="tinyMiddleRunsByDurationNotClockTime()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="afterWakeFollowsTheWakeTime()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="clockTimeStepFollowsTheBedJetClockAcrossDst()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="longStepSplitAtTwelveHours()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="heatSplitByCutOff()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <testcase name="zeroMinutePhasesDropped()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.001"/>
+  <testcase name="tooManyStepsRejected()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.001"/>
+  <testcase name="rampInterpolatesFanAndTemp()" classname="io.github.willzy12h.nocturne.core.plan.PlanCompilerTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

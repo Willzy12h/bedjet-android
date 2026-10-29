@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" tests="44" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:35:34.747Z" hostname="f7415c079ba4" time="21.348">
+  <properties/>
+  <testcase name="settingsSetupDemoChoiceStaysReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="7.861"/>
+  <testcase name="idleResumePreviousStaysReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.414"/>
+  <testcase name="idleStartHasItsWholeLabelAndTouchTargetAboveFeedback[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.684"/>
+  <testcase name="runningConfirmedEndAndTrackingActionsStayReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.589"/>
+  <testcase name="remoteSetupDemoChoiceStaysReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.373"/>
+  <testcase name="runningUnknownManualKeepStopAndResumeStayReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.32"/>
+  <testcase name="remoteModeTimerAndBoostControlsAreReachableAboveFeedback[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.638"/>
+  <testcase name="longOwnerAndQueueDescriptionStaysWholeAtTwoHundredPercent[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.305"/>
+  <testcase name="runningConfirmedStopTrackingDialogKeepsBothChoicesReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.382"/>
+  <testcase name="settingsSlotAndBackupActionsHaveCompleteLabelsAndTargets[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.964"/>
+  <testcase name="tonightSetupDemoChoiceStaysReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.221"/>
+  <testcase name="settingsSetupDemoChoiceStaysReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.259"/>
+  <testcase name="idleResumePreviousStaysReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.167"/>
+  <testcase name="idleStartHasItsWholeLabelAndTouchTargetAboveFeedback[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.289"/>
+  <testcase name="runningConfirmedEndAndTrackingActionsStayReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.306"/>
+  <testcase name="remoteSetupDemoChoiceStaysReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.171"/>
+  <testcase name="runningUnknownManualKeepStopAndResumeStayReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.308"/>
+  <testcase name="remoteModeTimerAndBoostControlsAreReachableAboveFeedback[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.336"/>
+  <testcase name="longOwnerAndQueueDescriptionStaysWholeAtTwoHundredPercent[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.222"/>
+  <testcase name="runningConfirmedStopTrackingDialogKeepsBothChoicesReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.19"/>
+  <testcase name="settingsSlotAndBackupActionsHaveCompleteLabelsAndTargets[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.501"/>
+  <testcase name="tonightSetupDemoChoiceStaysReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.147"/>
+  <testcase name="settingsSetupDemoChoiceStaysReachable[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.288"/>
+  <testcase name="idleResumePreviousStaysReachable[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.314"/>
+  <testcase name="idleStartHasItsWholeLabelAndTouchTargetAboveFeedback[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.263"/>
+  <testcase name="runningConfirmedEndAndTrackingActionsStayReachable[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.223"/>
+  <testcase name="remoteSetupDemoChoiceStaysReachable[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.255"/>
+  <testcase name="runningUnknownManualKeepStopAndResumeStayReachable[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.254"/>
+  <testcase name="remoteModeTimerAndBoostControlsAreReachableAboveFeedback[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.436"/>
+  <testcase name="longOwnerAndQueueDescriptionStaysWholeAtTwoHundredPercent[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.14"/>
+  <testcase name="runningConfirmedStopTrackingDialogKeepsBothChoicesReachable[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.188"/>
+  <testcase name="settingsSlotAndBackupActionsHaveCompleteLabelsAndTargets[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.443"/>
+  <testcase name="tonightSetupDemoChoiceStaysReachable[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.157"/>
+  <testcase name="settingsSetupDemoChoiceStaysReachable[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.27"/>
+  <testcase name="idleResumePreviousStaysReachable[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.177"/>
+  <testcase name="idleStartHasItsWholeLabelAndTouchTargetAboveFeedback[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.287"/>
+  <testcase name="runningConfirmedEndAndTrackingActionsStayReachable[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.279"/>
+  <testcase name="remoteSetupDemoChoiceStaysReachable[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.158"/>
+  <testcase name="runningUnknownManualKeepStopAndResumeStayReachable[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.254"/>
+  <testcase name="remoteModeTimerAndBoostControlsAreReachableAboveFeedback[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.289"/>
+  <testcase name="longOwnerAndQueueDescriptionStaysWholeAtTwoHundredPercent[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.161"/>
+  <testcase name="runningConfirmedStopTrackingDialogKeepsBothChoicesReachable[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.166"/>
+  <testcase name="settingsSlotAndBackupActionsHaveCompleteLabelsAndTargets[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.486"/>
+  <testcase name="tonightSetupDemoChoiceStaysReachable[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06PrimaryLayoutTest" time="0.178"/>
+</testsuite>

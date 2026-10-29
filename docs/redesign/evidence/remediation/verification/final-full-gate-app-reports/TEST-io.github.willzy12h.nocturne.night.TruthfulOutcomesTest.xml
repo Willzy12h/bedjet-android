@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:23.362Z" hostname="f7415c079ba4" time="27.635">
+  <properties/>
+  <testcase name="aRetimeWhoseBackupReadFailsLeavesTheNightConfirmedAndItsWakeUpStillComes" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="4.353"/>
+  <testcase name="anUnknownPinOfAnotherSlotDoesNotColourTheIdleStatusAfterANight" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="1.672"/>
+  <testcase name="anUnknownPinIsClearedByALaterSuccessfulWriteOfThatSlot" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="0.134"/>
+  <testcase name="anUnknownSlotWriteIsClearedWhenTheUserMarksItChecked" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="0.076"/>
+  <testcase name="anUnknownBoostEndsWithItsNightAndIsNotReportedForTheNext" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="3.241"/>
+  <testcase name="aConfirmedFirstStartIsRecordedOnceAsStarted" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="1.585"/>
+  <testcase name="aRetimeWhoseNewWakeUpBeganBeforeItsWriteIsRefusedOnceAndNotRetried" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="1.65"/>
+  <testcase name="aFailedPinDoesNotColourALaterConfirmedNight" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="1.586"/>
+  <testcase name="aBoostWhoseBackupFailsLeavesTheNightConfirmedAndReconcileLeavesItAlone" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="3.137"/>
+  <testcase name="aFailedFirstStartRecordsItsError" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="0.095"/>
+  <testcase name="aRetimeRetriedAfterAFailureWithNothingWrittenAppliesTheChange" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="3.188"/>
+  <testcase name="aRetimeWhoseClockOffsetChangesBeforeItsWriteFailsAndIsTriedAgain" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="1.676"/>
+  <testcase name="anUnknownPinIsNotSettledByANightOnAnotherSlot" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="1.692"/>
+  <testcase name="aFirstStartFailingItsFinalCheckMatchesThePublishedFailure" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="0.095"/>
+  <testcase name="keepingAFreshRunSettlesTheBoostThatInterruptedTheNight" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="1.657"/>
+  <testcase name="anOldFailedSlotWriteInTheJournalIsIgnored" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="1.66"/>
+  <testcase name="anInterruptedFirstStartKeepsItsHistory" classname="io.github.willzy12h.nocturne.night.TruthfulOutcomesTest" time="0.131"/>
+</testsuite>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.HealthLegacyContainmentSecurityTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:29:06.213Z" hostname="f7415c079ba4" time="5.576">
+  <properties/>
+  <testcase name="savedExportOptInCannotConstructOrWriteToAnImitationProvider[31]" classname="io.github.willzy12h.nocturne.platform.HealthLegacyContainmentSecurityTest" time="3.245"/>
+  <testcase name="noExportedSdkServiceExistsForExactPackageOrOrdinaryCallers[31]" classname="io.github.willzy12h.nocturne.platform.HealthLegacyContainmentSecurityTest" time="0.145"/>
+  <testcase name="directReaderConstructionFailsClosedBeforeLegacyProviderIpc[31]" classname="io.github.willzy12h.nocturne.platform.HealthLegacyContainmentSecurityTest" time="0.08"/>
+  <testcase name="savedExportOptInCannotConstructOrWriteToAnImitationProvider" classname="io.github.willzy12h.nocturne.platform.HealthLegacyContainmentSecurityTest" time="1.963"/>
+  <testcase name="noExportedSdkServiceExistsForExactPackageOrOrdinaryCallers" classname="io.github.willzy12h.nocturne.platform.HealthLegacyContainmentSecurityTest" time="0.061"/>
+  <testcase name="directReaderConstructionFailsClosedBeforeLegacyProviderIpc" classname="io.github.willzy12h.nocturne.platform.HealthLegacyContainmentSecurityTest" time="0.07"/>
+</testsuite>

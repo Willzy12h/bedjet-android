@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.HealthRunContinuityTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:29:12.748Z" hostname="f7415c079ba4" time="8.196">
+  <properties/>
+  <testcase name="aFreshManualTimerReceiptNeverMakesTheNightAnExportableCompletedProgramme" classname="io.github.willzy12h.nocturne.platform.HealthRunContinuityTest" time="5.026"/>
+  <testcase name="resumingAfterAnUncertainManualTimerCannotReestablishWholeNightExportProof" classname="io.github.willzy12h.nocturne.platform.HealthRunContinuityTest" time="3.17"/>
+</testsuite>

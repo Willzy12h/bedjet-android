@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.P8ConsumedSettingsRequestTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:31:36.280Z" hostname="f7415c079ba4" time="9.001">
+  <properties/>
+  <testcase name="handledAlarmLinkDoesNotReopenWhenReturningToSettings" classname="io.github.willzy12h.nocturne.ui.P8ConsumedSettingsRequestTest" time="8.077"/>
+  <testcase name="handledSetupRequestDoesNotNavigateAgainAfterRecreation" classname="io.github.willzy12h.nocturne.ui.P8ConsumedSettingsRequestTest" time="0.924"/>
+</testsuite>

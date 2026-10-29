@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.data.ImportAdmissionTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:33.732Z" hostname="f7415c079ba4" time="3.98">
+  <properties/>
+  <testcase name="importIsRefusedBeforeUiHandoffReachesNightActionsAndCancellationReleasesIt" classname="io.github.willzy12h.nocturne.data.ImportAdmissionTest" time="3.51"/>
+  <testcase name="importIsRefusedWhileAnOwnerCommandWaitsInTheQueue" classname="io.github.willzy12h.nocturne.data.ImportAdmissionTest" time="0.122"/>
+  <testcase name="alarmObservationCannotQueueAWriteWhileImportOwnsAdmission" classname="io.github.willzy12h.nocturne.data.ImportAdmissionTest" time="0.091"/>
+  <testcase name="importIsRefusedWhileAHardwareOriginalRestoreIsRunning" classname="io.github.willzy12h.nocturne.data.ImportAdmissionTest" time="0.112"/>
+  <testcase name="importIsRefusedWhileAReceiverCommandAwaitsServiceDelivery" classname="io.github.willzy12h.nocturne.data.ImportAdmissionTest" time="0.145"/>
+</testsuite>

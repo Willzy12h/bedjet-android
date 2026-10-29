@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.ShortcutStopConfirmationTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:29:49.894Z" hostname="f7415c079ba4" time="15.59">
+  <properties/>
+  <testcase name="confirmedTonightOffQueuedBehindANewerNightIsRefused" classname="io.github.willzy12h.nocturne.platform.ShortcutStopConfirmationTest" time="5.294"/>
+  <testcase name="shortcutOffApprovalQueuedBehindANewerNightIsRefused" classname="io.github.willzy12h.nocturne.platform.ShortcutStopConfirmationTest" time="3.276"/>
+  <testcase name="shortcutApprovedOffConfirmsItsCapturedNightThroughTheService" classname="io.github.willzy12h.nocturne.platform.ShortcutStopConfirmationTest" time="1.815"/>
+  <testcase name="shortcutOffCancelDoesNotDeliverAServiceOrTouchHardware" classname="io.github.willzy12h.nocturne.platform.ShortcutStopConfirmationTest" time="1.796"/>
+  <testcase name="shortcutEndNightApprovalQueuedBehindANewerNightIsRefused" classname="io.github.willzy12h.nocturne.platform.ShortcutStopConfirmationTest" time="1.78"/>
+  <testcase name="anUnconfirmedEmergencyOffStillUsesTheSelectedTarget" classname="io.github.willzy12h.nocturne.platform.ShortcutStopConfirmationTest" time="1.629"/>
+</testsuite>

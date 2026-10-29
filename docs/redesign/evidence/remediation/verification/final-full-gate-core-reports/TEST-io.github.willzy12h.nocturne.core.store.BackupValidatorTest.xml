@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.652Z" hostname="f7415c079ba4" time="0.087">
+  <properties/>
+  <testcase name="settingsRanges()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.009"/>
+  <testcase name="phaseMinutes()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.003"/>
+  <testcase name="duplicateProfileIds()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.002"/>
+  <testcase name="quietMiddle()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.004"/>
+  <testcase name="rampSteps()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.002"/>
+  <testcase name="errorsAreReadableSentences()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.001"/>
+  <testcase name="fan()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.003"/>
+  <testcase name="slot()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.002"/>
+  <testcase name="aSlotBackupMustNameABedJet()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.003"/>
+  <testcase name="aGoodBundleAndTheDefaultsPass()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.001"/>
+  <testcase name="temperatureOutsideTheModeRange()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.002"/>
+  <testcase name="aRecordedOriginalOutsideTheModeRangeStillPasses()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.002"/>
+  <testcase name="aFileWithinTheLimitIsReadWhole()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.001"/>
+  <testcase name="importedSlotStepsMustFitTheProtocol()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.003"/>
+  <testcase name="newerSchema()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.001"/>
+  <testcase name="anOversizedFileIsRefusedBeforeItIsDecoded()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.031"/>
+  <testcase name="timesThatDoNotParse()" classname="io.github.willzy12h.nocturne.core.store.BackupValidatorTest" time="0.008"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

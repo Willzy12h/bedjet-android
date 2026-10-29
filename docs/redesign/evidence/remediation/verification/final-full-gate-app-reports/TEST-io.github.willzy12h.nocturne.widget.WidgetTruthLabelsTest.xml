@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.widget.WidgetTruthLabelsTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:36:57.953Z" hostname="f7415c079ba4" time="3.646">
+  <properties/>
+  <testcase name="aFailedWakeIsFailedRatherThanStillPending" classname="io.github.willzy12h.nocturne.widget.WidgetTruthLabelsTest" time="3.029"/>
+  <testcase name="aPendingSlotWriteForThisNightDoesNotKeepTheOldConfirmedWake" classname="io.github.willzy12h.nocturne.widget.WidgetTruthLabelsTest" time="0.096"/>
+  <testcase name="anUnresolvedWriteForAnotherNightDoesNotColourThisNight" classname="io.github.willzy12h.nocturne.widget.WidgetTruthLabelsTest" time="0.09"/>
+  <testcase name="aPendingWakeRetainsItsPendingLabel" classname="io.github.willzy12h.nocturne.widget.WidgetTruthLabelsTest" time="0.071"/>
+  <testcase name="anUnknownWakeIsUnconfirmedRatherThanStillPending" classname="io.github.willzy12h.nocturne.widget.WidgetTruthLabelsTest" time="0.069"/>
+  <testcase name="aPlannedPhaseCarriesItsAbsoluteTimeSpanForAFrozenHostView" classname="io.github.willzy12h.nocturne.widget.WidgetTruthLabelsTest" time="0.138"/>
+  <testcase name="anUnresolvedSlotWriteForThisNightMakesItsWakeAndPhaseUnconfirmed" classname="io.github.willzy12h.nocturne.widget.WidgetTruthLabelsTest" time="0.151"/>
+</testsuite>

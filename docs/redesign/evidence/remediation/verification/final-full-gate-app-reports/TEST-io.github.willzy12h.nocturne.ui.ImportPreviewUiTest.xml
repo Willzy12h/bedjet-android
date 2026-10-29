@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.ImportPreviewUiTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:08.430Z" hostname="f7415c079ba4" time="9.213">
+  <properties/>
+  <testcase name="snapshotReviewShowsEveryAreaAndLeavesDataUntouchedWhenDismissed" classname="io.github.willzy12h.nocturne.ui.ImportPreviewUiTest" time="8.124"/>
+  <testcase name="demoModeDisablesBackupFilePickersAndSnapshotMutations" classname="io.github.willzy12h.nocturne.ui.ImportPreviewUiTest" time="0.549"/>
+  <testcase name="anOldApplyCallbackCannotApproveADifferentNewlyStagedBackup" classname="io.github.willzy12h.nocturne.ui.ImportPreviewUiTest" time="0.54"/>
+</testsuite>

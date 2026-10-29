@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.link.ControllerTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:07.320Z" hostname="f7415c079ba4" time="0.077">
+  <properties/>
+  <testcase name="compiledNightReachesWakeUpOnTime()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.024"/>
+  <testcase name="startingSyncsTheClockAndRunsTheFirstStep()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.005"/>
+  <testcase name="storeRejectsStepsTheUnitWouldStop()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.003"/>
+  <testcase name="runtimeIsRefusedBeforeExceedingTheModeLimit()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.004"/>
+  <testcase name="manualRunSetsModeTemperatureFanAndTimer()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.002"/>
+  <testcase name="verifyFailsOnMismatch()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.003"/>
+  <testcase name="startingPreparesTheLinkAfterTheClockAndListensOnlyAfterThat()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.005"/>
+  <testcase name="refusalIsCaughtEvenWhileAnotherProgramIsStillRunning()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.007"/>
+  <testcase name="programTooLongIsReportedAndAcknowledged()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.003"/>
+  <testcase name="aWithheldStartReleasesItsPreparedStatusBarrier()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.003"/>
+  <testcase name="aStartCancelledAfterThePreparationEndsIt()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.005"/>
+  <testcase name="demoProgramAdvancesWithTime()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.003"/>
+  <testcase name="storeAndReadBackKeepsOtherSlots()" classname="io.github.willzy12h.nocturne.core.link.ControllerTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

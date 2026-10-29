@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ScreenshotCapture" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:08:13.473Z" hostname="f7415c079ba4" time="58.651">
+  <properties/>
+  <testcase name="gapsSimpleLight" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="15.001"/>
+  <testcase name="gapsDark" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="4.267"/>
+  <testcase name="gapsSimpleDark" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="3.735"/>
+  <testcase name="simpleLight" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="5.007"/>
+  <testcase name="simpleDark" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="4.75"/>
+  <testcase name="gapsCompactDark" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="3.064"/>
+  <testcase name="gapsCompactSimpleLight" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="3.037"/>
+  <testcase name="gapsCompactLight" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="2.66"/>
+  <testcase name="gapsLight" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="3.135"/>
+  <testcase name="dark" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="4.363"/>
+  <testcase name="light" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="3.908"/>
+  <testcase name="gapsCompactSimpleDark" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="2.655"/>
+  <testcase name="combined320And200" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="2.365"/>
+  <testcase name="featureViews" classname="io.github.willzy12h.nocturne.ScreenshotCapture" time="0.701"/>
+</testsuite>

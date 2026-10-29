@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.NightActionsTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:15.702Z" hostname="f7415c079ba4" time="8.64">
+  <properties/>
+  <testcase name="aRetimeWithNoNightDoesNothing" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="2.809"/>
+  <testcase name="endingTheNightClearsAPendingRetime" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="0.268"/>
+  <testcase name="aDeletedProfileFromAWidgetDoesNotStartAnother" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="0.1"/>
+  <testcase name="turboEndsTheNightOnceTheBedJetHasIt" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="1.867"/>
+  <testcase name="theScreenLettingGoTwiceKeepsAnotherHoldersConnection" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="0.162"/>
+  <testcase name="reconnectTakesTheScreensHoldWhenNoneIsHeld" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="0.092"/>
+  <testcase name="anotherAppsAlarmLeavesTheWakeUpAlone" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="0.094"/>
+  <testcase name="theScreensHoldIsTakenAndLetGoOnce" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="0.067"/>
+  <testcase name="aMovedAlarmMovesTheWakeUpAndSaysSo" classname="io.github.willzy12h.nocturne.night.NightActionsTest" time="3.18"/>
+</testsuite>

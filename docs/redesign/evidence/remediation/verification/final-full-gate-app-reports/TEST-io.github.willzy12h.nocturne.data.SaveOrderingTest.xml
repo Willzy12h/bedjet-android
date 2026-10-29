@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.data.SaveOrderingTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:18.459Z" hostname="f7415c079ba4" time="9.028">
+  <properties/>
+  <testcase name="updateTonightPutsTheEditedProfileOnTheBedJet" classname="io.github.willzy12h.nocturne.data.SaveOrderingTest" time="8.723"/>
+  <testcase name="trustingAnAlarmAppUpdatesTheNextAlarmAtOnce" classname="io.github.willzy12h.nocturne.data.SaveOrderingTest" time="0.305"/>
+</testsuite>

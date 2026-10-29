@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" tests="22" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:07.754Z" hostname="f7415c079ba4" time="0.133">
+  <properties/>
+  <testcase name="resume drops turbo already started and refuses expiry or newer action()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.008"/>
+  <testcase name="preview is the actual start plan()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.008"/>
+  <testcase name="immediate rewrite confirms even when first step is identical()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.01"/>
+  <testcase name="deleted live profile does not prevent retime or display()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.004"/>
+  <testcase name="uncertain rewrite of a legacy night cannot be retried as legacy fallback()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.003"/>
+  <testcase name="legacy night uses flagged live fallback for retime()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.004"/>
+  <testcase name="resume offers time remaining even when only started turbo was left()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.003"/>
+  <testcase name="cancelled alarm falls back to saved default and never restarts an ended night()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.003"/>
+  <testcase name="reapply changes the remaining start phase without replaying elapsed time()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.005"/>
+  <testcase name="start preparation is pending and stale replacement is refused()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.007"/>
+  <testcase name="local stop and expiry need no link and clear override()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.01"/>
+  <testcase name="fresh start refused after slot upload is failed when no start was sent()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.004"/>
+  <testcase name="fresh start with ambiguous in flight acknowledgement remains unknown()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.004"/>
+  <testcase name="failure before write preserves a confirmed night and partial write is unknown()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.004"/>
+  <testcase name="reapply keeps agreed wake and origin and increments revision()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.003"/>
+  <testcase name="eligibility is rechecked after preparation at boundary and deadline()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.003"/>
+  <testcase name="stale identity and revision refuse without writing()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.007"/>
+  <testcase name="fresh start rejected by transport guard is failed without a start attempt()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.005"/>
+  <testcase name="resume never restarts an already started middle turbo()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.005"/>
+  <testcase name="pending is published before any write and confirmed follows readback()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.006"/>
+  <testcase name="changing identity during backup prevents a stale write()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.004"/>
+  <testcase name="new revision preserves the first revision of legacy history()" classname="io.github.willzy12h.nocturne.core.night.NightTransactionsTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

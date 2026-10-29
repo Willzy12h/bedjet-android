@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.TemporaryTrackingTruthTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:34:34.694Z" hostname="f7415c079ba4" time="17.303">
+  <properties/>
+  <testcase name="pendingTemporaryChoiceDoesNotClaimARunningWake" classname="io.github.willzy12h.nocturne.ui.TemporaryTrackingTruthTest" time="9.376"/>
+  <testcase name="anOpenTemporaryChoiceDoesNotKeepAConfirmedClaimAfterUncertainty" classname="io.github.willzy12h.nocturne.ui.TemporaryTrackingTruthTest" time="1.988"/>
+  <testcase name="manualTemporaryChoiceDoesNotClaimARunningSavedProgramme" classname="io.github.willzy12h.nocturne.ui.TemporaryTrackingTruthTest" time="2.031"/>
+  <testcase name="unknownTemporaryChoiceDoesNotClaimARunningWake" classname="io.github.willzy12h.nocturne.ui.TemporaryTrackingTruthTest" time="1.898"/>
+  <testcase name="theTemporaryAlternativeNamesStopNightAndStillRequiresItsGuardedConfirmation" classname="io.github.willzy12h.nocturne.ui.TemporaryTrackingTruthTest" time="2.01"/>
+</testsuite>

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" tests="34" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:07.957Z" hostname="f7415c079ba4" time="0.098">
+  <properties/>
+  <testcase name="startedOriginalTurboIsSkippedAndItsGapIsPausedButFutureTurboRemains()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.004"/>
+  <testcase name="boostAlwaysUsesOneTurboThenHeatEvenWhenTheProfileRepeatsTurbo()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.002"/>
+  <testcase name="aLongerSecondInterruptionDoesNotAppendTheFirstOne()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.003"/>
+  <testcase name="anEarlierAlarmShortensTheTemporaryIntervalAndPreservesTheWakePhase()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="temporaryEligibilityRequiresTheExactConfirmedProgrammeSnapshot()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.002"/>
+  <testcase name="temporaryControlsAreClampedToTheSavedProfile()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.002"/>
+  <testcase name="alarmRetimePreservesOnlyTheUnelapsedTurboThenHeat()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="aProfileThatCannotHonourTurboRefusesIt()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.0"/>
+  <testcase name="futureOriginalTurboStartingExactlyAtReturnIsNotDiscarded()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.002"/>
+  <testcase name="exactlyThirtyTwoCompositeStepsAreAccepted()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.002"/>
+  <testcase name="aShorterSecondInterruptionUsesTheUnderlyingSchedule()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.002"/>
+  <testcase name="unchangedAlarmDoesNotRewriteAnActiveTemporaryInterval()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="malformedNightWakeBoundaryIsARefusalInsteadOfAPreviewException()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.002"/>
+  <testcase name="alarmRetimeCannotRestartExpiredTemporaryTurboAfterAShortClockSyncDelay()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.009"/>
+  <testcase name="malformedSnapshotWakeIsARefusalInsteadOfAPreviewException()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.004"/>
+  <testcase name="invalidPresetValuesAreRejectedBeforeAProgrammeIsPrepared()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="theSelectedDurationIsNeverSilentlyShortenedNearWakeUp()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.0"/>
+  <testcase name="aReplacementAfterTheAutumnOffsetChangeRebuildsClockBytes()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="theStoredProgrammeReturnsWithoutASecondPhoneCommand()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.008"/>
+  <testcase name="anExpiredTemporaryPhaseCannotBeStartedAfterUpload()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.008"/>
+  <testcase name="malformedSnapshotStepIsARefusalInsteadOfAPreviewException()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="temporaryHeatKeepsTheOriginalAbsoluteTailAndWake()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.002"/>
+  <testcase name="offDoesNotLeaveASecondPhoneStartAtThePlannedReturn()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.004"/>
+  <testcase name="alarmRetimeCannotRestartExpiredTemporaryTurboAfterAShortUploadDelay()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.004"/>
+  <testcase name="stopTrackingOffersTheUnderlyingNightInsteadOfTheTemporaryAction()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="malformedSnapshotStartIsARefusalInsteadOfAPreviewException()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.0"/>
+  <testcase name="longTemporaryHeatIsSplitWithinTheUnitLimits()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="malformedTemporaryUntilIsARefusalInsteadOfAPreviewException()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.007"/>
+  <testcase name="temporaryMetadataRoundTripsAndOldNightsStillRead()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.003"/>
+  <testcase name="thirtyThreeCompositeStepsAreRefusedWithoutDiscardingTheTail()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="anEarlierAlarmRemovesThePrefixWhenItsShortMiddleHasNoSafeReturnAnchor()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="alarmRetimeDuringBoostHeatDoesNotRestartTurbo()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="anElapsedTemporaryIntervalIsNotRestartedByAlarmRetime()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.001"/>
+  <testcase name="anExpiredTemporaryPhaseCannotBeStartedAfterClockSync()" classname="io.github.willzy12h.nocturne.core.night.TemporaryNightTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

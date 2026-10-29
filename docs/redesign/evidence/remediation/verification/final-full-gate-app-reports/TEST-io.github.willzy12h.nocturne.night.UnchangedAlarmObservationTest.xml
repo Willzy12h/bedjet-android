@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" tests="18" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:52.675Z" hostname="f7415c079ba4" time="31.566">
+  <properties/>
+  <testcase name="aChangedFallbackDefaultStillReportsForAnUnknownNight" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="4.731"/>
+  <testcase name="anOutOfWindowAlarmResolvingToTheSameDefaultIsQuiet" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.608"/>
+  <testcase name="aConfirmedNightWithTheSameAcceptedAlarmRemainsQuiet" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.594"/>
+  <testcase name="anUnknownNightWithTheSameAcceptedAlarmIsQuiet" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.61"/>
+  <testcase name="aManualNightWithTheSameAcceptedAlarmIsQuiet" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.591"/>
+  <testcase name="anUnchangedConfirmedObservationQueuedBeforeWakeCannotInventAnExpiryReason" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.587"/>
+  <testcase name="aPostWakeObservationWithNoPendingRequestRemainsQuiet" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.569"/>
+  <testcase name="anOverrideRemainsQuietForAManualNight" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.574"/>
+  <testcase name="anUnchangedObservationQueuedBeforeWakeRemainsQuietWhenConsumedAfterWake" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.567"/>
+  <testcase name="anUnknownNightWithTheSameFallbackDefaultIsQuiet" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.577"/>
+  <testcase name="aRepeatedPostWakeObservationPreservesAManualTrackingReason" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.568"/>
+  <testcase name="aChangedAcceptedAlarmStillReportsForAManualNight" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.572"/>
+  <testcase name="aFilteredAlarmObservationRemainsQuietForAnUnknownNight" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.577"/>
+  <testcase name="aManualNightWithTheSameFallbackDefaultIsQuiet" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.575"/>
+  <testcase name="aRepeatedPostWakeObservationCannotInventAnExpiryForAConfirmedNight" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.557"/>
+  <testcase name="aChangedAcceptedAlarmStillReportsForAnUnknownNight" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.561"/>
+  <testcase name="anUnchangedManualObservationQueuedBeforeWakeKeepsItsTrackingReason" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.57"/>
+  <testcase name="aChangedFallbackDefaultStillReportsForAManualNight" classname="io.github.willzy12h.nocturne.night.UnchangedAlarmObservationTest" time="1.576"/>
+</testsuite>

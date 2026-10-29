@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.SlotBackupsUnreadableTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:41.499Z" hostname="f7415c079ba4" time="6.911">
+  <properties/>
+  <testcase name="aRefusedRetimeRetryIsDroppedWithItsReasonAndTheUserIsTold" classname="io.github.willzy12h.nocturne.night.SlotBackupsUnreadableTest" time="5.067"/>
+  <testcase name="startWithUnreadableSlotBackupsIsRefusedBeforeAnyWrite" classname="io.github.willzy12h.nocturne.night.SlotBackupsUnreadableTest" time="0.096"/>
+  <testcase name="everySlotWriteIsRefusedAndARunningNightIsLeftAsItWas" classname="io.github.willzy12h.nocturne.night.SlotBackupsUnreadableTest" time="1.748"/>
+</testsuite>

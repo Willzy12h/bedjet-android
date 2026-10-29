@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.DisplayedStatusTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:15.065Z" hostname="f7415c079ba4" time="0.017">
+  <properties/>
+  <testcase name="noReportIsNothing" classname="io.github.willzy12h.nocturne.ui.DisplayedStatusTest" time="0.008"/>
+  <testcase name="aReportFromTheChosenBedJetIsShown" classname="io.github.willzy12h.nocturne.ui.DisplayedStatusTest" time="0.007"/>
+  <testcase name="anUnattributedReportFromTheDemoIsShown" classname="io.github.willzy12h.nocturne.ui.DisplayedStatusTest" time="0.0"/>
+  <testcase name="aReportFromAnotherBedJetIsNotShown" classname="io.github.willzy12h.nocturne.ui.DisplayedStatusTest" time="0.0"/>
+</testsuite>

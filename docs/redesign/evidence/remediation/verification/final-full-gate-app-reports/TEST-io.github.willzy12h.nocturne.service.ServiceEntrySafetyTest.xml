@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:27:56.645Z" hostname="f7415c079ba4" time="4.142">
+  <properties/>
+  <testcase name="commandDeliveryDoesNotCreateAForegroundStartObligation" classname="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" time="3.368"/>
+  <testcase name="acceptedHardwareWorkIsPromotedBeforeItsOwnerRunsAndStopsWhenFinished" classname="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" time="0.153"/>
+  <testcase name="revokedPermissionCompletesTheOwnerAndStopsWithoutForbiddenPromotion" classname="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" time="0.115"/>
+  <testcase name="failedPromotionCompletesTheOwnerWithoutRunningWorkOrLeavingAnFgsObligation" classname="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" time="0.097"/>
+  <testcase name="notificationActionUsesOrdinaryServiceDelivery" classname="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" time="0.09"/>
+  <testcase name="cancelledMissingHandoffStopsWithoutAForegroundStartObligation" classname="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" time="0.096"/>
+  <testcase name="aNullServiceStartCompletesTheOwnerWithoutRunningWork" classname="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" time="0.108"/>
+  <testcase name="aNullServiceStartDoesNotReportCommandOwnership" classname="io.github.willzy12h.nocturne.service.ServiceEntrySafetyTest" time="0.114"/>
+</testsuite>

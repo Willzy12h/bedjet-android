@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.ChargerRunTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:27:40.118Z" hostname="f7415c079ba4" time="8.576">
+  <properties/>
+  <testcase name="stoppedGraceDoesNotSurviveAndNextAttemptGetsFreshGrace" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="4.671"/>
+  <testcase name="anAutoStartTimeoutAfterTheStartWriteLogsThatTheBedJetStateIsUnknown" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.141"/>
+  <testcase name="anOldFailedSlotWriteDoesNotBlockTheStart" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.097"/>
+  <testcase name="anUnresolvedSlotWriteOnAnotherBedJetDoesNotBlockTheStart" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.086"/>
+  <testcase name="durableCancelDuringGraceSurvivesFreshRunner" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.071"/>
+  <testcase name="anUnresolvedWriteOfAnotherSlotDoesNotBlockTheStart" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.079"/>
+  <testcase name="aRunningReportFromAnotherBedJetIsNotTheTargetsManualRun" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.068"/>
+  <testcase name="anAutoStartRefusedAtItsFinalCheckIsLogged" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.071"/>
+  <testcase name="anUnresolvedSlotWriteOnTheTargetStillBlocksTheStart" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.048"/>
+  <testcase name="aStartedAutoStartIsLogged" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="1.575"/>
+  <testcase name="aRunningReportFromTheTargetStillBlocksTheStart" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.044"/>
+  <testcase name="disableDuringGracePreventsWrite" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="0.05"/>
+  <testcase name="eligibleJobShowsGraceStartsOnceAndPersistsAttempt" classname="io.github.willzy12h.nocturne.platform.ChargerRunTest" time="1.574"/>
+</testsuite>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.PlatformActivityTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:28:14.716Z" hostname="f7415c079ba4" time="5.335">
+  <properties/>
+  <testcase name="widgetPreviewKeepsOriginVisibleUntilOutcome" classname="io.github.willzy12h.nocturne.platform.PlatformActivityTest" time="4.566"/>
+  <testcase name="offDoesNotAddAReplacementConfirmation" classname="io.github.willzy12h.nocturne.platform.PlatformActivityTest" time="0.414"/>
+  <testcase name="operationTimeoutIsShownAtOrigin" classname="io.github.willzy12h.nocturne.platform.PlatformActivityTest" time="0.355"/>
+</testsuite>

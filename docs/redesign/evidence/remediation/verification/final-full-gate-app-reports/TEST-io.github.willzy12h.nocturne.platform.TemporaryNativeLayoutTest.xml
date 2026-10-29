@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.TemporaryNativeLayoutTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:53.817Z" hostname="f7415c079ba4" time="43.851">
+  <properties/>
+  <testcase name="singleWidgetTemporaryChoicesAndBothActionsFitAtTwoHundredPercent" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeLayoutTest" time="8.909"/>
+  <testcase name="shortcutFallbackControlsAndEveryLineFitAtTwoHundredPercent" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeLayoutTest" time="11.629"/>
+  <testcase name="enabledNativeTextMeetsContrastOnShortcutAndBothWidgetPalettes" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeLayoutTest" time="3.455"/>
+  <testcase name="shortcutFallbackTextMeetsContrastForIdleAndRecoveryRoutes" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeLayoutTest" time="11.462"/>
+  <testcase name="quickWidgetTemporaryChoicesAndBothActionsFitAtTwoHundredPercent" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeLayoutTest" time="2.742"/>
+  <testcase name="shortcutTemporaryChoicesAndBothActionsFitAtTwoHundredPercent" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeLayoutTest" time="1.759"/>
+  <testcase name="nativeTargetsAndWidgetTypeMeetMinimumsIndependentlyOfTextGeometry" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeLayoutTest" time="3.894"/>
+</testsuite>

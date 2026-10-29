@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.ChargerJobServiceTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:28:54.420Z" hostname="f7415c079ba4" time="3.437">
+  <properties/>
+  <testcase name="delayedOldCleanupBlocksReplacementThenNextExecutionStartsFreshGrace" classname="io.github.willzy12h.nocturne.platform.ChargerJobServiceTest" time="3.268"/>
+  <testcase name="distinctStopParametersCancelGraceWithoutFinishingStoppedJob" classname="io.github.willzy12h.nocturne.platform.ChargerJobServiceTest" time="0.098"/>
+  <testcase name="distinctStopParametersCancelInFlightOwnedWorkWithoutFinishingStoppedJob" classname="io.github.willzy12h.nocturne.platform.ChargerJobServiceTest" time="0.07"/>
+</testsuite>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.AlarmExplanationActionTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:29:36.148Z" hostname="f7415c079ba4" time="8.292">
+  <properties/>
+  <testcase name="changedAlarmOnASavedWakeOpensSourcesWithoutImplyingAProfileEditAppliesTonight" classname="io.github.willzy12h.nocturne.ui.AlarmExplanationActionTest" time="7.232"/>
+  <testcase name="unknownSourceOpensAlarmSettingsWithoutEditingAProfile" classname="io.github.willzy12h.nocturne.ui.AlarmExplanationActionTest" time="0.525"/>
+  <testcase name="profileAlarmOptOutOpensThatProfilesWakeSettings" classname="io.github.willzy12h.nocturne.ui.AlarmExplanationActionTest" time="0.529"/>
+</testsuite>

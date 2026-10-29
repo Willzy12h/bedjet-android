@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.QuietMiddleTimelineDescriptionTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:32:32.311Z" hostname="f7415c079ba4" time="6.131">
+  <properties/>
+  <testcase name="noCapturedShapeDoesNotInventQuietStageLabels" classname="io.github.willzy12h.nocturne.ui.QuietMiddleTimelineDescriptionTest" time="5.834"/>
+  <testcase name="timelineDoesNotDiscardTheMiddleFanSpeedActuallyInThePlan" classname="io.github.willzy12h.nocturne.ui.QuietMiddleTimelineDescriptionTest" time="0.148"/>
+  <testcase name="capturedQuietShapeLabelsOnlyStagesPresentInAppliedSteps" classname="io.github.willzy12h.nocturne.ui.QuietMiddleTimelineDescriptionTest" time="0.149"/>
+</testsuite>

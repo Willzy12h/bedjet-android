@@ -11,15 +11,15 @@ All nine requested redesign documents were read in full before code changes. No 
 
 ## Execution
 
-- [ ] Reproduce the complete baseline and preserve every failure and warning, including actual process exits. Classify obsolete UI expectations separately from functional defects and harness/dependency failures.
-- [ ] Repair test infrastructure and deterministic fixtures, retaining API 31/33 security cases and all DemoImportPreviewInvalidation assertions. Do not change production to accommodate the import fixture.
-- [ ] Repair Tonight, quick controls, status/Remote and navigation regressions. Keep the segmented card, four tabs and current entry points; retain meaningful wake, safety, confirmation and accessibility assertions.
-- [ ] Repair Profiles, editor, draft restoration and picker regressions. Keep approved sheets and steppers; cover edits, save/discard, limits, phase selection and large text through current UI.
-- [ ] Repair recovery, setup, History, widget and remaining accessibility issues. Remove broad lint suppression and resolve project-owned warnings with narrowly justified exceptions only where inapplicable.
-- [ ] Review the complete redesign/remediation diff and related runtime, persistence and background paths; reproduce and fix every actionable finding.
-- [ ] Run all documented opt-in captures with `SCREENSHOT_TAG=remediation`. Inspect all palettes, both target sizes, sheets and interactive surfaces; preserve captures and an accurate reference pairing table.
-- [ ] Run the exact clean full gate after the final production/test change. Read every report and verify counts, skips and exit codes. Commit logical batches, push normally and build/inspect the final committed debug APK.
-- [ ] Update handover, final review, P8 audit and remediation register, with concrete evidence and independent-review instructions for Claude.
+- [x] Reproduce the complete baseline and preserve every failure and warning, including actual process exits. Classify obsolete UI expectations separately from functional defects and harness/dependency failures.
+- [x] Repair test infrastructure and deterministic fixtures, retaining API 31/33 security cases and all DemoImportPreviewInvalidation assertions. Do not change production to accommodate the import fixture.
+- [x] Repair Tonight, quick controls, status/Remote and navigation regressions. Keep the segmented card, four tabs and current entry points; retain meaningful wake, safety, confirmation and accessibility assertions.
+- [x] Repair Profiles, editor, draft restoration and picker regressions. Keep approved sheets and steppers; cover edits, save/discard, limits, phase selection and large text through current UI.
+- [x] Repair recovery, setup, History, widget and remaining accessibility issues. Remove broad lint suppression and resolve project-owned warnings with narrowly justified exceptions only where inapplicable.
+- [x] Review the complete redesign/remediation diff and related runtime, persistence and background paths; reproduce and fix every actionable finding.
+- [x] Run all documented opt-in captures with `SCREENSHOT_TAG=remediation`. Inspect all palettes, both target sizes, sheets and interactive surfaces; preserve captures and an accurate reference pairing table.
+- [x] Run the exact clean full gate after the final production/test change. Read every report and verify counts, skips and exit codes. Commit logical batches, push normally and build/inspect the final committed debug APK.
+- [x] Update handover, final review, P8 audit and remediation register, with concrete evidence and independent-review instructions for Claude.
 
 ## Review focus
 
@@ -28,3 +28,5 @@ Target changes while a confirmation is open; receipt freshness while reconnectin
 ## Evidence
 
 `REMEDIATION-REGISTER.md` records classification, cause, change, commit and verification. The delivered evidence archive contains raw Gradle logs, process receipts, JUnit/lint reports and screenshot captures. The final report distinguishes implementer self-review from Claude's independent sign-off.
+
+The final application/test source and gate are recorded in FINAL-REVIEW. The delivery manifest binds the final documentation/evidence commit to the post-gate debug APK build and its checksum. Physical and independent validation remain explicitly separate.

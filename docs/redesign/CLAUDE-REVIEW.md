@@ -1,5 +1,7 @@
 # Claude review of `gpt/nocturne-redesign`
 
+> **Remediation ownership/status:** The owner authorised whole-app remediation on `gpt/nocturne-redesign-remediation`. Earlier Claude-only file reservations are superseded; Claude performs the independent review afterwards. Approved design decisions in this document remain binding. Historical test counts and warning budgets are not the current gate; see [GPT-HANDOVER.md](GPT-HANDOVER.md), [FINAL-REVIEW.md](FINAL-REVIEW.md) and [REMEDIATION-REGISTER.md](REMEDIATION-REGISTER.md).
+
 Scope: the full diff from `claude/nocturne-redesign-foundation` to `gpt/nocturne-redesign` (ca04ff1), checked against
 the approved design (`reference/`), `BUILD-PACKETS.md`, `CODE-MAP.md` and `reference/RECONCILIATION.md`. Fixes are on
 `claude/nocturne-redesign-review`. This is the implementer-side review. It is **not** the final independent sign-off.

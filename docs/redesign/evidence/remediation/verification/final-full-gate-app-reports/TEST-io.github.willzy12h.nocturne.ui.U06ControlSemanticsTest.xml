@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" tests="32" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:35:08.977Z" hostname="f7415c079ba4" time="24.018">
+  <properties/>
+  <testcase name="editorSlidersAndBothRangeThumbsExposeTheirValuesInBothUnits[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="10.359"/>
+  <testcase name="settingsSlidersExposeExactCelsiusAndFahrenheitStates[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.662"/>
+  <testcase name="automaticFeatureRowsKeepTheirExplainedDisabledStateInDemo[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.491"/>
+  <testcase name="remoteSlidersExposeExactCelsiusAndFahrenheitStates[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.563"/>
+  <testcase name="deviceRowsInSettingsAreSingleToggleableTargets[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.568"/>
+  <testcase name="platformRowsAreSingleToggleableTargets[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.876"/>
+  <testcase name="settingsRowsAreSingleToggleableTargets[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.896"/>
+  <testcase name="editorRowsToggleTheDraftAndSaveTheirState[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.415"/>
+  <testcase name="editorSlidersAndBothRangeThumbsExposeTheirValuesInBothUnits[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.954"/>
+  <testcase name="settingsSlidersExposeExactCelsiusAndFahrenheitStates[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.358"/>
+  <testcase name="automaticFeatureRowsKeepTheirExplainedDisabledStateInDemo[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.263"/>
+  <testcase name="remoteSlidersExposeExactCelsiusAndFahrenheitStates[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.309"/>
+  <testcase name="deviceRowsInSettingsAreSingleToggleableTargets[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.286"/>
+  <testcase name="platformRowsAreSingleToggleableTargets[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.364"/>
+  <testcase name="settingsRowsAreSingleToggleableTargets[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.713"/>
+  <testcase name="editorRowsToggleTheDraftAndSaveTheirState[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.286"/>
+  <testcase name="editorSlidersAndBothRangeThumbsExposeTheirValuesInBothUnits[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.882"/>
+  <testcase name="settingsSlidersExposeExactCelsiusAndFahrenheitStates[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.239"/>
+  <testcase name="automaticFeatureRowsKeepTheirExplainedDisabledStateInDemo[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.262"/>
+  <testcase name="remoteSlidersExposeExactCelsiusAndFahrenheitStates[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.266"/>
+  <testcase name="deviceRowsInSettingsAreSingleToggleableTargets[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.206"/>
+  <testcase name="platformRowsAreSingleToggleableTargets[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.323"/>
+  <testcase name="settingsRowsAreSingleToggleableTargets[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.525"/>
+  <testcase name="editorRowsToggleTheDraftAndSaveTheirState[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.312"/>
+  <testcase name="editorSlidersAndBothRangeThumbsExposeTheirValuesInBothUnits[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.886"/>
+  <testcase name="settingsSlidersExposeExactCelsiusAndFahrenheitStates[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.27"/>
+  <testcase name="automaticFeatureRowsKeepTheirExplainedDisabledStateInDemo[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.158"/>
+  <testcase name="remoteSlidersExposeExactCelsiusAndFahrenheitStates[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.2"/>
+  <testcase name="deviceRowsInSettingsAreSingleToggleableTargets[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.203"/>
+  <testcase name="platformRowsAreSingleToggleableTargets[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.305"/>
+  <testcase name="settingsRowsAreSingleToggleableTargets[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.394"/>
+  <testcase name="editorRowsToggleTheDraftAndSaveTheirState[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06ControlSemanticsTest" time="0.186"/>
+</testsuite>

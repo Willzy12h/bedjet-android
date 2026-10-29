@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.P6SheetPaletteTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:31:13.495Z" hostname="f7415c079ba4" time="10.38">
+  <properties/>
+  <testcase name="modalBottomSheetUsesSheetAndInk" classname="io.github.willzy12h.nocturne.ui.P6SheetPaletteTest" time="9.823"/>
+  <testcase name="alertDialogUsesSheetAndSecondaryInk" classname="io.github.willzy12h.nocturne.ui.P6SheetPaletteTest" time="0.557"/>
+</testsuite>

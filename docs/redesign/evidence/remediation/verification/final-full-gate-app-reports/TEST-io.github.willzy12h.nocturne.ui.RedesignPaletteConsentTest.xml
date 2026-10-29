@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.RedesignPaletteConsentTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:37:34.387Z" hostname="f7415c079ba4" time="8.043">
+  <properties/>
+  <testcase name="legacyDefaultPaletteHoldSurvivesUpgrade" classname="io.github.willzy12h.nocturne.ui.RedesignPaletteConsentTest" time="6.682"/>
+  <testcase name="selectingOvercastNightRequiresConfirmationBeforePublishing" classname="io.github.willzy12h.nocturne.ui.RedesignPaletteConsentTest" time="0.758"/>
+  <testcase name="scheduleKeepsPreviousDarkPaletteUntilLightIsApproved" classname="io.github.willzy12h.nocturne.ui.RedesignPaletteConsentTest" time="0.397"/>
+  <testcase name="darkDayPaletteDoesNotPromptAndNativeDialogStaysDark" classname="io.github.willzy12h.nocturne.ui.RedesignPaletteConsentTest" time="0.204"/>
+</testsuite>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.store.SnapshotStoreTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.770Z" hostname="f7415c079ba4" time="0.094">
+  <properties/>
+  <testcase name="aFileWithoutAHeaderIsNotListed(Path)" classname="io.github.willzy12h.nocturne.core.store.SnapshotStoreTest" time="0.004"/>
+  <testcase name="restartDiscardsAnInterruptedSnapshotButKeepsCompletedCopies(Path)" classname="io.github.willzy12h.nocturne.core.store.SnapshotStoreTest" time="0.012"/>
+  <testcase name="aVersion1SnapshotLoads(Path)" classname="io.github.willzy12h.nocturne.core.store.SnapshotStoreTest" time="0.002"/>
+  <testcase name="listingStopsAtTheHeader(Path)" classname="io.github.willzy12h.nocturne.core.store.SnapshotStoreTest" time="0.002"/>
+  <testcase name="manualSnapshotsAreKeptHoweverManyAutomaticOnesFollow(Path)" classname="io.github.willzy12h.nocturne.core.store.SnapshotStoreTest" time="0.067"/>
+  <testcase name="savingLeavesOnlyTheFinishedFile(Path)" classname="io.github.willzy12h.nocturne.core.store.SnapshotStoreTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

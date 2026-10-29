@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.SendConfirmationTest" tests="37" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:25:04.991Z" hostname="f7415c079ba4" time="50.321">
+  <properties/>
+  <testcase name="offTheBedJetReportsEndsTheNight" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="4.503"/>
+  <testcase name="aLateStandbyReportClosesAnUnconfirmedOffAsStoppedWithoutAnotherWrite" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.651"/>
+  <testcase name="aRemoteEndingCommandWithoutConfirmationIsRefusedBeforeSending" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.578"/>
+  <testcase name="lateOffConfirmationNeedsTheTargetButNotProgrammeProgress" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.627"/>
+  <testcase name="aPendingEndSurvivesRestartAndFreshStandbyWinsBeforeScheduledExpiry" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.661"/>
+  <testcase name="aManualPresetRejectsARuntimeOutsideItsTwoMinuteTolerance" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.109"/>
+  <testcase name="anAlreadyMatchingModeWaitsForAPostSendReport" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.069"/>
+  <testcase name="aBoostWhoseStartTheBedJetNeverReportsIsUnknown" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="10.184"/>
+  <testcase name="anAlreadyMatchingStatusCannotHideASendFailure" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.065"/>
+  <testcase name="aMatchingProgrammeTurboBeforeTheWriteCannotConfirmQuickTurbo" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.615"/>
+  <testcase name="refusedStartAndReapplyCannotEraseThePendingOff" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.646"/>
+  <testcase name="aManualPresetRejectsARuntimeBeyondTheElapsedUpperBoundary" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.077"/>
+  <testcase name="aChangedRemoteValueWaitsForItsLaterTargetReport" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.053"/>
+  <testcase name="aPostSendProgrammeStepCannotConfirmAManualPreset" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.078"/>
+  <testcase name="anotherUnitsAlreadyMatchingValueCannotConfirmTheWrite" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.12"/>
+  <testcase name="reconcileAcceptsFreshTargetStandbyWithoutWaitingForAProgressTail" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.663"/>
+  <testcase name="aRemoteChangeIsConfirmedOnlyByAMatchingReport" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.083"/>
+  <testcase name="reconcileCannotUseAnotherUnitsStandbyToConfirmOff" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.645"/>
+  <testcase name="anUnchangedTemperatureIsSentAndRequiresAFreshRead" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.065"/>
+  <testcase name="anUnconfirmedOffDoesNotExpireAsAnEndedProgramme" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.588"/>
+  <testcase name="aSnoozeIsConfirmedOnlyByTheBedJetsReport" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.647"/>
+  <testcase name="anAlreadyMatchingTimerWaitsForAPostSendReport" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.076"/>
+  <testcase name="aFailedSendStillMakesTheTrackedNightUnknownWhenItsCurrentStatusMatches" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.601"/>
+  <testcase name="offTheBedJetNeverReportsLeavesTheNightUnknownAndOffCanBeSentAgain" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.635"/>
+  <testcase name="aPostSendHeadWithoutProgressCannotConfirmAManualPreset" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.113"/>
+  <testcase name="offWithNoNightSaysWhetherTheBedJetConfirmed" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.073"/>
+  <testcase name="endNightFollowsTheSameRule" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.605"/>
+  <testcase name="anUnknownNightWithoutAnEndingCommandIsNotClosedByStandby" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.572"/>
+  <testcase name="aManualPresetAllowsElapsedSendTimeDespiteAWallClockCorrection" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.075"/>
+  <testcase name="turboTheBedJetNeverReportsDoesNotEndTheNight" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.603"/>
+  <testcase name="takeBackSettlesAPendingOffFromItsFreshStandbyRead" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.628"/>
+  <testcase name="unchangedLightsMuteAndNoticeAreStillSentAndConfirmedWithoutAFreshRead" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.071"/>
+  <testcase name="offAlreadyInStandbyIsStillSentAndConfirmedWithoutAFreshRead" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.047"/>
+  <testcase name="aManualPresetAcceptsBothRuntimeToleranceBoundaries" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="0.049"/>
+  <testcase name="turboTheBedJetReportsEndsTheNight" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.583"/>
+  <testcase name="aRemoteModeChangeTheBedJetNeverReportsKeepsTheNightUnknown" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="1.665"/>
+  <testcase name="aReplacementCannotInheritThePreviousNightsUnconfirmedOff" classname="io.github.willzy12h.nocturne.night.SendConfirmationTest" time="3.191"/>
+</testsuite>

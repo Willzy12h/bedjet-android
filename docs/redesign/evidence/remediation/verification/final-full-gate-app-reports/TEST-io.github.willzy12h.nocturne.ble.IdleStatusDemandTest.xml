@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ble.IdleStatusDemandTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:32.350Z" hostname="f7415c079ba4" time="0.244">
+  <properties/>
+  <testcase name="returningToTheForegroundResumesSplitStatusReads" classname="io.github.willzy12h.nocturne.ble.IdleStatusDemandTest" time="0.122"/>
+  <testcase name="anIdleConnectionDoesNotScheduleStatusRemainderReads" classname="io.github.willzy12h.nocturne.ble.IdleStatusDemandTest" time="0.109"/>
+  <testcase name="aHiddenCommandStillReceivesFreshStatusAndOriginalReceiptOrder" classname="io.github.willzy12h.nocturne.ble.IdleStatusDemandTest" time="0.007"/>
+</testsuite>

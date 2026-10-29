@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:35:50.184Z" hostname="f7415c079ba4" time="10.67">
+  <properties/>
+  <testcase name="uncertainOriginalRestoreDialogDisplaysItsWarning" classname="io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest" time="8.359"/>
+  <testcase name="certainOriginalRestoreDialogDoesNotDisplayAWarning" classname="io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest" time="0.487"/>
+  <testcase name="fromBackupCertainOriginalDoesNotDisplayAWarning" classname="io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest" time="0.482"/>
+  <testcase name="fromBackupUncertainOriginalDisplaysItsWarning" classname="io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest" time="0.506"/>
+  <testcase name="matchingUncertainOriginalDisplaysItsWarning" classname="io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest" time="0.388"/>
+  <testcase name="matchingCertainOriginalDoesNotDisplayAWarning" classname="io.github.willzy12h.nocturne.ui.UncertainOriginalsSettingsTest" time="0.447"/>
+</testsuite>

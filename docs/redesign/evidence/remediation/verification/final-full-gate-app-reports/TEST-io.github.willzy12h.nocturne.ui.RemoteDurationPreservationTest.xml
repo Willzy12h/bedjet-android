@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.RemoteDurationPreservationTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:29.272Z" hostname="f7415c079ba4" time="6.792">
+  <properties/>
+  <testcase name="endingATrackedNightRefusesAClampedLiveTemperatureWithoutWriting" classname="io.github.willzy12h.nocturne.ui.RemoteDurationPreservationTest" time="4.982"/>
+  <testcase name="anObservedProgrammeAlsoRefusesAClampedLiveTemperatureWithoutWriting" classname="io.github.willzy12h.nocturne.ui.RemoteDurationPreservationTest" time="1.81"/>
+</testsuite>

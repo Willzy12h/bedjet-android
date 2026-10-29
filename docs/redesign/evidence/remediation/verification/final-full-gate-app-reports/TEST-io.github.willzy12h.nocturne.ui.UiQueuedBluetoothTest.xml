@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.UiQueuedBluetoothTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:36:07.128Z" hostname="f7415c079ba4" time="3.44">
+  <properties/>
+  <testcase name="anUninterruptedTapStillRunsAfterTheSameSettingsSaveCompletes" classname="io.github.willzy12h.nocturne.ui.UiQueuedBluetoothTest" time="3.272"/>
+  <testcase name="aRadioInterruptionWhileWaitingForTheSettingsSaveDoesNotReplayTheTap" classname="io.github.willzy12h.nocturne.ui.UiQueuedBluetoothTest" time="0.167"/>
+</testsuite>

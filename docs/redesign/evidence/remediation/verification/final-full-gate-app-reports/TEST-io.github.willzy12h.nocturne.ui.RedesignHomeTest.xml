@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.RedesignHomeTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:32:47.793Z" hostname="f7415c079ba4" time="9.294">
+  <properties/>
+  <testcase name="startUsesRenderedPrimaryFillAndOnPrimaryText" classname="io.github.willzy12h.nocturne.ui.RedesignHomeTest" time="8.605"/>
+  <testcase name="freshReadingUsesTheReportedAirTemperature" classname="io.github.willzy12h.nocturne.ui.RedesignHomeTest" time="0.371"/>
+  <testcase name="staleReadingIsNotPresentedAsCurrent" classname="io.github.willzy12h.nocturne.ui.RedesignHomeTest" time="0.318"/>
+</testsuite>

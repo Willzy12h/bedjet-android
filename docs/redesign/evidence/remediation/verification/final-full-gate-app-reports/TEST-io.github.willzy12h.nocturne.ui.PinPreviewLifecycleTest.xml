@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.PinPreviewLifecycleTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:36:47.883Z" hostname="f7415c079ba4" time="6.841">
+  <properties/>
+  <testcase name="aStoppedPinPreviewDoesNotKeepItsFiveSecondTimer" classname="io.github.willzy12h.nocturne.ui.PinPreviewLifecycleTest" time="6.841"/>
+</testsuite>

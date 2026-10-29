@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:33.333Z" hostname="f7415c079ba4" time="5.646">
+  <properties/>
+  <testcase name="exitRestoresTheOriginalAbsoluteReleaseDeadline" classname="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" time="3.376"/>
+  <testcase name="demoReleaseDoesNotReleaseTheRealBedJet" classname="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" time="0.107"/>
+  <testcase name="exitingDemoCannotReconnectTheRealBedJetBeforeItsReleaseIsRestored" classname="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" time="0.098"/>
+  <testcase name="aReleasedRealBedJetDoesNotBlockDemoWarm" classname="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" time="0.112"/>
+  <testcase name="demoTakeBackDoesNotCancelTheRealRelease" classname="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" time="0.129"/>
+  <testcase name="aRealDeadlineThatPassesInDemoDoesNotExtendTheReleaseOnExit" classname="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" time="0.088"/>
+  <testcase name="aNewDemoSessionDoesNotRetainThePreviousDemoRelease" classname="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" time="0.076"/>
+  <testcase name="aReleasedRealBedJetDoesNotBlockDemoStart" classname="io.github.willzy12h.nocturne.night.DemoReleaseIsolationTest" time="1.659"/>
+</testsuite>

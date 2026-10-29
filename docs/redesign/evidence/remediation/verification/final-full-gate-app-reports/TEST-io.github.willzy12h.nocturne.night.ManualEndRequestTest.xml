@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.ManualEndRequestTest" tests="28" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:36.945Z" hostname="f7415c079ba4" time="48.657">
+  <properties/>
+  <testcase name="aNewManualEndReplacesBothTheOldLabelAndRequestTime" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="4.637"/>
+  <testcase name="aLateOffKeepsItsOffLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.764"/>
+  <testcase name="aStandbyBufferedBeforeOffCannotFinishItWhenDeliveredLater" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.638"/>
+  <testcase name="aLateCoolEndKeepsTheCoolingLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.618"/>
+  <testcase name="aRestartCannotPromoteAPreviousRuntimesCachedStandby" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.667"/>
+  <testcase name="takeBackUsesTheSavedCommandLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.665"/>
+  <testcase name="aLegacyIdentityOnlyMarkerCanFinishWithoutInventingTheCommand" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.632"/>
+  <testcase name="oldRuntimeJournalsDecodeWithoutReceiptFields" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="0.081"/>
+  <testcase name="reconcileClearsTheRequestForAnIdentitySupersededBeforeACrash" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.657"/>
+  <testcase name="aLateRemoteOffKeepsTheSentOffLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.66"/>
+  <testcase name="reconcileUsesTheSavedCommandLabelAfterRestart" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.65"/>
+  <testcase name="aFreshStandbyAfterRestartConfirmsOffDespiteAnEarlierWallClock" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.617"/>
+  <testcase name="aLegacyTimedMarkerCanFinishAfterRestartWithAnEarlierWallClock" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.58"/>
+  <testcase name="aReplacementClearsThePreviousNightsRequest" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="3.117"/>
+  <testcase name="aConfirmedManualEndClearsThePreviousRequest" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.635"/>
+  <testcase name="readingOrRecollectingACachedStandbyCannotRenewItsReceipt" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.594"/>
+  <testcase name="aLateRemoteEndKeepsTheSentModeLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.59"/>
+  <testcase name="restartingRetainsTheRequestTimeAndLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.623"/>
+  <testcase name="reconcileCannotConfirmOffWithACachedPreRequestStandby" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.647"/>
+  <testcase name="aLateEndNightKeepsItsOffLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.594"/>
+  <testcase name="aLateTurboEndKeepsTheTurboLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.601"/>
+  <testcase name="aReceiptFromThePreviousRuntimeCannotFinishTheRestoredRequest" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.624"/>
+  <testcase name="aLaterStandbyConfirmsUnknownOffAfterTheWallClockMovesBackwards" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.614"/>
+  <testcase name="aStandbyReceivedBeforeOrAtTheRequestCannotFinishItButALaterReceiptCan" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.601"/>
+  <testcase name="aLateWarmEndKeepsTheWarmingLabel" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.628"/>
+  <testcase name="stopTrackingClearsTheUnconfirmedRequest" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.684"/>
+  <testcase name="aRunningReportRetainsTheEndingRequest" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.607"/>
+  <testcase name="takeBackConfirmsPendingOffAfterABackwardsClockCorrection" classname="io.github.willzy12h.nocturne.night.ManualEndRequestTest" time="1.627"/>
+</testsuite>

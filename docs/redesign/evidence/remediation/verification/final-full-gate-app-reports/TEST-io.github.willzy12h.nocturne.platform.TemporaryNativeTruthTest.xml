@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.TemporaryNativeTruthTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:06.651Z" hostname="f7415c079ba4" time="12.815">
+  <properties/>
+  <testcase name="anOpenWidgetChoiceDoesNotRetainAConfirmedClaimAfterUncertainty" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeTruthTest" time="7.101"/>
+  <testcase name="unknownShortcutChoiceDoesNotClaimARunningWake" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeTruthTest" time="1.82"/>
+  <testcase name="manualShortcutChoiceDoesNotClaimARunningSavedProgramme" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeTruthTest" time="1.974"/>
+  <testcase name="pendingWidgetChoiceDoesNotClaimARunningWake" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeTruthTest" time="1.915"/>
+</testsuite>

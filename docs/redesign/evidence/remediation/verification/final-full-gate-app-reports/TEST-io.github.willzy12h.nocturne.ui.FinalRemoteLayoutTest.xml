@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.FinalRemoteLayoutTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:16.767Z" hostname="f7415c079ba4" time="10.345">
+  <properties/>
+  <testcase name="demoExitIsReachableThroughTonightFromEveryMainDestination" classname="io.github.willzy12h.nocturne.ui.FinalRemoteLayoutTest" time="8.823"/>
+  <testcase name="withNoTargetTheHeaderCannotReuseAPreviouslyConnectedName" classname="io.github.willzy12h.nocturne.ui.FinalRemoteLayoutTest" time="0.324"/>
+  <testcase name="tonightOwnsTheCompactStatusAndRemoteReturnsToIt" classname="io.github.willzy12h.nocturne.ui.FinalRemoteLayoutTest" time="0.333"/>
+  <testcase name="temperatureScaleUsesTheReportedModeLimitsAndFitsAtTwoHundredPercent" classname="io.github.willzy12h.nocturne.ui.FinalRemoteLayoutTest" time="0.287"/>
+  <testcase name="fanScaleLabelsFitAndItsAccessibleValueCannotSendZero" classname="io.github.willzy12h.nocturne.ui.FinalRemoteLayoutTest" time="0.577"/>
+</testsuite>

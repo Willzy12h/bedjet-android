@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:36:30.615Z" hostname="f7415c079ba4" time="9.878">
+  <properties/>
+  <testcase name="aRefusedStartShowsFailedWithoutClaimingConfirmation" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="3.403"/>
+  <testcase name="aLaterPendingTapCannotBeOverwrittenByAnEarlierResult" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.265"/>
+  <testcase name="aMatchingCachedStatusCannotConfirmANewWidgetRequest" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.194"/>
+  <testcase name="cancellingWhileAWriteIsUnsettledChangesPendingToUnknown" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.092"/>
+  <testcase name="anOffTappedBeforeANightStartsCannotEndThatNewNightWhileQueued" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="1.686"/>
+  <testcase name="aConfirmedResultForAnotherTargetIsNotShownAsCurrentConfirmation" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="2.584"/>
+  <testcase name="theCallbackReleasesItsReceiverWhileTheOwnedCommandStillWaits" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.081"/>
+  <testcase name="aCompletedReceiptLeavesNoLiveDeliveryOrDeadlineChild" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.102"/>
+  <testcase name="pendingFromAnEarlierProcessRendersUnknown" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.385"/>
+  <testcase name="aNewMatchingReceiptConfirmsInPlaceWithWidgetOrigin" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.341"/>
+  <testcase name="pendingIsPublishedBeforeTheFirstBedJetWrite" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.365"/>
+  <testcase name="pendingPastItsBoundRendersUnknownAtTheNextRender" classname="io.github.willzy12h.nocturne.widget.WidgetCommandFeedbackTest" time="0.378"/>
+</testsuite>

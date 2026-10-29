@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.LongHeatMessageTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:16.691Z" hostname="f7415c079ba4" time="3.058">
+  <properties/>
+  <testcase name="compilerTemperatureRefusalUsesTheUserFacingModeName" classname="io.github.willzy12h.nocturne.night.LongHeatMessageTest" time="2.833"/>
+  <testcase name="arbitraryUserTextIsNotRewritten" classname="io.github.willzy12h.nocturne.night.LongHeatMessageTest" time="0.071"/>
+  <testcase name="editorPlanPreviewPresentsTheCompilerRefusalAndPreservesItsCause" classname="io.github.willzy12h.nocturne.night.LongHeatMessageTest" time="0.087"/>
+  <testcase name="programmeDurationErrorUsesTheUserFacingModeName" classname="io.github.willzy12h.nocturne.night.LongHeatMessageTest" time="0.065"/>
+</testsuite>

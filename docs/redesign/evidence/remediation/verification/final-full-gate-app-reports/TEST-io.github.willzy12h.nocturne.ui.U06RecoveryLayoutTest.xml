@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" tests="16" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:35:21.849Z" hostname="f7415c079ba4" time="17.484">
+  <properties/>
+  <testcase name="ordinaryUnreadableActionsStayReachableOnTonightAndSettings[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="9.052"/>
+  <testcase name="unconfirmedSlotWriteCanBeCheckedAboveFeedbackOnTonight[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.3"/>
+  <testcase name="unfinishedRestoreAndUnreadableActionsStayReachableOnTonightAndSettings[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.771"/>
+  <testcase name="lostOriginalsConfirmationStaysReachableOnTonightAndSettings[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="1.231"/>
+  <testcase name="ordinaryUnreadableActionsStayReachableOnTonightAndSettings[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.646"/>
+  <testcase name="unconfirmedSlotWriteCanBeCheckedAboveFeedbackOnTonight[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.26"/>
+  <testcase name="unfinishedRestoreAndUnreadableActionsStayReachableOnTonightAndSettings[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.556"/>
+  <testcase name="lostOriginalsConfirmationStaysReachableOnTonightAndSettings[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="1.159"/>
+  <testcase name="ordinaryUnreadableActionsStayReachableOnTonightAndSettings[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.518"/>
+  <testcase name="unconfirmedSlotWriteCanBeCheckedAboveFeedbackOnTonight[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.257"/>
+  <testcase name="unfinishedRestoreAndUnreadableActionsStayReachableOnTonightAndSettings[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.411"/>
+  <testcase name="lostOriginalsConfirmationStaysReachableOnTonightAndSettings[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.7"/>
+  <testcase name="ordinaryUnreadableActionsStayReachableOnTonightAndSettings[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.286"/>
+  <testcase name="unconfirmedSlotWriteCanBeCheckedAboveFeedbackOnTonight[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.27"/>
+  <testcase name="unfinishedRestoreAndUnreadableActionsStayReachableOnTonightAndSettings[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.318"/>
+  <testcase name="lostOriginalsConfirmationStaysReachableOnTonightAndSettings[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06RecoveryLayoutTest" time="0.697"/>
+</testsuite>

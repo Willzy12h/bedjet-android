@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.MoreReleasePlacementTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:30.042Z" hostname="f7415c079ba4" time="10.059">
+  <properties/>
+  <testcase name="settingsStillReleasesAndTakesBackTheConnectionThroughTheOwner" classname="io.github.willzy12h.nocturne.ui.MoreReleasePlacementTest" time="6.597"/>
+  <testcase name="trackedMoreKeepsRecheckButNoPeerRequestOrRelease" classname="io.github.willzy12h.nocturne.ui.MoreReleasePlacementTest" time="2.05"/>
+  <testcase name="idleWithoutHandoverDoesNotOfferAnEmptyMoreMenu" classname="io.github.willzy12h.nocturne.ui.MoreReleasePlacementTest" time="0.333"/>
+  <testcase name="aSelectedUnnamedBedJetShowsTheNameFallbackWithoutLosingItsSelection" classname="io.github.willzy12h.nocturne.ui.MoreReleasePlacementTest" time="0.418"/>
+  <testcase name="idleHasNoPeerRequestOrReleaseMenu" classname="io.github.willzy12h.nocturne.ui.MoreReleasePlacementTest" time="0.293"/>
+  <testcase name="rememberedNameDoesNotClaimConnection" classname="io.github.willzy12h.nocturne.ui.MoreReleasePlacementTest" time="0.367"/>
+</testsuite>

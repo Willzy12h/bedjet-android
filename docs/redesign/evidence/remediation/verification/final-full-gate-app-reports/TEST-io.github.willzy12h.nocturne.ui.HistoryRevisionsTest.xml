@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.HistoryRevisionsTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:29:58.444Z" hostname="f7415c079ba4" time="8.795">
+  <properties/>
+  <testcase name="aNightWithoutRevisionsUsesItsRecordedSteps" classname="io.github.willzy12h.nocturne.ui.HistoryRevisionsTest" time="5.869"/>
+  <testcase name="expandedLegacyStepsMatchTheOriginalCurveWithoutRevisions" classname="io.github.willzy12h.nocturne.ui.HistoryRevisionsTest" time="0.915"/>
+  <testcase name="expandedStepsMatchTheLastAppliedCurveRatherThanOriginalProgramme" classname="io.github.willzy12h.nocturne.ui.HistoryRevisionsTest" time="0.403"/>
+  <testcase name="eachHistoryCardHasItsHealthOverlayBelowItsOwnCurve" classname="io.github.willzy12h.nocturne.ui.HistoryRevisionsTest" time="0.572"/>
+  <testcase name="anOpenedCardListsRevisionsAndNamesEventKinds" classname="io.github.willzy12h.nocturne.ui.HistoryRevisionsTest" time="0.414"/>
+  <testcase name="theCurveIsTheLastAppliedRevision" classname="io.github.willzy12h.nocturne.ui.HistoryRevisionsTest" time="0.196"/>
+  <testcase name="anUnreadableRevisionFallsBackToTheOriginalCurveAndExpandedSteps" classname="io.github.willzy12h.nocturne.ui.HistoryRevisionsTest" time="0.425"/>
+</testsuite>

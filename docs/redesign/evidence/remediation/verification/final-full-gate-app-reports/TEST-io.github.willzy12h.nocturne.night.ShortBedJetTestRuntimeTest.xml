@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.ShortBedJetTestRuntimeTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:24:20.299Z" hostname="f7415c079ba4" time="6.417">
+  <properties/>
+  <testcase name="interruptedTestEndKeepsItsMarkerAfterActiveStateWasCleared" classname="io.github.willzy12h.nocturne.night.ShortBedJetTestRuntimeTest" time="2.776"/>
+  <testcase name="markedRecordsNeverQueryHealthOrEnterSleepCsv" classname="io.github.willzy12h.nocturne.night.ShortBedJetTestRuntimeTest" time="0.1"/>
+  <testcase name="endingATestPreservesTheRealTonightWakeOverride" classname="io.github.willzy12h.nocturne.night.ShortBedJetTestRuntimeTest" time="0.102"/>
+  <testcase name="previewAndSettingsSavesNeverStartTheTestButConfirmedStartIsMarked" classname="io.github.willzy12h.nocturne.night.ShortBedJetTestRuntimeTest" time="1.828"/>
+  <testcase name="changedSlotOrTrackedNightRefusesTheCapturedTestWithoutWrites" classname="io.github.willzy12h.nocturne.night.ShortBedJetTestRuntimeTest" time="1.61"/>
+</testsuite>

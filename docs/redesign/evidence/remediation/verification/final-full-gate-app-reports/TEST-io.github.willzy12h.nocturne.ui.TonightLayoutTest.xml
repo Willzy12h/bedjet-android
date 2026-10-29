@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.TonightLayoutTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:34:53.934Z" hostname="f7415c079ba4" time="13.551">
+  <properties/>
+  <testcase name="quickControlsFollowThePlanAndRemainAvailableAfterNavigation" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="9.067"/>
+  <testcase name="aCurveLongPressUsesTheLatestProfileWhenItsProgrammeIsUnchanged" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="1.19"/>
+  <testcase name="draggingCompactContentDoesNotRewriteLegacySectionOrder" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="0.475"/>
+  <testcase name="malformedLegacyOrderCannotDuplicateOrHideCurrentControls" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="0.389"/>
+  <testcase name="queuedWorkDoesNotMoveTheQuickControls" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="0.256"/>
+  <testcase name="pausedTonightDoesNotRunItsThirtySecondRefreshLoop" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="0.231"/>
+  <testcase name="wakeScrollsWithItsCardAndRemainsReachableOnTheRight" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="1.383"/>
+  <testcase name="detailExpansionSurvivesActivityRecreationAndCanCollapseAgain" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="0.375"/>
+  <testcase name="reducedMotionDoesNotInventACompletionPercentageForBusyWork" classname="io.github.willzy12h.nocturne.ui.TonightLayoutTest" time="0.185"/>
+</testsuite>

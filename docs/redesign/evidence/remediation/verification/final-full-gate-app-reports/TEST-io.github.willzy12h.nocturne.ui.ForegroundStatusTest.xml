@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:28.370Z" hostname="f7415c079ba4" time="4.238">
+  <properties/>
+  <testcase name="hidingStopsUpdatesAndReturningKeepsTheThirtySecondSensorCadence" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="3.221"/>
+  <testcase name="sensorOnlyBurstsDoNotPublishDuplicatePresentationValues" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.182"/>
+  <testcase name="returningDuringReconnectKeepsTheControlsSnapshotUntilFreshStatusArrives" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.114"/>
+  <testcase name="changingTargetWhileHiddenClearsThePreviousUnitsSnapshot" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.096"/>
+  <testcase name="aVisibleDisconnectRetainsPresentationButNotARawReceipt" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.094"/>
+  <testcase name="unchangedSensorsNeverRepaintAndHalfADegreeChangesOnlyItsOwnDisplay" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.088"/>
+  <testcase name="switchingTargetDiscardsThePreviousDevicesQueuedTemperatures" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.074"/>
+  <testcase name="aBackgroundCommandDoesNotExposeLiveStatusToAHiddenScreen" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.062"/>
+  <testcase name="targetTemperatureFanAndTimerChangesDoNotReleaseSensorSamplesEarly" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.089"/>
+  <testcase name="accessoryChangesReachTheScreenBeforeTheNextSensorUpdate" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.059"/>
+  <testcase name="temperaturesUpdateAtMostOncePerThirtySecondsWithoutThrottlingRawReceipts" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.073"/>
+  <testcase name="controlChangesDisplayImmediatelyWhileOnlySensorTemperaturesWait" classname="io.github.willzy12h.nocturne.ui.ForegroundStatusTest" time="0.083"/>
+</testsuite>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:10:50.486Z" hostname="f7415c079ba4" time="16.435">
+  <properties/>
+  <testcase name="normalAcceptLossDialog[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="6.904"/>
+  <testcase name="normalIdleTonightAndFourTabs[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="1.271"/>
+  <testcase name="normalConfirmedTonight[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="1.676"/>
+  <testcase name="normalAcceptLossDialog[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="0.442"/>
+  <testcase name="normalIdleTonightAndFourTabs[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="0.795"/>
+  <testcase name="normalConfirmedTonight[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="1.074"/>
+  <testcase name="normalAcceptLossDialog[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="0.419"/>
+  <testcase name="normalIdleTonightAndFourTabs[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="0.808"/>
+  <testcase name="normalConfirmedTonight[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="1.005"/>
+  <testcase name="normalAcceptLossDialog[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="0.397"/>
+  <testcase name="normalIdleTonightAndFourTabs[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="0.663"/>
+  <testcase name="normalConfirmedTonight[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06NormalCaptureTest" time="0.964"/>
+</testsuite>

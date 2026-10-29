@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:20.706Z" hostname="f7415c079ba4" time="4.736">
+  <properties/>
+  <testcase name="theServiceConsumesAnUnchangedInboxWithoutARadioProblem" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="3.249"/>
+  <testcase name="aChangedWakeFromTheServiceFailsOnceWithoutLeavingARetry" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.176"/>
+  <testcase name="aChangedQueuedAlarmCannotReplayAfterTheRadioWasSwitchedOffAndOn" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.157"/>
+  <testcase name="aChangedWakeWithBluetoothOffFailsClearlyAndDiscardsItsAttempt" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.146"/>
+  <testcase name="anUnchangedQueuedAlarmCanResolveAfterTheRadioWasSwitchedOffAndOn" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.144"/>
+  <testcase name="aFilteredRealAlarmInboxSettlesLocallyWithBluetoothOff" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.066"/>
+  <testcase name="theRetryCommandUiAllowsAnUnchangedInboxWithBluetoothOff" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.193"/>
+  <testcase name="anUnchangedRealAlarmInboxSettlesLocallyWithBluetoothOff" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.099"/>
+  <testcase name="theExplicitAlarmRecheckUiAllowsAnUnchangedWakeWithBluetoothOff" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.12"/>
+  <testcase name="aRadioOnUnreachableBedJetKeepsTheExistingRetryPolicy" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.091"/>
+  <testcase name="theServiceConsumesAFilteredInboxWithoutARadioProblem" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.111"/>
+  <testcase name="theRetimeCommandUiAllowsAnUnchangedWakeWithBluetoothOff" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.096"/>
+  <testcase name="anExplicitUnchangedRetimeDoesNotRequireTheRadio" classname="io.github.willzy12h.nocturne.service.RadioOffRetimeTest" time="0.086"/>
+</testsuite>

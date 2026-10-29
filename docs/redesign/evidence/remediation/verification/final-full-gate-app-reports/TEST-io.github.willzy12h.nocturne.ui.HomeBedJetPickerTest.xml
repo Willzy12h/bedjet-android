@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.HomeBedJetPickerTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:34:46.412Z" hostname="f7415c079ba4" time="8.904">
+  <properties/>
+  <testcase name="tryingDemoClosesAnInFlightHomeBluetoothScan" classname="io.github.willzy12h.nocturne.ui.HomeBedJetPickerTest" time="6.272"/>
+  <testcase name="demoCannotStartAnotherBluetoothScan" classname="io.github.willzy12h.nocturne.ui.HomeBedJetPickerTest" time="0.648"/>
+  <testcase name="homePickerKeepsBothRememberedBedJetsAndCanSwitchBack" classname="io.github.willzy12h.nocturne.ui.HomeBedJetPickerTest" time="0.8"/>
+  <testcase name="homeCanScanAndPairWithoutOpeningSettings" classname="io.github.willzy12h.nocturne.ui.HomeBedJetPickerTest" time="0.455"/>
+  <testcase name="demoEntryIsRefusedWhileACommandOwnsTheBedJet" classname="io.github.willzy12h.nocturne.ui.HomeBedJetPickerTest" time="0.297"/>
+  <testcase name="demoHasAnExitAndReturnsToTheRememberedRealPicker" classname="io.github.willzy12h.nocturne.ui.HomeBedJetPickerTest" time="0.43"/>
+</testsuite>

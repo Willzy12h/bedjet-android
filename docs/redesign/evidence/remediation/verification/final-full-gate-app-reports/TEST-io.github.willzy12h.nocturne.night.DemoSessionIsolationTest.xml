@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:20.223Z" hostname="f7415c079ba4" time="10.445">
+  <properties/>
+  <testcase name="enteringDemoDoesNotExposeRealHistoryOrOriginals" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="3.103"/>
+  <testcase name="demoExitPreservesTheRealRecoveryJournalExactly" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.156"/>
+  <testcase name="unfinishedMigrationRollsForwardBeforeRuntimeStarts" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="1.741"/>
+  <testcase name="demoCommandsAndEditsLeaveRealUserFilesUnchanged" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="1.592"/>
+  <testcase name="explicitDemoRefusesExportBeforeOpeningTheOutput" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.089"/>
+  <testcase name="aFailedStartupMigrationCannotExposeTheOldTargetOrStartDemo" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.078"/>
+  <testcase name="aLateDemoObservationCannotWriteIntoTheRestoredRealSession" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.088"/>
+  <testcase name="legacyDemoSelectionMigratesToNoTargetWithoutAdoptingTheOldAddress" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.094"/>
+  <testcase name="oneTapExitAbandonsTheDemoNightAndRestoresTheRealFlow" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="1.584"/>
+  <testcase name="reenteringDemoStartsWithACleanSimulator" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.069"/>
+  <testcase name="legacyDemoNightCannotBlockPairingAfterMigration" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="1.591"/>
+  <testcase name="explicitDemoRefusesImportParsing" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.057"/>
+  <testcase name="explicitDemoRefusesRestoreBeforeCreatingASnapshot" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.065"/>
+  <testcase name="demoCannotCreateOrDeleteRealSnapshots" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.065"/>
+  <testcase name="processRestartDuringDemoReturnsToThePersistedRealFlow" classname="io.github.willzy12h.nocturne.night.DemoSessionIsolationTest" time="0.07"/>
+</testsuite>

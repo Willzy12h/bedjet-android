@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.P6SetupStyleTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:31:27.633Z" hostname="f7415c079ba4" time="7.452">
+  <properties/>
+  <testcase name="setupRowsKeepTheirOrderAndDemoPairAction" classname="io.github.willzy12h.nocturne.ui.P6SetupStyleTest" time="6.956"/>
+  <testcase name="pendingPairRowRendersPaletteSideStripeInBothThemes" classname="io.github.willzy12h.nocturne.ui.P6SetupStyleTest" time="0.496"/>
+</testsuite>

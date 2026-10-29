@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.plan.PlanErrorModeNameTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.094Z" hostname="f7415c079ba4" time="0.003">
+  <properties/>
+  <testcase name="heatRefusalUsesTheAppModeName()" classname="io.github.willzy12h.nocturne.core.plan.PlanErrorModeNameTest" time="0.001"/>
+  <testcase name="dryRefusalUsesTheAppModeName()" classname="io.github.willzy12h.nocturne.core.plan.PlanErrorModeNameTest" time="0.0"/>
+  <testcase name="gentleHeatRefusalUsesTheAppModeName()" classname="io.github.willzy12h.nocturne.core.plan.PlanErrorModeNameTest" time="0.0"/>
+  <testcase name="turboRefusalUsesTheAppModeNameWhenDirectCoreInputHasOutOfRangeLimits()" classname="io.github.willzy12h.nocturne.core.plan.PlanErrorModeNameTest" time="0.0"/>
+  <testcase name="coolRefusalUsesTheAppModeName()" classname="io.github.willzy12h.nocturne.core.plan.PlanErrorModeNameTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

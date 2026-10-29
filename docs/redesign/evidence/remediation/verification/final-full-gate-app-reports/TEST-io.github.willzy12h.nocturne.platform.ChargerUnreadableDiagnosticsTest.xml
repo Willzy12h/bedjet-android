@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" tests="19" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:25:50.326Z" hostname="f7415c079ba4" time="5.356">
+  <properties/>
+  <testcase name="unreadableDataWithTooShortANightIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="2.578"/>
+  <testcase name="unreadableDataWhileNotChargingIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.084"/>
+  <testcase name="unreadableDataWithAnotherTargetIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.06"/>
+  <testcase name="unreadableProfilesWithAnOtherwiseEligibleCandidateUseOnlyTheNoticeLog" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.091"/>
+  <testcase name="unreadableDataWithNoProfilesIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.06"/>
+  <testcase name="unreadableDataCanReportAgainOnlyInTheNextEligibleBedtimeWindow" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.064"/>
+  <testcase name="unreadableSettingsWithNoChargerCandidateAreSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.054"/>
+  <testcase name="unreadableDataOutsideTheBedtimeWindowIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.054"/>
+  <testcase name="unreadableDataWithoutPermissionIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.052"/>
+  <testcase name="diagnosticsExposeUnreadableFilesOriginalsBarrierRuntimeReasonAndNightConfidence" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="1.67"/>
+  <testcase name="unreadableDataWithInvalidPlatformSettingsIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.056"/>
+  <testcase name="unreadableSavedDataLogsOnceWithoutChangingHistoryOrCsvBeforeAnyStart" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.07"/>
+  <testcase name="unreadableDataAfterAnAlreadyClaimedAttemptIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.096"/>
+  <testcase name="unreadableDataAfterCancellationIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.055"/>
+  <testcase name="unreadableDataInDemoModeIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.054"/>
+  <testcase name="unreadableDataWithAnActiveNightIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.052"/>
+  <testcase name="unreadableDataWhenAutoStartIsDisabledIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.056"/>
+  <testcase name="unreadableDataWithAnUnresolvedSlotWriteIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.053"/>
+  <testcase name="unreadableDataWhileReleasedForAnotherPhoneIsSilent" classname="io.github.willzy12h.nocturne.platform.ChargerUnreadableDiagnosticsTest" time="0.096"/>
+</testsuite>

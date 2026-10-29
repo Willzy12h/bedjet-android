@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.store.SimpleViewDefaultTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.768Z" hostname="f7415c079ba4" time="0.001">
+  <properties/>
+  <testcase name="new installations start in Simple view()" classname="io.github.willzy12h.nocturne.core.store.SimpleViewDefaultTest" time="0.0"/>
+  <testcase name="a saved Simple view choice survives loading()" classname="io.github.willzy12h.nocturne.core.store.SimpleViewDefaultTest" time="0.001"/>
+  <testcase name="a saved curve view choice survives loading()" classname="io.github.willzy12h.nocturne.core.store.SimpleViewDefaultTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

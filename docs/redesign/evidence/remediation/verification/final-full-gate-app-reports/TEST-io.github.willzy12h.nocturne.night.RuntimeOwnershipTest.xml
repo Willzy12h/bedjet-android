@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" tests="50" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:54.927Z" hostname="f7415c079ba4" time="68.964">
+  <properties/>
+  <testcase name="manualReleaseWaitsForWholeTransaction" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="4.369"/>
+  <testcase name="oldNotificationOffAndFreshOffBothResolveTheSelectedTarget" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="3.233"/>
+  <testcase name="setupCheckOnlyTouchesFanAndRestoresItAndRejectsRunningUnit" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.082"/>
+  <testcase name="aStatusFromAnotherBedJetIsNotObservedAsTheTargets" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.597"/>
+  <testcase name="physicalOffDuringRetimeUploadBlocksStartAndLeavesWrittenSlotUncertain" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.6"/>
+  <testcase name="snoozeStoresTheAcceptedManualProgrammeInsteadOfTheOldNightCurve" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.605"/>
+  <testcase name="fallbackSubmissionsNeverWaitForUploadAndNewestObservationSurvivesCompletion" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.578"/>
+  <testcase name="interruptedBoostPendingUploadCannotReplayDisplacedNightAfterRestart" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.645"/>
+  <testcase name="unobservedPhysicalOffBlocksAutomaticRetimeAfterReconnect" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.623"/>
+  <testcase name="restartKeepsOriginalIntendedSnapshotAndMarksInterruptedStateUnknown" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.079"/>
+  <testcase name="selectingRealTargetPersistsTargetAndDemoModeTogether" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.058"/>
+  <testcase name="stopTrackingIsLocalAndResumeRestoresRemainingNight" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="3.087"/>
+  <testcase name="pinAndBoostAbortWhenOriginalBackupFails" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.241"/>
+  <testcase name="remoteOffEndsNightAndLaterAlarmCannotRestartIt" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.633"/>
+  <testcase name="reapplyHonoursNewTonightOverrideAndFinishClearsIt" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="3.148"/>
+  <testcase name="pinRefusesWorkingSlotAndRecordsOriginalBeforeWritingOtherSlot" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.075"/>
+  <testcase name="handoverCannotReviveAWrongGenerationOfferAndPreservesRecoveryReason" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.594"/>
+  <testcase name="interruptedLocalFinishKeepsDurableResumeOfferAndReconcilesWithoutHardware" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.683"/>
+  <testcase name="partialUploadCancellationIsDurablyUnknownAndNeverRetried" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.061"/>
+  <testcase name="aFreshStartRefusedAfterItsFinalCheckIsUnknown" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.089"/>
+  <testcase name="rejectedPreparationDoesNotInvalidateResumeGeneration" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.579"/>
+  <testcase name="targetAndDemoChangesAreRefusedDuringNight" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.623"/>
+  <testcase name="startPersistsCompleteIntentionAndOriginalBeforeFirstWrite" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.604"/>
+  <testcase name="selectingRealTargetRefusesAnActiveNightWithoutChangingSettings" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.615"/>
+  <testcase name="anOldOffForAnotherTargetStillSendsNothing" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.611"/>
+  <testcase name="aFreshStartTheLinkRefusesBeforeItsFinalCheckEndsFailed" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.162"/>
+  <testcase name="activeWakeOverrideUsesOwnedReapplyAndRejectsStaleOrUnknownNight" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="4.652"/>
+  <testcase name="endAlarmQueuedBehindExtendCannotExpireItsNewRevision" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.616"/>
+  <testcase name="backupFailureAbortsStartAndRecordsFailed" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.083"/>
+  <testcase name="corruptOriginalsCannotAuthoriseStartBoostOrPinAfterNoticeDismissal" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.057"/>
+  <testcase name="keepTrackingReadsOnlyTheTargetsOwnFreshStatus" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.582"/>
+  <testcase name="interruptedBoostConfirmedSlotCannotReplayDisplacedNightAfterRestart" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.567"/>
+  <testcase name="handoverPreservesRecoveryReasonAndRebindsAUsableResumeOffer" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="3.11"/>
+  <testcase name="aManualOnlyCommandKeepsTheResumeOfferAcrossReloadWithoutRenewingIt" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.577"/>
+  <testcase name="diagnosticsExcludeTokenButIncludeBoundedEventsAndLink" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.567"/>
+  <testcase name="unobservedPhysicalFanChangeBlocksAutomaticRetimeAfterReconnect" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.567"/>
+  <testcase name="aDifferentProgrammeDuringStepStartGraceIsTakeover" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.562"/>
+  <testcase name="delayedPinPreviewCannotWriteAProgrammeThatChangedWhileOpen" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.044"/>
+  <testcase name="timeoutWaitingForLockLeavesCoordinatorUsable" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.055"/>
+  <testcase name="lightsBeepsAndAcknowledgementDoNotEndNightOrLeaveItPending" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.584"/>
+  <testcase name="normalProgressionIsNotTakeoverButFreshManualStatusIsUnknown" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.564"/>
+  <testcase name="manualLimitsAndBoostUseOwnedRuntimeAndPreserveOriginal" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.555"/>
+  <testcase name="pinConfirmationRejectsChangedTargetProfileSlotAndActiveNight" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.555"/>
+  <testcase name="forgettingAndReselectingAUnitRequiresANewSupervisedCheck" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.049"/>
+  <testcase name="replacingNightRequiresExplicitPolicyConfirmationAndOffNeverDoes" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="3.085"/>
+  <testcase name="selectingRealTargetWriteFailureKeepsThePreviousPairAfterRestart" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.044"/>
+  <testcase name="restoreAbortsIfMigratedOriginalCannotBeDurablyBoundToTarget" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.052"/>
+  <testcase name="restoreRefusesTrackedNightEvenWhenFreshDeviceHasStopped" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.547"/>
+  <testcase name="jobEligibilityIsCheckedAfterConnectionBeforeMutation" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="0.034"/>
+  <testcase name="aPersistedWidgetOffAfterProcessDeathUsesTargetNotOldNightIdentity" classname="io.github.willzy12h.nocturne.night.RuntimeOwnershipTest" time="1.568"/>
+</testsuite>

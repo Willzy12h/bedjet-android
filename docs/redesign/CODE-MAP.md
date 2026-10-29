@@ -1,5 +1,7 @@
 # Nocturne redesign — code map
 
+> **Remediation ownership/status:** The owner authorised whole-app remediation on `gpt/nocturne-redesign-remediation`. Earlier Claude-only file reservations are superseded; Claude performs the independent review afterwards. Approved design decisions in this document remain binding. Historical test counts and warning budgets are not the current gate; see [GPT-HANDOVER.md](GPT-HANDOVER.md), [FINAL-REVIEW.md](FINAL-REVIEW.md) and [REMEDIATION-REGISTER.md](REMEDIATION-REGISTER.md).
+
 Approved design: https://claude.ai/artifact/EXWxySVCprLys7T3YHiiZj ("Round 4: Overcast + side stripe").
 Full build brief for GPT: [BUILD-PACKETS.md](BUILD-PACKETS.md).
 

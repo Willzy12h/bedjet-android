@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.QuickPendingStateTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:32:29.998Z" hostname="f7415c079ba4" time="7.835">
+  <properties/>
+  <testcase name="completedPresetClearsSendingWithoutWaitingForAnUnrelatedTimer" classname="io.github.willzy12h.nocturne.ui.QuickPendingStateTest" time="6.936"/>
+  <testcase name="aCompletedSubmissionCannotClearBusyWhileAnotherSubmissionOwnsTheDevice" classname="io.github.willzy12h.nocturne.ui.QuickPendingStateTest" time="0.357"/>
+  <testcase name="queuedPresetRemainsSendingUntilItsOwnOperationFinishes" classname="io.github.willzy12h.nocturne.ui.QuickPendingStateTest" time="0.54"/>
+</testsuite>

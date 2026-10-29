@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:27:35.577Z" hostname="f7415c079ba4" time="3.403">
+  <properties/>
+  <testcase name="aDuplicateOfAPendingJobDoesNotPublishAnImportFailure" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="2.699"/>
+  <testcase name="aValidDueAlarmRefusedByImportReportsOneSkippedResultWithoutAJobOrStart" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="0.144"/>
+  <testcase name="failureToSaveTheNoticeKeepsTheDurableSkipAndDoesNotEscapeTheReceiver" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="0.104"/>
+  <testcase name="tamperedOrExpiredTicketsDuringImportDoNotInventAnAttemptOutcome" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="0.087"/>
+  <testcase name="cancellationWhileSavingTheRefusalRemainsCancellationAndCannotQueueHardware" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="0.069"/>
+  <testcase name="anExistingUnknownAttemptResultSurvivesRepeatedDeliveryDuringAndAfterImport" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="0.088"/>
+  <testcase name="androidSchedulerRefusalReportsOneFailedResultAndNeverReplaysThatNight" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="0.069"/>
+  <testcase name="repeatedDeliveryCannotDuplicateTheImportSkipOrReplayHardwareAfterImportFinishes" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="0.083"/>
+  <testcase name="failureToSaveTheSkipClaimDoesNotEscapeTheReceiverOrSendHardware" classname="io.github.willzy12h.nocturne.platform.AutoStartReceiverAdmissionTest" time="0.056"/>
+</testsuite>

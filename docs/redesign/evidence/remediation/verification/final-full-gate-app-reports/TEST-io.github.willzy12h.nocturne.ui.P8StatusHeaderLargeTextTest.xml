@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.P8StatusHeaderLargeTextTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:32:02.441Z" hostname="f7415c079ba4" time="7.319">
+  <properties/>
+  <testcase name="unavailableTemperatureWrapsAtWordBoundaries" classname="io.github.willzy12h.nocturne.ui.P8StatusHeaderLargeTextTest" time="7.319"/>
+</testsuite>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.HapticsTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:34:39.383Z" hostname="f7415c079ba4" time="6.027">
+  <properties/>
+  <testcase name="theServiceRetainsTheTappedViewsRequestUntilOwnerAdmission" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="3.375"/>
+  <testcase name="appTapTicksAtOwnerAdmissionThenConfirmsOnce" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.105"/>
+  <testcase name="aRecreatedScreenCannotReceiveTheOldTapsCompletionOrReplay" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.091"/>
+  <testcase name="everyNonAppOriginIsSilentEvenWhenItsOutcomeIsConfirmed" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.104"/>
+  <testcase name="hidingAndShowingTheSameViewDoesNotAdoptItsOldRequest" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.113"/>
+  <testcase name="anAppOutcomeWithoutThisScreensRequestIsAlsoSilent" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.113"/>
+  <testcase name="localTrackingAndSettingsChangesDoNotProduceHaptics" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.084"/>
+  <testcase name="twoTapsWithIdenticalMessagesHaveIndependentRequestIdentity" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.066"/>
+  <testcase name="aTapWaitingForTheOwnerDoesNotTickUntilAdmitted" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.114"/>
+  <testcase name="anUnknownOutcomeNeverConfirmsAnAdmittedTap" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="1.654"/>
+  <testcase name="refusedAndFailedRequestsNeverConfirm" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.079"/>
+  <testcase name="aViewThatAppearsAfterTheTapCannotAdoptItsCompletion" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.07"/>
+  <testcase name="anUnconfirmedAcceptedOutcomeDoesNotProduceASecondTick" classname="io.github.willzy12h.nocturne.ui.HapticsTest" time="0.058"/>
+</testsuite>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.RedesignProfilesStyleTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:37:43.269Z" hostname="f7415c079ba4" time="8.712">
+  <properties/>
+  <testcase name="profileCardRendersTheMiddleStepColourAsItsStripe" classname="io.github.willzy12h.nocturne.ui.RedesignProfilesStyleTest" time="6.808"/>
+  <testcase name="everyOverflowMenuRendersOpaquePaletteBackgroundInkAndBorder" classname="io.github.willzy12h.nocturne.ui.RedesignProfilesStyleTest" time="1.272"/>
+  <testcase name="tappingProfileHeaderOpensExistingEditor" classname="io.github.willzy12h.nocturne.ui.RedesignProfilesStyleTest" time="0.632"/>
+</testsuite>

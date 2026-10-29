@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.PlatformSettingsUiTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:45.260Z" hostname="f7415c079ba4" time="7.481">
+  <properties/>
+  <testcase name="healthWriteIsExplicitOptionalAndHasASyncNowAction" classname="io.github.willzy12h.nocturne.platform.PlatformSettingsUiTest" time="5.462"/>
+  <testcase name="automaticStartOffersFixedAndRelativeTimingWithChargingOffByDefault" classname="io.github.willzy12h.nocturne.platform.PlatformSettingsUiTest" time="0.465"/>
+  <testcase name="deletingTheChosenProfileDoesNotPreventTurningAutoStartOff" classname="io.github.willzy12h.nocturne.platform.PlatformSettingsUiTest" time="0.452"/>
+  <testcase name="historyMarkerAppearsOnlyForTheAcknowledgedExportVersion" classname="io.github.willzy12h.nocturne.platform.PlatformSettingsUiTest" time="0.194"/>
+  <testcase name="editingTimingOnAnotherSelectedBedJetDoesNotRebindEnabledAutoStart" classname="io.github.willzy12h.nocturne.platform.PlatformSettingsUiTest" time="0.327"/>
+  <testcase name="aPausedScheduleCanBeDisabledWithoutSelectingAnotherBedJet" classname="io.github.willzy12h.nocturne.platform.PlatformSettingsUiTest" time="0.32"/>
+  <testcase name="demoCannotRequestExternalPermissionsOrExportRealHistory" classname="io.github.willzy12h.nocturne.platform.PlatformSettingsUiTest" time="0.26"/>
+</testsuite>

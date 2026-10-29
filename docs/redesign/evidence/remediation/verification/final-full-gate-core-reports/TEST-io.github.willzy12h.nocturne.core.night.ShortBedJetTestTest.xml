@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.night.ShortBedJetTestTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:07.943Z" hostname="f7415c079ba4" time="0.011">
+  <properties/>
+  <testcase name="test start publishes pending intention before writes and confirms through the normal receipts()" classname="io.github.willzy12h.nocturne.core.night.ShortBedJetTestTest" time="0.007"/>
+  <testcase name="test cannot replace a tracked night()" classname="io.github.willzy12h.nocturne.core.night.ShortBedJetTestTest" time="0.001"/>
+  <testcase name="explicit test has five duration minutes with a wake phase after three()" classname="io.github.willzy12h.nocturne.core.night.ShortBedJetTestTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

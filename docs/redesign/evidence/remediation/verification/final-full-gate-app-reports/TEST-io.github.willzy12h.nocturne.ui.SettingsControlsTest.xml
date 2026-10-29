@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.SettingsControlsTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:59.384Z" hostname="f7415c079ba4" time="8.247">
+  <properties/>
+  <testcase name="aFileThatCannotBeOpenedIsReportedAsNotSaved" classname="io.github.willzy12h.nocturne.ui.SettingsControlsTest" time="6.873"/>
+  <testcase name="theQuietStatusNotificationCanBeSwitchedOnAndOffFromSettings" classname="io.github.willzy12h.nocturne.ui.SettingsControlsTest" time="0.834"/>
+  <testcase name="diagnosticsCanBeExportedFromSettings" classname="io.github.willzy12h.nocturne.ui.SettingsControlsTest" time="0.539"/>
+</testsuite>

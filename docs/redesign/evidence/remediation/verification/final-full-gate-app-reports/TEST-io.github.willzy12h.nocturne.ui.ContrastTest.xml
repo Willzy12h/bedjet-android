@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.ContrastTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:08.496Z" hostname="f7415c079ba4" time="0.14">
+  <properties/>
+  <testcase name="midnightInkDecorativeOutlinesFollowPaletteHairline" classname="io.github.willzy12h.nocturne.ui.ContrastTest" time="0.054"/>
+  <testcase name="overcastDividersUseHairlineAndOutlinesUseEdge" classname="io.github.willzy12h.nocturne.ui.ContrastTest" time="0.0"/>
+  <testcase name="quickControlStateMarkersMeetThreeAgainstEveryActiveTint" classname="io.github.willzy12h.nocturne.ui.ContrastTest" time="0.042"/>
+  <testcase name="stepTextContrastsWithEveryTemperatureTint" classname="io.github.willzy12h.nocturne.ui.ContrastTest" time="0.028"/>
+  <testcase name="bodyAndContainerTextMeetFourPointFiveInEveryPalette" classname="io.github.willzy12h.nocturne.ui.ContrastTest" time="0.007"/>
+</testsuite>

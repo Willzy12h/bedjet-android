@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.protocol.CodecTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.123Z" hostname="f7415c079ba4" time="0.005">
+  <properties/>
+  <testcase name="simpleCommandBytes()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.001"/>
+  <testcase name="longProgramsSplitIntoFragments()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.0"/>
+  <testcase name="parsesNamesCapturedFromDevice()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.0"/>
+  <testcase name="clockTimeFlagSharesTheHoursByte()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.001"/>
+  <testcase name="writingReproducesTheBytesTheDeviceReturned()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.0"/>
+  <testcase name="parsesProgramCapturedFromDevice()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.001"/>
+  <testcase name="firstChunkAloneStillParses()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.0"/>
+  <testcase name="parsesStatusCapturedFromDevice()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.0"/>
+  <testcase name="nameCommandIsPaddedAndTrimmed()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.0"/>
+  <testcase name="heatIsCutOffSoonerWhenHotterAndFaster()" classname="io.github.willzy12h.nocturne.core.protocol.CodecTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.BluetoothBannerTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:06.941Z" hostname="f7415c079ba4" time="7.863">
+  <properties/>
+  <testcase name="aRevokedConnectPermissionIsRequestedBeforeTheEnableIntent" classname="io.github.willzy12h.nocturne.ui.BluetoothBannerTest" time="6.81"/>
+  <testcase name="bothScreensOfferEnableAndTheBannerClearsOnARealStateChange" classname="io.github.willzy12h.nocturne.ui.BluetoothBannerTest" time="0.677"/>
+  <testcase name="enableLaunchesAndroidsRequestEnableIntent" classname="io.github.willzy12h.nocturne.ui.BluetoothBannerTest" time="0.375"/>
+</testsuite>

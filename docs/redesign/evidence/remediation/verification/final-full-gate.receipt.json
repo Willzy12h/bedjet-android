@@ -1,0 +1,22 @@
+{
+  "command": [
+    "./gradlew",
+    "--offline",
+    "--no-daemon",
+    "--max-workers=3",
+    "-I",
+    "docs/redesign/verification.init.gradle",
+    "clean",
+    ":core:test",
+    ":app:testDebugUnitTest",
+    ":app:assembleDebug",
+    ":app:lintDebug"
+  ],
+  "started": "2026-10-29T04:19:21.268497+00:00",
+  "finished": "2026-10-29T04:41:38.050395+00:00",
+  "exit_code": 0,
+  "source": "c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd",
+  "source_after": "c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd",
+  "source_tree_sha256": "dbe37daa47686e6ff20c17d58191d5e7aca3738eb52cbd9e4457ed2834a8c4e8",
+  "source_tree_sha256_after": "dbe37daa47686e6ff20c17d58191d5e7aca3738eb52cbd9e4457ed2834a8c4e8"
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:16.481Z" hostname="f7415c079ba4" time="11.649">
+  <properties/>
+  <testcase name="remoteShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" time="8.851"/>
+  <testcase name="tonightTurboRemainsTenMinutesWhenTheLegacyBoostDurationChanges[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" time="0.444"/>
+  <testcase name="remoteShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" time="0.439"/>
+  <testcase name="tonightTurboRemainsTenMinutesWhenTheLegacyBoostDurationChanges[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" time="0.388"/>
+  <testcase name="remoteShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" time="0.357"/>
+  <testcase name="tonightTurboRemainsTenMinutesWhenTheLegacyBoostDurationChanges[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" time="0.373"/>
+  <testcase name="remoteShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" time="0.411"/>
+  <testcase name="tonightTurboRemainsTenMinutesWhenTheLegacyBoostDurationChanges[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.BoostSequenceLayoutTest" time="0.366"/>
+</testsuite>

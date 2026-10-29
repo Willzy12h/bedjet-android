@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.HealthReadDemoBoundaryTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:00.448Z" hostname="f7415c079ba4" time="5.229">
+  <properties/>
+  <testcase name="aHealthReadPermissionResultArrivingAfterDemoEntryCannotEnableRealAccess" classname="io.github.willzy12h.nocturne.platform.HealthReadDemoBoundaryTest" time="5.078"/>
+  <testcase name="theLegacyHealthReadToggleIsDisabledDuringDemo" classname="io.github.willzy12h.nocturne.platform.HealthReadDemoBoundaryTest" time="0.151"/>
+</testsuite>

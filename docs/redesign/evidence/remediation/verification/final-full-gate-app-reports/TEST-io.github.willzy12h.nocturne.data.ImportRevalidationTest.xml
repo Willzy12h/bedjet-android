@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.data.ImportRevalidationTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:32.313Z" hostname="f7415c079ba4" time="3.247">
+  <properties/>
+  <testcase name="validationRunsAgainAfterTheWriterQueueBeforeAnyRestoreFileChanges" classname="io.github.willzy12h.nocturne.data.ImportRevalidationTest" time="2.932"/>
+  <testcase name="anImportedCaseVariantCannotDuplicateOrReplaceTheSameBedJetsSavedOriginal" classname="io.github.willzy12h.nocturne.data.ImportRevalidationTest" time="0.188"/>
+  <testcase name="aSecondRestoreIsRefusedWhileTheFirstRestoreIsWaitingForTheWriter" classname="io.github.willzy12h.nocturne.data.ImportRevalidationTest" time="0.126"/>
+</testsuite>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.AppSmokeTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:02.970Z" hostname="f7415c079ba4" time="19.754">
+  <properties/>
+  <testcase name="profileEditorOpensAndSaves" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="6.631"/>
+  <testcase name="confirmationCannotStopANightThatChangedWhileDialogWasOpen" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="3.377"/>
+  <testcase name="startingANightOnTheDemoBedJetShowsItRunning" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.691"/>
+  <testcase name="platformSettingsAndHistoryExportAreReachableFromTabs" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.393"/>
+  <testcase name="pinPreviewProtectsTheWorkingSlotAndStaleSelection" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.472"/>
+  <testcase name="heldOpenPinPreviewExpiresBeforeConfirmation" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.334"/>
+  <testcase name="aReplacedNightCanBeResumedFromTonightWhileItsOfferLasts" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="1.923"/>
+  <testcase name="largeTextNavigationKeepsEveryTabReachable" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.379"/>
+  <testcase name="stoppedNightOffersIdleResumeUntilItExpires" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.433"/>
+  <testcase name="handoverIsReachableWhileIdle" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.198"/>
+  <testcase name="everyTabOpens" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.358"/>
+  <testcase name="aKeptManualRunShowsItsEndNotAWakeUp" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.425"/>
+  <testcase name="anUnknownNightDoesNotClaimTheBedJetIsRunningItsPlan" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.395"/>
+  <testcase name="aStrayTapDuringANightAsksBeforeStoppingIt" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="2.981"/>
+  <testcase name="completedNightCheckInRecordsComfortWithoutChangingAProfile" classname="io.github.willzy12h.nocturne.AppSmokeTest" time="0.762"/>
+</testsuite>

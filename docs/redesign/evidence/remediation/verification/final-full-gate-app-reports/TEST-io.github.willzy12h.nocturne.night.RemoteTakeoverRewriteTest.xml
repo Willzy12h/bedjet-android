@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:24:33.323Z" hostname="f7415c079ba4" time="30.598">
+  <properties/>
+  <testcase name="immediateRetimeAfterUnobservedRemoteOffDoesNotRestartTheBedJet" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="4.681"/>
+  <testcase name="retimeRetryAfterUnobservedManualHeatRunDoesNotOverrideIt" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="1.61"/>
+  <testcase name="reapplyAfterProfileEditIsRefusedWhileTakenOver" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="1.593"/>
+  <testcase name="aRetimeRetryWhoseStatusNeverArrivesWritesNothingAndIsTriedAgain" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="1.892"/>
+  <testcase name="clearingTheWakeOverrideIsRefusedWhileTakenOver" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="1.598"/>
+  <testcase name="aWaitStepIsNotTakenOverByTheFanTheUnitReports" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="1.59"/>
+  <testcase name="matchingStatusStillRetimes" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="3.086"/>
+  <testcase name="wakeOverrideIsRefusedWhileTakenOver" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="1.596"/>
+  <testcase name="aRetimeWhoseStartFailsAfterUploadIsNeverReplayed" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="1.612"/>
+  <testcase name="matchingStatusStillReappliesAndOverrides" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="4.592"/>
+  <testcase name="aReportLaggingAStepBoundaryIsNotATakeoverButAStaleStepLaterIs" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="3.095"/>
+  <testcase name="retimeRetryAfterUnobservedRemoteOffDoesNotRestartTheBedJet" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="1.581"/>
+  <testcase name="aCancellationDuringTheStatusWaitStillCancels" classname="io.github.willzy12h.nocturne.night.RemoteTakeoverRewriteTest" time="2.067"/>
+</testsuite>

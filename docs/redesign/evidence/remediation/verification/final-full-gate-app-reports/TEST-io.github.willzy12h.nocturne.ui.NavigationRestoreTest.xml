@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" tests="36" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:35:18.308Z" hostname="f7415c079ba4" time="34.394">
+  <properties/>
+  <testcase name="newIntentOverRestoredNavigationStillOpensTonight[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="8.157"/>
+  <testcase name="parkedNewDraftSurvivesDiscardingAnotherEditorAcrossSavedState[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="2.209"/>
+  <testcase name="aDemoSessionChangeClosesAnActiveEditorBeforeItCanSaveIntoRealProfiles[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.686"/>
+  <testcase name="parkedDraftSurvivesClosingAnUnchangedOtherEditor[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.887"/>
+  <testcase name="reopeningParkedProfileResumesItsUnsavedValuesAndSaveUpdatesOnlyThatProfile[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.632"/>
+  <testcase name="uneditedNewDraftIsParkedAndCanBeResumed[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.483"/>
+  <testcase name="dirtyDraftIsParkedAndResumeRestoresItsUnsavedValues[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.541"/>
+  <testcase name="selectedTabSurvivesParcelledSavedState[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.269"/>
+  <testcase name="parkedNewDraftKeepsItsIdentityWhenAnotherNewProfileIsSaved[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.666"/>
+  <testcase name="twoInterruptedEditorsRemainResumableInOrderAfterParcelledSavedState[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.808"/>
+  <testcase name="parkedExistingDraftSurvivesSavingAnotherProfileUntilExplicitDiscard[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.629"/>
+  <testcase name="consumedLaunchIntentDoesNotOverrideNavigationAfterSavedStateRestore[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.184"/>
+  <testcase name="existingProfileDraftSurvivesParcelledSavedStateWithoutSavingIt[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.316"/>
+  <testcase name="newProfileDraftSurvivesParcelledSavedStateAndSaveCreatesOneProfile[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.321"/>
+  <testcase name="leavingDemoDiscardsItsParkedDraftBeforeReturningToRealProfiles[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.263"/>
+  <testcase name="editAndTonightIntentInSameUiTurnParksLatestValueWithoutReopeningEditor[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.324"/>
+  <testcase name="newSetupRequestStillOpensAfterFreshViewModelRestoration[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.509"/>
+  <testcase name="anotherTonightIntentPreservesAnAlreadyParkedNewDraft[34]" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.38"/>
+  <testcase name="newIntentOverRestoredNavigationStillOpensTonight" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="6.219"/>
+  <testcase name="parkedNewDraftSurvivesDiscardingAnotherEditorAcrossSavedState" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="1.815"/>
+  <testcase name="aDemoSessionChangeClosesAnActiveEditorBeforeItCanSaveIntoRealProfiles" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.473"/>
+  <testcase name="parkedDraftSurvivesClosingAnUnchangedOtherEditor" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.759"/>
+  <testcase name="reopeningParkedProfileResumesItsUnsavedValuesAndSaveUpdatesOnlyThatProfile" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.694"/>
+  <testcase name="uneditedNewDraftIsParkedAndCanBeResumed" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.433"/>
+  <testcase name="dirtyDraftIsParkedAndResumeRestoresItsUnsavedValues" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.304"/>
+  <testcase name="selectedTabSurvivesParcelledSavedState" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.152"/>
+  <testcase name="parkedNewDraftKeepsItsIdentityWhenAnotherNewProfileIsSaved" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.55"/>
+  <testcase name="twoInterruptedEditorsRemainResumableInOrderAfterParcelledSavedState" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.951"/>
+  <testcase name="parkedExistingDraftSurvivesSavingAnotherProfileUntilExplicitDiscard" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.579"/>
+  <testcase name="consumedLaunchIntentDoesNotOverrideNavigationAfterSavedStateRestore" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.242"/>
+  <testcase name="existingProfileDraftSurvivesParcelledSavedStateWithoutSavingIt" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.246"/>
+  <testcase name="newProfileDraftSurvivesParcelledSavedStateAndSaveCreatesOneProfile" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.475"/>
+  <testcase name="leavingDemoDiscardsItsParkedDraftBeforeReturningToRealProfiles" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.355"/>
+  <testcase name="editAndTonightIntentInSameUiTurnParksLatestValueWithoutReopeningEditor" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.695"/>
+  <testcase name="newSetupRequestStillOpensAfterFreshViewModelRestoration" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.775"/>
+  <testcase name="anotherTonightIntentPreservesAnAlreadyParkedNewDraft" classname="io.github.willzy12h.nocturne.ui.NavigationRestoreTest" time="0.361"/>
+</testsuite>

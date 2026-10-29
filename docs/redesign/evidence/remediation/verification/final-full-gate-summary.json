@@ -1,0 +1,248 @@
+{
+  "receipt": {
+    "command": [
+      "./gradlew",
+      "--offline",
+      "--no-daemon",
+      "--max-workers=3",
+      "-I",
+      "docs/redesign/verification.init.gradle",
+      "clean",
+      ":core:test",
+      ":app:testDebugUnitTest",
+      ":app:assembleDebug",
+      ":app:lintDebug"
+    ],
+    "started": "2026-10-29T04:19:21.268497+00:00",
+    "finished": "2026-10-29T04:41:38.050395+00:00",
+    "exit_code": 0,
+    "source": "c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd",
+    "source_after": "c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd",
+    "source_tree_sha256": "dbe37daa47686e6ff20c17d58191d5e7aca3738eb52cbd9e4457ed2834a8c4e8",
+    "source_tree_sha256_after": "dbe37daa47686e6ff20c17d58191d5e7aca3738eb52cbd9e4457ed2834a8c4e8"
+  },
+  "counts": {
+    "core": {
+      "tests": 313,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 1805,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 41
+    }
+  },
+  "excluded_prior_run_reports": [],
+  "failures": [],
+  "skipped": [
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "gapsSimpleLight"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "gapsDark"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "gapsSimpleDark"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "simpleLight"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "simpleDark"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "gapsCompactDark"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "gapsCompactSimpleLight"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "gapsCompactLight"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "gapsLight"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "dark"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "light"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "gapsCompactSimpleDark"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "combined320And200"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ScreenshotCapture",
+      "test": "featureViews"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.P8CaptureTest",
+      "test": "populatedHistoryAndRenderedWidgetsInBothPalettes"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.P8CaptureTest",
+      "test": "settingsIndexAndEverySubpageInBothPalettes"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.P8CaptureTest",
+      "test": "editorAndSetupInBothPalettes"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextConfirmedTonight[MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextIdleTonight[MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextAcceptLossDialog[MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextConfirmedTonight[DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextIdleTonight[DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextAcceptLossDialog[DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextConfirmedTonight[SIMPLE_MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextIdleTonight[SIMPLE_MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextAcceptLossDialog[SIMPLE_MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextConfirmedTonight[SIMPLE_DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextIdleTonight[SIMPLE_DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest",
+      "test": "largeTextAcceptLossDialog[SIMPLE_DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalAcceptLossDialog[MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalIdleTonightAndFourTabs[MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalConfirmedTonight[MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalAcceptLossDialog[DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalIdleTonightAndFourTabs[DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalConfirmedTonight[DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalAcceptLossDialog[SIMPLE_MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalIdleTonightAndFourTabs[SIMPLE_MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalConfirmedTonight[SIMPLE_MIDNIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalAcceptLossDialog[SIMPLE_DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalIdleTonightAndFourTabs[SIMPLE_DAYLIGHT]"
+    },
+    {
+      "module": "app",
+      "class": "io.github.willzy12h.nocturne.ui.U06NormalCaptureTest",
+      "test": "normalConfirmedTonight[SIMPLE_DAYLIGHT]"
+    }
+  ],
+  "lint": {}
+}

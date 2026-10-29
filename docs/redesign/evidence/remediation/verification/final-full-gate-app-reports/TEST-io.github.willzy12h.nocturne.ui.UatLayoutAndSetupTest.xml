@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.UatLayoutAndSetupTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:35:57.596Z" hostname="f7415c079ba4" time="8.413">
+  <properties/>
+  <testcase name="U4_settingsEntryRequestsReopeningAndClearsOnlyOptionalDismissals" classname="io.github.willzy12h.nocturne.ui.UatLayoutAndSetupTest" time="7.462"/>
+  <testcase name="U5_everyModeCapturesTheReviewedPresetAndPreservesTemporaryOrEndConsent" classname="io.github.willzy12h.nocturne.ui.UatLayoutAndSetupTest" time="0.162"/>
+  <testcase name="U3_busyOverlayDoesNotMoveAnyQuickTargetAndLeavesNoIdleSlot" classname="io.github.willzy12h.nocturne.ui.UatLayoutAndSetupTest" time="0.431"/>
+  <testcase name="U4_resumeRechecksRevocationWithoutReturningCompletedOrOptionalItems" classname="io.github.willzy12h.nocturne.ui.UatLayoutAndSetupTest" time="0.185"/>
+  <testcase name="U5_sixQuickTargetsFitTwoColumnsAt320dpAndTwoHundredPercentText" classname="io.github.willzy12h.nocturne.ui.UatLayoutAndSetupTest" time="0.173"/>
+</testsuite>

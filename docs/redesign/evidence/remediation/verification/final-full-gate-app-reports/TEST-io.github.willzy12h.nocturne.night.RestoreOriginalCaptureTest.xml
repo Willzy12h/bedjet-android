@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.RestoreOriginalCaptureTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:50.458Z" hostname="f7415c079ba4" time="3.555">
+  <properties/>
+  <testcase name="theViewModelsCapturedPreviewSurvivesARefusedImportWhileWaitingForTheOwner" classname="io.github.willzy12h.nocturne.night.RestoreOriginalCaptureTest" time="2.929"/>
+  <testcase name="anImportDuringThePendingSlotJournalSaveIsRefusedAtAdmission" classname="io.github.willzy12h.nocturne.night.RestoreOriginalCaptureTest" time="0.113"/>
+  <testcase name="aMissingOriginalCapturedBeforeQueuingCannotBindToANewImport" classname="io.github.willzy12h.nocturne.night.RestoreOriginalCaptureTest" time="0.09"/>
+  <testcase name="anImportDuringFreshStatusPreparationIsRefusedBeforeWriting" classname="io.github.willzy12h.nocturne.night.RestoreOriginalCaptureTest" time="0.102"/>
+  <testcase name="anUnchangedOriginalStillRestoresItsPreviewedProgramme" classname="io.github.willzy12h.nocturne.night.RestoreOriginalCaptureTest" time="0.084"/>
+  <testcase name="aNewlyReviewedImportedOriginalStillRestores" classname="io.github.willzy12h.nocturne.night.RestoreOriginalCaptureTest" time="0.123"/>
+  <testcase name="aQueuedSlotRestoreCannotRebindToAnImportedReplacement" classname="io.github.willzy12h.nocturne.night.RestoreOriginalCaptureTest" time="0.111"/>
+</testsuite>

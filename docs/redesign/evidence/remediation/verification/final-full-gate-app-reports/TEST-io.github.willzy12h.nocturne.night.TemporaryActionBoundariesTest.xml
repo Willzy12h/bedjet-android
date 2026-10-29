@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" tests="24" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:49.574Z" hostname="f7415c079ba4" time="69.968">
+  <properties/>
+  <testcase name="aCachedMatchingFirstStepCannotConfirmTheTemporaryStart" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="6.815"/>
+  <testcase name="aPhysicalOffBeforeTemporaryPreparationCannotBeUndone" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.67"/>
+  <testcase name="aQueuedTemporaryRequestCannotFollowAChangedTarget" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.605"/>
+  <testcase name="aPhysicalOffDuringTheUploadCannotBeUndoneByItsFinalStart" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.632"/>
+  <testcase name="theSameWakeRemainsAQuietObservationDuringATemporaryProgramme" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.151"/>
+  <testcase name="unreadableOriginalsRefuseTemporaryBeforeAnyConnectionOrPendingNight" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.775"/>
+  <testcase name="aPhysicalOffAfterTemporaryConfirmationCannotBeRestartedAtThePlannedReturn" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.132"/>
+  <testcase name="cancellingAfterAnAcceptedProgrammeFragmentSettlesUnknownWithoutStarting" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.607"/>
+  <testcase name="cancellationAsConfirmedAlarmHandoffPublishesKeepsItsObservationAndOneTemporaryEvent" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="4.658"/>
+  <testcase name="reconcileDoesNotRecreateAnAbsentHistoryRecord" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.089"/>
+  <testcase name="cancellationAsConfirmedTemporaryPublishesKeepsOneExactRevisionAndStart" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.092"/>
+  <testcase name="aCapturedCoolingEndChoiceUsesItsActualModeRatherThanTheWarmEntryLabel" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.765"/>
+  <testcase name="reconcileDoesNotBackfillAManuallyTrackedSnapshot" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.125"/>
+  <testcase name="failedHistoryRecoveryStillRestoresTheConfirmedNightAndAlarmObservationSchedules" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.128"/>
+  <testcase name="restartingAfterConfirmedTemporaryPublicationRetainsThePendingAlarmObservation" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="4.637"/>
+  <testcase name="aPendingWakeChangeIsReobservedForTheConfirmedTemporaryRevision" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="4.63"/>
+  <testcase name="invalidCapturedPresetsAreRefusedBeforeConnectionOrPublication" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.616"/>
+  <testcase name="aNewerAlarmInboxSurvivesTemporaryConfirmationAlongsideAnOlderPendingRetime" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="4.67"/>
+  <testcase name="theStoredProgrammeReturnsToTheOriginalTimelineWithoutAPhoneCommand" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.088"/>
+  <testcase name="aQueuedTemporaryRequestCannotReplaceADifferentNightWithTheSameRevision" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.568"/>
+  <testcase name="cancellingAsTemporaryPendingPublishesRestoresTheDurablePriorNight" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.604"/>
+  <testcase name="aCapturedFiveMinuteTurboEndChoiceRunsAndDescribesFiveMinutes" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="1.613"/>
+  <testcase name="reconcileDoesNotBackfillAnUnknownTemporarySnapshot" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.098"/>
+  <testcase name="successfulTemporaryKeepsTheQuietNotificationPendingUntilItsAlarmObservationIsApplied" classname="io.github.willzy12h.nocturne.night.TemporaryActionBoundariesTest" time="3.199"/>
+</testsuite>

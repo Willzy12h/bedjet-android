@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.ProfileFileFlowTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:32:14.467Z" hostname="f7415c079ba4" time="8.685">
+  <properties/>
+  <testcase name="pendingShareCannotReadFromAnotherSessionAfterAConflatedDemoRoundTrip" classname="io.github.willzy12h.nocturne.ui.ProfileFileFlowTest" time="6.358"/>
+  <testcase name="pendingShareSurvivesParcelledActivityRecreation" classname="io.github.willzy12h.nocturne.ui.ProfileFileFlowTest" time="0.701"/>
+  <testcase name="shareExportsTheSelectedSnapshotEvenIfTheProfileChangesWhileThePickerIsOpen" classname="io.github.willzy12h.nocturne.ui.ProfileFileFlowTest" time="0.431"/>
+  <testcase name="importingASharedProfileAddsItWithoutRemovingProfilesOrOtherPersonalData" classname="io.github.willzy12h.nocturne.ui.ProfileFileFlowTest" time="0.516"/>
+  <testcase name="importingAnExistingIdReviewsAndReplacesOnlyThatProfile" classname="io.github.willzy12h.nocturne.ui.ProfileFileFlowTest" time="0.679"/>
+</testsuite>

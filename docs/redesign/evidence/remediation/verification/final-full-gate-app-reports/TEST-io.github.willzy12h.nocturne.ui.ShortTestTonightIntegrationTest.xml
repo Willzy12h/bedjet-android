@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.ShortTestTonightIntegrationTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:38:43.633Z" hostname="f7415c079ba4" time="7.752">
+  <properties/>
+  <testcase name="aTestRunShowsItsNameAndFixedTimingWithAGuardedStop" classname="io.github.willzy12h.nocturne.ui.ShortTestTonightIntegrationTest" time="7.752"/>
+</testsuite>

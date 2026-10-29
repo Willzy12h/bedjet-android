@@ -1,0 +1,11 @@
+{
+  "full_evidence_check_exit": 2,
+  "full_evidence_output": "docs/redesign/evidence/remediation/verification/captures-final-remediation.log:2: trailing whitespace.\n+Daemon will be stopped at the end of the build \ndocs/redesign/evidence/remediation/verification/final-full-gate.log:2: trailing whitespace.\n+Daemon will be stopped at the end of the build \ndocs/redesign/evidence/remediation/verification/run-index.csv:553: trailing whitespace.\n+marker-menu-green,0,2026-10-29T02:52:19.309653+00:00,2026-10-29T02:55:24.598269+00:00,\"Completed selected command successfully; scope is the receipt command, not a claim of full-suite coverage.\",17,0,0,0,4,,4c2dc197d60629adb0ee3908660e35f407ab0d1b,edf565d3b582c6aadade48a10e3aa00203cb40ea2e5a5dfbf14f1cf57bd44377,edf565d3b582c6aadade48a10e3aa00203cb40ea2e5a5dfbf14f1cf57bd44377,marker-menu-green.log,marker-menu-green.receipt.json,w: Detected multiple Kotlin daemon sessions at \ndocs/redesign/evidence/remediation/verification/run-index.csv:756: trailing whitespace.\n+selection-history-green,0,2026-10-29T03:55:41.825415+00:00,2026-10-29T04:00:32.079175+00:00,\"Completed selected command successfully; scope is the receipt command, not a claim of full-suite coverage.\",118,0,0,0,24,,fbb2a6acab0f029325e254541868286c81b6f501,9df9191fe6c379206a674d4e0387a8a5f93de93e25f01f60c035f2c5b612290c,9df9191fe6c379206a674d4e0387a8a5f93de93e25f01f60c035f2c5b612290c,selection-history-green.log,selection-history-green.receipt.json,w: Detected multiple Kotlin daemon sessions at \n",
+  "authored_source_and_documentation_check_exit": 0,
+  "raw_files_excluded_from_authored_check": [
+    "docs/redesign/evidence/remediation/verification/captures-final-remediation.log",
+    "docs/redesign/evidence/remediation/verification/final-full-gate.log",
+    "docs/redesign/evidence/remediation/verification/run-index.csv"
+  ],
+  "reason": "Preserve exact upstream log/diagnostic bytes; no warning output was changed or suppressed"
+}

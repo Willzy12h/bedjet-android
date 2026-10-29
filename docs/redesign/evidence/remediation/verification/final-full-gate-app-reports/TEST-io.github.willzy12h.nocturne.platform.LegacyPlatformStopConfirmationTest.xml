@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.LegacyPlatformStopConfirmationTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:10.691Z" hostname="f7415c079ba4" time="14.366">
+  <properties/>
+  <testcase name="legacyOffApprovalQueuedBehindANewerNightIsRefused" classname="io.github.willzy12h.nocturne.platform.LegacyPlatformStopConfirmationTest" time="5.574"/>
+  <testcase name="legacyTrackedEndNightWaitsForConfirmationAndCancelSendsNothing" classname="io.github.willzy12h.nocturne.platform.LegacyPlatformStopConfirmationTest" time="1.657"/>
+  <testcase name="legacyTrackedOffWaitsForConfirmationAndCancelSendsNothing" classname="io.github.willzy12h.nocturne.platform.LegacyPlatformStopConfirmationTest" time="1.684"/>
+  <testcase name="legacyEndNightApprovalQueuedBehindANewerNightIsRefused" classname="io.github.willzy12h.nocturne.platform.LegacyPlatformStopConfirmationTest" time="1.797"/>
+  <testcase name="legacyConfirmedEndNightStopsOnlyItsCapturedNight" classname="io.github.willzy12h.nocturne.platform.LegacyPlatformStopConfirmationTest" time="1.812"/>
+  <testcase name="legacyConfirmedOffStopsOnlyItsCapturedNight" classname="io.github.willzy12h.nocturne.platform.LegacyPlatformStopConfirmationTest" time="1.842"/>
+</testsuite>

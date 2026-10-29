@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.UiFinalisationTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:40:02.748Z" hostname="f7415c079ba4" time="7.077">
+  <properties/>
+  <testcase name="newProfileDraftSurvivesRecreationAndOnlySaveAddsIt" classname="io.github.willzy12h.nocturne.ui.UiFinalisationTest" time="6.27"/>
+  <testcase name="tonightOverrideIsLabelledAsAnOverrideInEveryLook" classname="io.github.willzy12h.nocturne.ui.UiFinalisationTest" time="0.47"/>
+  <testcase name="feedbackFloatsOverTheScreenWithoutMovingIt" classname="io.github.willzy12h.nocturne.ui.UiFinalisationTest" time="0.337"/>
+</testsuite>

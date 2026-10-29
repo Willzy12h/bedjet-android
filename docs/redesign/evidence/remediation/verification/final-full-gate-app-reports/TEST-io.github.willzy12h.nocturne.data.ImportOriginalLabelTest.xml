@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.data.ImportOriginalLabelTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:41:37.008Z" hostname="f7415c079ba4" time="0.07">
+  <properties/>
+  <testcase name="emptySlotAndUnnamedProgrammeMustRemainDistinguishableInTheReview" classname="io.github.willzy12h.nocturne.data.ImportOriginalLabelTest" time="0.07"/>
+</testsuite>

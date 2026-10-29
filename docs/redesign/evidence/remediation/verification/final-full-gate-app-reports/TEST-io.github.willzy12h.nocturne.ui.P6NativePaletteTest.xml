@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.P6NativePaletteTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:31:02.275Z" hostname="f7415c079ba4" time="9.847">
+  <properties/>
+  <testcase name="timePickerUsesSelectedSheetAndKeepsItsCallback" classname="io.github.willzy12h.nocturne.ui.P6NativePaletteTest" time="9.083"/>
+  <testcase name="shortcutConfirmationUsesSelectedPaletteAndCancelDoesNotSend" classname="io.github.willzy12h.nocturne.ui.P6NativePaletteTest" time="0.763"/>
+</testsuite>

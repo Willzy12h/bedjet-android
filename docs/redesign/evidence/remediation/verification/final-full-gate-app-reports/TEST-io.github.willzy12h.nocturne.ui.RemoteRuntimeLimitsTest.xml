@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:38:13.992Z" hostname="f7415c079ba4" time="14.933">
+  <properties/>
+  <testcase name="turboCustomCannotExceedTenMinutes" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="7.136"/>
+  <testcase name="heatCustomDurationWithoutAMatchingReceiptStaysUnknown" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="0.585"/>
+  <testcase name="heatCustomRejectsZeroAndBeyondTheReportedMaximum" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="0.475"/>
+  <testcase name="turboOffersTenMinutesAndNeverAdvertisesALongerManualTimer" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="0.326"/>
+  <testcase name="heatTrackedCustomCanEndTonightOnlyAfterTheExplicitChoice" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="2.098"/>
+  <testcase name="heatDoesNotOfferAnEightHourTimerWhenTheUnitReportsFourHours" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="0.227"/>
+  <testcase name="heatCustomDurationUsesTheAppCommandOwnerAndConfirmsFromItsReceipt" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="0.272"/>
+  <testcase name="heatCustomDurationDoesNotFollowATargetChangedWhileThePickerWasOpen" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="0.404"/>
+  <testcase name="heatTrackedCustomOffersTemporaryThenResumesTheSameNight" classname="io.github.willzy12h.nocturne.ui.RemoteRuntimeLimitsTest" time="3.409"/>
+</testsuite>

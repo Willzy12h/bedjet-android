@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.SetupRouteTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:34:16.345Z" hostname="f7415c079ba4" time="7.717">
+  <properties/>
+  <testcase name="settingsPhoneSetupHasSamsungBatteryGuidance" classname="io.github.willzy12h.nocturne.ui.SetupRouteTest" time="7.095"/>
+  <testcase name="remoteRoutesToChoosingABedJet" classname="io.github.willzy12h.nocturne.ui.SetupRouteTest" time="0.286"/>
+  <testcase name="tonightOffersTheDemoAsASeparateChoice" classname="io.github.willzy12h.nocturne.ui.SetupRouteTest" time="0.335"/>
+</testsuite>

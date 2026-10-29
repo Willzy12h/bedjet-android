@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" tests="20" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:28.562Z" hostname="f7415c079ba4" time="39.316">
+  <properties/>
+  <testcase name="wakeNotificationIsWithdrawnWhenItsNightBecomesUncertainOrChangesRevision" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="4.276"/>
+  <testcase name="quietNotificationIsCancelledOnTakeBackAndSnooze" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="3.232"/>
+  <testcase name="quietNotificationRefreshSurvivesSameSettingsRoundTripWithStableNight" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.602"/>
+  <testcase name="themeResolverHonoursExplicitPaletteAndSystem" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="0.052"/>
+  <testcase name="deniedRetryAtBoundaryExpiresObservationLocally" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.613"/>
+  <testcase name="connectPermissionRevokedAfterOrdinaryDeliveryStopsWithoutAnFgsObligation" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="0.062"/>
+  <testcase name="programmeReplacementPostsResumeActionLeadingToRealConfirmation" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="4.666"/>
+  <testcase name="retimeIsDurableCoalescedAndFallbackDoesNoHardwareWork" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="3.123"/>
+  <testcase name="quietNotificationIsCancelledOnRemoteFailureAndSettingChange" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.58"/>
+  <testcase name="routineAlarmChangeAfterWakeIsQuietNoOp" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.585"/>
+  <testcase name="externalShortcutShowsConfirmationBeforeStartingService" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="0.253"/>
+  <testcase name="expectedBackgroundRetryDenialKeepsItsResultWithoutAnErrorNotice" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="0.065"/>
+  <testcase name="clearingEqualTimeOverrideFollowsSubsequentAlarmChange" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="3.139"/>
+  <testcase name="quietNotificationAlsoFollowsRestoredSettingsOutsideCommandPath" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.607"/>
+  <testcase name="resumeNoticeExpiresOnAClockTickWithoutAnyRepositoryChange" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="3.085"/>
+  <testcase name="resumeNotificationIsWithdrawnWhenItsOfferIsRemoved" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="3.074"/>
+  <testcase name="pendingRetimeExpiresAtConfirmedWakeBoundaryWithoutWrite" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.557"/>
+  <testcase name="quietNotificationIsCancelledOnTakeoverAndManualTracking" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.577"/>
+  <testcase name="wakeDeliveryAndSnoozeNeverDuplicateWakeNotice" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.579"/>
+  <testcase name="manualSnoozeWakeNoticeSurvivesTheBackgroundReconcilerAndTrackingConfirmation" classname="io.github.willzy12h.nocturne.night.RuntimeDeliveryTest" time="1.586"/>
+</testsuite>

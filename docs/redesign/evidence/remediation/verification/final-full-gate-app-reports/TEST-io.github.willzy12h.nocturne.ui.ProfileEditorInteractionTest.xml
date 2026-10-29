@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:32:17.167Z" hostname="f7415c079ba4" time="11.593">
+  <properties/>
+  <testcase name="addingAPhaseOpensAnEditableRowWithoutSavingItPrematurely" classname="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" time="8.355"/>
+  <testcase name="longPressOnTheCurveOpensAndScrollsToTheSourcePhase" classname="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" time="0.668"/>
+  <testcase name="longPressingTheSameCurvePhaseAgainReturnsToItsEditor" classname="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" time="0.768"/>
+  <testcase name="draggingAcrossTwoNeighboursMovesTheGrabbedPhaseOnlyOnceOnDrop" classname="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" time="0.308"/>
+  <testcase name="phaseRowsStayCompactUntilTappedAndOpenTheirEditSheet" classname="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" time="0.446"/>
+  <testcase name="tappingTheCurveShowsTheSelectedPhaseTimeframeAndTarget" classname="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" time="0.324"/>
+  <testcase name="compactModeChoicesSpeakFullNamesAndModelMaximums" classname="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" time="0.378"/>
+  <testcase name="profilePreviewHasNoPhaseActionsAndCardTapOpensItsEditor" classname="io.github.willzy12h.nocturne.ui.ProfileEditorInteractionTest" time="0.345"/>
+</testsuite>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.AdmissionTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:53.631Z" hostname="f7415c079ba4" time="14.227">
+  <properties/>
+  <testcase name="theUiWaitOutlastsTheServiceWhichOutlastsTheOwnerBudget" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="2.847"/>
+  <testcase name="slotWritesAndManualCommandsAreAdmittedTheSameWay" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="0.128"/>
+  <testcase name="aRetimeRetryThatWaitedTooLongKeepsItsChangeAndItsRetry" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="1.696"/>
+  <testcase name="aRequestWithEnoughBudgetLeftStillRuns" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="1.613"/>
+  <testcase name="unrelatedQueueRefusalsDoNotMoveAPendingRetimeRetry" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="1.615"/>
+  <testcase name="aWakeOverrideThatWaitedTooLongRewritesNothing" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="1.586"/>
+  <testcase name="aStartThatWaitedTooLongIsRefusedBeforeAnyWrite" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="1.561"/>
+  <testcase name="anUnrelatedQueueRefusalDoesNotMoveAnAlarmObservationRetry" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="1.565"/>
+  <testcase name="stopTrackingIsLocalAndNotHeldBackByTheWait" classname="io.github.willzy12h.nocturne.night.AdmissionTest" time="1.616"/>
+</testsuite>

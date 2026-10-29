@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.RuntimeRegressionTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:24:08.702Z" hostname="f7415c079ba4" time="10.711">
+  <properties/>
+  <testcase name="startDurablyRecordsAnEmptyOriginalBeforeOverwritingIt" classname="io.github.willzy12h.nocturne.night.RuntimeRegressionTest" time="4.25"/>
+  <testcase name="oldFinishCannotEraseAReplacementNight" classname="io.github.willzy12h.nocturne.night.RuntimeRegressionTest" time="3.173"/>
+  <testcase name="shorterManualRunEndsTrackingWhenItEnds" classname="io.github.willzy12h.nocturne.night.RuntimeRegressionTest" time="1.634"/>
+  <testcase name="productionClockTracksZoneChangesButAnInjectedClockKeepsItsZone" classname="io.github.willzy12h.nocturne.night.RuntimeRegressionTest" time="0.072"/>
+  <testcase name="schedulingAfterWakeNeverRearmsPastWake" classname="io.github.willzy12h.nocturne.night.RuntimeRegressionTest" time="1.582"/>
+</testsuite>

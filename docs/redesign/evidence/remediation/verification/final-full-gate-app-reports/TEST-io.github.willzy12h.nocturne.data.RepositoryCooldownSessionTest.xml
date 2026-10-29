@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.data.RepositoryCooldownSessionTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:36.798Z" hostname="f7415c079ba4" time="3.122">
+  <properties/>
+  <testcase name="restoreInvalidatesHeldOfferEvenWhenAfterWakeIsUnchanged" classname="io.github.willzy12h.nocturne.data.RepositoryCooldownSessionTest" time="2.914"/>
+  <testcase name="declineDoesNotReplaceUnreadableProfilesWithDefaults" classname="io.github.willzy12h.nocturne.data.RepositoryCooldownSessionTest" time="0.092"/>
+  <testcase name="oldSessionCannotAcceptOrDeclineAfterDemoRoundTrip" classname="io.github.willzy12h.nocturne.data.RepositoryCooldownSessionTest" time="0.113"/>
+</testsuite>

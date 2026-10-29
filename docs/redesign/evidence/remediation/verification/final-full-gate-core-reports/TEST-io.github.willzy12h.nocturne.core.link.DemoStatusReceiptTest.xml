@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:07.398Z" hostname="f7415c079ba4" time="0.02">
+  <properties/>
+  <testcase name="changedSendStampsItsReportBeforeTheFirstRead()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.003"/>
+  <testcase name="reconnectReceivesAnEqualStatusWithANewReceiptBeforeTheFirstRead()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.001"/>
+  <testcase name="preparingForStartMasksProgressWithoutReceivingAReport()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.0"/>
+  <testcase name="ticksStampOnlyChangedReportsBeforeTheirFirstRead()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.001"/>
+  <testcase name="anEqualOrdinarySendKeepsTheOriginalReceipt()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.002"/>
+  <testcase name="restartingTheSameFirstStepReceivesAFreshReportAfterPreparation()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.001"/>
+  <testcase name="aRedundantReadyConnectAfterPreparationKeepsTheOriginalReceipt()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.0"/>
+  <testcase name="anEqualSendAfterPreparationKeepsTheOriginalReceipt()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.001"/>
+  <testcase name="initialConnectStampsItsReportBeforeTheFirstRead()" classname="io.github.willzy12h.nocturne.core.link.DemoStatusReceiptTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

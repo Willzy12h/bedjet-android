@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.TruthfulStateTest" tests="18" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:24:49.436Z" hostname="f7415c079ba4" time="45.518">
+  <properties/>
+  <testcase name="snoozeOffersTheNewlyDisplacedProgrammeAndKeepTrackingPreservesThatExpiry" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="5.822"/>
+  <testcase name="theProgrammeCanBeResumedAfterASnoozeKeptAndALaterAdjust" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="3.229"/>
+  <testcase name="anExpiredReplacedProgrammeOfferGivesWayToTheCurrentProgramme" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="3.116"/>
+  <testcase name="anUnresolvedWorkingSlotWriteWithNoNightShowsTheIdleStatusUnknown" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="0.061"/>
+  <testcase name="forgettingTheBedJetSaysSoExactly" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="0.079"/>
+  <testcase name="takeBackSaysWhenItFoundTheNightChanged" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="1.587"/>
+  <testcase name="aReplacedNightCanBeResumedWhileItsOfferLasts" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="4.645"/>
+  <testcase name="aFanChangeTheBedJetNeverReportsIsNotACheck" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="5.052"/>
+  <testcase name="aWakeOverrideTheBedJetRunsIsSavedWithItsExpiry" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="3.09"/>
+  <testcase name="aKeptManualRunIsShownAsRunningUntilItsEndNotAsAWake" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="1.604"/>
+  <testcase name="aNewExplicitProgrammeReplacementSupersedesTheOlderOffer" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="4.604"/>
+  <testcase name="theFanCheckIsConfirmedOnlyWhenTheChangeAndTheRestoreAreBothReported" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="0.053"/>
+  <testcase name="takeBackOfANightStillRunningSaysItChecked" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="1.57"/>
+  <testcase name="theProgrammeCanBeResumedAfterARemoteAdjust" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="3.103"/>
+  <testcase name="aRestoreTheBedJetNeverReportsIsNotCalledRestored" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="0.05"/>
+  <testcase name="aNewlyDisplacedProgrammeSupersedesTheOlderResumeOffer" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="4.635"/>
+  <testcase name="takeBackCancelsThePendingRetryWhenItFindsATakeover" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="1.628"/>
+  <testcase name="aWakeOverrideWhoseRewriteFailsIsNotSaved" classname="io.github.willzy12h.nocturne.night.TruthfulStateTest" time="1.588"/>
+</testsuite>

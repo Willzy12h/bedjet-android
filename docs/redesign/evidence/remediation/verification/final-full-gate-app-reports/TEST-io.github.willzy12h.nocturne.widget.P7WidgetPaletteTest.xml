@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.widget.P7WidgetPaletteTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:36:01.947Z" hostname="f7415c079ba4" time="3.679">
+  <properties/>
+  <testcase name="systemModeRespondsToEachContextConfiguration" classname="io.github.willzy12h.nocturne.widget.P7WidgetPaletteTest" time="3.542"/>
+  <testcase name="fixedModesUseTheChosenSlotRegardlessOfSystemAppearance" classname="io.github.willzy12h.nocturne.widget.P7WidgetPaletteTest" time="0.075"/>
+  <testcase name="scheduledModeFollowsTimeRatherThanSystemAppearance" classname="io.github.willzy12h.nocturne.widget.P7WidgetPaletteTest" time="0.062"/>
+</testsuite>

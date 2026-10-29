@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.CommandOriginsTest" tests="23" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:55.939Z" hostname="f7415c079ba4" time="15.054">
+  <properties/>
+  <testcase name="explicitRequestOriginSurvivesStaleTargetAdmission" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="2.694"/>
+  <testcase name="reminderPreviewCarriesReminderOriginThroughTheDemoEntry" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="3.145"/>
+  <testcase name="anExplicitSettingsResultIsNotReattributedToTheServiceContext" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.062"/>
+  <testcase name="serviceContextTagsAnUnspecifiedOwnedResultBeforeItIsReturnedAndEmitted" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.049"/>
+  <testcase name="widgetUriIdentifiesTheEntryWhenTheRenderedFlagIsAbsent" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.161"/>
+  <testcase name="aDirectSlotWriteAcknowledgementKeepsAppOrigin" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.059"/>
+  <testcase name="directAlarmSubmissionAndItsAliasTagEarlyRefusals" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.051"/>
+  <testcase name="resumeNotificationUsesNotificationOriginAfterConfirmation" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="3.247"/>
+  <testcase name="retimeCommandsDefaultToAlarmAtCaptureAndLegacyServiceDelivery" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="1.582"/>
+  <testcase name="confirmedShortcutCarriesShortcutOriginThroughTheService" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.139"/>
+  <testcase name="appRequestRefusalKeepsAppOriginAndOneCompletionObject" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.081"/>
+  <testcase name="anActiveWakeOverrideResultKeepsAppOrigin" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="1.584"/>
+  <testcase name="settingsSaveIsTaggedBeforeItIsReturnedAndEmitted" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.051"/>
+  <testcase name="widgetEntryCarriesItsOriginAcrossTheServiceHandoff" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.176"/>
+  <testcase name="anIdleWakeOverrideIsASettingsSave" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.048"/>
+  <testcase name="manualConnectionReleaseKeepsAppOrigin" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.054"/>
+  <testcase name="ownedSlotBackupRefusalKeepsTheSettingsSource" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.043"/>
+  <testcase name="anOutcomeWithoutAnEntryPointDoesNotClaimTheAppInitiatedIt" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.038"/>
+  <testcase name="notificationPendingIntentCarriesNotificationOrigin" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.046"/>
+  <testcase name="chargerEligibilityRefusalCarriesChargerOrigin" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.043"/>
+  <testcase name="pendingAlarmRetryEmitsAlarmOrigin" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="1.584"/>
+  <testcase name="aCapturedOriginSurvivesTheServiceIntentRoundTrip" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.054"/>
+  <testcase name="ownedExceptionKeepsTheSettingsSource" classname="io.github.willzy12h.nocturne.night.CommandOriginsTest" time="0.061"/>
+</testsuite>

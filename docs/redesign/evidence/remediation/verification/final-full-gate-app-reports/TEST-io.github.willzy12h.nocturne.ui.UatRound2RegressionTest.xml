@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.UatRound2RegressionTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:35:40.651Z" hostname="f7415c079ba4" time="7.947">
+  <properties/>
+  <testcase name="U5_quickControlsExposeAllSixApprovedPresetsInsteadOfWarm" classname="io.github.willzy12h.nocturne.ui.UatRound2RegressionTest" time="7.367"/>
+  <testcase name="U1_readyWithoutACurrentSelectedReportMustNotSayConnected" classname="io.github.willzy12h.nocturne.ui.UatRound2RegressionTest" time="0.126"/>
+  <testcase name="U2_anUnidentifiedPhoneAlarmHasAnActionableNeutralLabel" classname="io.github.willzy12h.nocturne.ui.UatRound2RegressionTest" time="0.099"/>
+  <testcase name="U3_idleWorkIndicatorReservesNoVisibleHeight" classname="io.github.willzy12h.nocturne.ui.UatRound2RegressionTest" time="0.099"/>
+  <testcase name="U4_aMissingRequiredSetupItemShowsTheChecklistAtTheTopOfTonight" classname="io.github.willzy12h.nocturne.ui.UatRound2RegressionTest" time="0.256"/>
+</testsuite>

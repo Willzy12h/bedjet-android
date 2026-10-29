@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.EditorPhaseSelectionTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:15.763Z" hostname="f7415c079ba4" time="0.067">
+  <properties/>
+  <testcase name="turboAndItsHeatContinuationBothOpenTheSameSourcePhase" classname="io.github.willzy12h.nocturne.ui.EditorPhaseSelectionTest" time="0.058"/>
+  <testcase name="afterWakeSelectionUsesItsOwnSourceSequence" classname="io.github.willzy12h.nocturne.ui.EditorPhaseSelectionTest" time="0.001"/>
+  <testcase name="frontTrimmedWakeKeepsTheSurvivingOriginalPhaseIndices" classname="io.github.willzy12h.nocturne.ui.EditorPhaseSelectionTest" time="0.005"/>
+  <testcase name="aTemporaryIntervalHasNoReusableProfilePhaseToEdit" classname="io.github.willzy12h.nocturne.ui.EditorPhaseSelectionTest" time="0.001"/>
+  <testcase name="endTrimmedStartAndAdjacentSameModePhasesRemainDistinct" classname="io.github.willzy12h.nocturne.ui.EditorPhaseSelectionTest" time="0.001"/>
+</testsuite>

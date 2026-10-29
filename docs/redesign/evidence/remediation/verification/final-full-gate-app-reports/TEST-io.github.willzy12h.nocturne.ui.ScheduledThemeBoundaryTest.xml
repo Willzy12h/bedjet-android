@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.ScheduledThemeBoundaryTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:58.025Z" hostname="f7415c079ba4" time="0.102">
+  <properties/>
+  <testcase name="skippedLocalHourRechecksAtTheClockTransition" classname="io.github.willzy12h.nocturne.ui.ScheduledThemeBoundaryTest" time="0.095"/>
+  <testcase name="repeatedLocalHourRechecksAtTheClockTransitionAndTheSecondBoundary" classname="io.github.willzy12h.nocturne.ui.ScheduledThemeBoundaryTest" time="0.001"/>
+  <testcase name="defaultBoundariesAreStrictlyInTheFuture" classname="io.github.willzy12h.nocturne.ui.ScheduledThemeBoundaryTest" time="0.002"/>
+  <testcase name="fixedAndAlwaysDarkSchemesDoNotNeedATimer" classname="io.github.willzy12h.nocturne.ui.ScheduledThemeBoundaryTest" time="0.0"/>
+  <testcase name="daytimeDarkIntervalIsSupported" classname="io.github.willzy12h.nocturne.ui.ScheduledThemeBoundaryTest" time="0.001"/>
+  <testcase name="changedScheduleUsesItsOwnNextBoundary" classname="io.github.willzy12h.nocturne.ui.ScheduledThemeBoundaryTest" time="0.0"/>
+</testsuite>

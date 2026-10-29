@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:09:21.024Z" hostname="f7415c079ba4" time="31.605">
+  <properties/>
+  <testcase name="largeTextConfirmedTonight[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="10.666"/>
+  <testcase name="largeTextIdleTonight[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="8.418"/>
+  <testcase name="largeTextAcceptLossDialog[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.593"/>
+  <testcase name="largeTextConfirmedTonight[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.994"/>
+  <testcase name="largeTextIdleTonight[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="6.066"/>
+  <testcase name="largeTextAcceptLossDialog[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.638"/>
+  <testcase name="largeTextConfirmedTonight[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.956"/>
+  <testcase name="largeTextIdleTonight[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.653"/>
+  <testcase name="largeTextAcceptLossDialog[SIMPLE_MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.623"/>
+  <testcase name="largeTextConfirmedTonight[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.933"/>
+  <testcase name="largeTextIdleTonight[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.547"/>
+  <testcase name="largeTextAcceptLossDialog[SIMPLE_DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.U06LargeTextCaptureTest" time="0.497"/>
+</testsuite>

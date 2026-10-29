@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.TemporaryNativeActionTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:28:32.949Z" hostname="f7415c079ba4" time="22.318">
+  <properties/>
+  <testcase name="widgetEndKeepsTheReviewedPresetAndItsOriginalNightIdentity" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeActionTest" time="6.788"/>
+  <testcase name="widgetEndCannotReplaceANewerNightRevision" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeActionTest" time="1.873"/>
+  <testcase name="shortcutCarriesTheCapturedTemporaryPresetAcrossTheServiceIntent" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeActionTest" time="3.297"/>
+  <testcase name="widgetTemporaryKeepsThePresetCapturedBeforeSettingsChange" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeActionTest" time="3.406"/>
+  <testcase name="idleShortcutBoostRunsTheFifteenMinutesReviewedBeforeSettingsChanged" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeActionTest" time="3.381"/>
+  <testcase name="widgetOffersTemporaryAndEndWithoutLosingCancelOrOpenTonight" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeActionTest" time="1.797"/>
+  <testcase name="shortcutOffersTemporaryAndEndWithoutLosingCancel" classname="io.github.willzy12h.nocturne.platform.TemporaryNativeActionTest" time="1.767"/>
+</testsuite>

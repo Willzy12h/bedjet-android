@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.P8SettingsNavigationTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:31:43.546Z" hostname="f7415c079ba4" time="9.32">
+  <properties/>
+  <testcase name="backupsRequestOpensBackupControls" classname="io.github.willzy12h.nocturne.ui.P8SettingsNavigationTest" time="6.329"/>
+  <testcase name="alarmsRequestOpensAlarmControls" classname="io.github.willzy12h.nocturne.ui.P8SettingsNavigationTest" time="0.399"/>
+  <testcase name="rootShowsEightNamedChoicesAndEachOpensARealPage" classname="io.github.willzy12h.nocturne.ui.P8SettingsNavigationTest" time="1.339"/>
+  <testcase name="selectedPageSurvivesActivityRecreationAndBackReturnsToRoot" classname="io.github.willzy12h.nocturne.ui.P8SettingsNavigationTest" time="0.493"/>
+  <testcase name="scheduledThemeExplainsChosenPalettesWithoutOldFixedNames" classname="io.github.willzy12h.nocturne.ui.P8SettingsNavigationTest" time="0.362"/>
+  <testcase name="aboutLicencesOpensAndClosesItsDialog" classname="io.github.willzy12h.nocturne.ui.P8SettingsNavigationTest" time="0.398"/>
+</testsuite>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.widget.WidgetRuntimeStartupTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:41:33.650Z" hostname="f7415c079ba4" time="2.83">
+  <properties/>
+  <testcase name="startingRuntimeStartsTheActualUpdaterWithoutCallingItsObserverDirectly" classname="io.github.willzy12h.nocturne.widget.WidgetRuntimeStartupTest" time="2.742"/>
+  <testcase name="applicationStartupStartsTheWidgetUpdater" classname="io.github.willzy12h.nocturne.widget.WidgetRuntimeStartupTest" time="0.088"/>
+</testsuite>

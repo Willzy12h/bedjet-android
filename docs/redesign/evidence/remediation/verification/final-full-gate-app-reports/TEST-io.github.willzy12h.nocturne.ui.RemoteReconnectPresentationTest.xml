@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.RemoteReconnectPresentationTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:45.749Z" hostname="f7415c079ba4" time="9.046">
+  <properties/>
+  <testcase name="appSwitchKeepsRemoteReadingsAndControlsVisibleWithTheConnectionIndicator" classname="io.github.willzy12h.nocturne.ui.RemoteReconnectPresentationTest" time="7.741"/>
+  <testcase name="readyWithoutANewSessionReportCannotEnableCachedControls" classname="io.github.willzy12h.nocturne.ui.RemoteReconnectPresentationTest" time="0.809"/>
+  <testcase name="aCachedMatchingAccessoryDoesNotConfirmAnOwnerCommand" classname="io.github.willzy12h.nocturne.ui.RemoteReconnectPresentationTest" time="0.496"/>
+</testsuite>

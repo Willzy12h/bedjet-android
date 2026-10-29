@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.PhoneControlCopyTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:32:10.809Z" hostname="f7415c079ba4" time="5.424">
+  <properties/>
+  <testcase name="endingAndItsConfirmationSayStopNight" classname="io.github.willzy12h.nocturne.ui.PhoneControlCopyTest" time="3.032"/>
+  <testcase name="recoveryAndNotificationLabelsSayResumeNight" classname="io.github.willzy12h.nocturne.ui.PhoneControlCopyTest" time="0.076"/>
+  <testcase name="nonDurationBoostEntriesUseATruthfulGenericName" classname="io.github.willzy12h.nocturne.ui.PhoneControlCopyTest" time="0.076"/>
+  <testcase name="actualShortcutConfirmationPreviewsEveryConfiguredSequenceBeforeSending" classname="io.github.willzy12h.nocturne.ui.PhoneControlCopyTest" time="2.155"/>
+  <testcase name="everyConfiguredBoostDescriptionNamesItsActualTurboAndHeatSegments" classname="io.github.willzy12h.nocturne.ui.PhoneControlCopyTest" time="0.084"/>
+</testsuite>

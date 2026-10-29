@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:07.580Z" hostname="f7415c079ba4" time="0.171">
+  <properties/>
+  <testcase name="resume delayed in backup fails at wake and after wake without any write()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.054"/>
+  <testcase name="forward clock correction near new clock time step end never starts retime()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.009"/>
+  <testcase name="readback crossing confirmed wake boundary at equality or later never starts the slot()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.01"/>
+  <testcase name="clock sync crossing deadline refuses final start and cancels confirmation waiter()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.01"/>
+  <testcase name="resume delayed before apply is refused at wake and after wake without any write()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.009"/>
+  <testcase name="resume readback reaching original wake never starts the slot()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.023"/>
+  <testcase name="upload crossing request deadline at equality or later never starts the slot()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.016"/>
+  <testcase name="a late retime is not started once the new wake-up has begun()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.008"/>
+  <testcase name="a start that fails before writing leaves an unknown night as it was()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.006"/>
+  <testcase name="an expired request is a plain refusal, not a retryable one()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.003"/>
+  <testcase name="a clock offset that changes before writing is a retryable refusal and writes nothing()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.004"/>
+  <testcase name="offset change during upload never starts a clock time programme()" classname="io.github.willzy12h.nocturne.core.night.NightTemporalEligibilityTest" time="0.011"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

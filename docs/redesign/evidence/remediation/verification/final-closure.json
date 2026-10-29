@@ -1,0 +1,70 @@
+{
+  "application_test_sha": "c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd",
+  "source_tree_sha256": "dbe37daa47686e6ff20c17d58191d5e7aca3738eb52cbd9e4457ed2834a8c4e8",
+  "gate": {
+    "command": [
+      "./gradlew",
+      "--offline",
+      "--no-daemon",
+      "--max-workers=3",
+      "-I",
+      "docs/redesign/verification.init.gradle",
+      "clean",
+      ":core:test",
+      ":app:testDebugUnitTest",
+      ":app:assembleDebug",
+      ":app:lintDebug"
+    ],
+    "started": "2026-10-29T04:19:21.268497+00:00",
+    "finished": "2026-10-29T04:41:38.050395+00:00",
+    "exit_code": 0,
+    "source": "c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd",
+    "source_after": "c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd",
+    "source_tree_sha256": "dbe37daa47686e6ff20c17d58191d5e7aca3738eb52cbd9e4457ed2834a8c4e8",
+    "source_tree_sha256_after": "dbe37daa47686e6ff20c17d58191d5e7aca3738eb52cbd9e4457ed2834a8c4e8"
+  },
+  "counts": {
+    "core": {
+      "tests": 313,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "app": {
+      "tests": 1805,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 41
+    }
+  },
+  "ordinary_skip_classes": {
+    "ScreenshotCapture": 14,
+    "P8CaptureTest": 3,
+    "U06LargeTextCaptureTest": 12,
+    "U06NormalCaptureTest": 12
+  },
+  "all_207_baseline_cases_green": true,
+  "critical_suite_counts": {
+    "DemoImportPreviewInvalidationTest": 4,
+    "HealthLegacyContainmentSecurityTest": 6,
+    "UatAlarmIdentityTest": 24,
+    "PlatformManifestTest": 8,
+    "NavigationRestoreTest": 36,
+    "RedesignTextContrastTest": 22
+  },
+  "lint": {
+    "errors": 0,
+    "warnings": 0,
+    "hints": 0
+  },
+  "project_compiler_build_warnings": 0,
+  "external_diagnostics": [],
+  "capture_counts": {
+    "tests": 41,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "capture_exit_code": 0,
+  "physical_validation": "Not performed; see handover for exact scenarios"
+}

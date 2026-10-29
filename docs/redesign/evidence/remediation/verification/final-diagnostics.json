@@ -1,0 +1,12 @@
+{
+  "final_gate_log_sha256": "3f5aed87285fcf6a54dc6d65cccf5707b13bf8613bab4332c6ddd69ec96dccb1",
+  "final_gate_warning_diagnostics": [],
+  "project_compiler_build_warnings": 0,
+  "external_diagnostics_in_final_gate": 0,
+  "older_gradle_problem_report": {
+    "path": "build/reports/problems/problems-report.html",
+    "modified_utc": "2026-10-29T01:48:16.999938+00:00",
+    "classification": "Predates final gate; historical result, not deleted or counted as a current report"
+  },
+  "retained_narrow_annotations": 38
+}

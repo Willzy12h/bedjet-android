@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.262Z" hostname="f7415c079ba4" time="0.219">
+  <properties/>
+  <testcase name="rejectsBlankOrOversizedIdentityAndDisplayFields()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.001"/>
+  <testcase name="knownRetiredSettingsStillImportFromOlderBackups()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.01"/>
+  <testcase name="shortenedBluetoothAddressesAreMalformedRatherThanAnUndocumentedLegacyFormat()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.004"/>
+  <testcase name="rejectsZeroAndNegativeSchemasAsBackupErrors()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.001"/>
+  <testcase name="rejectsDuplicateKeysIncludingEscapedEquivalentKeys()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.001"/>
+  <testcase name="rejectsDuplicateHistoryAndCaseEquivalentOriginalIdentities()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.001"/>
+  <testcase name="rejectsQuotedNumbersAndBooleansInOrdinaryFieldsToo()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.002"/>
+  <testcase name="rejectsMalformedRecordedValuesAndRevisionTimes()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.002"/>
+  <testcase name="rejectsQuotedAndFractionalSchemaNumbers()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.002"/>
+  <testcase name="rejectsOversizedCollectionsEvenWithinTheFileByteLimit()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.043"/>
+  <testcase name="rejectsInvalidUtf8RatherThanReplacingBytesWithACharacter()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.002"/>
+  <testcase name="snapshotsRefusePathTraversalAndCannotDeleteOutsideTheirDirectory(Path)" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.022"/>
+  <testcase name="rejectsMalformedBedJetAssociationsInsteadOfAcceptingAnyBlePrefix()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.002"/>
+  <testcase name="exportedHealthVersionCannotExceedTheLocallyJournalledRecordVersion()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.002"/>
+  <testcase name="rejectsExcessiveNestingBeforeRecursiveDecoding()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.001"/>
+  <testcase name="duplicateSetEntriesAreRejectedBeforeDecodingCanEraseThem()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.001"/>
+  <testcase name="rejectsUnknownFieldsAtEveryDepthInsteadOfSilentlyIgnoringThem()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.001"/>
+  <testcase name="directDecodeEnforcesTheFileSizeLimitToo()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.027"/>
+  <testcase name="rejectsOversizedSettingsFieldsAndCollections()" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.002"/>
+  <testcase name="snapshotsRejectOversizedOrDuplicateKeyPayloads(Path)" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.066"/>
+  <testcase name="snapshotsIgnoreOversizedHeadersDuringListing(Path)" classname="io.github.willzy12h.nocturne.core.store.BackupStrictValidationTest" time="0.008"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.plan.FanShapeTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.068Z" hostname="f7415c079ba4" time="0.01">
+  <properties/>
+  <testcase name="shortMiddleKeepsTheRiseFirst()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.001"/>
+  <testcase name="replanAfterTheSettleDoesNotSettleAgain()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.0"/>
+  <testcase name="quietMiddleSettlesSleepsAndRises()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.0"/>
+  <testcase name="legacyEaseIsUnchanged()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.0"/>
+  <testcase name="olderBackupsWithoutQuietFanStillLoad()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.001"/>
+  <testcase name="quietMiddleCutsAtTemperatureAndFanBoundaries()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.001"/>
+  <testcase name="shiftFanMovesEverySpeed()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.0"/>
+  <testcase name="quietFanRoundTrips()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.005"/>
+  <testcase name="shapeIsDerived()" classname="io.github.willzy12h.nocturne.core.plan.FanShapeTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

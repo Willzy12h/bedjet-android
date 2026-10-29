@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.AutoStartCancellationTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:27:25.034Z" hostname="f7415c079ba4" time="4.628">
+  <properties/>
+  <testcase name="ordinaryCancellationAfterAcceptedStartRetainsOneUnknownOutcomeAndCannotReplay" classname="io.github.willzy12h.nocturne.platform.AutoStartCancellationTest" time="2.786"/>
+  <testcase name="timeoutAfterExactConfirmedPublicationReportsConfirmedWithLocalBookkeepingCaveat" classname="io.github.willzy12h.nocturne.platform.AutoStartCancellationTest" time="1.634"/>
+  <testcase name="aDifferentConfirmedRecordCannotBeAttributedToAnInterruptedAutomaticAttempt" classname="io.github.willzy12h.nocturne.platform.AutoStartCancellationTest" time="0.081"/>
+  <testcase name="aSystemReplayCannotReplaceAnUnknownTerminalResultWithASkippedNotice" classname="io.github.willzy12h.nocturne.platform.AutoStartCancellationTest" time="0.066"/>
+  <testcase name="cancellationDuringChargingGraceDoesNotInventAHardwareAttempt" classname="io.github.willzy12h.nocturne.platform.AutoStartCancellationTest" time="0.059"/>
+</testsuite>

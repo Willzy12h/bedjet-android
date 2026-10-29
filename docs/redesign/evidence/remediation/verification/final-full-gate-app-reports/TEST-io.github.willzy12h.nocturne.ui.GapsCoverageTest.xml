@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.GapsCoverageTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:29:46.959Z" hostname="f7415c079ba4" time="10.117">
+  <properties/>
+  <testcase name="selectingATargetWithoutOptingIntoRealModePreservesDemoMode" classname="io.github.willzy12h.nocturne.ui.GapsCoverageTest" time="6.829"/>
+  <testcase name="followScheduleClearsTheTonightOnlyChoiceAndHidesTheButton" classname="io.github.willzy12h.nocturne.ui.GapsCoverageTest" time="0.881"/>
+  <testcase name="grantingNearbyPermissionWhilePausedRemovesItsMissingSetupCheckOnResume" classname="io.github.willzy12h.nocturne.ui.GapsCoverageTest" time="0.648"/>
+  <testcase name="refusedPreviewExplainsWhyAndDisablesStart" classname="io.github.willzy12h.nocturne.ui.GapsCoverageTest" time="0.242"/>
+  <testcase name="heldOpenTonightReturnsItsChipToTheScheduleAfterNoonAndARefreshTick" classname="io.github.willzy12h.nocturne.ui.GapsCoverageTest" time="0.437"/>
+  <testcase name="invalidRealTargetIsRefusedWithoutChangingAnySettings" classname="io.github.willzy12h.nocturne.ui.GapsCoverageTest" time="0.313"/>
+  <testcase name="ir17SixOClockTonightWakeWinsOverSevenOClockAlarmInHeadlineAndStart" classname="io.github.willzy12h.nocturne.ui.GapsCoverageTest" time="0.766"/>
+</testsuite>

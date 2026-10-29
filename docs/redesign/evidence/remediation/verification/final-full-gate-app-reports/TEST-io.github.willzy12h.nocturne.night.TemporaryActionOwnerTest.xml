@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:01.931Z" hostname="f7415c079ba4" time="20.5">
+  <properties/>
+  <testcase name="aTemporaryRequestCannotOptOutOfItsCapturedIdentity" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="4.508"/>
+  <testcase name="aReturnPreviewRefusesAnActionWhichCannotFitBeforeWake" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="1.611"/>
+  <testcase name="aQueuedTemporaryActionCannotReplaceANewerNightRevision" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="1.629"/>
+  <testcase name="aTemporaryRequestWithNoPresetWritesNothing" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="1.602"/>
+  <testcase name="aTemporaryTurboKeepsTheNightAndItsWakeWithOneCompositeStart" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="3.116"/>
+  <testcase name="pendingOrUnknownTrackingCannotPromiseAReturn" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="1.599"/>
+  <testcase name="previewUsesTheCapturedActionAndDoesNotConnectOrWrite" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="1.572"/>
+  <testcase name="aTemporaryWarmActionDoesNotRebindToEditedSavedSettings" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="3.082"/>
+  <testcase name="theEndNightChoiceUsesThePresetThatWasReviewed" classname="io.github.willzy12h.nocturne.night.TemporaryActionOwnerTest" time="1.779"/>
+</testsuite>

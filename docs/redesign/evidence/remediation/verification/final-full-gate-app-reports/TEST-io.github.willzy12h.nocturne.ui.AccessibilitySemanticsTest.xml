@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.AccessibilitySemanticsTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:29:27.048Z" hostname="f7415c079ba4" time="7.935">
+  <properties/>
+  <testcase name="editorSlidersSayWhatTheySetInWhichUnitAndTheirValue" classname="io.github.willzy12h.nocturne.ui.AccessibilitySemanticsTest" time="7.235"/>
+  <testcase name="theBoostSliderSaysItsMinutes" classname="io.github.willzy12h.nocturne.ui.AccessibilitySemanticsTest" time="0.363"/>
+  <testcase name="featureSwitchesAreOneToggleableRowAtLeast48dpTall" classname="io.github.willzy12h.nocturne.ui.AccessibilitySemanticsTest" time="0.337"/>
+</testsuite>

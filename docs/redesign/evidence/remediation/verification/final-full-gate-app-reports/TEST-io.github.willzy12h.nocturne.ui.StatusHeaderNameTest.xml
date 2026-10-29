@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.StatusHeaderNameTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:38:52.415Z" hostname="f7415c079ba4" time="6.136">
+  <properties/>
+  <testcase name="aNameOnlyDeviceNameReplyUpdatesTheHeaderImmediately" classname="io.github.willzy12h.nocturne.ui.StatusHeaderNameTest" time="6.012"/>
+  <testcase name="aNameOnlyVerifiedReplyUpdatesTheHeaderImmediately" classname="io.github.willzy12h.nocturne.ui.StatusHeaderNameTest" time="0.124"/>
+</testsuite>

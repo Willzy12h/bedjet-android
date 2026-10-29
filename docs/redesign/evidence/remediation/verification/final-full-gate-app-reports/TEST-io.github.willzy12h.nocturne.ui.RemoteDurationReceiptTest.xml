@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.RemoteDurationReceiptTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:38.590Z" hostname="f7415c079ba4" time="5.815">
+  <properties/>
+  <testcase name="aNewCountdownReceiptAfterSixSecondsConfirmsTheCustomDuration" classname="io.github.willzy12h.nocturne.ui.RemoteDurationReceiptTest" time="3.621"/>
+  <testcase name="endingATrackedNightAcceptsTheElapsedCountdownReceipt" classname="io.github.willzy12h.nocturne.ui.RemoteDurationReceiptTest" time="2.194"/>
+</testsuite>

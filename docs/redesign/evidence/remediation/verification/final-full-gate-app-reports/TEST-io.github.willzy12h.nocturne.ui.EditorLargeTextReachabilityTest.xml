@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.EditorLargeTextReachabilityTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:57.555Z" hostname="f7415c079ba4" time="13.103">
+  <properties/>
+  <testcase name="allAddStepChoicesAndNextRemainReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.EditorLargeTextReachabilityTest" time="9.525"/>
+  <testcase name="middleTemperatureAndShapeLabelsRemainWhole[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.EditorLargeTextReachabilityTest" time="0.76"/>
+  <testcase name="everyStepControlAndItsFullLabelIsReachable[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.EditorLargeTextReachabilityTest" time="0.845"/>
+  <testcase name="allAddStepChoicesAndNextRemainReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.EditorLargeTextReachabilityTest" time="0.621"/>
+  <testcase name="middleTemperatureAndShapeLabelsRemainWhole[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.EditorLargeTextReachabilityTest" time="0.489"/>
+  <testcase name="everyStepControlAndItsFullLabelIsReachable[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.EditorLargeTextReachabilityTest" time="0.854"/>
+</testsuite>

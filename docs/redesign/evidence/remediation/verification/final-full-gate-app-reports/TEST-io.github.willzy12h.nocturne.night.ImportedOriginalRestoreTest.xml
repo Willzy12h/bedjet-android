@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:12.440Z" hostname="f7415c079ba4" time="3.325">
+  <properties/>
+  <testcase name="anImportedSnapshotRestoresStandbyAndWaitBytesAsRecorded" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="2.537"/>
+  <testcase name="anImportedCoolAboveItsRangeIsRefusedWithNothingSent" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.118"/>
+  <testcase name="anImportedExtendedHeatBelowItsRangeIsRefusedWithNothingSent" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.103"/>
+  <testcase name="anImportedBackupRestoresStandbyAndWaitBytesAsRecorded" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.1"/>
+  <testcase name="anImportedDryAboveItsRangeIsRefusedWithNothingSent" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.081"/>
+  <testcase name="anUnsafeDeviceRecordedOriginalIsKeptButCannotBypassWritePolicy" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.064"/>
+  <testcase name="anImportedOriginalOutsideItsModesRangeIsRefusedWithNothingSent" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.078"/>
+  <testcase name="anImportedTurbo255IsRefusedEvenAlongsideStandbyAndWait" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.077"/>
+  <testcase name="anImportedTurboAtItsFixedTemperatureStillRestores" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.084"/>
+  <testcase name="anImportedOriginalWithinItsModesRangeStillRestores" classname="io.github.willzy12h.nocturne.night.ImportedOriginalRestoreTest" time="0.082"/>
+</testsuite>

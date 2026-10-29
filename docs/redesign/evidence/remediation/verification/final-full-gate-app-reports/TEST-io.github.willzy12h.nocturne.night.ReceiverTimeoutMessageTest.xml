@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.ReceiverTimeoutMessageTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:41.424Z" hostname="f7415c079ba4" time="8.02">
+  <properties/>
+  <testcase name="localRetryReceiverUsesReadableTimeoutNotice" classname="io.github.willzy12h.nocturne.night.ReceiverTimeoutMessageTest" time="4.802"/>
+  <testcase name="endReceiverUsesReadableTimeoutNotice" classname="io.github.willzy12h.nocturne.night.ReceiverTimeoutMessageTest" time="1.617"/>
+  <testcase name="wakeReceiverUsesReadableTimeoutNotice" classname="io.github.willzy12h.nocturne.night.ReceiverTimeoutMessageTest" time="1.599"/>
+</testsuite>

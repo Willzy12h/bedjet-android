@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:34:51.118Z" hostname="f7415c079ba4" time="13.587">
+  <properties/>
+  <testcase name="tooLatePhoneAlarmShowsTheWindowFallback" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="8.176"/>
+  <testcase name="tooSoonPhoneAlarmShowsTheWindowFallback" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.534"/>
+  <testcase name="noAlarmShowsTheProfileFallbackWithAReason" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.435"/>
+  <testcase name="legacyWakeCollapseCannotHideTheWakePickerAfterRestart" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="1.752"/>
+  <testcase name="explicitTonightOverrideWinsOverAnAcceptedPhoneAlarm" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.305"/>
+  <testcase name="acceptedAlarmBeatsTheStoredNightEndWithoutClaimingARetime" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.304"/>
+  <testcase name="legacyConnectionCollapseCannotHideRemoteAfterRestart" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.503"/>
+  <testcase name="acceptedAlarmBeatsAProfileThatUsesAFixedWake" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.341"/>
+  <testcase name="legacyNightCollapseCannotHideTheCompactPlanAfterRestart" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.407"/>
+  <testcase name="profilesUseTheReadableSimpleTimelineEvenWhenTheCurveStyleIsSaved" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.416"/>
+  <testcase name="legacyQuickCollapseCannotHideTheApprovedPresetsAfterRestart" classname="io.github.willzy12h.nocturne.ui.TonightAcceptanceTest" time="0.412"/>
+</testsuite>

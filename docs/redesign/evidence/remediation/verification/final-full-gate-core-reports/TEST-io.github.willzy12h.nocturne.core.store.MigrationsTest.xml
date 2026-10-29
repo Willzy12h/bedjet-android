@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.store.MigrationsTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.750Z" hostname="f7415c079ba4" time="0.008">
+  <properties/>
+  <testcase name="schemaTwoBundlesLoadAsThreeWithDefaults()" classname="io.github.willzy12h.nocturne.core.store.MigrationsTest" time="0.0"/>
+  <testcase name="version1OriginalsAreMarkedUncertain()" classname="io.github.willzy12h.nocturne.core.store.MigrationsTest" time="0.003"/>
+  <testcase name="version1SlotBackupFileLoads()" classname="io.github.willzy12h.nocturne.core.store.MigrationsTest" time="0.001"/>
+  <testcase name="currentFilesLoadUnchanged()" classname="io.github.willzy12h.nocturne.core.store.MigrationsTest" time="0.0"/>
+  <testcase name="version1BundleMigratesToTheCurrentSchema()" classname="io.github.willzy12h.nocturne.core.store.MigrationsTest" time="0.001"/>
+  <testcase name="exportsCarryTheNewSchemaSoOlderVersionsAskForAnUpdate()" classname="io.github.willzy12h.nocturne.core.store.MigrationsTest" time="0.0"/>
+  <testcase name="version1HistoryFileLoads()" classname="io.github.willzy12h.nocturne.core.store.MigrationsTest" time="0.0"/>
+  <testcase name="migratedBundleRoundTrips()" classname="io.github.willzy12h.nocturne.core.store.MigrationsTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

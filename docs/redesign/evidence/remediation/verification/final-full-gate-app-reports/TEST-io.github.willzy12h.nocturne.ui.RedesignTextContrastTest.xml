@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" tests="22" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:33:04.555Z" hostname="f7415c079ba4" time="22.585">
+  <properties/>
+  <testcase name="selectedMiddleModeIsVisiblyDistinctFromItsSheetInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="10.199"/>
+  <testcase name="everySelectedAddStepChoiceHasAVisibleBoundaryInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="2.41"/>
+  <testcase name="middleBarTemperatureLabelsContrastWithTheirActualFill" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.778"/>
+  <testcase name="compactCaptionsAndLinksRemainReadableInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.206"/>
+  <testcase name="timeFieldBoundariesAndFocusRemainVisibleInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.796"/>
+  <testcase name="timelineWakeLabelIsReadableInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.274"/>
+  <testcase name="profileActionTextIsReadableOnTheActualCardInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.812"/>
+  <testcase name="invalidQuickPresetErrorIsReadableOnTheActualCardInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.327"/>
+  <testcase name="remoteSliderThumbRemainsVisibleInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.274"/>
+  <testcase name="bottomNavigationLabelsMeetSmallTextContrastInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.398"/>
+  <testcase name="curveWakeLabelIsReadableInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.169"/>
+  <testcase name="quickControlsKeepReadableTextAndActiveMarkersInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="2.581"/>
+  <testcase name="stepTemperatureValuesMeetLargeTextContrastInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.537"/>
+  <testcase name="startButtonUsesReadableRenderedTypographyInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.252"/>
+  <testcase name="pendingModeCopyRemainsReadableInOvercast" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.332"/>
+  <testcase name="liftedEditorStepKeepsItsTextReadableInOvercast" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.24"/>
+  <testcase name="reportedModeCopyUsesReadableInkInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.248"/>
+  <testcase name="selectedProfileRadioRemainsVisibleInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.328"/>
+  <testcase name="selectedMiddleShapeHasAVisibleBoundaryInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.515"/>
+  <testcase name="historyIssueCopyIsReadableAgainstItsActualPillInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.341"/>
+  <testcase name="focusedTimeFieldLabelsRemainReadableInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.337"/>
+  <testcase name="checkedCooldownChoiceRemainsVisibleInEveryPalette" classname="io.github.willzy12h.nocturne.ui.RedesignTextContrastTest" time="0.225"/>
+</testsuite>

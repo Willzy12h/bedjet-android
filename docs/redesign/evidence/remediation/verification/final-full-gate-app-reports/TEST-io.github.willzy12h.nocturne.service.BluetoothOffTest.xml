@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.service.BluetoothOffTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:28:56.435Z" hostname="f7415c079ba4" time="4.817">
+  <properties/>
+  <testcase name="anOwnerQueuedWhileBluetoothWasOnRechecksBeforeConnecting" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="3.44"/>
+  <testcase name="aServiceHandoffInvalidatedBeforeDeliveryDoesNotReplayWhenBluetoothReturns" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.226"/>
+  <testcase name="localWidgetStopTrackingStillUsesTheOwnerWithBluetoothOff" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.122"/>
+  <testcase name="aFreshRequestCanNotifyAgainOnlyAfterTheNamedWindow" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.174"/>
+  <testcase name="repeatedBackgroundRequestsPostOneNoticeAndAreNotQueued" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.098"/>
+  <testcase name="aRetimeDeliveryAfterTheNightEndedDoesNotPostABluetoothFailure" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.113"/>
+  <testcase name="aBackgroundRequestInvalidatedBeforeDeliveryDoesNotReplayWhenBluetoothReturns" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.096"/>
+  <testcase name="cancellingAQueuedOwnerRemovesItsTemporaryRadioReceiver" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.07"/>
+  <testcase name="aUiHandoffFailsBeforeStartingAServiceOrWaitingForItsTimeout" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.088"/>
+  <testcase name="cancellingAnUndeliveredHandoffRemovesItsTemporaryRadioReceiver" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.096"/>
+  <testcase name="anOffRadioFailsAtTheOwnerWithTheCorrectReason" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.07"/>
+  <testcase name="switchingBluetoothOffAndOnNeverReplaysACommandWaitingForTheOwner" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.086"/>
+  <testcase name="anIdleTonightWakeOverrideIsSavedLocallyWithBluetoothOff" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.062"/>
+  <testcase name="serviceDeliveryRechecksAnAdapterDisabledAfterTheTap" classname="io.github.willzy12h.nocturne.service.BluetoothOffTest" time="0.069"/>
+</testsuite>

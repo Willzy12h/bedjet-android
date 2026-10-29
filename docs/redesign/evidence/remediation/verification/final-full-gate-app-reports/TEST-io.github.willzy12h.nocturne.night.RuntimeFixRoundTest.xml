@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" tests="35" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:25:05.017Z" hostname="f7415c079ba4" time="89.587">
+  <properties/>
+  <testcase name="aModeChipKeepsTheOfferWhenTheManualRunIsNoLongerTracked" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="4.515"/>
+  <testcase name="startStillPropagatesCancellationWhenClearingAnOlderOffMarkerFails" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.185"/>
+  <testcase name="resumeKeepsConfirmationAfterRuntimeSaveFailure" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.155"/>
+  <testcase name="initialiseKeepsConfirmationIfTheObsoleteJournalCannotYetBeCleared" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.604"/>
+  <testcase name="boostWithNoTrackedNightKeepsTheOriginalOfferAndExpiryAfterRestart" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.219"/>
+  <testcase name="aModeAdjustmentOfAnAlreadyManualNightKeepsTheOriginalOfferAndExpiry" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.597"/>
+  <testcase name="manualSnoozeExtendKeepTrackingAndAuxiliariesDoNotRenewTheOffer" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.677"/>
+  <testcase name="theOfferRetainedByBoostWithNoTrackedNightCanResumeBeforeItsOriginalExpiry" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="4.626"/>
+  <testcase name="widgetIgnoresAnObsoleteJournalJustAsTheCoordinatorDoes" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.576"/>
+  <testcase name="startKeepsConfirmationAfterRuntimeSaveFailure" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.608"/>
+  <testcase name="takeBackMarksItsTakeoverNoticeAsHandled" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.587"/>
+  <testcase name="reapplyKeepsConfirmationAfterHistorySaveFailure" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.114"/>
+  <testcase name="resumeStillPropagatesCancellationAfterConfirmation" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.106"/>
+  <testcase name="boostOfAnAlreadyManualNightKeepsTheOriginalOfferAndExpiry" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.139"/>
+  <testcase name="aPastWakeManualOfferIsNotRevived" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.594"/>
+  <testcase name="snoozeAt2314OffersTheNewlyDisplacedProgrammeBeyondTheOld2315Expiry" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="4.657"/>
+  <testcase name="startStillPropagatesCancellationAfterConfirmation" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.594"/>
+  <testcase name="theOfferRetainedByBoostOfAManualNightCanResumeBeforeItsOriginalExpiry" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="4.65"/>
+  <testcase name="aWrongGenerationManualOfferIsNotRevived" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.646"/>
+  <testcase name="lateOriginalsBarrierReturnsThePublishedFailedStart" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="0.077"/>
+  <testcase name="reapplyStillPropagatesCancellationAfterConfirmation" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.1"/>
+  <testcase name="widgetPendingPresentationUsesTheCurrentNightAndTarget" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.611"/>
+  <testcase name="resumeKeepsConfirmationAfterHistorySaveFailure" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.144"/>
+  <testcase name="aQuickAdjustmentOfAnAlreadyManualNightKeepsTheOriginalOfferAndExpiry" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.689"/>
+  <testcase name="startKeepsConfirmationAfterHistorySaveFailure" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.622"/>
+  <testcase name="initialiseClearsTheJournalLeftBehindAConfirmedRevisionAfterRestart" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.577"/>
+  <testcase name="reapplyKeepsConfirmationAfterRuntimeSaveFailure" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.114"/>
+  <testcase name="anExpiredManualOfferIsNotRevived" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.613"/>
+  <testcase name="keepTrackingOfAProgrammeOffersThatNewlyDisplacedProgramme" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.076"/>
+  <testcase name="boostOffersTheProgrammeItActuallyDisplacesWithANewExpiry" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="6.108"/>
+  <testcase name="aWrongTargetManualOfferIsNotRevived" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.653"/>
+  <testcase name="startKeepsConfirmationWhenClearingAnOlderOffMarkerFails" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.104"/>
+  <testcase name="anotherQuickCommandKeepsTheOfferWhenTheManualRunIsNoLongerTracked" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.589"/>
+  <testcase name="confirmedCancellationDefersLocalDeliveryWhenCleanupGraceIsSpent" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="3.09"/>
+  <testcase name="initialiseRetainsARequestForTheStillCurrentConfirmedIdentity" classname="io.github.willzy12h.nocturne.night.RuntimeFixRoundTest" time="1.564"/>
+</testsuite>

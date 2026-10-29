@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:33.802Z" hostname="f7415c079ba4" time="9.774">
+  <properties/>
+  <testcase name="suggestionActionsStaySeparateAndOnlyApplyChangesTheProfile[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" time="7.497"/>
+  <testcase name="completeProfileAndTimesRemainReadableAtLargeText[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" time="0.333"/>
+  <testcase name="issueAndComfortPillsRemainWholeTogether[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" time="0.361"/>
+  <testcase name="everyMorningComfortChoiceIsReachableAtLargeText[MIDNIGHT]" classname="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" time="0.347"/>
+  <testcase name="suggestionActionsStaySeparateAndOnlyApplyChangesTheProfile[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" time="0.553"/>
+  <testcase name="completeProfileAndTimesRemainReadableAtLargeText[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" time="0.246"/>
+  <testcase name="issueAndComfortPillsRemainWholeTogether[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" time="0.198"/>
+  <testcase name="everyMorningComfortChoiceIsReachableAtLargeText[DAYLIGHT]" classname="io.github.willzy12h.nocturne.ui.HistoryLargeTextReachabilityTest" time="0.231"/>
+</testsuite>

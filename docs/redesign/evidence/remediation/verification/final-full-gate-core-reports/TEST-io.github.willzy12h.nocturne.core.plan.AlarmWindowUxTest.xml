@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.plan.AlarmWindowUxTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.057Z" hostname="f7415c079ba4" time="0.01">
+  <properties/>
+  <testcase name="normal five minute alarm uses the profile wake and never relaxes the minimum()" classname="io.github.willzy12h.nocturne.core.plan.AlarmWindowUxTest" time="0.001"/>
+  <testcase name="later than eighteen hours and explicitly denied unknown sources use fallback()" classname="io.github.willzy12h.nocturne.core.plan.AlarmWindowUxTest" time="0.001"/>
+  <testcase name="Samsung Google and unknown alarms are accepted through eighteen hours by default()" classname="io.github.willzy12h.nocturne.core.plan.AlarmWindowUxTest" time="0.0"/>
+  <testcase name="compiler supports the same eighteen hour maximum as selection()" classname="io.github.willzy12h.nocturne.core.plan.AlarmWindowUxTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.service.RuntimeServiceTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:29:14.030Z" hostname="f7415c079ba4" time="11.819">
+  <properties/>
+  <testcase name="wakeReceiverRetainsDeliveryBeyondItsBudgetWhileOwnerIsBusy" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="4.772"/>
+  <testcase name="uiOperationWaitsForForegroundOwnershipAndServiceCancellationReachesUpload" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="0.105"/>
+  <testcase name="receiverFallbackPersistsNewestSignalWhileUploadOwnsMutexAndNeverWrites" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="1.64"/>
+  <testcase name="deferredUiPinRejectsTargetChangedBeforeDeliveryInsideCoordinator" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="0.069"/>
+  <testcase name="busyTimeChangeReconciliationRetriesWithoutAFalseError" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="0.08"/>
+  <testcase name="endReceiverRetainsDeliveryBeyondItsBudgetWithoutHardware" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="1.659"/>
+  <testcase name="cancelledUiDeliveryCannotExecuteLater" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="0.102"/>
+  <testcase name="serviceOwnsUploadAndCancellationPersistsUnknown" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="0.145"/>
+  <testcase name="delayedWakeReceiverRejectsRevisionChangedByItsOwner" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="1.633"/>
+  <testcase name="jobRouteNeverStartsForegroundServiceAndChecksFreshIdleAfterConnection" classname="io.github.willzy12h.nocturne.service.RuntimeServiceTest" time="1.611"/>
+</testsuite>

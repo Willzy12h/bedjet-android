@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:49.261Z" hostname="f7415c079ba4" time="25.474">
+  <properties/>
+  <testcase name="cancellationAfterConfirmationPublishesDoesNotDowngradeTheNight" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="5.155"/>
+  <testcase name="confirmedManualControlsStillSettleNormally" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.764"/>
+  <testcase name="cancellationDoesNotReplaceAnotherPublishedRequest" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.617"/>
+  <testcase name="aCallerTimeoutDuringReportWaitPersistsAReadableReason" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="2.602"/>
+  <testcase name="cancellingAFallbackReconnectSettlesTheSentRequest" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.597"/>
+  <testcase name="cancellingSnoozeBeforeItsPlanPublishesCannotRestoreAConfirmedProgramme" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.585"/>
+  <testcase name="cancelledOffKeepsItsDurableIntentionForALaterStandby" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.585"/>
+  <testcase name="cancellationAsPendingPublishesBeforeWritingRestoresThePriorNight" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.576"/>
+  <testcase name="cancellingAsConfirmedOffEndingPublishesCompletesItBeforeReconciliation" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.608"/>
+  <testcase name="cancellingAFallbackReportWaitSettlesTheSentRequest" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.604"/>
+  <testcase name="anIntentSaveFailureRestoresThePriorTrackingWithoutSending" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.624"/>
+  <testcase name="cancellingAfterWorkReturnsDuringReportWaitSettlesTheRequest" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.578"/>
+  <testcase name="cancellingExtendBeforeItsPlanPublishesCannotRestoreAConfirmedProgramme" classname="io.github.willzy12h.nocturne.night.ManualCancellationSettlementTest" time="1.578"/>
+</testsuite>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.HealthNativeBoundarySecurityTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:27:55.035Z" hostname="f7415c079ba4" time="2.797">
+  <properties/>
+  <testcase name="nativeBuildDoesNotReintroduceTheLegacyExportedService" classname="io.github.willzy12h.nocturne.platform.HealthNativeBoundarySecurityTest" time="2.721"/>
+  <testcase name="android14SelectsThePlatformClientWithoutLegacyBinding" classname="io.github.willzy12h.nocturne.platform.HealthNativeBoundarySecurityTest" time="0.076"/>
+</testsuite>

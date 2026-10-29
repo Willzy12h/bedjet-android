@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.LinkSessionsTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:23:34.622Z" hostname="f7415c079ba4" time="1.546">
+  <properties/>
+  <testcase name="cancellingAnAcquireKeepsTheHoldersBalanced" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="0.129"/>
+  <testcase name="anotherHolderKeepsTheConnectGoing" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="0.052"/>
+  <testcase name="aBackwardClockChangeStillEndsTheReleaseWithoutAnAcquire" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="0.247"/>
+  <testcase name="suspendingAutoConnectReleasesTheBedJetUntilResumed" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="0.002"/>
+  <testcase name="aTimedReleaseThatEndsAfterATargetSwitchOnlyConnectsToTheNewBedJet" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="1.027"/>
+  <testcase name="aConnectThatFinishesAfterTheLastReleaseIsDisconnectedAtOnce" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="0.058"/>
+  <testcase name="theLastReleaseCancelsAConnectStillInProgress" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="0.012"/>
+  <testcase name="aTimedReleaseEndsByItself" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="0.002"/>
+  <testcase name="aScreenReconnectDuringATargetSwitchOnlyConnectsToTheNewBedJet" classname="io.github.willzy12h.nocturne.night.LinkSessionsTest" time="0.014"/>
+</testsuite>

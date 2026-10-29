@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.HealthRunProvenanceTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:27:58.906Z" hostname="f7415c079ba4" time="10.375">
+  <properties/>
+  <testcase name="naturalCompletionPersistsProofOnlyForTheConfirmedProgramme" classname="io.github.willzy12h.nocturne.platform.HealthRunProvenanceTest" time="5.287"/>
+  <testcase name="aReceiptConfirmedRealProgrammePersistsItsExportProvenance" classname="io.github.willzy12h.nocturne.platform.HealthRunProvenanceTest" time="1.644"/>
+  <testcase name="healthWritePermissionIsDeclaredForTheExplicitPermissionRequest" classname="io.github.willzy12h.nocturne.platform.HealthRunProvenanceTest" time="0.098"/>
+  <testcase name="localStopTrackingDoesNotClaimACompletedProgramme" classname="io.github.willzy12h.nocturne.platform.HealthRunProvenanceTest" time="1.715"/>
+  <testcase name="anUnknownProgrammeNeverAcquiresCompletionProofFromAClockOrEndedLabel" classname="io.github.willzy12h.nocturne.platform.HealthRunProvenanceTest" time="1.629"/>
+</testsuite>

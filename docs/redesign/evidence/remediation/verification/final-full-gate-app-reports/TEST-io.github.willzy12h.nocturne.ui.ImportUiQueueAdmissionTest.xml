@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.ImportUiQueueAdmissionTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:53.939Z" hostname="f7415c079ba4" time="2.681">
+  <properties/>
+  <testcase name="aTapWaitingForASaveBlocksImportBeforeServiceOrOwnerAdmission" classname="io.github.willzy12h.nocturne.ui.ImportUiQueueAdmissionTest" time="2.681"/>
+</testsuite>

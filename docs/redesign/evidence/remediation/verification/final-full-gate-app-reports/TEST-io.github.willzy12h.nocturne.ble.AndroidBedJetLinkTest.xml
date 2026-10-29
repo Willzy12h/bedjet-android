@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ble.AndroidBedJetLinkTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:00.717Z" hostname="f7415c079ba4" time="3.46">
+  <properties/>
+  <testcase name="outerAdapterForwardsTheStartBoundaryCallsToItsGattEngine" classname="io.github.willzy12h.nocturne.ble.AndroidBedJetLinkTest" time="3.24"/>
+  <testcase name="withoutBluetoothPermissionConnectAndDiscoverReportUnauthorized" classname="io.github.willzy12h.nocturne.ble.AndroidBedJetLinkTest" time="0.069"/>
+  <testcase name="exposesTheAddressRememberedBeforeTargetsExisted" classname="io.github.willzy12h.nocturne.ble.AndroidBedJetLinkTest" time="0.083"/>
+  <testcase name="outerAdapterForwardsFreshStatusPreparationThroughItsGattEngine" classname="io.github.willzy12h.nocturne.ble.AndroidBedJetLinkTest" time="0.068"/>
+</testsuite>

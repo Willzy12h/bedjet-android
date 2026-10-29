@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:40:39.519Z" hostname="f7415c079ba4" time="43.07">
+  <properties/>
+  <testcase name="confirmedStopTrackingIsLocalAndDoesNotSendOff" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="6.672"/>
+  <testcase name="trackedOffUsesAnExcludedTranslucentActivityWithoutTheAppTask" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="1.903"/>
+  <testcase name="aChangedTargetWhileOffConfirmationIsOpenIsRefused" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="2.005"/>
+  <testcase name="confirmingOffEndsTheCapturedNightAndClosesTheOverlay" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="1.96"/>
+  <testcase name="aChangedTargetBeforeTheWidgetChoiceOpensCannotReceiveItsEndAction" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="2.354"/>
+  <testcase name="cancellingTheOffDialogSendsNothing" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="1.923"/>
+  <testcase name="renderedTurboAndBoostKeepTheirTenAndThirtyMinuteCaps" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="2.481"/>
+  <testcase name="replacementStartAndManualControlsKeepTheirConfirmationGuard" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="2.885"/>
+  <testcase name="aChangedPresetGetsADistinctRenderedConfirmationIntent" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="2.101"/>
+  <testcase name="quickWidgetTemporaryRetainsItsRenderedPresetAndOriginalWake" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="3.519"/>
+  <testcase name="widgetEndUsesTheRenderedPresetAfterSettingsChange" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="1.988"/>
+  <testcase name="temporaryApprovalCannotReplaceANewerNightWhileWaitingForItsOwner" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="1.958"/>
+  <testcase name="trackedStopUsesTheSameSmallConfirmationOnly" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="1.818"/>
+  <testcase name="singleWidgetTemporaryRetainsItsRenderedPresetAndOriginalWake" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="3.471"/>
+  <testcase name="aNightChangedAfterApprovalButBeforeOwnerAdmissionIsAlsoRefused" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="1.88"/>
+  <testcase name="bothRenderedWidgetsOfferTemporaryAndEndWithoutOpeningTheMainApp" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="2.248"/>
+  <testcase name="aChangedNightWhileOffConfirmationIsOpenIsRefused" classname="io.github.willzy12h.nocturne.widget.WidgetConfirmationTest" time="1.89"/>
+</testsuite>

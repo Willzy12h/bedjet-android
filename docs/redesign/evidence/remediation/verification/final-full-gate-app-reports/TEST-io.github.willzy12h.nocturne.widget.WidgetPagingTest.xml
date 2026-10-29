@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.widget.WidgetPagingTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:36:17.799Z" hostname="f7415c079ba4" time="11.794">
+  <properties/>
+  <testcase name="everySizeKeepsEveryCommandReachableAndPersistsPageChangesWithoutAnActivityOrConnection" classname="io.github.willzy12h.nocturne.widget.WidgetPagingTest" time="11.736"/>
+  <testcase name="resizingPreservesTheCurrentGroupAndTheNearestAction" classname="io.github.willzy12h.nocturne.widget.WidgetPagingTest" time="0.058"/>
+</testsuite>

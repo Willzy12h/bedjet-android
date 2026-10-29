@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:26:06.695Z" hostname="f7415c079ba4" time="3.127">
+  <properties/>
+  <testcase name="permissionIsCheckedAndRevocationDuringWriteRemainsRetryable" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="2.468"/>
+  <testcase name="automaticObservationMakesOnlyOneFailedAttemptUntilManualRetry" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.099"/>
+  <testcase name="activeTrackingCannotBeExportedEvenWithAnInventedCompletionField" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.088"/>
+  <testcase name="stableClientIdSuppressesDuplicatesAndUpdatesTheSameSessionAtANewerVersion" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.079"/>
+  <testcase name="cancellationNeverMarksAnUnacknowledgedWriteSuccessful" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.062"/>
+  <testcase name="disabledByDefaultAndDemoNeverConstructAHealthClient" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.059"/>
+  <testcase name="enteringDemoDuringPermissionReadPreventsTheWrite" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.064"/>
+  <testcase name="aProviderSuccessCannotMarkAChangedLocalVersionAsExported" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.062"/>
+  <testcase name="failedWriteKeepsNoSuccessMarkerAndManualRetryReusesItsClientIdentity" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.073"/>
+  <testcase name="onlyCompletedConfirmedNormalRealNightsReachTheProvider" classname="io.github.willzy12h.nocturne.platform.HealthSleepExportTest" time="0.07"/>
+</testsuite>

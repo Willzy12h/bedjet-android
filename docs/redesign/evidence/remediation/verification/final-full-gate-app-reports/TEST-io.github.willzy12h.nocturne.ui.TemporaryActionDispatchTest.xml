@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:38:59.517Z" hostname="f7415c079ba4" time="28.17">
+  <properties/>
+  <testcase name="confirmedManualRunDoesNotPromiseThePreviousTemporaryReturn" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="7.994"/>
+  <testcase name="anUnknownNightExplainsWhyTemporaryIsUnavailableAndRetainsEndingAndCancellation" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="2.244"/>
+  <testcase name="unknownProgrammeDoesNotPromiseThePreviousTemporaryReturn" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="1.713"/>
+  <testcase name="aChangedRevisionCannotBeConfirmedFromTheOpenDialogue" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="1.94"/>
+  <testcase name="remoteEndingStillSendsOnlyTheChosenModeAndEndsTheNight" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="2.012"/>
+  <testcase name="turboPreviewIsBoundedWhileLegacyBoostSplittingAndOffGuardRemainIntact" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="1.823"/>
+  <testcase name="remoteHeatCapturesReportedControlsAndDefaultsToTenMinutes" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="3.43"/>
+  <testcase name="remoteHeatOutsideTheSavedLimitsOpensARefusalInsteadOfThrowing" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="1.814"/>
+  <testcase name="endingUsesTheOriginalPresetAfterSettingsChangeWhileTheChoiceIsOpen" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="1.77"/>
+  <testcase name="temporaryUsesTheReviewedPresetAndOneActionDurationAndShowsOnlyAPlannedReturn" classname="io.github.willzy12h.nocturne.ui.TemporaryActionDispatchTest" time="3.426"/>
+</testsuite>

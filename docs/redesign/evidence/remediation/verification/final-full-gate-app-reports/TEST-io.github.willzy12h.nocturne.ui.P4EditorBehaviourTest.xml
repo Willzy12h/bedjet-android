@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:31:15.269Z" hostname="f7415c079ba4" time="11.313">
+  <properties/>
+  <testcase name="invalidStoredPhaseDurationsCannotBeSaved" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="7.258"/>
+  <testcase name="phaseLengthAdjustmentAcceptsEndpointsAndClampsOutsideRange" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="0.904"/>
+  <testcase name="quietControlsRespectFanLimitsAndMinuteBounds" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="0.693"/>
+  <testcase name="selectingTurboFixesLengthAndTemperatureAndHidesTheirSliders" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="0.513"/>
+  <testcase name="limitsWithoutAnyFivePercentSpeedCannotBeSaved" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="0.445"/>
+  <testcase name="nonMultipleLimitsKeepQuietSpeedsOnTheFivePercentLattice" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="0.475"/>
+  <testcase name="changingLimitsReconcilesQuietFanAndCompatibilitySpeeds" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="0.417"/>
+  <testcase name="validAfterWakeDurationEndpointsCanBeSaved" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="0.185"/>
+  <testcase name="fanShapeChoicesUpdateDraftWithoutChangingTemperatureShape" classname="io.github.willzy12h.nocturne.ui.P4EditorBehaviourTest" time="0.421"/>
+</testsuite>

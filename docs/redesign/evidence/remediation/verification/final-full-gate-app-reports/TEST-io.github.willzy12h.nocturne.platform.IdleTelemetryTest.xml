@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.IdleTelemetryTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:28:10.474Z" hostname="f7415c079ba4" time="3.365">
+  <properties/>
+  <testcase name="aBackgroundOwnerStillRecordsTheStatusItNeeds" classname="io.github.willzy12h.nocturne.platform.IdleTelemetryTest" time="3.29"/>
+  <testcase name="idleReportsLeaveTheLastDemandedObservationIntactUntilForegroundReturns" classname="io.github.willzy12h.nocturne.platform.IdleTelemetryTest" time="0.075"/>
+</testsuite>

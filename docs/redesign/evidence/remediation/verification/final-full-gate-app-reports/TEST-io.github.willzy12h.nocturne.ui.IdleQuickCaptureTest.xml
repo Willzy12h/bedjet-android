@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.IdleQuickCaptureTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:44.406Z" hostname="f7415c079ba4" time="8.436">
+  <properties/>
+  <testcase name="anIdleBoostQueuedAfterItsTapKeepsTheDisplayedFifteenMinuteProgramme" classname="io.github.willzy12h.nocturne.ui.IdleQuickCaptureTest" time="8.166"/>
+  <testcase name="anUnsupportedImportedIdleWarmPresetIsRefusedBeforeAnyBedJetWrite" classname="io.github.willzy12h.nocturne.ui.IdleQuickCaptureTest" time="0.27"/>
+</testsuite>

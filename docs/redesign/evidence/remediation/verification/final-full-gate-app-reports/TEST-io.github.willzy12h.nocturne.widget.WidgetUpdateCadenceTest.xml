@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.widget.WidgetUpdateCadenceTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:37:01.875Z" hostname="f7415c079ba4" time="3.141">
+  <properties/>
+  <testcase name="aTrackedPlanRefreshesAtItsPhaseBoundaryWithoutAnIdleMinuteLoop" classname="io.github.willzy12h.nocturne.widget.WidgetUpdateCadenceTest" time="3.061"/>
+  <testcase name="anIdleWidgetDoesNotRedrawOnARepeatingMinuteTimer" classname="io.github.willzy12h.nocturne.widget.WidgetUpdateCadenceTest" time="0.08"/>
+</testsuite>

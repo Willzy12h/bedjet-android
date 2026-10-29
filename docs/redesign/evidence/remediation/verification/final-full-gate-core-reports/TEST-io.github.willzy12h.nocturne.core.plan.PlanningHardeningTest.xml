@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.core.plan.PlanningHardeningTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:20:08.098Z" hostname="f7415c079ba4" time="0.003">
+  <properties/>
+  <testcase name="repeat turbo cannot silently exceed the cap()" classname="io.github.willzy12h.nocturne.core.plan.PlanningHardeningTest" time="0.0"/>
+  <testcase name="turbo then heat cannot silently exceed the cap()" classname="io.github.willzy12h.nocturne.core.plan.PlanningHardeningTest" time="0.001"/>
+  <testcase name="mode minimum cannot silently exceed maximum()" classname="io.github.willzy12h.nocturne.core.plan.PlanningHardeningTest" time="0.001"/>
+  <testcase name="fan quantisation honours both profile bounds()" classname="io.github.willzy12h.nocturne.core.plan.PlanningHardeningTest" time="0.0"/>
+  <testcase name="over eighteen hours is refused before producing a programme()" classname="io.github.willzy12h.nocturne.core.plan.PlanningHardeningTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

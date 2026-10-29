@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" tests="24" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:28:07.195Z" hostname="f7415c079ba4" time="11.174">
+  <properties/>
+  <testcase name="packageManagerLookupRejectsSharedOrMismatchedUidEvidenceOnEverySupportedApi[31]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="3.163"/>
+  <testcase name="nullAndAndroidRemainNeutralWithoutLegitimateUidEvidence[31]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.115"/>
+  <testcase name="identificationDoesNotWidenSourceAcceptance[31]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.097"/>
+  <testcase name="rawSystemOrDifferentCreatorsAreNeverRewrittenFromInstalledClockPackages[31]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.094"/>
+  <testcase name="onlyOneNonSharedApplicationUidCanSupplyAMissingDisplayCreator[31]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.053"/>
+  <testcase name="everyExplicitSamsungAliasHasTheSamsungClockLabel[31]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.061"/>
+  <testcase name="packageManagerLookupRejectsSharedOrMismatchedUidEvidenceOnEverySupportedApi[33]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="1.828"/>
+  <testcase name="nullAndAndroidRemainNeutralWithoutLegitimateUidEvidence[33]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.047"/>
+  <testcase name="identificationDoesNotWidenSourceAcceptance[33]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.038"/>
+  <testcase name="rawSystemOrDifferentCreatorsAreNeverRewrittenFromInstalledClockPackages[33]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.041"/>
+  <testcase name="onlyOneNonSharedApplicationUidCanSupplyAMissingDisplayCreator[33]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.041"/>
+  <testcase name="everyExplicitSamsungAliasHasTheSamsungClockLabel[33]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.052"/>
+  <testcase name="packageManagerLookupRejectsSharedOrMismatchedUidEvidenceOnEverySupportedApi[34]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="1.657"/>
+  <testcase name="nullAndAndroidRemainNeutralWithoutLegitimateUidEvidence[34]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.052"/>
+  <testcase name="identificationDoesNotWidenSourceAcceptance[34]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.039"/>
+  <testcase name="rawSystemOrDifferentCreatorsAreNeverRewrittenFromInstalledClockPackages[34]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.038"/>
+  <testcase name="onlyOneNonSharedApplicationUidCanSupplyAMissingDisplayCreator[34]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.059"/>
+  <testcase name="everyExplicitSamsungAliasHasTheSamsungClockLabel[34]" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.043"/>
+  <testcase name="packageManagerLookupRejectsSharedOrMismatchedUidEvidenceOnEverySupportedApi" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="3.353"/>
+  <testcase name="nullAndAndroidRemainNeutralWithoutLegitimateUidEvidence" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.055"/>
+  <testcase name="identificationDoesNotWidenSourceAcceptance" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.044"/>
+  <testcase name="rawSystemOrDifferentCreatorsAreNeverRewrittenFromInstalledClockPackages" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.037"/>
+  <testcase name="onlyOneNonSharedApplicationUidCanSupplyAMissingDisplayCreator" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.059"/>
+  <testcase name="everyExplicitSamsungAliasHasTheSamsungClockLabel" classname="io.github.willzy12h.nocturne.night.UatAlarmIdentityTest" time="0.071"/>
+</testsuite>

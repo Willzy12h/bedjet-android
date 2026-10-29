@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.platform.AutoStartPreviewTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:28:48.108Z" hostname="f7415c079ba4" time="5.306">
+  <properties/>
+  <testcase name="claimingTonightUpdatesTheVisibleNextAttemptToTheActualFollowingNightAlarm" classname="io.github.willzy12h.nocturne.platform.AutoStartPreviewTest" time="5.306"/>
+</testsuite>

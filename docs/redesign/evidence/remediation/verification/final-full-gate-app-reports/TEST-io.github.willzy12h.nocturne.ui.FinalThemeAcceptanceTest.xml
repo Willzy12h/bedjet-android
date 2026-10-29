@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:34:24.715Z" hostname="f7415c079ba4" time="13.624">
+  <properties/>
+  <testcase name="automaticScheduledLightWhileHiddenPromptsOnNextOpen" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="7.245"/>
+  <testcase name="scheduledDayBackLeavesSettingUnchanged" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.615"/>
+  <testcase name="scheduledDayCancelLeavesSettingUnchanged" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.396"/>
+  <testcase name="automaticSystemLightAlsoWaitsForConsent" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.442"/>
+  <testcase name="automaticScheduledLightPromptsBeforeChangingTheVisiblePalette" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.486"/>
+  <testcase name="scheduledTimeBackKeepsBothOriginalTimes" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="1.543"/>
+  <testcase name="scheduledTimeLightBoundaryEditAlsoWaitsForConfirmation" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.502"/>
+  <testcase name="automaticScheduledNativeConfirmationKeepsDarkUntilScreenConsent" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.218"/>
+  <testcase name="automaticScheduledStayDarkSurvivesRecreationAndExpiresTonight" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.387"/>
+  <testcase name="scheduledDayChoiceWaitsForExplicitConfirmation" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.41"/>
+  <testcase name="scheduledDayOutsideDismissalLeavesSettingUnchanged" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.279"/>
+  <testcase name="scheduledTimeOutsideDismissalKeepsBothOriginalTimes" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.378"/>
+  <testcase name="scheduledTimeCancelKeepsBothOriginalTimes" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.375"/>
+  <testcase name="scheduledTimeEditWaitsForExplicitConfirmation" classname="io.github.willzy12h.nocturne.ui.FinalThemeAcceptanceTest" time="0.345"/>
+</testsuite>

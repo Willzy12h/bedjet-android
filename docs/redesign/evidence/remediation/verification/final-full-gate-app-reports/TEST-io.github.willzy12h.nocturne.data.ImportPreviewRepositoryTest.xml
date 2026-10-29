@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:22:10.289Z" hostname="f7415c079ba4" time="3.201">
+  <properties/>
+  <testcase name="incomingHealthProofIsClearedWhileAnUnchangedLocalRecordRetainsItsOwnProof" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="2.461"/>
+  <testcase name="importedCaseVariantIsStoredUnderTheCanonicalDeviceIdentity" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.12"/>
+  <testcase name="anIncompatibleReviewCannotApplyOrCreateARecoverySnapshot" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.046"/>
+  <testcase name="reviewedBytesStayImmutableWhenTheCallerChangesItsLists" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.076"/>
+  <testcase name="importedAutomaticStartIsDisabledAndItsForeignDeviceAppearsInTheReview" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.124"/>
+  <testcase name="changingOriginalLossConsentInvalidatesTheReviewedProtectionRules" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.075"/>
+  <testcase name="localChangesAreRecheckedAfterTheApplyWaitsForTheWriter" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.093"/>
+  <testcase name="applyingAnOldReviewRefusesChangedLocalProfilesAndCreatesNoRecoverySnapshot" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.052"/>
+  <testcase name="aRetentionBoundaryChangeRequiresReviewAgainBeforeApplying" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.055"/>
+  <testcase name="queuedCommandsAfterReviewRefuseApplyWithoutChangingData" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.043"/>
+  <testcase name="theReviewUsesTheExactProtectedResultAndCreatesNoRecoverySnapshot" classname="io.github.willzy12h.nocturne.data.ImportPreviewRepositoryTest" time="0.054"/>
+</testsuite>

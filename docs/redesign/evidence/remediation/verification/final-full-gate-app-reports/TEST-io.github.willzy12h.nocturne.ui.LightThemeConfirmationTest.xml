@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="io.github.willzy12h.nocturne.ui.LightThemeConfirmationTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-29T04:30:57.480Z" hostname="f7415c079ba4" time="9.701">
+  <properties/>
+  <testcase name="daylightDoesNotChangeTheSavedThemeUntilSwitchIsConfirmed" classname="io.github.willzy12h.nocturne.ui.LightThemeConfirmationTest" time="7.349"/>
+  <testcase name="outsideDismissalIsARealCancel" classname="io.github.willzy12h.nocturne.ui.LightThemeConfirmationTest" time="0.462"/>
+  <testcase name="cancelLeavesTheSavedThemeUnchanged" classname="io.github.willzy12h.nocturne.ui.LightThemeConfirmationTest" time="0.356"/>
+  <testcase name="systemCurrentlyDarkAndExplicitDarkNeverPrompt" classname="io.github.willzy12h.nocturne.ui.LightThemeConfirmationTest" time="0.353"/>
+  <testcase name="releaseBedJetIsReachableFromSettingsAndUsesTheExistingHandover" classname="io.github.willzy12h.nocturne.ui.LightThemeConfirmationTest" time="0.386"/>
+  <testcase name="systemCurrentlyLightRequiresTheSameConfirmation" classname="io.github.willzy12h.nocturne.ui.LightThemeConfirmationTest" time="0.443"/>
+  <testcase name="backDismissalIsARealCancel" classname="io.github.willzy12h.nocturne.ui.LightThemeConfirmationTest" time="0.35"/>
+</testsuite>
