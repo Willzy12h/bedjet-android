@@ -185,11 +185,15 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     LaunchedEffect(setupRequest) {
-        if (setupRequest > handledSetupRequest) {
+        if (setupRequest != handledSetupRequest) {
+            // A fresh ViewModel restarts at zero after saved-state restoration. Consume that
+            // reset as well, so its next request is not mistaken for the old consumed request.
             handledSetupRequest = setupRequest
-            draftJson?.let { parkedDrafts = parkedDrafts + it; draftJson = null }
-            tab = Tab.TONIGHT
-            remoteOpen = false
+            if (setupRequest > 0) {
+                draftJson?.let { parkedDrafts = parkedDrafts + it; draftJson = null }
+                tab = Tab.TONIGHT
+                remoteOpen = false
+            }
         }
     }
     val snackbar = remember { SnackbarHostState() }

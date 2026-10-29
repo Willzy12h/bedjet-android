@@ -202,6 +202,26 @@ class NavigationRestoreTest {
         compose.onNodeWithText("Start night now").assertDoesNotExist()
     }
 
+    @Test fun newSetupRequestStillOpensAfterFreshViewModelRestoration() {
+        launch()
+        compose.navTab("Settings")
+        compose.openSettingsPage("permissions")
+        compose.onNodeWithTag("open-setup-checklist").performScrollTo().performClick()
+        compose.onNodeWithTag("setup-checklist").assertExists()
+        compose.navTab("Profiles")
+        compose.onNodeWithTag("profiles-new").assertIsDisplayed()
+
+        // The saved consumer count survives, but this helper creates a genuinely fresh ViewModel.
+        restore()
+        compose.onNodeWithTag("profiles-new").assertIsDisplayed()
+        compose.navTab("Settings")
+        compose.openSettingsPage("permissions")
+        compose.onNodeWithTag("open-setup-checklist").performScrollTo().performClick()
+
+        compose.onNodeWithTag("setup-checklist").assertExists()
+        compose.onNodeWithTag("open-setup-checklist").assertDoesNotExist()
+    }
+
     @Test fun anotherTonightIntentPreservesAnAlreadyParkedNewDraft() {
         launch()
         newDraft()
