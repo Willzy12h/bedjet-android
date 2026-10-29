@@ -17,10 +17,25 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c
+      - name: Record runner Android SDK inventory
+        run: |
+          python3 -B .github/workflows/android_sdk_profile.py before \
+            --output "$RUNNER_TEMP/nocturne-sdk-evidence/android-sdk-before.json"
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        env:
+          ANDROID_SDK_ROOT: ${{ runner.temp }}/nocturne-android-sdk
         with:
+          cmdline-tools-version: "15859902"
+          accept-android-sdk-licenses: false
+          packages: ''
           log-accepted-android-sdk-licenses: false
-      - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - run: |
+          python3 -B .github/workflows/android_sdk_profile.py install \
+            --output "$RUNNER_TEMP/nocturne-sdk-evidence/android-sdk-install.json"
+      - name: Verify isolated Android SDK profile
+        run: |
+          python3 -B .github/workflows/android_sdk_profile.py after \
+            --output "$RUNNER_TEMP/nocturne-sdk-evidence/android-sdk-profile.json"
       - name: UAT behavioural tests
         run: |
           set -o pipefail
@@ -48,6 +63,7 @@ jobs:
         with:
           name: uat-round2-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/nocturne-sdk-evidence/
             uat-round2.log
             core/build/test-results/test/
             app/build/test-results/testDebugUnitTest/

@@ -269,6 +269,11 @@ def main():
         print("Required gate counts (before screenshot capture):")
         for name in ("core", "app", "lint"):
             print(f"{name}: {json.dumps(report[name], sort_keys=True)}")
+        # Preserve the report before refusing delivery, including on an earlier failed gate.
+        if report["lint"]["status"] != "produced":
+            raise ValueError("Required lint report was not produced")
+        if any(report["lint"]["by_severity"].values()):
+            raise ValueError(f"Required lint report contains findings: {report['lint']['by_severity']}")
 
 
 if __name__ == "__main__":

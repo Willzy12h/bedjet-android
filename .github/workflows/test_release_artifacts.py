@@ -7,7 +7,7 @@ import struct
 import tempfile
 import unittest
 import zipfile
-from contextlib import redirect_stdout
+from contextlib import chdir, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -210,6 +210,51 @@ class ReleaseGateTest(unittest.TestCase):
     def test_missing_junit_is_not_a_zero_test_pass(self):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(release.junit_counts(directory), {"status": "not-produced", "suites": 0})
+
+
+class LintGateAcceptanceTest(unittest.TestCase):
+    def gate_summary(self, lint_xml):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "summary.json"
+            for relative in ("core/build/test-results/test", "app/build/test-results/testDebugUnitTest"):
+                results = root / relative
+                results.mkdir(parents=True)
+                (results / "TEST-passing.xml").write_text(
+                    '<testsuite tests="1" failures="0" errors="0" skipped="0"/>')
+            if lint_xml is not None:
+                lint = root / "app/build/reports/lint-results-debug.xml"
+                lint.parent.mkdir(parents=True)
+                lint.write_text(lint_xml)
+            error = None
+            with chdir(root), patch.object(release, "provenance", return_value={"source_commit": "reviewed"}), \
+                    patch("sys.argv", ["release_artifacts.py", "gate-summary", "--expected-source", "reviewed",
+                                       "--output", str(output)]), redirect_stdout(io.StringIO()):
+                try:
+                    release.main()
+                except ValueError as failure:
+                    error = str(failure)
+            return json.loads(output.read_text()), error
+
+    def test_actual_target_warning_rejects_delivery_and_preserves_counts(self):
+        report, error = self.gate_summary(
+            '<issues><issue id="OldTargetApi" severity="Warning" message="Not targeting the latest versions of Android"/></issues>')
+        self.assertIsNotNone(error)
+        self.assertIn("lint report contains findings", error)
+        self.assertEqual(report["lint"], {"status": "produced", "by_severity": {"Warning": 1}})
+        self.assertEqual(report["core"]["passed"], 1)
+        self.assertEqual(report["app"]["passed"], 1)
+
+    def test_missing_lint_report_is_not_a_clean_pass(self):
+        report, error = self.gate_summary(None)
+        self.assertIsNotNone(error)
+        self.assertIn("lint report was not produced", error)
+        self.assertEqual(report["lint"], {"status": "not-produced"})
+
+    def test_produced_empty_lint_report_accepts_delivery(self):
+        report, error = self.gate_summary('<issues format="6"/>')
+        self.assertIsNone(error)
+        self.assertEqual(report["lint"], {"status": "produced", "by_severity": {}})
 
 
 class TestVersionGateTest(unittest.TestCase):
