@@ -1,8 +1,16 @@
 # Warning and exception audit
 
+## Current independent-correction result
+
+At tested source `3fd7f043308f10a8524ab29e75c96f5cd2eea292`, the exact clean gate on 29 October 2026 (14:35:05–14:57:18 UTC), complete 41-case capture run (14:58:38–15:01:30 UTC) and release assembly/JUnit run (15:01:48–15:04:44 UTC) all exited **0**. The clean gate reports **zero lint findings**; all three raw logs contain **zero compiler/build warning diagnostics**. The separate R8 JVM and serialization/APK-structure checkers also exited 0 without warnings. All 66 clean-gate tasks executed, and the capture run reused the unchanged-source lint analysis as its log records.
+
+The inventory below is current for that source: **39 repository-wide annotations, 38 in app/core**, with all listed line locations checked. No new annotation, quarantine, assumption skip or broad lint suppression was added by the correction patch. The full scope/diff checks are preserved as `static-scope-audit-v3.json` and `final-warning-exceptions-v3.json` in the generated evidence. Diagnostic failures and their intermittent Kotlin session warning remain retained; they are not presented as final passing runs. See [INDEPENDENT-FIX-REGISTER.md](INDEPENDENT-FIX-REGISTER.md) for exact-source counts and evidence limits.
+
+## Original remediation record
+
 The broad `app/lint.xml` suppression has been removed. The inventory in [warnings.csv](evidence/remediation/warnings.csv) records **210 diagnostic entries**, including baseline warnings/hints, additional warnings exposed during remediation and the six intermediate test-host lint errors. Repeated appearances of the same external daemon diagnostic share one entry with their log references. Compiler errors from incomplete intermediate harness changes are retained in run receipts; they are not treated as regression RED evidence.
 
-The final exact clean gate at `c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd` exited **0**: lint **0 errors, 0 warnings, 0 hints**; compiler/build **0 project-owned warnings**; external warning diagnostics **0**. Kotlin-DSL compilation was exercised during the toolchain remediation, and the final clean gate compiled all normal application/core/test sources. The preserved raw log and JUnit/lint reports are authoritative. No report filter, warning-mode suppression or warning-budget baseline is used.
+The original remediation's exact clean gate at `c9704ee91b4d5642a90f7cf0b7f9d22b9ce619dd` exited **0**: lint **0 errors, 0 warnings, 0 hints**; compiler/build **0 project-owned warnings**; external warning diagnostics **0**. Kotlin-DSL compilation was exercised during the toolchain remediation, and that clean gate compiled all normal application/core/test sources. The preserved raw log and JUnit/lint reports are authoritative. No report filter, warning-mode suppression or warning-budget baseline is used.
 
 ## Retained, narrowly justified exceptions
 

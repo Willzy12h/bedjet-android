@@ -3,7 +3,7 @@
 Date: 29 October 2026. Base: `146501a69814f28d3879ca835bb93d2442b455a1`.
 Branch: `gpt/nocturne-independent-fixes`.
 
-**Status: application fixes passed the exact clean gate and release checks at `3163c34644c0eb19d339521c78fd333caadde9b8`; the subsequent PNG correction passed the exact clean gate at `37eaf3a8765446af1d1d3e7f00dd5232b3f18def`. A capture-host scheduling failure is now corrected with all 16 affected capture/startup cases passing. Final clean/capture evidence will be regenerated on the combined committed source. No installation or physical-device sign-off.**
+**Status: all reproduced software findings in this correction scope are fixed. The final exact clean gate, all 41 captures, all 1,003 image integrity checks and release checks pass at `3fd7f043308f10a8524ab29e75c96f5cd2eea292`. Permanent TEST installation delivery remains blocked by the recorded automatic approval rejection; physical checks are NOT RUN.**
 
 This round follows the independent review, which confirmed the original clean gate (core 313 passed; app 1,764 passed plus 41 capture skips; separate captures 41 passed) and identified uncovered defects. The previous remediation reports remain historical evidence for that base.
 
@@ -19,8 +19,33 @@ This round follows the independent review, which confirmed the original clean ga
 | Q2 | Consistently cancel Share across process/repository replacement | New-instance/legacy cases and actual Activity recreation pass |
 | Q3 | Inherit both selected palette slots on entering Demo | Three appearance/isolation cases pass |
 | R7 | Bring the strict release serialization fixtures up to the redesign model inventory | 56 models / 130 cases pass before and after actual separate R8 JVM shrinking; unsigned release assembly, APK structural and manifest checks pass |
-| V1 | Reject incomplete PNG output even when the native capture compressor reports success | Five damaged files reproduced and preserved; five permanent exporter integrity cases pass; full clean/capture rerun pending |
-| V2 | Prevent a repository writer from re-entering Compose's test layout in ScreenshotCapture | Archived full-run failure traced to the test continuation; all 14 unchanged captures plus two runtime-startup controls now pass with real runtime retained |
+| V1 | Reject incomplete PNG output even when the native capture compressor reports success | Five damaged files preserved; five permanent exporter integrity cases pass in the full clean gate; all 1,003 final PNGs independently validate |
+| V2 | Prevent a repository writer from re-entering Compose's test layout in ScreenshotCapture | Archived failure traced to the test continuation; all 16 focused capture/startup cases and the complete 41-case capture run pass with real runtime retained |
+
+## Final verification on the combined source
+
+Tested commit: `3fd7f043308f10a8524ab29e75c96f5cd2eea292`.
+Application/test/build SHA-256: `4dfe10c9b415c67c891a4f62c7a8065e05607aec1f36687f66cec1a383322be4`.
+All intervals below are UTC on 29 October 2026. Raw receipts, unfiltered logs and timestamp-bounded XML are preserved in the accompanying generated evidence.
+
+| Gate | Actual interval | Exit | Independently reconciled result |
+| --- | --- | ---: | --- |
+| Required exact clean command (`final-gate-v3`) | 14:35:05–14:57:18 | 0 | Core 332 passed; app 1,829 passed plus 41 documented opt-in skips; zero failures/errors; all 66 actionable tasks executed |
+| Complete P8 opt-in command, `SCREENSHOT_TAG=remediation` (`final-captures-v3`) | 14:58:38–15:01:30 | 0 | All 41 passed, zero skips/failures/errors; the exact skipped case set from the clean run equals the executed capture set |
+| Release assembly and serialization JUnit (`release-build-v3`) | 15:01:48–15:04:44 | 0 | Unsigned minified/resource-shrunk APK assembled; both JUnit cases passed, no skips/errors/failures |
+| Separate R8 JVM serialization (`release-r8-serialization-v3`) | 15:04:49–15:05:08 | 0 | 56 models / 130 cases passed; 56 models renamed and 1,381 unrelated production classes removed from the separate fixture programme |
+| Release serialization/APK structure (`release-serialization-check-v3`) | 15:05:34–15:05:38 | 0 | 56 models / 130 cases before and after separate R8 JVM shrinking; one actual APK DEX structurally checked; APK DEX runtime NOT executed |
+| Built release manifest and artifact metadata | 15:04:49 | 0 each | 40 manifest components pass; exact source, package and local inspection version verified |
+
+Lint findings and compiler/build warnings are **zero in the final clean, capture and release runs**. Source identity, digest and clean status stayed unchanged throughout the clean/capture/release assembly runs. The later handover update changes documentation only.
+
+All **1,003 expected PNGs** were written inside the accepted capture interval and pass independent signature/chunk/CRC/IEND, complete zlib and full Pillow decoding. Packaging contains 535 unique PNGs, 45 contact sheets and four capture ZIPs, with no earlier-run files. Every packaged PNG's bytes, size and SHA-256 match both independent and packaging manifests; all ZIP CRCs pass. Decoded-pixel comparison and the bounded final visual review are separate from file integrity.
+
+The 207 historical failure mappings all resolve to executed passing cases. API-specific host classes retain 24 alarm-identity cases, eight manifest cases, 36 navigation-restoration cases and six legacy Health containment cases; this does not certify every installed route on every API. The 39 narrowly documented annotations (38 in app/core) remain unchanged in scope, with no new quarantine, assumption skip or warning suppression.
+
+The local debug APK is an inspection build, SHA-256 `d66b7b07b14d81d7f229bf8e2816fbc755fd31a24bf75d0b2ce6d0703e39478c`. The unsigned release is 5,453,716 bytes, SHA-256 `f4c0ed4bb7d8a19889b9989bced0c34f8ec232fa25ec0b25494d3a7120daa78f`. Neither is the permanent TEST update artifact. See [DEVICE-VALIDATION.md](DEVICE-VALIDATION.md) for the fixed TEST certificate and thirteen still-unperformed physical acceptance checks.
+
+Automatic approval review rejected the remote dry-run push/authentication check before execution because it treated remote delivery as outside the current authorisation. Git CLI authentication has therefore not been exercised in this correction round. The prepared next step is an authorised ordinary push of the isolated branch and its local ancestors, followed by the existing permanent TEST workflow and exact artifact verification. No remote ref, PR, merge, tag or release has been created.
 
 ## Decisions and constraints
 
@@ -72,6 +97,6 @@ This round follows the independent review, which confirmed the original clean ga
 
 ## Retained uncertainty and evidence limits
 
-When the UNKNOWN file cannot be written, the raw repository/disk can still contain CONFIRMED. A retained receipt supplies effective UNKNOWN and command admission guards within this process, scoped to the exact night identity and selected target. This does not claim durability through process death while storage is unavailable. A later eligible report/reconciliation retries local persistence without replaying a hardware command. Existing reconnect and programme-preserving rewrite paths continue to require fresh matching current-target evidence.
+When the UNKNOWN file cannot be written, the raw repository/disk can still contain CONFIRMED. A retained receipt supplies effective UNKNOWN and command admission guards within this process, scoped to the exact night identity and selected target. This does not claim durability through process death while storage is unavailable. A later eligible report/reconciliation retries local persistence without replaying a hardware command. Before a programme-preserving rewrite, the existing path checks fresh, matching evidence from the selected target. Reconnection alone is not claimed to recover a marker lost through process death.
 
 The fixed tests retain their failing behavioural assertions. Harness corrections (JUnit return type, JUnit assertion argument order, Robolectric tile construction/teardown) are explicitly distinguished from application defects. No test quarantine, assumption skip, weakened assertion or new warning suppression was introduced.

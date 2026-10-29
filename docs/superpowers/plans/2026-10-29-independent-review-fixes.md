@@ -88,15 +88,18 @@
 ## Task 5 — complete verification and delivery
 
 - [x] Review all task diffs and resolve newly found defects with a reproducing test.
-- [ ] Commit implementation and regressions with clear source identity.
-- [ ] Run exactly `./gradlew --offline --no-daemon --max-workers=3 -I docs/redesign/verification.init.gradle clean :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`.
-- [ ] Run every P8 opt-in capture with `SCREENSHOT_TAG=remediation`; preserve the main gate XML first.
-- [ ] Independently parse fresh reports, process exits, skips, lint and warnings; inspect changed native images.
-- [ ] Exercise release assembly/optimisation and existing release checks for the installation candidate where tooling permits.
-- [ ] Use the existing permanent TEST signing route if available, without extracting its secrets or replacing the identity. Verify APK package/version/certificate/hash.
-- [ ] Correct warning inventory scope and update handover/register with final evidence and physical-device limits.
-- [ ] Deliver source branch, evidence and an identified installation artifact. Explicitly report any delivery/signing blocker.
+- [x] Commit implementation and regressions with clear source identity.
+- [x] Run exactly `./gradlew --offline --no-daemon --max-workers=3 -I docs/redesign/verification.init.gradle clean :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug`.
+- [x] Run every P8 opt-in capture with `SCREENSHOT_TAG=remediation`; preserve the main gate XML first.
+- [x] Independently parse fresh reports, process exits, skips, lint and warnings; inspect changed native images.
+- [x] Exercise release assembly/optimisation and existing release checks for the installation candidate where tooling permits.
+- [ ] Use the existing permanent TEST signing route if available, without extracting its secrets or replacing the identity. Verify APK package/version/certificate/hash. **BLOCKED:** automatic approval review rejected the remote dry-run push/authentication check before execution; the existing permanent key is not local. Await explicit authorisation for the prepared branch push and existing TEST workflow.
+- [x] Correct warning inventory scope and update handover/register with final evidence and physical-device limits.
+- [x] Prepare the isolated source branch and complete evidence; explicitly report the delivery/signing blocker.
+- [ ] Deliver the permanent TEST installation artifact after its authorised workflow succeeds and its exact source/package/version/certificate/hash are verified. Physical acceptance remains NOT RUN.
 
 ## Execution record
 
 The progress/evidence register is `docs/redesign/INDEPENDENT-FIX-REGISTER.md`. Raw verification output is preserved separately and linked from the final handover.
+
+Final tested source: `3fd7f043308f10a8524ab29e75c96f5cd2eea292`; application/test/build SHA-256 `4dfe10c9b415c67c891a4f62c7a8065e05607aec1f36687f66cec1a383322be4`. Final exact gate: core 332 passed, app 1,829 passed plus 41 documented opt-in skips. Separate capture run: all 41 passed, no skips; all 1,003 PNGs independently validate. Final clean/capture/release processes exit 0 with zero failures/errors, lint findings and compiler/build warnings. Release serialization covers 56 models / 130 cases before and after separate R8 JVM shrinking; actual APK DEX runtime is not executed. The follow-up handover commit changes documentation only.

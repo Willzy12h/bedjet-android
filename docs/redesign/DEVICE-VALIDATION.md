@@ -2,6 +2,8 @@
 
 Date: 29 October 2026. **Every physical result is NOT RUN.**
 
+The software gates pass at tested source `3fd7f043308f10a8524ab29e75c96f5cd2eea292`. A later documentation-only branch tip does not change that tested application/test/build source. The permanent TEST installation artifact has not yet been delivered or installed.
+
 Use this with the current [correction register](INDEPENDENT-FIX-REGISTER.md) and its exact candidate manifest. Automated tests and native Robolectric images do not establish physical BedJet, Samsung, TalkBack or overnight behaviour.
 
 ## Candidate and upgrade identity
