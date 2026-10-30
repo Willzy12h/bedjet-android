@@ -4,4 +4,5 @@
     <string name="runtime_restore_unsafe">This saved programme exceeds the BedJet safety limits and cannot be restored. The original has been kept for inspection.</string>
     <string name="remote_control_unavailable">Control unavailable: the BedJet reported an invalid range.</string>
     <string name="health_platform_required">Health Connect requires Android 14 or later in this build. The older provider connection is disabled for security; your saved choices are kept.</string>
+    <string name="export_destination_unsafe">That save location can\'t be used. Choose a folder in the file picker and try again.</string>
 </resources>

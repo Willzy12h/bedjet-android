@@ -81,7 +81,9 @@ class SettingsControlsTest {
         val model = ViewModelProvider(compose.activity)[AppViewModel::class.java]
         graph.context.getSharedPreferences("secrets", 0).edit().putString("updateToken", "secret-xyz-token").commit()
         try {
-            compose.runOnUiThread { model.exportDiagnostics(Uri.fromFile(file)) }
+            val uri = Uri.parse("content://test.documents/diagnostics.json")
+            shadowOf(graph.context.contentResolver).registerOutputStream(uri, java.io.FileOutputStream(file))
+            compose.runOnUiThread { model.exportDiagnostics(uri) }
             waitUntil { compose.onAllNodesWithText(s(R.string.settings_diagnostics_saved)).fetchSemanticsNodes().isNotEmpty() }
             val text = file.readText()
             assertTrue(text, text.contains("\"linkState\""))
@@ -99,5 +101,19 @@ class SettingsControlsTest {
         }
         waitUntil { seen.isNotEmpty() }
         assertEquals(listOf(s(R.string.settings_diagnostics_failed, s(R.string.runtime_export_failed))), seen.toList())
+    }
+
+    @Test fun diagnosticsRefuseAPickerThatPointsAtPrivateStorage() {
+        compose.onNodeWithText("Settings").performClick()
+        val model = ViewModelProvider(compose.activity)[AppViewModel::class.java]
+        val private = java.io.File(graph.context.filesDir, "victim.json").apply { writeText("keep") }
+        val seen = java.util.Collections.synchronizedList(mutableListOf<String>())
+        compose.runOnUiThread {
+            graph.scope.launch { model.messages.collect { seen += it } }
+            model.exportDiagnostics(Uri.fromFile(private))
+        }
+        waitUntil { seen.isNotEmpty() }
+        assertEquals(listOf(s(R.string.settings_diagnostics_failed, s(R.string.export_destination_unsafe))), seen.toList())
+        assertEquals("SEC-01: nothing is truncated or written", "keep", private.readText())
     }
 }

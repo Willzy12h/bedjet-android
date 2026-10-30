@@ -922,6 +922,7 @@ class Repository(
 
     /** A provider result cannot read a new profile or cross a real/demo session boundary. */
     internal suspend fun exportProfileTo(uri: Uri, request: ProfileShareRequest) {
+        ExportDestination.check(context, uri)
         val bytes = serially {
             requireRealSession()
             if (request.repositoryNonce != shareInstanceNonce || request.sessionRevision != sessionRevision.value)
@@ -929,18 +930,19 @@ class Repository(
             request.encodedProfile.toByteArray(Charsets.UTF_8)
         }
         withContext(Dispatchers.IO) {
-            openOutput(uri)?.use { it.write(bytes) } ?: throw IOException(context.getString(R.string.runtime_export_open_failed))
+            ExportDestination.open(context, uri, openOutput).use { it.write(bytes) }
         }
     }
 
     suspend fun exportTo(uri: Uri) {
+        ExportDestination.check(context, uri)
         val bytes = serially {
             requireRealSession()
             BackupCodec.encode(bundle()).toByteArray(Charsets.UTF_8)
         }
         // A document provider may wait indefinitely; only capturing the real data needs the night writer.
         withContext(Dispatchers.IO) {
-            openOutput(uri)?.use { it.write(bytes) } ?: throw IOException(context.getString(R.string.runtime_export_open_failed))
+            ExportDestination.open(context, uri, openOutput).use { it.write(bytes) }
         }
     }
 

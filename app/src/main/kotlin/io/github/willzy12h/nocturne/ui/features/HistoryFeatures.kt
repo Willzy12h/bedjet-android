@@ -42,10 +42,10 @@ import java.time.format.DateTimeFormatter
                 val csv=HistoryCsv.encode(graph.repository.history.value,settings.fahrenheit,identifiers)
                 withContext(Dispatchers.IO) {
                     if (graph.repository.settings.value.demoMode) throw kotlinx.coroutines.CancellationException("Demo session")
-                    graph.context.contentResolver.openOutputStream(uri,"wt")?.use {it.write(csv.toByteArray(Charsets.UTF_8))}
-                    ?: error("No output stream")}
+                    io.github.willzy12h.nocturne.data.ExportDestination.open(graph.context, uri).use {it.write(csv.toByteArray(Charsets.UTF_8))}}
                 status=graph.context.getString(R.string.feature_export_done)
             } catch(e:kotlinx.coroutines.CancellationException){throw e
+            } catch(e:io.github.willzy12h.nocturne.data.UnsafeExportDestination){status=e.message
             } catch(_:Exception){status=graph.context.getString(R.string.feature_export_failed)}
         }
     }

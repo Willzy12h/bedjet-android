@@ -2103,8 +2103,10 @@ class NightActions(private val graph: Graph) {
     /** [open] is how the file is opened; tests make it fail. A file that can't be opened throws, so nothing claims it saved. */
     suspend fun exportDiagnostics(uri: android.net.Uri,
         open: (android.net.Uri) -> java.io.OutputStream? = { context.contentResolver.openOutputStream(it, "wt") }) {
+        io.github.willzy12h.nocturne.data.ExportDestination.check(context, uri)
         val snapshot = diagnostics()
         withContext(Dispatchers.IO) {
+            io.github.willzy12h.nocturne.data.ExportDestination.check(context, uri)
             open(uri)?.use { it.write(snapshot.toByteArray()) }
                 ?: throw java.io.IOException(text(R.string.runtime_export_failed))
         }

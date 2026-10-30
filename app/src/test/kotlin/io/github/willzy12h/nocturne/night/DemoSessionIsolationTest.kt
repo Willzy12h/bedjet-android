@@ -182,7 +182,14 @@ class DemoSessionIsolationTest {
     @Test fun explicitDemoRefusesExportBeforeOpeningTheOutput() = runBlocking {
         val output = File(context.cacheDir, "demo-export.json")
         graph.actions.setDemoMode(true)
-        assertNotNull("Demo cannot export a backup", runCatching { graph.repository.exportTo(Uri.fromFile(output)) }.exceptionOrNull())
+        // A real document destination, so it is Demo, not the SEC-01 destination check, that refuses the export.
+        val uri = Uri.parse("content://test.documents/demo-export.json")
+        var opened = false
+        org.robolectric.Shadows.shadowOf(context.contentResolver).registerOutputStream(uri, object : java.io.OutputStream() {
+            override fun write(b: Int) { opened = true; output.appendBytes(byteArrayOf(b.toByte())) }
+        })
+        assertNotNull("Demo cannot export a backup", runCatching { graph.repository.exportTo(uri) }.exceptionOrNull())
+        assertFalse(opened)
         assertFalse(output.exists())
     }
 

@@ -1180,13 +1180,26 @@ class RepositoryTest {
     }
 
     @Test
+    fun exportsRefuseAPickerThatPointsAtPrivateStorage() = runBlocking {
+        val repo = repository()
+        val private = File(dir, "victim.json").apply { writeText("keep") }
+        val backup = runCatching { repo.exportTo(Uri.fromFile(private)) }.exceptionOrNull()
+        assertTrue("SEC-01: a file:// backup destination must be refused, got $backup", backup is UnsafeExportDestination)
+        val share = runCatching { repo.exportProfileTo(Uri.fromFile(private), repo.profileShareRequest(repo.profiles.value.first())) }.exceptionOrNull()
+        assertTrue("SEC-01: a file:// profile destination must be refused, got $share", share is UnsafeExportDestination)
+        assertEquals("Nothing is truncated or written", "keep", private.readText())
+    }
+
+    @Test
     fun aLegacyUpdateTokenIsNeverExportedOrSnapshotted() = runBlocking {
         val repo = repository()
         context.getSharedPreferences("secrets", Context.MODE_PRIVATE).edit().putString("updateToken", "ghp_secret").commit()
         assertFalse(BackupCodec.encode(repo.bundle()).contains("ghp_secret"))
         repo.snapshotNow("Mine")
         val file = File(dir, "export.json")
-        repo.exportTo(Uri.fromFile(file))
+        val uri = Uri.parse("content://test.documents/export.json")
+        org.robolectric.Shadows.shadowOf(RuntimeEnvironment.getApplication().contentResolver).registerOutputStream(uri, java.io.FileOutputStream(file))
+        repo.exportTo(uri)
         assertTrue(file.readText().contains("\"schema\""))
         assertFalse(file.readText().contains("ghp_secret"))
         assertFalse(dir.walk().filter { it.isFile }.any { it.readText().contains("ghp_secret") })
