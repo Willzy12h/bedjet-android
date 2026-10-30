@@ -118,4 +118,8 @@ Recorded on 30 October 2026 after the owner installed `0.3.0-acceptance.1`. None
 9. **Notification timing default.** Notification lead times (for example the temperature notifications) should default to at least 10 minutes. People can still change them.
 10. **Health Connect in first-time setup.** Offer Health Connect as an optional, dismissable step in the first-run guide, and say it can be turned on later in Settings.
 
+11. **Widget setup links to the app.** The preset chooser (Controls and the single tile) gets an "Edit presets in Nocturne" button that opens the app's preset settings, and a short line saying presets are customised in the app.
+12. **"No BedJet report" while the BedJet is on.** Cause: the widget shows only the last report held in memory by the app. When Android stops the app's process, the report is gone, and the widget never connects by itself, so it says No BedJet report until a tap connects. Fix still to be decided (see below). The widget should also show more about what the BedJet is doing.
+13. **Larger Controls layouts.** The 4 × 4 size matters most. Redesign the larger sizes (2 × 2, 2 × 3, 3 × 3, 4 × 3, 4 × 4, 4 × 5) so the extra space shows more information and the presets fill it well, including Start tonight and the profiles. Draft several design versions per size for the owner to choose from before building.
+
 No changes are needed to Appearance. Health Connect import worked on the device and the Sleep page reads well with real data.
