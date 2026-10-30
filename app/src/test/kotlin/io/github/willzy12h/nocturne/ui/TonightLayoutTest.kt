@@ -54,13 +54,13 @@ class TonightLayoutTest {
     }
 
     @Test fun detailExpansionSurvivesActivityRecreationAndCanCollapseAgain() {
-        ui.compose.onNodeWithTag("night-curve").assertDoesNotExist()
+        ui.compose.onNodeWithTag("night-timeline").assertDoesNotExist()
         ui.compose.openTonightDetail()
-        ui.compose.onNodeWithTag("night-curve").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithTag("night-timeline").performScrollTo().assertIsDisplayed()
         ui.compose.activityRule.scenario.recreate()
-        ui.compose.onNodeWithTag("night-curve").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithTag("night-timeline").performScrollTo().assertIsDisplayed()
         ui.compose.openTonightDetail()
-        ui.compose.onNodeWithTag("night-curve").assertDoesNotExist()
+        ui.compose.onNodeWithTag("night-timeline").assertDoesNotExist()
         ui.compose.onNodeWithTag("quick-mode-HEAT").performScrollTo().assertIsDisplayed()
     }
 
@@ -115,14 +115,14 @@ class TonightLayoutTest {
         ui.waitUntil { ui.graph.actions.busy.value.runningLabel == null }
     }
 
-    @Test fun aCurveLongPressUsesTheLatestProfileWhenItsProgrammeIsUnchanged() {
+    @Test fun aStepLongPressUsesTheLatestProfileWhenItsProgrammeIsUnchanged() {
         val selected = requireNotNull(ui.model.tonightsProfile())
         val renamed = selected.copy(name = "Renamed current profile")
         ui.compose.runOnUiThread { runBlocking { ui.graph.repository.saveProfile(renamed) } }
         ui.compose.onNodeWithText(renamed.name, substring = true, ignoreCase = true).assertExists()
         ui.compose.openTonightDetail()
-        ui.compose.onNodeWithTag("night-curve").performScrollTo().performTouchInput {
-            longClick(Offset(width * .03f, height / 2f))
+        ui.compose.onNodeWithTag("night-timeline").performScrollTo().performTouchInput {
+            longClick(Offset(width / 2f, 24f))
         }
         ui.compose.onNode(hasText(ui.s(R.string.editor_name)) and hasSetTextAction()).assertTextContains(renamed.name)
     }

@@ -212,7 +212,8 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
         compose.openSettingsPage("appearance")
-        toggleTwice(s(R.string.settings_simple_view)) { graph.repository.settings.value.simpleView }
+        // UX-04: Simple view is retired; its switch is gone from Settings.
+        compose.onAllNodes(switchMatcher("Simple view")).assertCountEquals(0)
         toggleTwice(s(R.string.settings_show_f)) { graph.repository.settings.value.fahrenheit }
         compose.onNodeWithTag("settings-back").performScrollTo().performClick()
         compose.openSettingsPage("notifications")

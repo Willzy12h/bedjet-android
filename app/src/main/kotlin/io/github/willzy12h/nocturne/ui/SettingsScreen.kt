@@ -188,6 +188,13 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 settings.themeMode, tag = "settings-theme") { mode ->
                 if (settings.themeMode != mode) chooseAppearance(settings.copy(themeMode = mode))
             }
+            // UX-03: say which palette each choice shows; both palettes stay saved whichever is in use.
+            Text(stringResource(when (settings.themeMode) {
+                ThemeMode.SYSTEM -> R.string.appearance_help_system
+                ThemeMode.LIGHT -> R.string.appearance_help_light
+                ThemeMode.DARK -> R.string.appearance_help_dark
+                ThemeMode.SCHEDULED -> R.string.appearance_help_scheduled
+            }), Modifier.testTag("appearance-help"), color = paletteTokens.ink2, fontSize = 13.sp)
             if (settings.themeMode == ThemeMode.SCHEDULED) SettingsCard {
                 ClockRow(R.drawable.ic_nc_moon, paletteTokens.accent, stringResource(R.string.parity_settings_night_from), settings.scheduledDarkMinute) { minute ->
                     if (minute != settings.scheduledDarkMinute) chooseAppearance(settings.copy(scheduledDarkMinute = minute))
@@ -198,20 +205,17 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 DayNightBar(settings.scheduledDarkMinute, settings.scheduledLightMinute)
                 Text(stringResource(R.string.settings_scheduled_help), color = paletteTokens.ink2, fontSize = 12.5.sp)
             }
-            PalettePicker(stringResource(R.string.settings_night_palette), settings.nightPalette, "night") { palette ->
+            val darkNow = settings.isDarkTheme(model.now(), systemDark)
+            PalettePicker(stringResource(R.string.settings_night_palette), settings.nightPalette, "night", inUse = darkNow) { palette ->
                 if (settings.isDarkTheme(model.now(), systemDark)) chooseAppearance(settings.copy(nightPalette = palette))
                 else saveAppearance(settings.copy(nightPalette = palette))
             }
-            PalettePicker(stringResource(R.string.settings_day_palette), settings.dayPalette, "day") { palette ->
+            PalettePicker(stringResource(R.string.settings_day_palette), settings.dayPalette, "day", inUse = !darkNow) { palette ->
                 if (!settings.isDarkTheme(model.now(), systemDark)) chooseAppearance(settings.copy(dayPalette = palette))
                 else saveAppearance(settings.copy(dayPalette = palette))
             }
             SettingsCard(spacing = 0) {
                 SwitchRow(stringResource(R.string.settings_show_f), null, f) { on -> model.updateSettings { it.copy(fahrenheit = on) } }
-                HorizontalDivider(color = paletteTokens.hairline)
-                SwitchRow(stringResource(R.string.settings_simple_view), stringResource(R.string.settings_simple_view_help), settings.simpleView) { on ->
-                    model.updateSettings { it.copy(simpleView = on) }
-                }
             }
         }
 

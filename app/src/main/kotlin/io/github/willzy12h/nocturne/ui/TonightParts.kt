@@ -10,6 +10,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +48,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -242,9 +245,11 @@ private fun SendingDot(tag: String) {
 }
 
 /** One `.tile`: stripe, icon and name on one line, the detail below. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?, active: Boolean, enabled: Boolean,
-    description: String, tag: String, modifier: Modifier, sending: Boolean = false, onClick: () -> Unit) {
+    description: String, tag: String, modifier: Modifier, sending: Boolean = false, onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null, onClick: () -> Unit) {
     StripeTile(stripe = stripe, title = if (sending) "$title…" else title,
         subtitle = if (sending) stringResource(R.string.parity_sending) else detail ?: " ",
         level = if (active || sending) TintLevel.ON else TintLevel.TILE, selectedBorder = if (active) stripe else null,
@@ -257,12 +262,18 @@ private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?,
                 minimumContrast = 3f), true, Modifier.testTag(tag.replace("quick-mode-", "quick-active-")), sizeDp = 7)
         },
         modifier = modifier.heightIn(min = 56.dp).alpha(if (enabled) 1f else .5f).testTag(tag)
-            .semantics { contentDescription = description }.clickable(enabled = enabled, role = Role.Button, onClick = onClick))
+            .semantics { contentDescription = description }
+            .then(if (onLongClick == null) Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                // Editing stays possible while sending is not: a tap only sends when the tile is enabled.
+                else Modifier.combinedClickable(role = Role.Button, onLongClickLabel = longClickLabel,
+                    onClick = { if (enabled) onClick() }, onLongClick = onLongClick)
+                    .then(if (enabled) Modifier else Modifier.semantics { disabled() })))
 }
 
 /** The design's QUICK PRESETS: three columns of Turbo, Heat, Cool, Dry, Boost and Off. */
 @Composable
-internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit) {
+internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit,
+    onEditPreset: (Mode) -> Unit = {}) {
     val settings by model.settings.collectAsState()
     val live by model.hasLiveStatus.collectAsState()
     val link by model.linkState.collectAsState()
@@ -277,7 +288,7 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: Mutab
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY).chunked(columns).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f)) }
+                    row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f), onEditPreset) }
                 }
             }
         }
@@ -290,7 +301,7 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: Mutab
 /** One preset; null is Boost. */
 @Composable
 private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?, evidence: DeviceStatus?, canControl: Boolean,
-    sending: MutableState<PresetSending?>, modifier: Modifier) {
+    sending: MutableState<PresetSending?>, modifier: Modifier, onEditPreset: (Mode) -> Unit) {
     val context = LocalContext.current
     val settings by model.settings.collectAsState()
     val tokens = paletteTokens
@@ -337,7 +348,9 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
             }
             PresetTile(tokens.stepColor(mode, preset.temperature), modeIcon(mode), label, detail, quickMatches(evidence, preset),
                 canControl, if (valid) presetDetail(context, preset, settings.fahrenheit) else stringResource(R.string.uat_quick_invalid),
-                "quick-mode-${mode.name}", modifier, sending.value?.key == mode.name) {
+                "quick-mode-${mode.name}", modifier, sending.value?.key == mode.name,
+                // UX-07: holding a tile opens its editor and never sends anything to the BedJet.
+                onLongClick = { onEditPreset(mode) }, longClickLabel = stringResource(R.string.uat_quick_edit, label)) {
                 val captured = captureModeQuick(model, preset)
                 val color = tokens.stepColor(mode, preset.temperature)
                 guard.confirm(context.getString(R.string.guard_switch_to, label), captured.temporary) {

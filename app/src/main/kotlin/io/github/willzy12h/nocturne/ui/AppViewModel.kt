@@ -547,6 +547,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _messages.tryEmit(getApplication<Application>().getString(R.string.next_night_saved))
     }
     fun deleteProfile(id: String) = save { repo.deleteProfile(id) }
+    fun reorderProfiles(ids: List<String>) = save { repo.reorderProfiles(ids) }
+    /** Moves one profile up ([by] -1) or down (+1): the accessible alternative to dragging. */
+    fun moveProfile(id: String, by: Int) {
+        val ids = profiles.value.map { it.id }.toMutableList()
+        val from = ids.indexOf(id).takeIf { it >= 0 } ?: return
+        val to = (from + by).coerceIn(0, ids.lastIndex)
+        if (to == from) return
+        ids.add(to, ids.removeAt(from))
+        reorderProfiles(ids)
+    }
     fun updateSettings(change: (Settings) -> Settings) = save {
         // Shown once with the owner's feed; a plain save is not announced.
         val outcome = graph.actions.updateSettings(change)

@@ -34,7 +34,12 @@
     <string name="feature_select_device">Select a real BedJet before enabling automatic starts.</string>
     <string name="feature_notification_permission">Notifications are needed so you can cancel an automatic start. Enable notifications in Android settings.</string>
     <string name="feature_health_title">Health Connect sleep overlay</string>
-    <string name="feature_health_privacy">Nocturne reads sleep sessions and their stages only when you open History with this optional feature enabled. Sleep data stays in memory for the overlay; it is not included in Nocturne backups or CSV exports and never changes BedJet control. You can revoke access in Health Connect at any time. Missing records, missing stages or older history do not mean that you were awake. Standard permission may not expose records from more than 30 days before access was first granted.</string>
+    <string name="feature_health_privacy">Missing records or stages don\'t mean you were awake. Health Connect may not share records from more than 30 days before you first allowed access.</string>
+    <!-- UX-06: the short explainer at the top of Settings, Health Connect. -->
+    <string name="health_explainer_title">What Nocturne does with Health Connect</string>
+    <string name="health_explainer_read">Reads, if you turn on the overlay: your sleep stages from other apps, shown behind History. They are read when you open History and are not saved, backed up or exported.</string>
+    <string name="health_explainer_write">Writes, if you turn on export: completed nights the BedJet confirmed, as “BedJet programme ran”. That is programme time, not measured sleep.</string>
+    <string name="health_explainer_never">Never: Health Connect does not control your BedJet. Both are off by default, and you can revoke access in Health Connect at any time.</string>
     <string name="feature_health_source">From Health Connect</string>
     <string name="feature_health_absent">Health Connect is unavailable. Install or update Health Connect to use the overlay.</string>
     <string name="feature_health_permission">Sleep permission is missing or has been revoked.</string>

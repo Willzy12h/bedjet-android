@@ -64,7 +64,7 @@ data class Settings(
     /** Local clock times. Equal boundaries mean always dark. */
     val scheduledDarkMinute: Int = 22 * 60,
     val scheduledLightMinute: Int = 7 * 60,
-    /** Tonight shows the night as a list of steps instead of the bar curve. */
+    /** Retired (UX-04): kept only so older backups and settings still read; nothing displays it. */
     val simpleView: Boolean = true,
     val quickControlsCollapsed: Boolean = false,
     /** Explicit mode overrides; absent entries retain legacy Warm/Cool values losslessly. */

@@ -16,10 +16,10 @@ class TonightPhaseNavigationTest {
     private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f)
     @get:Rule val rules = ui.rules
 
-    @Test fun longPressingTonightsCurveOpensThatSourcePhaseInTheEditor() {
+    @Test fun longPressingTonightsFirstStepOpensThatSourcePhaseInTheEditor() {
         ui.compose.openTonightDetail()
-        ui.compose.onNodeWithTag("night-curve").performScrollTo()
-            .performTouchInput { longClick(Offset(width * .03f, height / 2f)) }
+        ui.compose.onNodeWithTag("night-timeline").performScrollTo()
+            .performTouchInput { longClick(Offset(width / 2f, 24f)) }
         ui.compose.onNodeWithTag("editor-save").assertExists()
         ui.compose.onNodeWithTag("editor-phase-controls-START-0").assertExists()
         ui.compose.onNodeWithTag("editor-phase-START-0").assertIsDisplayed()

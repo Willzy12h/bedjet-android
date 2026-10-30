@@ -93,10 +93,17 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
         }
     }
     Text(stringResource(R.string.uat_quick_off_help), style = MaterialTheme.typography.bodySmall)
-    editing?.let { original ->
+    editing?.let { QuickPresetEditor(model, settings, it) { editing = null } }
+}
+
+/** One quick preset's editor: from Settings, the Home Edit list, or holding its tile on Home (UX-07). */
+@Composable
+internal fun QuickPresetEditor(model: AppViewModel, settings: Settings, original: ActionPreset, onClose: () -> Unit) {
+    val context = LocalContext.current
+    run {
         var draft by remember(original) { mutableStateOf(original) }
         val valid = QuickDefaults.valid(draft)
-        AlertDialog(onDismissRequest = { editing = null },
+        AlertDialog(onDismissRequest = onClose,
             title = { Text(stringResource(R.string.uat_quick_edit, stringResource(Format.modeNameRes(draft.mode)))) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -121,8 +128,8 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
                 }
             },
             confirmButton = { TextButton(onClick = {
-                if (QuickDefaults.valid(draft)) { model.updateSettings { QuickDefaults.withPreset(it, draft) }; editing = null }
+                if (QuickDefaults.valid(draft)) { model.updateSettings { QuickDefaults.withPreset(it, draft) }; onClose() }
             }, enabled = valid) { Text(stringResource(R.string.uat_quick_save)) } },
-            dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.uat_quick_cancel)) } })
+            dismissButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.uat_quick_cancel)) } })
     }
 }

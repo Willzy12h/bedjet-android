@@ -47,7 +47,17 @@ class HomeBedJetPickerTest {
     }
     @get:Rule val rules = ui.rules
 
+    @Test fun homeHidesThePickerOnceABedJetIsChosen() {
+        // UX-01: a chosen BedJet leaves Home uncluttered; the picker stays in Settings.
+        ui.compose.onNodeWithText(ui.s(R.string.setup_choose_title)).assertDoesNotExist()
+        ui.compose.onNodeWithText(ui.s(R.string.setup_find)).assertDoesNotExist()
+        ui.compose.onNodeWithText(ui.s(R.string.tab_settings)).performClick()
+        ui.compose.openSettingsPage("permissions")
+        ui.compose.onNodeWithText(ui.s(R.string.setup_find)).performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun homeCanScanAndPairWithoutOpeningSettings() {
+        clearTarget()
         ui.compose.onNodeWithText(ui.s(R.string.setup_find)).performScrollTo().assertIsDisplayed().performClick()
         ui.waitUntil { radio.scans.isNotEmpty() }
         radio.drain()
@@ -58,14 +68,18 @@ class HomeBedJetPickerTest {
         ui.waitUntil { "AA:BB:CC:DD:EE:02" in radio.connects }
         assertFalse(ui.graph.repository.settings.value.demoMode)
         ui.compose.onNodeWithTag("tonight-fixed-wake").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithText(ui.s(R.string.setup_find)).assertDoesNotExist()
     }
 
     @Test fun homePickerKeepsBothRememberedBedJetsAndCanSwitchBack() {
         ui.compose.runOnIdle { runBlocking { ui.graph.actions.selectTarget("ble:AA:BB:CC:DD:EE:02", useRealDevice = true) } }
+        clearTarget()
         val first = ui.compose.onNode(hasText("AA:BB:CC:DD:EE:01", substring = true) and hasClickAction())
         ui.checkControl(first, "Remembered BedJet").performClick()
         ui.waitUntil { ui.graph.repository.settings.value.targetDevice == "ble:AA:BB:CC:DD:EE:01" }
-        ui.compose.onNode(hasText("AA:BB:CC:DD:EE:02", substring = true) and hasClickAction()).assertExists()
+        // Choosing hides the Home picker again (UX-01); the other BedJet is still remembered for next time.
+        assertTrue("ble:AA:BB:CC:DD:EE:02" in ui.graph.repository.settings.value.normalisedRememberedBedJets())
+        ui.compose.onNodeWithText(ui.s(R.string.setup_find)).assertDoesNotExist()
     }
 
     @Test fun demoHasAnExitAndReturnsToTheRememberedRealPicker() {
@@ -75,7 +89,16 @@ class HomeBedJetPickerTest {
         ui.compose.onNodeWithText("Exit demo").assertIsDisplayed().performClick()
         ui.waitUntil { !ui.graph.repository.settings.value.demoMode }
         assertEquals("ble:AA:BB:CC:DD:EE:01", ui.graph.repository.settings.value.targetDevice)
+        clearTarget()
         ui.compose.onNodeWithText(ui.s(R.string.setup_find)).performScrollTo().assertIsDisplayed()
+    }
+
+    /** Removing the target brings the picker back to Home; the remembered BedJets stay listed in it. */
+    private fun clearTarget() {
+        val remembered = ui.graph.repository.settings.value.normalisedRememberedBedJets()
+        ui.compose.runOnIdle { runBlocking { ui.graph.repository.updateSettings {
+            it.copy(targetDevice = null, rememberedBedJets = remembered) } } }
+        ui.compose.waitForIdle()
     }
 
     @Test fun tryingDemoClosesAnInFlightHomeBluetoothScan() {

@@ -14,6 +14,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.semantics.contentDescription
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.SubmissionTarget
@@ -94,6 +98,7 @@ import kotlinx.coroutines.launch
         }
         AutoStartSettingsSection(graph)
         } else {
+        HealthExplainer()
         FeatureSwitch(stringResource(R.string.feature_health_title),prefs.healthSleepOverlay, !settings.demoMode) {enabled->
             if (!graph.repository.settings.value.demoMode && HealthConnectAccess.platformSupported) {
                 if(!enabled) changeHealthOverlay(false)
@@ -141,4 +146,15 @@ import kotlinx.coroutines.launch
         else DropdownMenuItem(text={Text(label)},enabled=!busy,onClick=handover)
     }
 
+}
+
+/** UX-06: what reading and writing do, in three lines, before the two switches. */
+@Composable private fun HealthExplainer() {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("health-explainer")) {
+        Text(stringResource(R.string.health_explainer_title), style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.semantics { heading() })
+        listOf(R.string.health_explainer_read, R.string.health_explainer_write, R.string.health_explainer_never).forEach {
+            Text(stringResource(it), style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }

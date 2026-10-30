@@ -37,6 +37,6 @@ internal fun ComposeTestRule.openTonightProfileEditor() {
 
 /** The detailed curve/timeline is deliberately behind the compact night strip. */
 internal fun ComposeTestRule.openTonightDetail() {
-    onNode(hasTestTag("night-bar") and hasAnyAncestor(hasTestTag("tonight-card")))
+    onNodeWithTag("tonight-detail-toggle")
         .performScrollTo().performClick()
 }

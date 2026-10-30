@@ -10,6 +10,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.key
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -99,6 +110,41 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     val activeNight by model.activeNight.collectAsState()
     val tokens = paletteTokens
     val largeText = LocalConfiguration.current.fontScale >= 1.5f
+    // UX-02: long-press a card and drag it. The order shown while dragging is local; it is saved once, on release.
+    val listState = rememberLazyListState()
+    val reorder = remember { ProfileReorder() }
+    val spacingPx = with(LocalDensity.current) { 12.dp.toPx() }
+    val latestProfiles by rememberUpdatedState(profiles)
+    val shown = reorder.order?.let { ids ->
+        ids.mapNotNull { id -> profiles.firstOrNull { it.id == id } } + profiles.filterNot { it.id in ids }
+    } ?: profiles
+    // Hand back to the saved list once it carries the dropped order, so nothing jumps back in between.
+    LaunchedEffect(profiles, reorder.dragging) {
+        if (reorder.dragging == null && reorder.order?.let { it == profiles.map { p -> p.id } } != false) reorder.order = null
+    }
+    LaunchedEffect(reorder.dragging) {
+        // Near the top or bottom edge the list scrolls under the held card, so a long list can still be reordered.
+        while (reorder.dragging != null) {
+            val info = listState.layoutInfo
+            val item = info.visibleItemsInfo.firstOrNull { it.key == reorder.dragging }
+            if (item != null) {
+                val top = item.offset + reorder.offset
+                val bottom = top + item.size
+                val edge = info.viewportSize.height * .12f
+                val step = when {
+                    top < info.viewportStartOffset + edge -> -12f
+                    bottom > info.viewportEndOffset - edge -> 12f
+                    else -> 0f
+                }
+                if (step != 0f) {
+                    val moved = listState.scrollBy(step)
+                    reorder.offset += moved
+                    reorder.swapIfPast(listState, spacingPx)
+                }
+            }
+            delay(16)
+        }
+    }
 
     val importPreview by model.importPreview.collectAsState()
     val importApplying by model.importApplying.collectAsState()
@@ -122,15 +168,46 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             Pill(stringResource(R.string.parity_new), tokens.ink, tokens.ground, tag = "profiles-new",
                 description = stringResource(R.string.profiles_new)) { adding = true }
         }
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(profiles, key = { it.id }) { profile ->
+        if (profiles.size > 1) Text(stringResource(R.string.profiles_reorder_hint),
+            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), color = tokens.ink2, fontSize = 13.sp)
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = listState,
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(shown, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }
                 val copyName = stringResource(R.string.profiles_copy_name, profile.name)
                 // The profile Tonight shows: the running night's, else tonight's choice or the default for the day.
                 val selected = (activeNight?.profileId ?: settings.resolveProfile(profiles, model.now())?.id) == profile.id
                 val stripe = tokens.stepColor(profile.middle.mode, profile.middle.tempStart)
                 val shape = RoundedCornerShape(18.dp)
-                Box(Modifier.fillMaxWidth().testTag("profile-card-${profile.id}")) {
+                val dragged = reorder.dragging == profile.id
+                val position = shown.indexOf(profile)
+                val moveUp = stringResource(R.string.profiles_move_up)
+                val moveDown = stringResource(R.string.profiles_move_down)
+                Box(Modifier.fillMaxWidth().testTag("profile-card-${profile.id}")
+                    // The held card draws above its neighbours and follows the finger; rows of any height swap cleanly.
+                    .zIndex(if (dragged) 1f else 0f)
+                    .graphicsLayer {
+                        translationY = if (dragged) reorder.offset else 0f
+                        if (dragged) { scaleX = 1.02f; scaleY = 1.02f; shadowElevation = 12.dp.toPx() }
+                    }
+                    .pointerInput(profile.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { reorder.start(profile.id, latestProfiles.map { it.id }) },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                reorder.offset += amount.y
+                                reorder.swapIfPast(listState, spacingPx)
+                            },
+                            onDragEnd = { reorder.finish()?.let(model::reorderProfiles) },
+                            onDragCancel = { reorder.finish()?.let(model::reorderProfiles) },
+                        )
+                    }
+                    .semantics {
+                        customActions = listOfNotNull(
+                            if (position > 0) CustomAccessibilityAction(moveUp) { model.moveProfile(profile.id, -1); true } else null,
+                            if (position < shown.lastIndex) CustomAccessibilityAction(moveDown) { model.moveProfile(profile.id, 1); true } else null,
+                        )
+                    }) {
                 Column(Modifier.fillMaxWidth().testTag("profile-open-${profile.id}").clip(shape).background(tokens.surface)
                     .sideStripe(stripe, tokens, width = 5.dp, level = TintLevel.PROFILE)
                     .then(when {
@@ -160,6 +237,12 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                                 modifier = Modifier.testTag("profile-menu"), shape = RoundedCornerShape(16.dp),
                                 containerColor = tokens.menu, border = BorderStroke(1.dp, tokens.outline)) {
                                 MenuRow(stringResource(R.string.action_edit), R.drawable.ic_nc_edit, tokens.ink) { more = false; onEdit(profile) }
+                                if (position > 0) MenuRow(moveUp, R.drawable.ic_nc_chevron_up, tokens.ink) {
+                                    more = false; model.moveProfile(profile.id, -1)
+                                }
+                                if (position < shown.lastIndex) MenuRow(moveDown, R.drawable.ic_nc_chevron_down, tokens.ink) {
+                                    more = false; model.moveProfile(profile.id, 1)
+                                }
                                 MenuRow(stringResource(R.string.parity_duplicate), R.drawable.ic_nc_copy, tokens.ink) {
                                     more = false
                                     model.saveProfile(profile.copy(id = UUID.randomUUID().toString(), name = copyName))
@@ -310,6 +393,49 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             ) { Text(stringResource(R.string.pin_confirm, pinSlot + 1)) } },
             dismissButton = { TextButton(onClick = { pinning = null }) { Text(stringResource(R.string.feature_cancel)) } },
         )
+    }
+}
+
+/**
+ * The drag in progress: which card is held, how far it has moved from its laid-out place, and the order so far.
+ * A swap happens when the held card's centre passes a neighbour's centre, using the real heights of both rows.
+ */
+internal class ProfileReorder {
+    var dragging by mutableStateOf<String?>(null)
+    var offset by mutableFloatStateOf(0f)
+    var order by mutableStateOf<List<String>?>(null)
+    private var startOrder: List<String>? = null
+
+    fun start(id: String, ids: List<String>) { dragging = id; offset = 0f; order = ids; startOrder = ids }
+
+    /** Ends the drag; returns the new order when it changed, for saving. */
+    fun finish(): List<String>? {
+        val result = order?.takeIf { it != startOrder }
+        dragging = null; offset = 0f; startOrder = null
+        if (result == null) order = null
+        return result
+    }
+
+    fun swapIfPast(state: androidx.compose.foundation.lazy.LazyListState, spacing: Float) {
+        val id = dragging ?: return
+        val ids = order ?: return
+        val visible = state.layoutInfo.visibleItemsInfo
+        val current = visible.firstOrNull { it.key == id } ?: return
+        val at = ids.indexOf(id)
+        val centre = current.offset + current.size / 2f + offset
+        if (offset > 0 && at < ids.lastIndex) {
+            val next = visible.firstOrNull { it.key == ids[at + 1] } ?: return
+            if (centre > next.offset + next.size / 2f) {
+                order = ids.toMutableList().apply { add(at + 1, removeAt(at)) }
+                offset -= next.size + spacing
+            }
+        } else if (offset < 0 && at > 0) {
+            val previous = visible.firstOrNull { it.key == ids[at - 1] } ?: return
+            if (centre < previous.offset + previous.size / 2f) {
+                order = ids.toMutableList().apply { add(at - 1, removeAt(at)) }
+                offset += previous.size + spacing
+            }
+        }
     }
 }
 

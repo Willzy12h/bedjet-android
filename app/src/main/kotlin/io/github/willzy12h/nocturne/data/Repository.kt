@@ -433,6 +433,12 @@ class Repository(
         } finally { admission.close() }
     }
 
+    /** UX-02: saves the Profiles list in [ids] order; a profile [ids] does not name keeps its place after them. */
+    suspend fun reorderProfiles(ids: List<String>) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list ->
+        val byId = list.associateBy { it.id }
+        ids.distinct().mapNotNull(byId::get) + list.filterNot { it.id in ids }
+    }
+
     suspend fun deleteProfile(id: String) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list -> list.filterNot { it.id == id } }
 
     suspend fun updateSettings(change: (Settings) -> Settings) = update(_settings, SETTINGS, Settings.serializer()) {

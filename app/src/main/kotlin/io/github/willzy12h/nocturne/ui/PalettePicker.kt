@@ -46,13 +46,17 @@ internal fun paletteName(palette: Palette): Int = when (palette) {
 
 /** The design's palette row: the chosen palette's name, then a swatch for each palette, ringed when chosen. */
 @Composable
-fun PalettePicker(label: String, selected: Palette, tagPrefix: String, onSelect: (Palette) -> Unit) {
+fun PalettePicker(label: String, selected: Palette, tagPrefix: String, inUse: Boolean = false, onSelect: (Palette) -> Unit) {
     val tokens = paletteTokens
     val night = tagPrefix == "night"
     // Each row leads with the palettes made for it; every palette stays selectable in both.
     val order = Palette.entries.sortedBy { if (it.tokens.dark == night) 0 else 1 }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionLabel(label, Modifier.padding(start = 2.dp).semantics { heading() })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionLabel(label, Modifier.padding(start = 2.dp).semantics { heading() })
+            if (inUse) Text(stringResource(R.string.appearance_in_use), Modifier.testTag("$tagPrefix-palette-in-use"),
+                color = tokens.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
             .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)
             .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {

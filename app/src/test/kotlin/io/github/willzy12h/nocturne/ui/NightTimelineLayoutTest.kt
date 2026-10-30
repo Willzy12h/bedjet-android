@@ -80,10 +80,7 @@ class NightTimelineLayoutTest {
     private val graph get() = compose.activity.graph
     private val curve = hasContentDescription("Night plan from 22:30 to 06:45", substring = true)
 
-    @Test fun darkCurveClockLabelsStayWholeAtTwoHundredPercent() = assertTimes(ThemeMode.DARK, false)
-
-    @Test fun lightCurveClockLabelsStayWholeAtTwoHundredPercent() = assertTimes(ThemeMode.LIGHT, false)
-
+    // UX-04 retired the curve on Tonight; the timeline below is the only detail view, and keeps this check.
     @Test fun darkSimpleTimelineTimesStayWholeAtTwoHundredPercent() = assertTimes(ThemeMode.DARK, true)
 
     @Test fun lightSimpleTimelineTimesStayWholeAtTwoHundredPercent() = assertTimes(ThemeMode.LIGHT, true)

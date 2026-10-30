@@ -110,8 +110,6 @@
     <string name="theme_dark">Dark</string>
     <string name="theme_light">Light</string>
     <string name="theme_scheduled">Scheduled</string>
-    <string name="settings_simple_view">Simple view</string>
-    <string name="settings_simple_view_help">Show tonight as a list of steps instead of the curve.</string>
     <string name="settings_bedjet">BedJet</string>
     <string name="settings_connected_unit">BedJet name: %1$s</string>
     <string name="settings_none_yet">none yet</string>
@@ -267,6 +265,16 @@
     <string name="profiles_copy_name">%1$s copy</string>
     <string name="profiles_delete">Delete</string>
     <string name="profiles_new">New profile</string>
+    <!-- UX-03: how Light/Dark relates to the two palettes. -->
+    <string name="appearance_help_system">Follows your phone: the night palette when it is dark, the day palette when it is light.</string>
+    <string name="appearance_help_light">Always light, using the day palette. Your night palette is kept for later.</string>
+    <string name="appearance_help_dark">Always dark, using the night palette. Your day palette is kept for later.</string>
+    <string name="appearance_help_scheduled">The night palette between the times below, the day palette the rest of the day.</string>
+    <string name="appearance_in_use">In use now</string>
+    <!-- UX-02: reordering profiles. The first profile is used when no other choice applies. -->
+    <string name="profiles_move_up">Move up</string>
+    <string name="profiles_move_down">Move down</string>
+    <string name="profiles_reorder_hint">Hold a profile and drag to change the order.</string>
     <string name="profiles_start_from">Start from</string>
     <string name="profiles_delete_title">Delete %1$s?</string>
     <string name="profiles_delete_text">Snapshots keep a copy, so you can restore it from Settings.</string>

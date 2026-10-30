@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.rotate
 import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.progressSemantics
@@ -23,6 +27,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.QuickDefaults
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -164,6 +169,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     var showDetail by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     var editingQuick by remember { mutableStateOf(false) }
+    var editingPreset by remember { mutableStateOf<Mode?>(null) }
     val sending = rememberPresetSending()
     val tokens = paletteTokens
     val current = if (confirmed) plan?.stepAt(now) else null
@@ -216,9 +222,18 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             plan?.let { p ->
                 val summary = planSummary(p, settings.fahrenheit)
                 val detail = stringResource(R.string.parity_show_detail)
-                NightBar(p, now.takeIf { night != null && confirmed }, Modifier
+                // UX-08: a chevron always shows that the bar opens; it turns when open, instantly under reduced motion.
+                val motion = rememberMotionAllowed()
+                val turn by animateFloatAsState(if (showDetail) 180f else 0f,
+                    if (motion) tween(200) else snap(), label = "tonight-detail-chevron")
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).testTag("tonight-detail-toggle")
                     .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = detail) { showDetail = !showDetail }
-                    .semantics { contentDescription = summary ?: profileName; stateDescription = if (showDetail) "" else detail }, minHeight = 48.dp)
+                    .semantics(mergeDescendants = true) { contentDescription = summary ?: profileName; stateDescription = if (showDetail) "" else detail },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    NightBar(p, now.takeIf { night != null && confirmed }, Modifier.weight(1f), minHeight = 48.dp)
+                    Icon(painterResource(R.drawable.ic_nc_chevron_down), null,
+                        Modifier.size(22.dp).rotate(turn).testTag("tonight-detail-chevron"), tint = tokens.ink2)
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     val tick = Modifier.weight(1f)
                     Tick(if (night != null) Format.clock(p.start) else stringResource(R.string.parity_bed, Format.clock(p.start)), tick, TextAlign.Start)
@@ -284,7 +299,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         NightRecoveryControls(model, night, guard, now)
 
-        QuickPresets(model, guard, sending) { editingQuick = true }
+        QuickPresets(model, guard, sending, onEdit = { editingQuick = true }, onEditPreset = { editingPreset = it })
 
         val unreadable by model.unreadable.collectAsState()
         val restoreUnfinished by model.restoreUnfinished.collectAsState()
@@ -296,7 +311,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             SlotWriteNotice(it, onChecked = model::acknowledgeSlotWrite)
         }
         SetupChecks()
-        BedJetPicker(model, compact = true)
+        // UX-01: once a BedJet is chosen the picker lives in Settings; it returns here if the target is removed.
+        if (settings.targetDevice == null) BedJetPicker(model, compact = true)
     }
 
     BusyIndicator(model)
@@ -325,6 +341,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             QuickDefaultsSection(model, settings)
         } },
         confirmButton = { TextButton(onClick = { editingQuick = false }) { Text(stringResource(R.string.uat_setup_done)) } })
+    editingPreset?.let { mode -> QuickPresetEditor(model, settings, QuickDefaults.resolve(settings, mode)) { editingPreset = null } }
 }
 
 /** Compact visual ticks with a complete, readable wake source and a 48 dp tap area. */
@@ -403,23 +420,14 @@ fun wakeOriginLabel(origin: WakeOrigin, style: WakeLabelStyle): String {
     })
 }
 
-/** The night itself: the bar curve, or in simple view the step list. */
+/** The night itself as the step list. Simple View was retired (UX-04): the list is the one supported view. */
 @Composable
 private fun PlanCard(plan: Plan, settings: Settings, origin: WakeOrigin, now: ZonedDateTime?, end: PlanEnd? = null,
     middle: io.github.willzy12h.nocturne.core.plan.Middle? = null, onEditPhase: ((Block, ZonedDateTime) -> Unit)? = null) {
     Card(Modifier.fillMaxWidth(), colors = surfaceCard(), border = cardBorder()) {
         Column(Modifier.padding(16.dp)) {
-            if (settings.simpleView) {
-                NightTimeline(plan, origin, settings.fahrenheit, now = now, end = end, middle = middle,
-                    onEditPhase = onEditPhase?.let { edit -> { entry -> edit(entry.block, entry.startsAt) } })
-            } else {
-                Text(stringResource(R.string.tonight_the_night), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                NightCurve(plan, now = now, legend = !nocturneColors.dark, end = end, phaseInteraction = true,
-                    onEditPhase = onEditPhase?.let { edit -> { step -> edit(step.block, step.startsAt) } })
-                if (end == null) Text(wakeOriginLabel(origin, WakeLabelStyle.TILE),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp))
-            }
+            NightTimeline(plan, origin, settings.fahrenheit, Modifier.testTag("night-timeline"), now = now, end = end, middle = middle,
+                onEditPhase = onEditPhase?.let { edit -> { entry -> edit(entry.block, entry.startsAt) } })
         }
     }
 }

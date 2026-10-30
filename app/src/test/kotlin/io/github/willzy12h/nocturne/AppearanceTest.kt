@@ -87,12 +87,12 @@ class AppearanceTest {
         compose.onNodeWithText(compose.activity.getString(R.string.ux_light_theme_warning)).assertIsDisplayed()
         assertEquals(ThemeMode.SYSTEM, graph.repository.settings.value.themeMode)
         compose.onNodeWithText(compose.activity.getString(R.string.ux_switch)).performClick()
-        waitForText("Simple view")
+        waitForText(compose.activity.getString(R.string.settings_show_f))
         // Settings are saved off the main thread and show once they are on disk.
         compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.SYSTEM }
         assertEquals(ThemeMode.LIGHT, graph.repository.settings.value.themeMode)
         compose.onNodeWithText("Dark").performScrollTo().performClick()
-        waitForText("Simple view")
+        waitForText(compose.activity.getString(R.string.settings_show_f))
         compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.LIGHT }
         assertEquals(ThemeMode.DARK, graph.repository.settings.value.themeMode)
     }

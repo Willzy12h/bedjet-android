@@ -65,12 +65,13 @@ class TonightWakeLabelLayoutTest(
         assertEquals("The wake title must expose its actual rendered text layout", 1, layouts.size)
         val layout = layouts.single()
         val text = layout.layoutInput.text.text
-        if (!look.simple || widthDp > 320 || fontScale < 2f) {
-            assertEquals("The existing label must remain unchanged outside narrow, large-text Simple view", fullLabel, text)
+        if (widthDp > 320 || fontScale < 2f) {
+            assertEquals("The existing label must remain unchanged outside narrow, large-text layouts", fullLabel, text)
             ui.compose.onAllNodesWithText(COMPACT_LABEL, useUnmergedTree = true).assertCountEquals(0)
         }
 
-        if (look.simple) {
+        run {
+            // UX-04: every look now shows the timeline, so the whole-word check applies to all of them.
             val lines = (0 until layout.lineCount).map {
                 text.substring(layout.getLineStart(it), layout.getLineEnd(it, visibleEnd = true))
             }
