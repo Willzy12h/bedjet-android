@@ -40,11 +40,11 @@
     <string name="health_explainer_read">Reads, if you turn on the overlay: your sleep stages from other apps, shown behind History. They are read when you open History and are not saved, backed up or exported.</string>
     <string name="health_explainer_write">Writes, if you turn on export: completed nights the BedJet confirmed, as “BedJet programme ran”. That is programme time, not measured sleep.</string>
     <string name="health_explainer_never">Never: Health Connect does not control your BedJet. Both are off by default, and you can revoke access in Health Connect at any time.</string>
-    <string name="feature_health_source">From Health Connect</string>
+    <string name="feature_health_source">Sleep stages from Health Connect</string>
     <string name="feature_health_absent">Health Connect is unavailable. Install or update Health Connect to use the overlay.</string>
     <string name="feature_health_permission">Sleep permission is missing or has been revoked.</string>
     <string name="feature_health_empty">No sleep stages available for this night. This does not mean you were awake.</string>
-    <string name="feature_health_error">Sleep data could not be read. Try again from History.</string>
+    <string name="feature_health_error">Sleep data could not be read. Try again from Sleep in Settings.</string>
     <string name="feature_health_loading">Reading sleep stages…</string>
     <string name="feature_stage_unknown">Stage unknown</string>
     <string name="feature_stage_awake">Awake</string>
@@ -53,6 +53,13 @@
     <string name="feature_stage_light">Light sleep</string>
     <string name="feature_stage_deep">Deep sleep</string>
     <string name="feature_stage_rem">REM sleep</string>
+    <string name="feature_stage_awake_short">Awake</string>
+    <string name="feature_stage_rem_short">REM</string>
+    <string name="feature_stage_light_short">Light</string>
+    <string name="feature_stage_deep_short">Deep</string>
+    <string name="feature_stage_total">%1$s %2$s</string>
+    <string name="feature_stage_chart_accessibility">Sleep stages: %1$s</string>
+    <string name="feature_stage_bedjet">BedJet</string>
     <string name="feature_stage_line">%1$s–%2$s · %3$s</string>
     <string name="feature_csv">Export history CSV</string>
     <string name="feature_identifiers">Include device identifiers</string>

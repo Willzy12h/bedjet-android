@@ -284,7 +284,7 @@
     <string name="profiles_phase_short">%1$s %2$dm</string>
     <string name="profiles_middle_short">%1$s fan %2$d→%3$d%%</string>
     <!-- History (P6) -->
-    <string name="history_title">History</string>
+    <string name="history_title">Sleep</string>
     <string name="history_empty">Nights you run appear here, with every change made during them.</string>
     <!-- A recorded step: time, block, mode, [temperature,] fan and length. -->
     <string name="history_step_temp">%1$s  %2$s: %3$s, %4$s, fan %5$d%%, %6$s</string>
@@ -304,7 +304,6 @@
     <string name="tab_tonight">Tonight</string>
     <string name="tab_profiles">Profiles</string>
     <string name="tab_remote">Remote</string>
-    <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
     <string name="main_resume_draft">Resume editing draft</string>
     <string name="setup_checks_finish">Finish setting up</string>
@@ -329,4 +328,13 @@
     <string name="timeline_title_trend">%1$s, %2$s</string>
     <string name="timeline_fan">fan %1$d%%</string>
     <string name="timeline_fan_range">fan %1$d%% → %2$d%%</string>
+    <string name="settings_nav_sleep">Sleep</string>
+    <string name="settings_sleep_none">No nights recorded yet</string>
+    <plurals name="settings_sleep_nights">
+        <item quantity="one">%d night recorded</item>
+        <item quantity="other">%d nights recorded</item>
+    </plurals>
+    <string name="remote_not_running">Off · choose a mode to start</string>
+    <string name="remote_choose_mode_first">Choose a mode above to adjust this.</string>
+    <string name="remote_temperature_unused">%1$s runs without a temperature.</string>
 </resources>

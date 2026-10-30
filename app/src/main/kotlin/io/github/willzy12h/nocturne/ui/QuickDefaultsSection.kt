@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
@@ -92,8 +93,42 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
                 }
         }
     }
+    var editingBoost by remember { mutableStateOf(false) }
+    StripeTile(stripe = BoostColor, title = stringResource(R.string.shortcut_boost),
+        subtitle = io.github.willzy12h.nocturne.night.boostDescription(context, settings.boostMinutes),
+        modifier = Modifier.fillMaxWidth().testTag("quick-default-BOOST")) {
+        TextButton(onClick = { editingBoost = true }) { Text(stringResource(R.string.uat_quick_edit, stringResource(R.string.shortcut_boost))) }
+    }
     Text(stringResource(R.string.uat_quick_off_help), style = MaterialTheme.typography.bodySmall)
     editing?.let { QuickPresetEditor(model, settings, it) { editing = null } }
+    if (editingBoost) BoostEditor(model, settings) { editingBoost = false }
+}
+
+/**
+ * Boost's editor: Turbo always runs for the BedJet's ten-minute limit; the person chooses how long Heat
+ * follows it (none to twenty minutes). Saving changes only the setting and never sends anything.
+ */
+@Composable
+internal fun BoostEditor(model: AppViewModel, settings: Settings, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val turbo = io.github.willzy12h.nocturne.core.protocol.Limits.TURBO_MINUTES
+    var minutes by remember { mutableIntStateOf(settings.boostMinutes.coerceIn(turbo, 30)) }
+    AlertDialog(onDismissRequest = onClose,
+        title = { Text(stringResource(R.string.uat_quick_edit, stringResource(R.string.shortcut_boost))) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()).testTag("boost-editor"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.boost_editor_help, turbo))
+                Text(io.github.willzy12h.nocturne.night.boostDescription(context, minutes), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.boost_editor_heat))
+                Slider((minutes - turbo).toFloat(), { minutes = turbo + ((it / 5).roundToInt() * 5) },
+                    valueRange = 0f..20f, steps = 3,
+                    modifier = Modifier.sliderSemantics(stringResource(R.string.boost_editor_heat), spokenMinutes(minutes - turbo)),
+                    colors = nocturneSliderColors())
+            }
+        },
+        confirmButton = { TextButton(onClick = { model.updateSettings { it.copy(boostMinutes = minutes) }; onClose() }) {
+            Text(stringResource(R.string.uat_quick_save)) } },
+        dismissButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.uat_quick_cancel)) } })
 }
 
 /** One quick preset's editor: from Settings, the Home Edit list, or holding its tile on Home (UX-07). */

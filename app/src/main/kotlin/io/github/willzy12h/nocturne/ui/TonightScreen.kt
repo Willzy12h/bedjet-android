@@ -170,6 +170,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     var choosing by remember { mutableStateOf(false) }
     var editingQuick by remember { mutableStateOf(false) }
     var editingPreset by remember { mutableStateOf<Mode?>(null) }
+    var editingBoost by remember { mutableStateOf(false) }
     val sending = rememberPresetSending()
     val tokens = paletteTokens
     val current = if (confirmed) plan?.stepAt(now) else null
@@ -299,7 +300,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         NightRecoveryControls(model, night, guard, now)
 
-        QuickPresets(model, guard, sending, onEdit = { editingQuick = true }, onEditPreset = { editingPreset = it })
+        QuickPresets(model, guard, sending, onEdit = { editingQuick = true }, onEditPreset = { editingPreset = it },
+            onEditBoost = { editingBoost = true })
 
         val unreadable by model.unreadable.collectAsState()
         val restoreUnfinished by model.restoreUnfinished.collectAsState()
@@ -341,6 +343,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             QuickDefaultsSection(model, settings)
         } },
         confirmButton = { TextButton(onClick = { editingQuick = false }) { Text(stringResource(R.string.uat_setup_done)) } })
+    if (editingBoost) BoostEditor(model, settings) { editingBoost = false }
     editingPreset?.let { mode -> QuickPresetEditor(model, settings, QuickDefaults.resolve(settings, mode)) { editingPreset = null } }
 }
 

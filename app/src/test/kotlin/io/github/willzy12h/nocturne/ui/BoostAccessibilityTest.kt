@@ -13,9 +13,14 @@ class BoostAccessibilityTest {
     private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f)
     @get:Rule val rules = ui.rules
 
-    @Test fun remoteDescribesTheActualTurboThenHeatProgramme() {
+    @Test fun quickBoostDescribesTheActualTurboThenHeatProgramme() {
+        ui.compose.onNodeWithTag("quick-mode-BOOST", useUnmergedTree = true).performScrollTo()
+        ui.compose.onNode(hasTestTag("quick-mode-BOOST") and hasContentDescription("Turbo heat for 10 minutes, then Heat for 5 minutes", substring = true))
+            .assertHasClickAction().assertIsDisplayed()
+    }
+
+    @Test fun remoteNoLongerCarriesItsOwnBoost() {
         ui.compose.openRemote()
-        ui.compose.onNodeWithContentDescription("Turbo heat for 10 minutes, then Heat for 5 minutes")
-            .performScrollTo().assertHasClickAction().assertIsDisplayed()
+        ui.compose.onAllNodesWithContentDescription("Turbo heat for 10 minutes, then Heat for 5 minutes", substring = true).assertCountEquals(0)
     }
 }

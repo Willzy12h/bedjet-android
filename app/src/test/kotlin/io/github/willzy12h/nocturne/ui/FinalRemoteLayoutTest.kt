@@ -34,7 +34,7 @@ class FinalRemoteLayoutTest {
         ui.compose.onAllNodesWithTag("status-header").assertCountEquals(1)
         ui.compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
         ui.tab("Remote")
-        ui.compose.onNodeWithTag("remote-back").assertIsDisplayed().performClick()
+        ui.tab("Tonight")
         ui.compose.onAllNodesWithTag("status-header").assertCountEquals(1)
         ui.compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
         ui.compose.onNodeWithTag("home-temperature").performScrollTo().assertIsDisplayed()

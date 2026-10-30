@@ -83,7 +83,7 @@ class HistoryRevisionsTest {
     @Test fun anOpenedCardListsRevisionsAndNamesEventKinds() {
         val graph = graph
         compose.runOnUiThread { runBlocking { graph.repository.addRecord(record) } }
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.waitUntil(5_000) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50)); compose.onAllNodesWithText("Mine", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Mine", substring = true).performClick()
         compose.onNodeWithText(s(R.string.history_revision, 1, "07:00", compose.activity.resources.getQuantityString(R.plurals.history_steps, 2, 2))).assertExists()
@@ -93,7 +93,7 @@ class HistoryRevisionsTest {
     }
     private fun openNight(night: NightRecord) {
         compose.runOnUiThread { runBlocking { graph.repository.addRecord(night) } }
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             compose.onAllNodesWithText(night.profileName, substring = true).fetchSemanticsNodes().isNotEmpty()
@@ -138,7 +138,7 @@ class HistoryRevisionsTest {
             graph.repository.addRecord(first)
             graph.repository.addRecord(second)
         } }
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             compose.onAllNodesWithText(record.profileName, substring = true).fetchSemanticsNodes().isNotEmpty()

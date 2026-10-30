@@ -71,9 +71,12 @@ import io.github.willzy12h.nocturne.ui.features.HistoryExportButton
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
-/** One card per night, newest first: what was planned and everything that happened. */
+/**
+ * One card per night, newest first: what was planned, how you slept and everything that happened.
+ * Lives under Settings as the Sleep page; [onBack] returns to the Settings list.
+ */
 @Composable
-fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
+fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)? = null) {
     val history by model.history.collectAsState()
     val profiles by model.profiles.collectAsState()
     val settings by model.settings.collectAsState()
@@ -82,8 +85,11 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier) {
     var earlier by rememberSaveable { mutableStateOf(false) }
     val nights = history.sortedByDescending { it.startedAt }
     LazyColumn(modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Text(stringResource(R.string.history_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 16.dp).semantics { heading() }) }
+        item { Column(Modifier.padding(top = 16.dp)) {
+            onBack?.let { AccentLink("‹ " + stringResource(R.string.settings_nav_back), it, Modifier.testTag("settings-back"), fontSize = 15.sp) }
+            Text(stringResource(R.string.history_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() })
+        } }
         if (history.isEmpty()) item { Text(stringResource(R.string.history_empty), color = tokens.ink2, fontSize = 15.sp) }
         items(nights.take(RECENT_NIGHTS), key = { it.id }) { night -> NightCard(model, night, profiles, settings, activeNight) }
         if (nights.size > RECENT_NIGHTS) {
@@ -147,7 +153,7 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                             Text("${Format.clock(night.startedAt)} – ${Format.clock(night.wakeAt)}", color = tokens.ink2, fontSize = 15.sp)
                         }
                     }
-                    HealthSleepOverlay(model.graph, night)
+                    HealthSleepOverlay(model.graph, night, historyPlan(night), open)
                     HealthExportMarker(model.graph, night)
                     if (completed && !checkedIn && activeNight?.recordId != night.id) {
                         AccentLink(stringResource(R.string.checkin_button), { checkingIn = true }, fontSize = 14.sp)

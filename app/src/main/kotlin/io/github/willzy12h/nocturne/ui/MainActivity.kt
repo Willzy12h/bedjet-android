@@ -130,8 +130,8 @@ class MainActivity : ComponentActivity() {
 
 private enum class Tab(@androidx.annotation.StringRes val label: Int, @androidx.annotation.DrawableRes val icon: Int) {
     TONIGHT(R.string.tab_tonight, R.drawable.ic_nc_moon),
+    REMOTE(R.string.tab_remote, R.drawable.ic_nc_remote),
     PROFILES(R.string.tab_profiles, R.drawable.ic_nc_list),
-    HISTORY(R.string.tab_history, R.drawable.ic_nc_hist),
     SETTINGS(R.string.tab_settings, R.drawable.ic_nc_gear),
 }
 
@@ -160,9 +160,6 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     var tab by rememberSaveable { mutableStateOf(Tab.TONIGHT) }
-    // Remote is a Tonight sub-page: no tab bar, a "‹ Tonight" link and Back return to Tonight.
-    var remoteOpen by rememberSaveable { mutableStateOf(false) }
-    androidx.activity.compose.BackHandler(enabled = remoteOpen) { remoteOpen = false }
     val setupRequest by model.setupChecklistRequest.collectAsState()
     var handledSetupRequest by rememberSaveable { mutableIntStateOf(0) }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
@@ -192,7 +189,6 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
             if (setupRequest > 0) {
                 draftJson?.let { parkedDrafts = parkedDrafts + it; draftJson = null }
                 tab = Tab.TONIGHT
-                remoteOpen = false
             }
         }
     }
@@ -206,7 +202,6 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                 draftJson = null
             }
             tab = Tab.TONIGHT
-            remoteOpen = false
         }
     }
 
@@ -265,7 +260,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                     }) { Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.main_resume_draft)) }
                 }
                 val tokens = paletteTokens
-                if (!remoteOpen) NavigationBar(containerColor = tokens.ground, tonalElevation = 0.dp,
+                NavigationBar(containerColor = tokens.ground, tonalElevation = 0.dp,
                     modifier = Modifier.drawBehind {
                         drawLine(tokens.hairline, androidx.compose.ui.geometry.Offset(0f, 0f),
                             androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx())
@@ -290,19 +285,13 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         },
     ) { padding ->
         val modifier = Modifier.padding(padding)
-        if (remoteOpen) Column(modifier) {
-            NocturneTextButton(onClick = { remoteOpen = false }, modifier = Modifier.testTag("remote-back")) {
-                Text(androidx.compose.ui.res.stringResource(R.string.parity_back,
-                    androidx.compose.ui.res.stringResource(R.string.tab_tonight)), color = if (paletteTokens.dark) paletteTokens.accent else paletteTokens.ink2)
-            }
-            RemoteScreen(model, Modifier.weight(1f))
-        } else when (tab) {
+        when (tab) {
             Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onEditPhase = editPhase,
-                onOpenRemote = { remoteOpen = true },
+                onOpenRemote = { tab = Tab.REMOTE },
                 onOpenBackups = { tab = Tab.SETTINGS; alarmsRequest = 0; backupsRequest++ },
                 onOpenAlarmSettings = { tab = Tab.SETTINGS; backupsRequest = 0; alarmsRequest++ })
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
-            Tab.HISTORY -> HistoryScreen(model, modifier)
+            Tab.REMOTE -> RemoteScreen(model, modifier)
             Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest,
                 onBackupsRequestHandled = { if (backupsRequest == it) backupsRequest = 0 },
                 onAlarmsRequestHandled = { if (alarmsRequest == it) alarmsRequest = 0 })

@@ -62,7 +62,7 @@ class QuietMiddleCheckInSuggestionTest {
     }
 
     @Test fun quietMiddleCheckInShowsAndAppliesAllThreeFanChangesOnlyAfterConfirmation() {
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.onNodeWithText(s(R.string.checkin_button)).performScrollTo().performClick()
         compose.onNodeWithText(s(R.string.checkin_too_hot)).performClick()
         waitFor("All fan speeds +10%")

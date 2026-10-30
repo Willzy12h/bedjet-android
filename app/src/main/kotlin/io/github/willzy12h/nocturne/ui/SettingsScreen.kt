@@ -158,6 +158,11 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             dismissButton = { TextButton(onClick = { pendingTheme = null }) { Text(stringResource(R.string.feature_cancel)) } })
     }
 
+    // Sleep (the nights' history) has its own lazy list, so it replaces the settings column rather than nesting in it.
+    if (page == "sleep") {
+        HistoryScreen(model, modifier, onBack = { page = "home" })
+        return
+    }
     var alarmDetails by rememberSaveable { mutableStateOf(false) }
     val settingsScroll = rememberScrollState()
     var settingsViewportHeight by remember { mutableIntStateOf(0) }
@@ -483,6 +488,7 @@ private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
     val bluetoothOff by model.bluetoothOff.collectAsState()
     val released by model.graph.sessions.released.collectAsState()
     val notices by model.notices.collectAsState()
+    val nights = model.history.collectAsState().value.size
     var refresh by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
     val checks = remember(refresh) { checks(context) { } }
@@ -520,6 +526,9 @@ private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
             SettingsDestination("notifications", stringResource(R.string.settings_nav_notifications),
                 if (notices.isEmpty()) stringResource(R.string.parity_settings_no_notices)
                 else pluralStringResource(R.plurals.parity_settings_notices, notices.size, notices.size), R.drawable.ic_nc_bell),
+            SettingsDestination("sleep", stringResource(R.string.settings_nav_sleep),
+                if (nights == 0) stringResource(R.string.settings_sleep_none)
+                else pluralStringResource(R.plurals.settings_sleep_nights, nights, nights), R.drawable.ic_nc_moon, tokens.accent),
             SettingsDestination("health", stringResource(R.string.settings_nav_health),
                 stringResource(if (health) R.string.parity_settings_on else R.string.parity_settings_off), R.drawable.ic_nc_heart)),
         listOf(SettingsDestination("about", stringResource(R.string.settings_nav_about),
@@ -620,6 +629,7 @@ private fun pageTitle(page: String) = when (page) {
     "backups" -> R.string.settings_nav_backups
     "notifications" -> R.string.settings_nav_notifications
     "health" -> R.string.settings_nav_health
+    "sleep" -> R.string.settings_nav_sleep
     else -> R.string.settings_nav_about
 }
 

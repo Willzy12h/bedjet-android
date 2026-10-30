@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne
 
 import io.github.willzy12h.nocturne.ui.openRemote
+import io.github.willzy12h.nocturne.ui.navTab
 import io.github.willzy12h.nocturne.ui.openSettingsPage
 
 import androidx.compose.ui.test.assert
@@ -158,8 +159,7 @@ class AppSmokeTest {
             compose.onAllNodes(hasText(s(R.string.remote_connect)) or
                 (hasText(s(R.string.mode_cool)) and hasClickAction())).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag("remote-back").performClick()
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.onNodeWithText("Nights you run appear here, with every change made during them.").assertIsDisplayed()
         compose.onNodeWithText("Settings").performClick()
         compose.openSettingsPage("backups")
@@ -178,7 +178,7 @@ class AppSmokeTest {
         compose.onNodeWithText("Settings").performClick()
         compose.openSettingsPage("night")
         compose.onNodeWithText("Bedtime reminder").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.onNodeWithText("Export history CSV").assertIsDisplayed()
     }
 
@@ -297,7 +297,7 @@ class AppSmokeTest {
             compose.onNodeWithTag("tonight-end-night").performScrollTo().performClick()
             confirmStopNight()
             waitForText("Start night now", controller.get())
-            compose.onNodeWithText("History").performClick()
+            compose.navTab("History")
             waitForText("Morning check-in", controller.get())
             compose.onNodeWithText("Morning check-in").performScrollTo().performClick()
             compose.onNodeWithText("Just right").performClick()
@@ -345,8 +345,8 @@ class AppSmokeTest {
         val navigation = compose.onNodeWithTag("main-navigation").fetchSemanticsNode().boundsInRoot
         val density = compose.activity.resources.displayMetrics.density
         assertTrue("Compact navigation must fit in its bar", navigation.height <= 90f * density)
-        // Remote is a Tonight sub-page in the approved design; the bar keeps the four main tabs.
-        listOf("Tonight", "Profiles", "History", "Settings").forEach { label ->
+        // Remote replaced History in the bar; Sleep (the nights' history) is under Settings.
+        listOf("Tonight", "Remote", "Profiles", "Settings").forEach { label ->
             val destination = compose.onNodeWithContentDescription(label)
             destination.assertIsDisplayed()
             val bounds = destination.fetchSemanticsNode().boundsInRoot
@@ -356,7 +356,7 @@ class AppSmokeTest {
             when (label) {
                 "Tonight" -> compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
                 "Profiles" -> compose.onNodeWithTag("profiles-new", useUnmergedTree = true).assertIsDisplayed()
-                "History" -> compose.onNodeWithText("History").assertIsDisplayed()
+                "Remote" -> compose.onNodeWithText("Remote", useUnmergedTree = true).assertExists()
                 "Settings" -> compose.onNodeWithTag("settings-page-bedjet").assertIsDisplayed()
             }
         }

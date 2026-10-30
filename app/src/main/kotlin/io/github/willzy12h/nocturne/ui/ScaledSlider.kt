@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderColors
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +38,7 @@ internal fun ScaledSlider(
     ticks: List<Pair<Float, String>>,
     tag: String,
     onValueChangeFinished: () -> Unit,
+    colors: SliderColors = nocturneSliderColors(),
 ) {
     val style = MaterialTheme.typography.labelMedium
     if (!value.isFinite() || !range.start.isFinite() || !range.endInclusive.isFinite() ||
@@ -62,7 +64,7 @@ internal fun ScaledSlider(
         Slider(value, onValueChange, modifier = modifier.fillMaxWidth().padding(horizontal = inset),
             valueRange = range, steps = steps, enabled = enabled, onValueChangeFinished = onValueChangeFinished,
             interactionSource = interaction,
-            thumb = { SliderDefaults.Thumb(interaction, enabled = enabled, thumbSize = DpSize(20.dp, 20.dp), colors = nocturneSliderColors()) }, colors = nocturneSliderColors())
+            thumb = { SliderDefaults.Thumb(interaction, enabled = enabled, thumbSize = DpSize(20.dp, 20.dp), colors = colors) }, colors = colors)
         Layout(content = {
             ticks.forEachIndexed { index, (_, text) -> Text(text, style = style, modifier = Modifier.testTag("$tag-tick-$index")) }
         }, modifier = Modifier.fillMaxWidth()) { children, constraints ->

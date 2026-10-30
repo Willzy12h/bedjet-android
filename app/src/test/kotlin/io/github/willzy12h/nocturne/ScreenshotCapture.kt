@@ -165,7 +165,7 @@ class ScreenshotCapture {
         compose.onAllNodesWithText("Bedtime reminder")[0].performScrollTo()
         settle()
         shot("features-02-platform-settings")
-        compose.onAllNodesWithText("History")[0].performClick()
+        compose.navTab("History")
         settle()
         shot("features-03-history-export")
     }
@@ -244,7 +244,7 @@ class ScreenshotCapture {
                 "2026-10-21T22:30Z", "2026-10-22T07:00Z", false,
                 events = listOf(HistoryEvent("2026-10-22T07:30Z", EventKind.ENDED, "Night ended"))))
         }
-        tab("History")
+        compose.navTab("History")
         // At 320 dp / 200% text the older card is not composed until the lazy list scrolls.
         // Scroll its container first; keep the same button/dialog assertions and all captures.
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(s(R.string.checkin_button)))
@@ -295,15 +295,14 @@ class ScreenshotCapture {
         settle()
         compose.onNodeWithText(compose.activity.getString(R.string.tonight_start_now)).assertIsDisplayed()
         shot("$look-01b-tonight-lower")
-        // Remote is a Tonight sub-page opened from the status line.
+        // Remote is a main tab; the status line also opens it.
         compose.onNodeWithTag("open-remote").performScrollTo().performClick()
         settle()
         shot("$look-03-remote")
-        compose.onNodeWithTag("remote-back").performClick()
-        settle()
         seedHistory()
         for ((tab, name) in listOf("Profiles" to "02-profiles", "History" to "04-history", "Settings" to "05-settings")) {
-            if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription(tab))[0].performClick()
+            if (tab == "History") compose.navTab(tab)
+            else if (look.startsWith("combined-")) compose.onAllNodes(hasContentDescription(tab))[0].performClick()
             else compose.onAllNodesWithText(tab)[0].performClick()
             settle()
             shot("$look-$name")

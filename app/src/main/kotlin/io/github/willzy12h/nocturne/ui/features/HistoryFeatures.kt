@@ -62,7 +62,7 @@ import java.time.format.DateTimeFormatter
         dismissButton={TextButton({dialog=false}){Text(stringResource(R.string.feature_cancel))}})
 }
 
-@Composable fun HealthSleepOverlay(graph:Graph,record:NightRecord) {
+@Composable fun HealthSleepOverlay(graph:Graph,record:NightRecord,plan:io.github.willzy12h.nocturne.core.plan.Plan?=null,detailed:Boolean=false) {
     if (record.isTestRun || io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(record.deviceId)) return
     val settings by graph.repository.settings.collectAsState()
     if(settings.demoMode || !settings.platform.healthSleepOverlay)return
@@ -93,16 +93,8 @@ import java.time.format.DateTimeFormatter
         else if(value!=null) {
             val start=ZonedDateTime.parse(record.startedAt)
             val end=ZonedDateTime.parse(record.wakeAt)
-            val total=Duration.between(start,end).toMillis().coerceAtLeast(1).toFloat()
-            val colour=MaterialTheme.colorScheme.primary
-            Canvas(Modifier.fillMaxWidth().height(28.dp)) {
-                value.stages.forEach { stage->
-                    val x=Duration.between(start.toInstant(),stage.start).toMillis()/total*size.width
-                    val width=Duration.between(stage.start,stage.end).toMillis()/total*size.width
-                    drawRect(colour.copy(alpha=0.35f+(stage.stage.coerceIn(0,6)/6f)*0.65f),Offset(x,0f),Size(width, size.height))
-                }
-            }
-            value.stages.forEach {stage->
+            SleepStageChart(value.stages,start.toInstant(),end.toInstant(),plan)
+            if(detailed)value.stages.forEach {stage->
                 val label=stringResource(when(stage.stage) {1->R.string.feature_stage_awake;2->R.string.feature_stage_sleeping;3->R.string.feature_stage_out;4->R.string.feature_stage_light;5->R.string.feature_stage_deep;6->R.string.feature_stage_rem;else->R.string.feature_stage_unknown})
                 val format=DateTimeFormatter.ofPattern("HH:mm XXX")
                 Text(stringResource(R.string.feature_stage_line,stage.start.atZone(start.zone).format(format),stage.end.atZone(start.zone).format(format),label),style=MaterialTheme.typography.bodySmall)

@@ -123,7 +123,7 @@ private class CaptureViews(private val ui: U06Fixture) {
         if (allTabs) captureTop("tonight")
         tonight(R.string.tonight_start_now, "start")
         if (allTabs) {
-            listOf(R.string.tab_profiles to "profiles", R.string.tab_history to "history",
+            listOf(R.string.tab_profiles to "profiles", R.string.settings_nav_sleep to "history",
                 R.string.tab_settings to "settings").forEach { (id, name) ->
                 val label = ui.s(id)
                 compose.navTab(label)

@@ -142,7 +142,6 @@ class P8CaptureTest {
             captureTonightSurfaces(ui) { capture("p8-${palette.name.lowercase()}-$it") }
             ui.compose.onNodeWithTag("open-remote").performScrollTo().performClick()
             capture("p8-${palette.name.lowercase()}-remote")
-            ui.compose.onNodeWithTag("remote-back").performClick()
             ui.tab("Profiles")
             capture("p8-${palette.name.lowercase()}-profiles")
             captureProfileSurfaces(ui) { capture("p8-${palette.name.lowercase()}-$it") }

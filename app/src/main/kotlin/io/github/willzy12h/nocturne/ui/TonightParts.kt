@@ -68,7 +68,7 @@ import java.time.Duration
 import java.time.ZonedDateTime
 
 /** The design's boost stripe (`--boost`); no palette token carries it. */
-private val BoostColor = Color(0xFFFF6FA0)
+internal val BoostColor = Color(0xFFFF6FA0)
 
 /** The design's `.lbl`: 10.5, bold, uppercase, ink3. */
 @Composable
@@ -273,7 +273,7 @@ private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?,
 /** The design's QUICK PRESETS: three columns of Turbo, Heat, Cool, Dry, Boost and Off. */
 @Composable
 internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit,
-    onEditPreset: (Mode) -> Unit = {}) {
+    onEditPreset: (Mode) -> Unit = {}, onEditBoost: () -> Unit = {}) {
     val settings by model.settings.collectAsState()
     val live by model.hasLiveStatus.collectAsState()
     val link by model.linkState.collectAsState()
@@ -288,7 +288,7 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: Mutab
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY).chunked(columns).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f), onEditPreset) }
+                    row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f), onEditPreset, onEditBoost) }
                 }
             }
         }
@@ -301,7 +301,7 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: Mutab
 /** One preset; null is Boost. */
 @Composable
 private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?, evidence: DeviceStatus?, canControl: Boolean,
-    sending: MutableState<PresetSending?>, modifier: Modifier, onEditPreset: (Mode) -> Unit) {
+    sending: MutableState<PresetSending?>, modifier: Modifier, onEditPreset: (Mode) -> Unit, onEditBoost: () -> Unit) {
     val context = LocalContext.current
     val settings by model.settings.collectAsState()
     val tokens = paletteTokens
@@ -315,12 +315,15 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
             val profiles by model.profiles.collectAsState()
             val limits = settings.resolveProfile(profiles, model.now())?.limits ?: io.github.willzy12h.nocturne.core.plan.ProfileLimits()
             val startBoost = stringResource(R.string.guard_start_boost)
+            // Boost is Turbo for the unit's ten-minute limit, then Heat for the person's chosen minutes.
+            val heat = settings.boostMinutes - io.github.willzy12h.nocturne.core.protocol.Limits.TURBO_MINUTES
             PresetTile(BoostColor, R.drawable.ic_nc_ramp, stringResource(R.string.shortcut_boost),
-                stringResource(R.string.boost_label_turbo_then_heat_compact),
+                if (heat > 0) stringResource(R.string.boost_tile_detail, heat) else stringResource(R.string.boost_tile_turbo_only),
                 canControl && owner.runningLabel == null && owner.queuedCount == 0 && reportedQuickAction(
                     status, link, settings, night, runtime.slotWrite, limits) == Command.BOOST, canControl,
                 boostDescription(context, settings.boostMinutes), "quick-mode-BOOST", modifier,
-                sending.value?.key == "BOOST") {
+                sending.value?.key == "BOOST", onLongClick = onEditBoost,
+                longClickLabel = stringResource(R.string.uat_quick_edit, stringResource(R.string.shortcut_boost))) {
                 val captured = model.quickAction(Command.BOOST)
                 val title = context.getString(R.string.shortcut_boost)
                 guard.confirm(startBoost, captured.temporary) {

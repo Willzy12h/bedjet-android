@@ -100,7 +100,7 @@ class TonightAcceptanceTest {
     @Test fun legacyConnectionCollapseCannotHideRemoteAfterRestart() {
         restartWithLegacyCollapse("connection")
         ui.compose.openRemote()
-        ui.compose.onNodeWithTag("remote-back").assertIsDisplayed()
+        ui.compose.onNodeWithTag("main-navigation").assertIsDisplayed()
         ui.compose.onNodeWithText(ui.s(R.string.remote_title)).assertExists()
     }
 

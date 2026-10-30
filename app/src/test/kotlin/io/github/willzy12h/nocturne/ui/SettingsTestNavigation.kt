@@ -11,18 +11,21 @@ internal fun ComposeTestRule.backSettingsPage() {
     onNodeWithTag("settings-back").performClick()
 }
 
-/** Remote is a Tonight sub-page in the approved design: open it from Tonight's status line. */
-internal fun ComposeTestRule.openRemote() {
-    if (onAllNodesWithTag("remote-back").fetchSemanticsNodes().isNotEmpty()) return
-    navTab("Tonight")
-    onNodeWithTag("open-remote", useUnmergedTree = true).performScrollTo().performClick()
-    waitForIdle()
-}
+/** Remote is a main tab; Tonight's status line also opens it. */
+internal fun ComposeTestRule.openRemote() = navTab("Remote")
 
-/** A main tab by its label (text or, in compact navigation, content description); leaves Remote first. */
+/**
+ * A main tab by its label (text or, in compact navigation, content description). "History" and "Sleep"
+ * are the Sleep page nested in Settings.
+ */
 internal fun ComposeTestRule.navTab(label: String) {
-    if (label == "Remote") return openRemote()
-    if (onAllNodesWithTag("remote-back").fetchSemanticsNodes().isNotEmpty()) onNodeWithTag("remote-back").performClick()
+    if (label == "History" || label == "Sleep") {
+        navTab("Settings")
+        if (onAllNodesWithTag("settings-page-sleep").fetchSemanticsNodes().isEmpty()) backSettingsPage()
+        openSettingsPage("sleep")
+        waitForIdle()
+        return
+    }
     onNode((hasText(label) or hasContentDescription(label)) and hasClickAction() and hasAnyAncestor(hasTestTag("main-navigation")))
         .performClick()
     waitForIdle()

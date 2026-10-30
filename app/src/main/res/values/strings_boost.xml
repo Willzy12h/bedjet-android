@@ -10,4 +10,8 @@
         <item quantity="one">Turbo heat for %1$d minutes, then Heat for %2$d minute</item>
         <item quantity="other">Turbo heat for %1$d minutes, then Heat for %2$d minutes</item>
     </plurals>
+    <string name="boost_tile_detail">Turbo + Heat %1$dm</string>
+    <string name="boost_tile_turbo_only">Turbo 10m</string>
+    <string name="boost_editor_help">Boost runs Turbo for %1$d minutes, the most the BedJet allows, then Heat for as long as you choose below.</string>
+    <string name="boost_editor_heat">Heat afterwards</string>
 </resources>
