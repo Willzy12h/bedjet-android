@@ -379,13 +379,27 @@ class ScreenshotCapture {
             compose.onNodeWithTag("remote-mode-STANDBY").performScrollTo().performClick()
             settle(1_500)
             seedHistory()
+            compose.onAllNodesWithText("Tonight")[0].performClick()
+            settle()
+            compose.onNodeWithTag("last-night").performScrollTo()
+            settle()
+            shot("$look-08-tonight-last-night")
             compose.onAllNodesWithText("Settings")[0].performClick()
             settle()
             shot("$look-06-settings-home")
             compose.onNodeWithTag("settings-page-sleep").performScrollTo().performClick()
             settle()
             shot("$look-07-sleep-page")
-            compose.onNodeWithTag("settings-back").performClick()
+            for (section in listOf("figures", "timeline", "history")) {
+                compose.onNodeWithTag("sleep-list").performScrollToKey(section)
+                settle()
+                shot("$look-07-sleep-$section")
+            }
+            compose.onNodeWithTag("sleep-history-row").performScrollTo().performClick()
+            settle()
+            shot("$look-09-sleep-history-settings")
+            // Tapping Settings again returns to its home from any page.
+            compose.onAllNodesWithText("Settings")[0].performClick()
             settle()
         }
         // Health Connect cannot run here, so the chart is drawn on its own with a typical night's stages
@@ -401,9 +415,10 @@ class ScreenshotCapture {
                 .also { at = at.plusSeconds(minutes * 60L) }
         }
         for (theme in listOf(ThemeMode.DARK, ThemeMode.LIGHT)) {
+            val themed = graph.repository.settings.value.copy(themeMode = theme)
             compose.runOnUiThread {
                 compose.activity.setContent {
-                    NocturneTheme(graph.repository.settings.value.copy(themeMode = theme), graph.now(), dark = theme == ThemeMode.DARK) {
+                    NocturneTheme(themed, graph.now(), dark = theme == ThemeMode.DARK) {
                         androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()
                             .background(paletteTokens.ground).padding(16.dp)) {
                             androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier
