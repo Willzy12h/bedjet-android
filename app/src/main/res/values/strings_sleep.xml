@@ -69,7 +69,7 @@
     <string name="sleep_keep_recommended">Recommended</string>
     <string name="sleep_keep_help">Choosing a shorter time deletes older nights after you confirm. The Sleep page can show up to this much.</string>
     <string name="sleep_local_title">Kept only on this phone</string>
-    <string name="sleep_local_body">Nocturne never uploads your sleep history. If you delete the app or clear its storage, your history is deleted too and can\'t be recovered.</string>
+    <string name="sleep_local_body">Nocturne never uploads your sleep history, and it doesn\'t move to a new phone. If you delete the app or clear its storage, your history is deleted too and can\'t be recovered.</string>
     <string name="sleep_local_health">Sleep stages stay in Health Connect, which keeps its own copy.</string>
     <string name="sleep_backup">Save a backup file</string>
     <string name="sleep_backup_detail">to a place you choose</string>

@@ -39,7 +39,7 @@ class BackupRulesTest {
     /** The originals travel with their barrier and with the record of an accepted loss, which marks later ones uncertain. */
     @Test fun onlyPortableFilesAndTheOriginalsBarrierAreTransferred() {
         val expected = setOf(
-            "file/profiles.json", "file/history.json",
+            "file/profiles.json",
             "file/slot-backups.json", "file/slot-backups-integrity.json", "file/slot-backups-loss-accepted.json",
         )
         for (mode in listOf("cloud-backup", "device-transfer")) {
@@ -48,6 +48,12 @@ class BackupRulesTest {
             assertTrue("$mode: $actual", actual == expected)
         }
         assertTrue(entries(R.xml.backup_rules, "include").map { it.removePrefix("full-backup-content/") }.toSet() == expected)
+    }
+
+    /** Sleep history is kept only on this phone, as the Sleep history page says. */
+    @Test fun sleepHistoryNeverLeavesThePhone() {
+        val all = entries(R.xml.data_extraction_rules, "include") + entries(R.xml.backup_rules, "include")
+        assertTrue(all.toString(), all.none { it.endsWith("/history.json") })
     }
 
     @Test
