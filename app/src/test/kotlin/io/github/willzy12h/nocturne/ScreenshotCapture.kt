@@ -260,8 +260,6 @@ class ScreenshotCapture {
         tap(s(R.string.checkin_keep), scroll = false)
         tab("Tonight")
         save { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = null) } }
-        compose.onNodeWithText(s(R.string.setup_use_demo)).performScrollTo().assertIsDisplayed()
-        shot("gaps-$look-07-setup-demo")
         compose.onNodeWithText(s(R.string.setup_choose_title)).performScrollTo().assertIsDisplayed()
         shot("gaps-$look-07-setup-title")
         compose.onNodeWithText(s(R.string.setup_find)).performScrollTo().assertIsDisplayed()

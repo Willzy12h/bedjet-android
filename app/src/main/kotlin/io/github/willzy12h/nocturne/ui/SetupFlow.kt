@@ -41,11 +41,11 @@ import io.github.willzy12h.nocturne.core.link.DeviceId
 
 /** Explicit selection only: discovery never connects to an unchosen unit. */
 @Composable
-fun SetupFlow(model: AppViewModel, compact: Boolean = false, showDemoChoice: Boolean = true) =
-    BedJetPicker(model, compact, showDemoChoice)
+fun SetupFlow(model: AppViewModel, compact: Boolean = false) =
+    BedJetPicker(model, compact)
 
 @Composable
-fun BedJetPicker(model: AppViewModel, compact: Boolean = false, showDemoChoice: Boolean = true) {
+fun BedJetPicker(model: AppViewModel, compact: Boolean = false) {
     val settings by model.settings.collectAsState()
     val found by model.foundBedJets.collectAsState()
     val discovering by model.discovering.collectAsState()
@@ -96,10 +96,6 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false, showDemoChoice: 
                 Text(stringResource(if (checked) R.string.setup_fan_completed else R.string.setup_fan_help),
                     style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = model::runSetupFanCheck) { Text(stringResource(if (checked) R.string.setup_fan_repeat else R.string.setup_fan_run)) }
-            }
-            if (!settings.demoMode && showDemoChoice && settings.targetDevice == null) {
-                HorizontalDivider()
-                DemoModePanel(model, showBanner = false)
             }
             if (!compact) {
                 var samsung by rememberSaveable { mutableStateOf(false) }

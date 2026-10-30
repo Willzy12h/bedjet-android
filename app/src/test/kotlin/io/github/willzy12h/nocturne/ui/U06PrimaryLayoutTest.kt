@@ -178,19 +178,16 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     @PrimarySeed(PrimaryScenario.SETUP)
-    @Test fun tonightSetupDemoChoiceStaysReachable() = checkDemoChoice(R.string.tab_tonight)
+    @Test fun tonightSetupOffersNoDemo() = checkNoDemoChoice(R.string.tab_tonight)
     @PrimarySeed(PrimaryScenario.SETUP)
-    @Test fun remoteSetupDemoChoiceStaysReachable() = checkDemoChoice(R.string.tab_remote)
+    @Test fun remoteSetupOffersNoDemo() = checkNoDemoChoice(R.string.tab_remote)
     @PrimarySeed(PrimaryScenario.SETUP)
-    @Test fun settingsSetupDemoChoiceStaysReachable() = checkDemoChoice(R.string.tab_settings)
+    @Test fun settingsSetupOffersNoDemo() = checkNoDemoChoice(R.string.tab_settings)
 
-    private fun checkDemoChoice(@StringRes tab: Int) {
+    private fun checkNoDemoChoice(@StringRes tab: Int) {
         ui.tab(ui.s(tab))
         if (tab == R.string.tab_settings) ui.compose.openSettingsPage("bedjet")
-        ui.control(ui.s(R.string.setup_use_demo))
-        ui.snackbar()
-        ui.control(ui.s(R.string.setup_use_demo)).performClick()
-        ui.waitUntil { ui.graph.repository.settings.value.demoMode }
+        ui.compose.onAllNodesWithText("demo", substring = true, ignoreCase = true).assertCountEquals(0)
         assertNull(ui.graph.repository.settings.value.targetDevice)
     }
 

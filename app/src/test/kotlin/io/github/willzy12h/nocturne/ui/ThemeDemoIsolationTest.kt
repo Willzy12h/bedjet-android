@@ -92,9 +92,8 @@ class ThemeDemoIsolationTest {
         assertNotNull(preferences.getString("holdSelection", null))
         assertTrue(preferences.getLong("holdUntil", 0) > ui.graph.now().toInstant().toEpochMilli())
 
-        settings()
-        ui.compose.openSettingsPage("bedjet")
-        ui.compose.onNodeWithText(ui.s(R.string.setup_use_demo)).performScrollTo().performClick()
+        // The app no longer offers Demo; tests still start one directly.
+        ui.compose.runOnUiThread { ui.model.useDemo() }
         ui.waitUntil {
             ui.graph.repository.isDemoSession && ui.graph.repository.settings.value.demoMode &&
                 ui.graph.actions.busy.value.runningLabel == null
@@ -147,9 +146,8 @@ class ThemeDemoIsolationTest {
         assertTrue(preferences.getBoolean("lastDark", false))
         assertNotNull(preferences.getString("holdSelection", null))
 
-        settings()
-        ui.compose.openSettingsPage("bedjet")
-        ui.compose.onNodeWithText(ui.s(R.string.setup_use_demo)).performScrollTo().performClick()
+        // The app no longer offers Demo; tests still start one directly.
+        ui.compose.runOnUiThread { ui.model.useDemo() }
         ui.waitUntil { ui.graph.repository.isDemoSession && ui.graph.actions.busy.value.runningLabel == null }
         settleFrames()
         settings()

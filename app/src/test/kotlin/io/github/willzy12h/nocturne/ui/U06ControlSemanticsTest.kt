@@ -228,8 +228,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.waitUntil { !graph.repository.settings.value.demoMode }
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar() // The mode boundary disposes the old session and its SnackbarHost.
-        compose.openSettingsPage("bedjet")
-        fixture.control(s(R.string.setup_use_demo)).performClick()
+        compose.runOnUiThread { fixture.model.useDemo() }
         fixture.waitUntil { graph.repository.settings.value.demoMode }
         fixture.snackbar()
         fixture.tab(s(R.string.tab_tonight))

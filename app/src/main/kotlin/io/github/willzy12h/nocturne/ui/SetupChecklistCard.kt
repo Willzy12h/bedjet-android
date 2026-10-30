@@ -173,6 +173,6 @@ internal fun SetupChecklistCard(model: AppViewModel) {
     }
     if (pairDialog) AlertDialog(containerColor = paletteTokens.sheet, onDismissRequest = { pairDialog = false },
         title = { Text(stringResource(R.string.uat_setup_pair)) },
-        text = { Column(Modifier.verticalScroll(rememberScrollState())) { SetupFlow(model, showDemoChoice = false) } },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { SetupFlow(model) } },
         confirmButton = { TextButton(onClick = { pairDialog = false; refresh++ }) { Text(stringResource(R.string.uat_setup_done)) } })
 }

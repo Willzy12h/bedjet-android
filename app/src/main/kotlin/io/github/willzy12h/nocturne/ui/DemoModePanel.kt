@@ -22,13 +22,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.R
 
-/** Demo is a separate, disposable session. The main scaffold keeps its exit visible across tabs. */
+/**
+ * Demo is a separate, disposable session the app no longer offers; tests and screenshots still use it. Anyone already
+ * in one keeps this exit, visible across tabs.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DemoModePanel(model: AppViewModel, showTryDemo: Boolean = true, showBanner: Boolean = true) {
+fun DemoModePanel(model: AppViewModel) {
     val settings by model.settings.collectAsState()
     if (settings.demoMode) {
-        if (showBanner) Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         )) {
@@ -39,13 +42,6 @@ fun DemoModePanel(model: AppViewModel, showTryDemo: Boolean = true, showBanner: 
                 TextButton(onClick = model::exitDemo, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text(stringResource(R.string.gpt12_exit_demo))
                 }
-            }
-        }
-    } else if (showTryDemo) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.setup_use_demo_help), style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = model::useDemo, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(stringResource(R.string.setup_use_demo))
             }
         }
     }

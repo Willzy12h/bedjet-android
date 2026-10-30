@@ -232,7 +232,6 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         if (page == "bedjet") Group(stringResource(R.string.settings_bedjet)) {
             Text(stringResource(R.string.settings_connected_unit, if (settings.demoMode) stringResource(R.string.status_demo_device) else selectedName ?: stringResource(R.string.settings_none_yet)), style = MaterialTheme.typography.bodyMedium)
             DeviceControls(model, settingsScroll, settingsViewportHeight)
-            DemoModePanel(model, showBanner = false)
             Text(stringResource(R.string.settings_slot_title), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.settings_slot_help), style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -370,7 +369,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         if (page == "permissions") {
             // The checks bring their own cards, so they sit straight on the page.
             SetupChecks(showAll = true)
-            SetupFlow(model, showDemoChoice = false)
+            SetupFlow(model)
         }
 
         if (page == "night") SettingsCard { PlatformSettingsSection(model.graph) }

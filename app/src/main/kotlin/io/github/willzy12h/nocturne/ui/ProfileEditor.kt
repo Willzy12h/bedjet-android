@@ -188,7 +188,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
 
     Surface(Modifier.fillMaxSize(), color = tokens.ground) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
-            DemoModePanel(model, showTryDemo = false)
+            DemoModePanel(model)
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 AccentLink(stringResource(R.string.parity_back, stringResource(R.string.profiles_title)), leave,
                     Modifier.testTag("editor-back"), fontSize = 15.sp)
