@@ -42,7 +42,16 @@ Every command still goes through the existing single owner, with the same confir
 
 ## Verification
 
-GATE_RESULTS
+Full local gate on `ede24a3` (the APK's source; later commits change only docs): `./gradlew --init-script docs/redesign/verification.init.gradle :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug` exited 0.
+
+| Task | Result |
+| --- | --- |
+| `:core:test` | 334 tests, 0 failures, 0 errors |
+| `:app:testDebugUnitTest` | 1,878 tests, 0 failures, 0 errors, 43 skipped |
+| `:app:assembleDebug` | Built |
+| `:app:lintDebug` | 0 issues |
+
+These are host (JVM and Robolectric) results. Hosted CI has not been run on this branch.
 
 Widget renders (host Robolectric images, not device evidence) were produced by `SCREENSHOT_TAG=widgets ./gradlew :app:testDebugUnitTest --tests '*WidgetCaptureTest'`. They cover Controls at 2 × 1 to 4 × 4 in Dark and Light, every tile preset, and a running night.
 
