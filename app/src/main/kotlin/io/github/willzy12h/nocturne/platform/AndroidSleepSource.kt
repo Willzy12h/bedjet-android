@@ -19,6 +19,7 @@ import java.time.Instant
 
 class AndroidSleepSource(context: Context) : SleepSource {
     private val client=HealthConnectAccess.client(context)
+    private val ownPackage=context.packageName
     override suspend fun permitted()=client.permissionController.getGrantedPermissions().containsAll(PERMISSIONS)
     override suspend fun sessions(start: Instant,end: Instant): List<SleepStage> {
         val stages=mutableListOf<SleepStage>();var token:String?=null
@@ -31,9 +32,23 @@ class AndroidSleepSource(context: Context) : SleepSource {
         } while (token != null)
         return stages
     }
+    override suspend fun nights(start: Instant, end: Instant): List<io.github.willzy12h.nocturne.sleep.SleepNight> {
+        val nights=mutableListOf<io.github.willzy12h.nocturne.sleep.SleepNight>();var token:String?=null
+        do {
+            val page=client.readRecords(ReadRecordsRequest(SleepSessionRecord::class,TimeRangeFilter.between(start,end),pageToken=token))
+            // Nocturne's own sessions only echo its BedJet nights back; the page shows those from the history instead.
+            page.records.filter { it.metadata.dataOrigin.packageName != ownPackage }.forEach { session ->
+                nights += io.github.willzy12h.nocturne.sleep.SleepNight.of(session.startTime, session.endTime,
+                    session.stages.map { SleepStage(it.startTime, it.endTime, it.stage) })
+            }
+            token=page.pageToken
+        } while (token != null)
+        return nights
+    }
     companion object {
         val PERMISSIONS=setOf(HealthPermission.getReadPermission(SleepSessionRecord::class))
         fun reader(context: Context)=SleepOverlayReader({HealthConnectAccess.available(context)}) {AndroidSleepSource(context)}
+        fun nightsReader(context: Context)=SleepNightsReader({HealthConnectAccess.available(context)}) {AndroidSleepSource(context)}
     }
 }
 

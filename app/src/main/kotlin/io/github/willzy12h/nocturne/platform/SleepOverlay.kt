@@ -8,6 +8,25 @@ data class SleepOverlay(val availability: SleepAvailability, val stages: List<Sl
 interface SleepSource {
     suspend fun permitted(): Boolean
     suspend fun sessions(start: Instant, end: Instant): List<SleepStage>
+    /** Other apps' sleep sessions ending in [start]..[end]; Nocturne's own exported sessions are left out. */
+    suspend fun nights(start: Instant, end: Instant): List<io.github.willzy12h.nocturne.sleep.SleepNight> = emptyList()
+}
+
+data class SleepNights(val availability: SleepAvailability, val nights: List<io.github.willzy12h.nocturne.sleep.SleepNight> = emptyList())
+
+/** Reads the Sleep page's range of nights, with the same availability outcomes as [SleepOverlayReader]. */
+class SleepNightsReader(private val available: () -> Boolean, private val source: () -> SleepSource) {
+    suspend fun read(start: Instant, end: Instant): SleepNights {
+        if (!available()) return SleepNights(SleepAvailability.ABSENT)
+        return try {
+            val client = source()
+            if (!client.permitted()) return SleepNights(SleepAvailability.PERMISSION)
+            val nights = client.nights(start, end).filter { it.end > it.start }.sortedByDescending { it.start }
+            SleepNights(if (nights.isEmpty()) SleepAvailability.EMPTY else SleepAvailability.AVAILABLE, nights)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (_: SecurityException) { SleepNights(SleepAvailability.PERMISSION)
+        } catch (_: Exception) { SleepNights(SleepAvailability.ERROR) }
+    }
 }
 class SleepOverlayReader(private val available: () -> Boolean, private val source: () -> SleepSource) {
     suspend fun read(record: NightRecord): SleepOverlay {
