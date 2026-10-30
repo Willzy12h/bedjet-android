@@ -102,3 +102,20 @@ Use this with [DEVICE-VALIDATION.md](DEVICE-VALIDATION.md). Keep physical Off wi
 | Sleep history retention | Shortening retention asks first and removes older nights. Delete clears the history. A cloud backup or device transfer does not carry it. | NOT RUN |
 | Remote and Boost | Remote is in the tab bar. Boost runs Turbo then Heat for the saved minutes; the edited minutes are used. | NOT RUN |
 | Demo hidden | Settings no longer offers Demo mode. | NOT RUN |
+
+## Feedback from the first install (to do)
+
+Recorded on 30 October 2026 after the owner installed `0.3.0-acceptance.1`. None of this is done yet.
+
+1. **First run order.** First run asks to pair with the BedJet first, and asks for Bluetooth second. Ask for Bluetooth (nearby devices) permission first, because pairing can't work without it.
+2. **Faster pairing.** Use fewer pop-ups and screens. After permission is granted, scan automatically instead of showing a prompt and then a separate scan step.
+3. **Alarm source wording.** Replace the "use alarms from unknown apps" wording with something like "Next known alarm". Add a short note that some clock apps don't say which app they are.
+4. **Alarm freshness.** Settings showed the alarm source's next alarm (09:00 tomorrow) before Tonight did; Tonight caught up later, where it had earlier said no alarm was found. Find out why it is delayed, and refresh the next alarm automatically when it changes.
+5. **Remote mode display.** The current-mode display at the top of Remote (for example "Off") looks like a button. Make it read clearly as the current mode, and point people to the presets below. It may be smaller. Make design renders for this first. Keep the Turbo, Heat, Long heat, Dry and other preset buttons as they are.
+6. **Custom duration.** The custom duration says "between 1 minute and 11 hours 59 minutes". Accept 12 hours as entered and store it as the device maximum (11:59) behind the scenes.
+7. **Drag to reorder on Profiles.** Pressing the top profile starts scrolling straight away. Let a held item hover in place, and animate the other items moving up or down as it passes.
+8. **One drag style everywhere.** Use the same drag-and-drop behaviour and animation in the profile editor's steps and in every other reorderable list.
+9. **Notification timing default.** Notification lead times (for example the temperature notifications) should default to at least 10 minutes. People can still change them.
+10. **Health Connect in first-time setup.** Offer Health Connect as an optional, dismissable step in the first-run guide, and say it can be turned on later in Settings.
+
+No changes are needed to Appearance. Health Connect import worked on the device and the Sleep page reads well with real data.
