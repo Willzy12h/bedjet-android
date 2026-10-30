@@ -56,7 +56,16 @@ Widget renders (host Robolectric images, not device evidence) were produced by `
 
 ## Test APK
 
-APK_RESULTS
+| Item | Value |
+| --- | --- |
+| Built from | `ede24a3` with `assembleRelease` |
+| Package | `io.github.willzy12h.nocturne` |
+| Version | `0.3.0-acceptance.1`, version code `20261080` (above the previous `20261079`) |
+| SDK | minSdk 31, targetSdk 36 |
+| Signing | APK Signature Scheme v2, verified with `apksigner verify` |
+| Certificate | CN=Nocturne acceptance TEST build, O=Personal test signing, C=GB; valid until 2036 |
+| Certificate SHA-256 | `fd5fa67050e21e2f7e4c6926623ba75ac8236c0f53b72d057fa15cba34f40d81` |
+| APK SHA-256 | `267326664610ca52d75feb87c28bfc8b31b0b2585e9e07373581908e3ddee1f0` (5,640,753 bytes) |
 
 This APK is signed with a **new test key** made for this acceptance build. It is **not** the permanent TEST certificate (`bd233ddc…5f15`) and not a production key, so it **cannot install over** an existing Nocturne. Before uninstalling the current app, export a backup file (Settings → Backups and snapshots → Export file) and keep the BedJet originals. Sleep history is local only and is lost when the app is uninstalled. Nothing was published as a release.
 

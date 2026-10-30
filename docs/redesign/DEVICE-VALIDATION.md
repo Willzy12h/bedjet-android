@@ -2,6 +2,8 @@
 
 Delivery continuation and artifact acceptance rules are recorded in [DELIVERY-STATUS.md](DELIVERY-STATUS.md). Use the final delivery manifest for the actual signed APK identity.
 
+The acceptance-polish test APK (`0.3.0-acceptance.1`, new test key) and its widget, Sleep and Remote checks are in [ACCEPTANCE-POLISH-HANDOVER.md](ACCEPTANCE-POLISH-HANDOVER.md).
+
 Date: 29 October 2026. **Every physical result is NOT RUN.**
 
 The software gates pass at tested source `3fd7f043308f10a8524ab29e75c96f5cd2eea292`. A later documentation-only branch tip does not change that tested application/test/build source. The permanent TEST installation artifact has not yet been delivered or installed.

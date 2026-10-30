@@ -68,3 +68,7 @@ bd233ddcf84f6ed97a1597d433a0137dd2c0e64b13c2c537bb8ee5508de85f15
 ```
 
 No PR, merge, tag, release, force-push or production-signing change is authorised by this delivery. Physical installation and BedJet/Samsung/TalkBack/widget/overnight acceptance remain NOT RUN; follow [DEVICE-VALIDATION.md](DEVICE-VALIDATION.md) with the actual delivered APK identity.
+
+## Acceptance polish
+
+The acceptance-polish branch `claude/nocturne-acceptance-polish` and its separately signed test APK are recorded in [ACCEPTANCE-POLISH-HANDOVER.md](ACCEPTANCE-POLISH-HANDOVER.md). That APK uses a new test key, not the permanent TEST certificate, and is not a release.
