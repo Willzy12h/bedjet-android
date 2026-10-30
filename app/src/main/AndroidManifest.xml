@@ -86,6 +86,12 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".widget.QuickControlsConfigActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <service android:name=".service.BedJetService" android:exported="false"
             android:foregroundServiceType="connectedDevice|shortService" />
 

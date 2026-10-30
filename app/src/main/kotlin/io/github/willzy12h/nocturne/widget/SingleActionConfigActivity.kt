@@ -31,7 +31,7 @@ import io.github.willzy12h.nocturne.ui.rememberThemePresentation
 import io.github.willzy12h.nocturne.ui.ThemeDuePrompt
 import kotlinx.coroutines.launch
 
-/** Picks what a single-button widget does. */
+/** Picks which preset a one-cell tile runs: a quick preset, Start tonight, a profile or Off. */
 class SingleActionConfigActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,7 +40,7 @@ class SingleActionConfigActivity : ComponentActivity() {
         setResult(RESULT_CANCELED, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
         if (widgetId <= 0 || AppWidgetManager.getInstance(this).getAppWidgetInfo(widgetId)?.provider !=
             ComponentName(this, SingleActionReceiver::class.java)) { finish(); return }
-        val actions = widgetActions(this)
+        val actions = widgetPresetChoices(this)
         setContent {
             val settings by graph.repository.settings.collectAsState()
             val theme = rememberThemePresentation(settings, graph::now)
@@ -50,7 +50,7 @@ class SingleActionConfigActivity : ComponentActivity() {
                         Modifier.systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.feature_widget_config), style = MaterialTheme.typography.titleLarge)
+                        Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.widget_tile_config), style = MaterialTheme.typography.titleLarge)
                         actions.forEach { action ->
                             FilledTonalButton(onClick = { choose(widgetId, action) }, modifier = Modifier.fillMaxWidth()) { Text(action.label) }
                         }
@@ -65,6 +65,7 @@ class SingleActionConfigActivity : ComponentActivity() {
         lifecycleScope.launch {
             val glanceId = GlanceAppWidgetManager(this@SingleActionConfigActivity).getGlanceIdBy(widgetId)
             updateAppWidgetState(this@SingleActionConfigActivity, glanceId) { prefs ->
+                prefs[SingleActionWidget.KEY_PRESET] = action.key
                 prefs[SingleActionWidget.KEY_COMMAND] = action.command.name
                 prefs[SingleActionWidget.KEY_LABEL] = action.label
                 if (action.profileId != null) prefs[SingleActionWidget.KEY_PROFILE] = action.profileId else prefs.remove(SingleActionWidget.KEY_PROFILE)

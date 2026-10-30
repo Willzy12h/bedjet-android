@@ -99,7 +99,7 @@ class P8CaptureTest {
             for (single in listOf(false, true)) {
                 val widget = if (single) SingleActionWidget() else QuickControlsWidget()
                 val state = if (single) preferencesOf(SingleActionWidget.KEY_COMMAND to "WARM", SingleActionWidget.KEY_LABEL to "Warm")
-                    else preferencesOf(QuickControlsWidget.KEY_PAGE to "quick:0")
+                    else preferencesOf(QuickControlsWidget.KEY_PRESETS to "HEAT")
                 val root = widget.compose(ui.compose.activity, size = size, state = state).apply(ui.compose.activity, FrameLayout(ui.compose.activity))
                 val density = ui.compose.density.density
                 root.measure(View.MeasureSpec.makeMeasureSpec((size.width.value * density).toInt(), View.MeasureSpec.EXACTLY),
@@ -107,7 +107,7 @@ class P8CaptureTest {
                 root.layout(0, 0, root.measuredWidth, root.measuredHeight)
                 fun descendants(view: View): List<View> = listOf(view) +
                     if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
-                assertTrue(descendants(root).filterIsInstance<Button>().any { it.text.toString() == "Warm" })
+                assertTrue(io.github.willzy12h.nocturne.widget.widgetControl(root, if (single) "Warm" else "Heat") != null)
                 val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
                 try {
                     ui.compose.runOnUiThread { root.draw(Canvas(bitmap)) }

@@ -115,8 +115,9 @@ class WidgetProgrammeUncertaintyTest {
             val labels = renderedLabels(f, widget)
             assertTrue("${widget.javaClass.simpleName} must show the known uncertainty: $labels",
                 f.app.getString(R.string.widget_phase_unknown) in labels)
-            assertTrue("${widget.javaClass.simpleName} must not retain the old confirmed wake: $labels",
-                f.app.getString(R.string.widget_wake_unknown) in labels)
+            // Controls shows the plan with its short wake; a one-cell tile has room only for the phase.
+            if (widget is QuickControlsWidget) assertTrue("${widget.javaClass.simpleName} must not retain the old confirmed wake: $labels",
+                f.app.getString(R.string.widget_wake_unknown_short) in labels || f.app.getString(R.string.widget_wake_unknown) in labels)
             assertEquals("Rendering must not send device commands", commands, f.sent.size)
         } finally { f.beforeFileWrite = null }
     }

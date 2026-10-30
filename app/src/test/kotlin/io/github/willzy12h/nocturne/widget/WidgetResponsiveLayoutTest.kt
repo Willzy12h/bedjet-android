@@ -1,9 +1,11 @@
 package io.github.willzy12h.nocturne.widget
 
 import android.content.Context
+import android.content.res.Configuration
+import android.graphics.Rect
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.compose.ui.unit.DpSize
@@ -11,7 +13,6 @@ import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.preferencesOf
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.appwidget.compose
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.CommandOrigin
@@ -24,22 +25,23 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Inflate the production Glance RemoteViews: labels and touch dimensions must survive translation. */
+/** Inflate the production Glance RemoteViews at launcher sizes: every control stays readable, reachable and inside its widget. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Suppress("DEPRECATION")
 class WidgetResponsiveLayoutTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixture() {
     private val context: Context = RuntimeEnvironment.getApplication()
-    private val compact = DpSize(200.dp, 128.dp)
-    private val medium = DpSize(280.dp, 180.dp)
-    private val large = DpSize(340.dp, 240.dp)
 
-    private fun rendered(size: DpSize, page: String, widget: GlanceAppWidget = QuickControlsWidget(),
-        state: Preferences = preferencesOf(stringPreferencesKey("widget_page") to page)): View = runBlocking {
+    /** Launcher cells are roughly 73 × 92 dp on a 411 dp phone. */
+    private val controlsSizes = listOf("2x1" to DpSize(146.dp, 92.dp), "2x2" to DpSize(146.dp, 184.dp), "3x2" to DpSize(219.dp, 184.dp),
+        "4x2" to DpSize(292.dp, 184.dp), "4x3" to DpSize(292.dp, 276.dp), "4x4" to DpSize(292.dp, 368.dp))
+    private val tileSizes = listOf("1x1" to DpSize(73.dp, 92.dp), "small 1x1" to DpSize(64.dp, 64.dp))
+
+    private fun rendered(size: DpSize, widget: GlanceAppWidget, state: Preferences): ViewGroup = runBlocking {
         context.graph.repository.updateSettings { it.copy(demoMode = true) }
         val remote = widget.compose(context, size = size, state = state)
-        remote.apply(context, FrameLayout(context)).also { view ->
+        (remote.apply(context, FrameLayout(context)) as ViewGroup).also { view ->
             val density = context.resources.displayMetrics.density
             view.measure(View.MeasureSpec.makeMeasureSpec((size.width.value * density).toInt(), View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec((size.height.value * density).toInt(), View.MeasureSpec.EXACTLY))
@@ -47,223 +49,145 @@ class WidgetResponsiveLayoutTest : io.github.willzy12h.nocturne.platform.Platfor
         }
     }
 
-    private fun descendants(view: View): List<View> = listOf(view) +
-        if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+    private fun <T> atFontScale(scale: Float, block: () -> T): T {
+        val saved = Configuration(context.resources.configuration)
+        return try {
+            context.resources.updateConfiguration(Configuration(saved).apply { fontScale = scale }, context.resources.displayMetrics)
+            block()
+        } finally { context.resources.updateConfiguration(saved, context.resources.displayMetrics) }
+    }
 
-    private fun checkPage(size: DpSize, page: String, expected: List<String>, maximum: Int) {
-        val root = rendered(size, page) as ViewGroup
-        val views = descendants(root)
-        val buttons = views.filterIsInstance<Button>()
-        val actions = buttons.filterNot { it.text.toString() in listOf("‹", "›") }
-        assertEquals("Real controls on $page at $size", expected, actions.map { it.text.toString() })
-        assertTrue("Action budget at $size", actions.size <= maximum)
-        assertEquals("Both page chevrons are real buttons", listOf("‹", "›"), buttons.filter { it.text.toString() in listOf("‹", "›") }.map { it.text.toString() })
-        buttons.forEach { button ->
-            assertTrue("${button.text} touch height ${button.height}", button.height / context.resources.displayMetrics.density >= 56f)
-            assertTrue("${button.text} touch width ${button.width}", button.width / context.resources.displayMetrics.density >= 56f)
-            assertTrue("${button.text} label size", button.textSize / context.resources.displayMetrics.scaledDensity >= 16f)
+    private fun bounds(root: View, view: View) = Rect().also { view.getDrawingRect(it); (root as ViewGroup).offsetDescendantRectToMyCoords(view, it) }
+    private fun dp(px: Int) = px / context.resources.displayMetrics.density
+    private fun sp16() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 16f, context.resources.displayMetrics)
+    /** Glance puts the click on a wrapper and the spoken description on the view inside it. */
+    private fun described(view: View) = widgetDescription(view)
+    private fun isControl(view: View) = view.hasOnClickListeners() && !described(view).endsWith("Opens Nocturne.")
+
+    /** Whether [label] is laid out whole on one line: no ellipsis and no characters pushed to a hidden line. */
+    private fun whole(label: TextView): Boolean {
+        val layout = label.layout ?: return true
+        return layout.getEllipsisCount(0) == 0 && layout.getLineEnd(0) >= label.text.length &&
+            layout.getLineWidth(0) <= label.width - label.totalPaddingLeft - label.totalPaddingRight + 1f
+    }
+
+    private fun checkControls(name: String, size: DpSize, scale: Float, presets: String? = null) {
+        val root = rendered(size, QuickControlsWidget(), presets?.let { preferencesOf(QuickControlsWidget.KEY_PRESETS to it) } ?: preferencesOf())
+        val whole = Rect(0, 0, root.width, root.height)
+        val views = widgetDescendants(root)
+        val controls = views.filter(::isControl)
+        assertTrue("$name at $scale×: Off is always present", widgetControl(root, "Off") != null)
+        controls.forEach { control ->
+            val rect = bounds(root, control)
+            assertTrue("$name at $scale×: ${described(control)} is inside the widget: $rect in $whole", whole.contains(rect))
+            assertTrue("$name at $scale×: ${described(control)} is 56dp tall: ${dp(control.height)}", dp(control.height) >= 56f - .5f)
+            assertTrue("$name at $scale×: ${described(control)} is 56dp wide: ${dp(control.width)}", dp(control.width) >= 56f - .5f)
+            assertFalse("$name: ${described(control)} needs a spoken description", described(control).isBlank())
         }
-        val touchBounds = buttons.map { button ->
-            android.graphics.Rect().also { rect ->
-                button.getDrawingRect(rect)
-                root.offsetDescendantRectToMyCoords(button, rect)
-                assertTrue("${button.text} must fit inside $size: $rect", android.graphics.Rect(0, 0, root.width, root.height).contains(rect))
-            }
-        }
-        touchBounds.forEachIndexed { index, rect -> touchBounds.drop(index + 1).forEach {
-            assertFalse("Controls must not overlap: $rect and $it", android.graphics.Rect.intersects(rect, it))
+        val rects = controls.map { bounds(root, it) }
+        rects.forEachIndexed { index, rect -> rects.drop(index + 1).forEach {
+            assertFalse("$name at $scale×: controls must not overlap: $rect and $it", Rect.intersects(rect, it))
         } }
         val labels = views.filterIsInstance<TextView>().filter { it.text.isNotBlank() }
-        assertTrue("A main status value is present at 20sp", labels.any { it !is Button && it.textSize / context.resources.displayMetrics.scaledDensity >= 20f })
-        labels.forEach { assertTrue("${it.text} label is at least 16sp", it.textSize / context.resources.displayMetrics.scaledDensity >= 16f) }
+        labels.forEach { label ->
+            assertTrue("$name at $scale×: ${label.text} is at least 16sp", label.textSize + .01f >= sp16())
+            assertTrue("$name at $scale×: ${label.text} is inside the widget", whole.contains(bounds(root, label)))
+        }
+        val pillLabels = labels.filter { label -> generateSequence<View>(label) { it.parent as? View }.any(::isControl) }
+        pillLabels.forEach { label -> val pill = generateSequence<View>(label) { it.parent as? View }.first(::isControl)
+            assertTrue("$name: ${label.text} keeps its name in what is spoken", described(pill).isNotBlank()) }
+        pillLabels.forEach { assertTrue("$name at $scale×: the control label ${it.text} must not be cut short", whole(it)) }
+        assertTrue("$name at $scale×: a 20sp value leads the widget", labels.any {
+            it.textSize + .01f >= TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 20f, context.resources.displayMetrics) })
     }
 
-    @Test fun compactNightHasOneLargePrimaryAction() = checkPage(compact, "night:0", listOf("Start tonight"), 1)
-    @Test fun compactQuickHasOneLargeAction() = checkPage(compact, "quick:0", listOf("Cool"), 1)
-    @Test fun compactDeviceHasOneLargeAction() = checkPage(compact, "device:0", listOf("Off"), 1)
-    @Test fun mediumNightHasTwoLargePrimaryActions() = checkPage(medium, "night:0", listOf("Start tonight", "Turbo→Heat"), 2)
-    @Test fun mediumQuickHasTwoLargeActions() = checkPage(medium, "quick:0", listOf("Cool", "Warm"), 2)
-    @Test fun mediumDeviceHasTwoLargeActions() = checkPage(medium, "device:0", listOf("Off", "Stop tracking"), 2)
-    @Test fun largeNightHasThreeLargePrimaryActions() = checkPage(large, "night:0", listOf("Start tonight", "Turbo→Heat", "Turbo 10m"), 3)
-    @Test fun largeQuickHasTwoLargeActions() = checkPage(large, "quick:0", listOf("Cool", "Warm"), 3)
-    @Test fun largeDeviceHasTwoLargeActions() = checkPage(large, "device:0", listOf("Off", "Stop tracking"), 3)
-    @Test fun compactCanReachBoost() = checkPage(compact, "night:1", listOf("Turbo→Heat"), 1)
-    @Test fun compactCanReachTurbo() = checkPage(compact, "night:2", listOf("Turbo 10m"), 1)
-    @Test fun mediumCanReachTurbo() = checkPage(medium, "night:2", listOf("Turbo 10m"), 2)
-
-    @Test fun widgetRequestCarriesWidgetOriginBeforeTheServiceHandoff() {
-        assertEquals(CommandOrigin.WIDGET, widgetRequest(context, widgetActions(context).first()).origin)
-    }
-
-    @Test fun compactProfilesRemainReachable() = checkPage(compact, "profiles:0", context.graph.repository.profiles.value.take(1).map {
-        context.getString(io.github.willzy12h.nocturne.R.string.feature_start_profile, it.name)
-    }, 1)
-    @Test fun mediumProfilesRemainReachable() = checkPage(medium, "profiles:0", context.graph.repository.profiles.value.take(2).map {
-        context.getString(io.github.willzy12h.nocturne.R.string.feature_start_profile, it.name)
-    }, 2)
-    @Test fun largeProfilesRemainReachable() = checkPage(large, "profiles:0", context.graph.repository.profiles.value.take(3).map {
-        context.getString(io.github.willzy12h.nocturne.R.string.feature_start_profile, it.name)
-    }, 3)
-    @Test fun compactOpenAppIsExplicit() = checkPage(compact, "app:0", listOf("Open app"), 1)
-    @Test fun mediumOpenAppIsExplicit() = checkPage(medium, "app:0", listOf("Open app"), 2)
-    @Test fun largeOpenAppIsExplicit() = checkPage(large, "app:0", listOf("Open app"), 3)
-    @Test fun compactCanReachWarm() = checkPage(compact, "quick:1", listOf("Warm"), 1)
-    @Test fun compactCanReachStopTracking() = checkPage(compact, "device:1", listOf("Stop tracking"), 1)
-    @Test fun boostDescriptionNamesBothPartsOfItsRun() {
-        val boost = descendants(rendered(medium, "night:0")).filterIsInstance<Button>().first { it.text.toString() == "Turbo→Heat" }
-        assertEquals("Turbo heat for 10 minutes, then Heat for 5 minutes", boost.contentDescription?.toString())
-    }
-
-    @Test fun everyCompactBoostDurationNamesItsModesAndFitsAtTwoHundredPercent() = runBlocking {
-        val saved = android.content.res.Configuration(context.resources.configuration)
-        try {
-            context.resources.updateConfiguration(android.content.res.Configuration(saved).apply { fontScale = 2f }, context.resources.displayMetrics)
-            assertEquals(2f, context.resources.configuration.fontScale, 0f)
-            for (minutes in listOf(10, 15, 20, 25, 30)) {
-                context.graph.repository.updateSettings { it.copy(boostMinutes = minutes) }
-                for (widget in listOf(QuickControlsWidget(), SingleActionWidget())) {
-                    val single = widget is SingleActionWidget
-                    val preferences = if (single) preferencesOf(SingleActionWidget.KEY_COMMAND to "BOOST",
-                        SingleActionWidget.KEY_LABEL to "Stale saved label")
-                        else preferencesOf(QuickControlsWidget.KEY_PAGE to "night:1")
-                    val root = rendered(compact, "night:1", widget, preferences) as ViewGroup
-                    val buttons = descendants(root).filterIsInstance<Button>()
-                    val action = buttons.single { it.text.toString() !in listOf("‹", "›", "Open app") }
-                    val expected = if (minutes == 10) "Turbo 10m" else "Turbo→Heat"
-                    assertEquals("${widget.javaClass.simpleName} must visibly name every actual mode", expected, action.text.toString())
-                    assertEquals(if (minutes == 10) "Turbo heat for 10 minutes"
-                        else "Turbo heat for 10 minutes, then Heat for ${minutes - 10} minutes", action.contentDescription?.toString())
-                    assertEquals("Keep the fixed compact control budget", if (single) 2 else 3, buttons.size)
-                    val bounds = android.graphics.Rect(0, 0, root.width, root.height)
-                    val touchBounds = buttons.map { button ->
-                        val density = context.resources.displayMetrics.density
-                        assertTrue("${button.text} needs a 56dp-wide touch target", button.width / density >= 56f)
-                        assertTrue("${button.text} needs a 56dp-high touch target", button.height / density >= 56f)
-                        // API 34 applies a nonlinear font curve; dividing pixels by scaledDensity is not an SP conversion.
-                        val minimumPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
-                            16f, button.resources.displayMetrics)
-                        if (minutes == 10 && !single) println("Widget 200% type: ${button.text}, actualPx=${button.textSize}, " +
-                            "required16spPx=$minimumPx, scaledDensity=${button.resources.displayMetrics.scaledDensity}")
-                        assertTrue("${button.text} must retain 16sp type: actualPx=${button.textSize}, requiredPx=$minimumPx",
-                            button.textSize + .01f >= minimumPx)
-                        val rect = android.graphics.Rect()
-                        button.getDrawingRect(rect)
-                        root.offsetDescendantRectToMyCoords(button, rect)
-                        assertTrue("${button.text} must be wholly inside the widget: $rect", bounds.contains(rect))
-                        val layout = requireNotNull(button.layout) { "A native button must have actual laid-out text" }
-                        assertEquals("Sentence-case labels must survive native rendering", button.text.toString(), layout.text.toString())
-                        assertTrue("${button.text} must fit vertically", layout.height <= button.height - button.totalPaddingTop - button.totalPaddingBottom)
-                        assertEquals("Every label character must be laid out", layout.text.length, layout.getLineEnd(layout.lineCount - 1))
-                        for (line in 0 until layout.lineCount) {
-                            assertEquals("${button.text} must not ellipsise at 200%", 0, layout.getEllipsisCount(line))
-                            assertTrue("${button.text} must fit horizontally", layout.getLineWidth(line) <=
-                                button.width - button.totalPaddingLeft - button.totalPaddingRight + 1f)
-                        }
-                        rect
-                    }
-                    touchBounds.forEachIndexed { index, rect -> touchBounds.drop(index + 1).forEach {
-                        assertFalse("Compact controls must not overlap", android.graphics.Rect.intersects(rect, it))
-                    } }
-                }
-            }
-        } finally { context.resources.updateConfiguration(saved, context.resources.displayMetrics) }
-    }
-
-    private fun checkSingle(size: DpSize) {
-        val root = rendered(size, "", SingleActionWidget(), preferencesOf(
-            SingleActionWidget.KEY_COMMAND to "COOL", SingleActionWidget.KEY_LABEL to "Cool")) as ViewGroup
-        val buttons = descendants(root).filterIsInstance<Button>()
-        assertEquals(listOf("Open app", "Cool"), buttons.map { it.text.toString() })
-        buttons.forEach { button ->
-            assertTrue(button.height / context.resources.displayMetrics.density >= 56f)
-            assertTrue(button.width / context.resources.displayMetrics.density >= 56f)
-            assertTrue(button.textSize / context.resources.displayMetrics.scaledDensity >= 16f)
-            val rect = android.graphics.Rect()
-            button.getDrawingRect(rect); root.offsetDescendantRectToMyCoords(button, rect)
-            assertTrue("${button.text} is not clipped: $rect", android.graphics.Rect(0, 0, root.width, root.height).contains(rect))
+    @Test fun controlsFitAtEverySizeAtNormalAndTwoHundredPercentText() {
+        for (scale in listOf(1f, 2f)) atFontScale(scale) {
+            for ((name, size) in controlsSizes) checkControls(name, size, scale)
+            // Every preset the person might choose, including the long ones, still fits.
+            for ((name, size) in controlsSizes) checkControls("$name all presets", size, scale, "START,TURBO,HEAT,COOL,DRY,BOOST")
         }
     }
-    @Test fun compactSingleActionRetainsReadableControlAndExplicitOpenApp() = checkSingle(compact)
-    @Test fun mediumSingleActionRetainsReadableControlAndExplicitOpenApp() = checkSingle(medium)
-    @Test fun largeSingleActionRetainsReadableControlAndExplicitOpenApp() = checkSingle(large)
 
-    @Test fun everySizeAndPageKeepsControlsAndTextInsideItsBoundsAtTwoHundredPercentFont() {
-        val saved = android.content.res.Configuration(context.resources.configuration)
-        try {
-            context.resources.updateConfiguration(android.content.res.Configuration(saved).apply { fontScale = 2f }, context.resources.displayMetrics)
-            assertEquals(2f, context.resources.configuration.fontScale, 0f)
-            for ((size, maximum) in listOf(compact to 1, medium to 2, large to 3)) {
-                for (page in widgetPages(context, 1).map { it.key }) {
-                    val root = rendered(size, page) as ViewGroup
-                    val views = descendants(root)
-                    val buttons = views.filterIsInstance<Button>()
-                    val controls = buttons.filterNot { it.text.toString() in listOf("‹", "›") }
-                    assertTrue("At least one action remains on $page", controls.isNotEmpty())
-                    assertTrue("The $size action budget still applies", controls.size <= maximum)
-                    val bounds = android.graphics.Rect(0, 0, root.width, root.height)
-                    val clickable = mutableListOf<android.graphics.Rect>()
-                    views.filterIsInstance<TextView>().filter { it.text.isNotBlank() }.forEach { label ->
-                        val rect = android.graphics.Rect()
-                        label.getDrawingRect(rect); root.offsetDescendantRectToMyCoords(label, rect)
-                        assertTrue("At 200%, ${label.text} must fit in $size on $page: $rect", bounds.contains(rect))
-                        val textLayout = label.layout
-                        if (textLayout != null) {
-                            assertTrue("At 200%, ${label.text} must fit vertically: lines=${textLayout.height}, height=${label.height}, padding=${label.totalPaddingTop + label.totalPaddingBottom}, width=${label.width}, textSize=${label.textSize}, maxLines=${label.maxLines}, lineCount=${textLayout.lineCount}, transform=${label.transformationMethod}",
-                                textLayout.height <= label.height - label.totalPaddingTop - label.totalPaddingBottom)
-                            if (!page.startsWith("profiles:")) for (line in 0 until textLayout.lineCount)
-                                assertEquals("The fixed label ${label.text} must not be ellipsised at 200%", 0, textLayout.getEllipsisCount(line))
-                        }
-                        if (label is Button) {
-                            assertTrue(label.height / context.resources.displayMetrics.density >= 56f)
-                            assertTrue(label.width / context.resources.displayMetrics.density >= 56f)
-                            clickable += rect
-                        }
-                    }
-                    clickable.forEachIndexed { index, rect -> clickable.drop(index + 1).forEach {
-                        assertFalse("200% controls must not overlap", android.graphics.Rect.intersects(rect, it))
-                    } }
-                }
-            }
-        } finally { context.resources.updateConfiguration(saved, context.resources.displayMetrics) }
-    }
-
-    @Test fun aConfirmedPlanAndSingleActionFitAtNormalAndTwoHundredPercentText() = runBlocking {
-        val saved = android.content.res.Configuration(context.resources.configuration)
+    @Test fun controlsFitWhileANightRunsAtNormalAndTwoHundredPercentText() = runBlocking {
         val graph = context.graph
         graph.repository.updateSettings { it.copy(demoMode = true) }
-        graph.link.connect()
         val start = graph.now()
         val profile = graph.repository.profiles.value.first()
         val plan = io.github.willzy12h.nocturne.core.plan.PlanCompiler.compile(profile, start, start.plusHours(8))
-        val night = io.github.willzy12h.nocturne.core.night.ActiveNight("layout", profile.id, start.toString(), plan.wake.toString(),
-            false, 2, plan.wakeUpStart.toString(), plan.end.toString(), deviceId = "demo", profile = profile,
+        graph.repository.setActiveNight(io.github.willzy12h.nocturne.core.night.ActiveNight("layout", profile.id, start.toString(),
+            plan.wake.toString(), false, 2, plan.wakeUpStart.toString(), plan.end.toString(), deviceId = "demo", profile = profile,
             applied = io.github.willzy12h.nocturne.core.night.AppliedProgram.from(plan),
-            confidence = io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED)
-        graph.repository.setActiveNight(night)
+            confidence = io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED))
         try {
-            for (scale in listOf(1f, 2f)) {
-                context.resources.updateConfiguration(android.content.res.Configuration(saved).apply { fontScale = scale }, context.resources.displayMetrics)
-                for (widget in listOf(QuickControlsWidget(), SingleActionWidget())) for (size in listOf(compact, medium, large)) {
-                    val prefs = if (widget is SingleActionWidget) preferencesOf(SingleActionWidget.KEY_COMMAND to "COOL", SingleActionWidget.KEY_LABEL to "Cool")
-                        else preferencesOf(QuickControlsWidget.KEY_PAGE to "night:0")
-                    val root = rendered(size, "night:0", widget, prefs) as ViewGroup
-                    val bounds = android.graphics.Rect(0, 0, root.width, root.height)
-                    descendants(root).filterIsInstance<TextView>().filter { it.text.isNotBlank() }.forEach { label ->
-                        val rect = android.graphics.Rect()
-                        label.getDrawingRect(rect); root.offsetDescendantRectToMyCoords(label, rect)
-                        assertTrue("${widget.javaClass.simpleName} $scale× $size ${label.text} must fit: $rect", bounds.contains(rect))
-                        label.layout?.let { layout ->
-                            assertTrue("${label.text} must not be vertically clipped at $scale×: ${layout.height} in ${label.height}",
-                                layout.height <= label.height - label.totalPaddingTop - label.totalPaddingBottom)
-                            for (line in 0 until layout.lineCount)
-                                assertEquals("${label.text} must not be ellipsised at $scale× in $size", 0, layout.getEllipsisCount(line))
-                        }
-                    }
+            for (scale in listOf(1f, 2f)) atFontScale(scale) { for ((name, size) in controlsSizes) checkControls("$name night", size, scale) }
+            val roomy = rendered(DpSize(292.dp, 276.dp), QuickControlsWidget(), preferencesOf())
+            assertTrue("4 × 3 has room for tonight's plan", widgetDescendants(roomy).filterIsInstance<TextView>()
+                .any { it.text.toString() == context.getString(io.github.willzy12h.nocturne.R.string.widget_running, profile.name) })
+        } finally { graph.repository.setActiveNight(null) }
+    }
+
+    @Test fun theLayoutGrowsToShowMorePresetsAndKeepsOffInReach() {
+        assertEquals("2 × 1 is a strip: the header and Off", 0, ControlsLayout.of(146f, 92f, 1f, false).rows)
+        val narrow = ControlsLayout.of(146f, 184f, 1f, false)
+        assertEquals("2 × 2 keeps pills wide enough for their names: one column", 1, narrow.columns)
+        assertEquals(PRESET_OFF, narrow.arrange(DEFAULT_CONTROLS).last().first())
+        val wide = ControlsLayout.of(292f, 184f, 1f, false)
+        assertEquals(4, wide.columns)
+        assertEquals(2, wide.rows)
+        assertEquals("With two rows Off starts the last row", listOf(listOf("TURBO", "HEAT", "COOL", "BOOST"), listOf(PRESET_OFF, "DRY", null, null)),
+            wide.arrange(DEFAULT_CONTROLS))
+        assertEquals("A short list shares one row with Off at its end", listOf(listOf("COOL", PRESET_OFF)), wide.arrange(listOf("COOL")))
+        assertEquals("Off alone when nothing is chosen", listOf(listOf(PRESET_OFF)), wide.arrange(emptyList()))
+        val strip = ControlsLayout.of(146f, 60f, 1f, false)
+        assertEquals("Too short for a row: the header and Off share the strip", 0, strip.rows)
+        ControlsLayout.of(292f, 184f, 1f, true).let { assertTrue("4 × 2 shows the plan above one row of controls", it.plan && it.rows == 1) }
+        assertTrue("4 × 3 adds the plan while a night runs", ControlsLayout.of(292f, 276f, 1f, true).plan)
+        val large = ControlsLayout.of(292f, 368f, 2f, false)
+        assertTrue("Large text gets wider pills", large.columns <= 2)
+        assertTrue("Large text stacks the header", large.stackedHeader)
+    }
+
+    @Test fun savedPresetsAreReadInOrderWithoutOffOrUnknownKeys() {
+        assertEquals(DEFAULT_CONTROLS, controlKeys(context, null))
+        assertEquals(listOf("COOL", "TURBO"), controlKeys(context, "COOL,OFF,NOPE,TURBO"))
+        assertEquals(emptyList<String>(), controlKeys(context, ""))
+    }
+
+    @Test fun everyTileFitsAndIsOneWholeButton() {
+        val keys = QUICK_PRESETS + PRESET_START + PRESET_OFF
+        for (scale in listOf(1f, 2f)) atFontScale(scale) {
+            for ((name, size) in tileSizes) for (key in keys) {
+                val root = rendered(size, SingleActionWidget(), preferencesOf(SingleActionWidget.KEY_PRESET to key))
+                val whole = Rect(0, 0, root.width, root.height)
+                val controls = widgetControls(root)
+                assertEquals("$key $name at $scale×: the whole tile is the one button", 1, controls.size)
+                assertTrue("$key $name: the tile is 56dp or more", dp(controls.single().width) >= 56f && dp(controls.single().height) >= 56f)
+                val label = widgetPreset(context, key)!!.label
+                val shown = widgetDescendants(root).filterIsInstance<TextView>().first { it.text.isNotBlank() }.text.toString()
+                assertTrue("$key $name at $scale×: shows its name or its short form, not $shown",
+                    shown == label || (key == PRESET_START && shown == context.getString(io.github.willzy12h.nocturne.R.string.widget_start_short)))
+                assertEquals(controls.single(), widgetControl(root, shown))
+                widgetDescendants(root).filterIsInstance<TextView>().filter { it.text.isNotBlank() }.forEach {
+                    assertTrue("$key $name at $scale×: ${it.text} is at least 16sp", it.textSize + .01f >= sp16())
+                    assertTrue("$key $name at $scale×: ${it.text} is inside the tile", whole.contains(bounds(root, it)))
                 }
+                val title = widgetDescendants(root).filterIsInstance<TextView>().first { it.text.toString() == shown }
+                // At 200% a one-cell tile cannot hold the longest names; the spoken description always carries them in full.
+                if (scale == 1f && size == tileSizes.first().second) assertTrue("$key $name: ${title.text} must not be cut short", whole(title))
+                assertTrue("$key: the description names the preset", described(controls.single()).contains(if (key == "BOOST") "Turbo" else label))
             }
-        } finally {
-            context.resources.updateConfiguration(saved, context.resources.displayMetrics)
-            graph.repository.setActiveNight(null)
         }
+    }
+
+    @Test fun legacySingleActionPlacementsStillRender() {
+        val root = rendered(tileSizes.first().second, SingleActionWidget(),
+            preferencesOf(SingleActionWidget.KEY_COMMAND to "COOL", SingleActionWidget.KEY_LABEL to "Cool"))
+        assertNotNull(widgetControl(root, "Cool"))
+        assertEquals(1, widgetControls(root).size)
+    }
+
+    @Test fun widgetRequestCarriesWidgetOriginBeforeTheServiceHandoff() {
+        assertEquals(CommandOrigin.WIDGET, widgetRequest(context, widgetActions(context).first()).origin)
     }
 }

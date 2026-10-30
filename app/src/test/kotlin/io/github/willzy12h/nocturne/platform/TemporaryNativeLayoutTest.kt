@@ -263,10 +263,9 @@ class TemporaryNativeLayoutTest : PlatformGraphFixture() {
             state = preferencesOf(SingleActionWidget.KEY_COMMAND to Command.WARM.name,
                 SingleActionWidget.KEY_LABEL to app.getString(R.string.feature_warm)))
         else QuickControlsWidget().compose(app, id = id, size = DpSize(340.dp, 240.dp),
-            // This 200% fixture shows one Quick action per page: Cool first, then Warm.
-            state = preferencesOf(QuickControlsWidget.KEY_PAGE to "quick:1"))
-        descendants(rendered.apply(app, FrameLayout(app))).filterIsInstance<Button>()
-            .single { it.text.toString() == app.getString(R.string.feature_warm) }.performClick()
+            state = preferencesOf(QuickControlsWidget.KEY_PRESETS to "HEAT"))
+        requireNotNull(io.github.willzy12h.nocturne.widget.widgetControl(rendered.apply(app, FrameLayout(app)),
+            app.getString(if (single) R.string.feature_warm else R.string.mode_heat))).performClick()
         val intent = requireNotNull(shadowOf(app).nextStartedActivity)
         assertEquals(WidgetConfirmationActivity::class.java.name, intent.component!!.className)
         return Robolectric.buildActivity(WidgetConfirmationActivity::class.java, intent).setup()

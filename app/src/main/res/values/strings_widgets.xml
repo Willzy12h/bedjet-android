@@ -1,16 +1,5 @@
 <resources>
     <string name="widget_turbo_duration">Turbo %1$dm</string>
-    <string name="widget_page_night">Night</string>
-    <string name="widget_page_quick">Quick</string>
-    <string name="widget_page_device">Device</string>
-    <string name="widget_page_profiles">Profiles</string>
-    <string name="widget_page_app">App</string>
-    <string name="widget_page_position">%1$s %2$d/%3$d</string>
-    <string name="widget_previous_glyph">‹</string>
-    <string name="widget_next_glyph">›</string>
-    <string name="widget_previous_page">Previous page: %1$s</string>
-    <string name="widget_next_page">Next page: %1$s</string>
-    <string name="widget_open_app">Open app</string>
     <string name="widget_last_mode">Last %1$s</string>
     <string name="widget_temperature_unknown">Temperature unknown</string>
     <string name="widget_room_temperature">Last room %1$s</string>
@@ -54,4 +43,21 @@
     <string name="widget_result_description">%1$s — %2$s. %3$s</string>
     <string name="widget_temperature_description">%1$s. %2$s</string>
     <string name="widget_status_description">%1$s. %2$s</string>
+    <string name="widget_start_short">Start</string>
+    <string name="widget_control_sending">%1$s, sending</string>
+    <string name="widget_control_running">%1$s, running</string>
+    <string name="widget_choose_bedjet">Choose a BedJet</string>
+    <string name="widget_status_result">%1$s · %2$s</string>
+    <string name="widget_mode_temperature">%1$s %2$s</string>
+    <string name="widget_demo">Demo</string>
+    <string name="widget_header_description">%1$s. %2$s. Opens Nocturne.</string>
+    <string name="widget_plan_description">%1$s is running. %2$s. %3$s.</string>
+    <string name="widget_running">Running · %1$s</string>
+    <string name="widget_tile_sending">Sending…</string>
+    <string name="widget_controls_config">Choose the presets for Controls</string>
+    <string name="widget_controls_config_help">Ticked presets show in this order. Off is always there. Bigger widgets show more.</string>
+    <string name="widget_controls_save">Save</string>
+    <string name="widget_move_up">Move %1$s up</string>
+    <string name="widget_move_down">Move %1$s down</string>
+    <string name="widget_tile_config">What should this tile do?</string>
 </resources>

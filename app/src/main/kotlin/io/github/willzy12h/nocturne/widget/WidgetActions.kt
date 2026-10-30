@@ -77,16 +77,6 @@ internal suspend fun refreshWidget(context: Context, id: GlanceId, kind: String)
     }
 }
 
-class WidgetPageCallback : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val page = parameters[PAGE] ?: return
-        if (widgetPages(context, 1).none { it.key == page }) return
-        updateAppWidgetState(context, glanceId) { it[QuickControlsWidget.KEY_PAGE] = page }
-        refreshWidget(context, glanceId, WidgetActionCallback.QUICK)
-    }
-    companion object { val PAGE = ActionParameters.Key<String>("widget_page") }
-}
-
 /** A callback never starts an activity. Confirmation controls use their own direct Activity PendingIntent. */
 class WidgetActionCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
@@ -183,6 +173,8 @@ internal fun widgetActionLabel(context: Context, request: CommandRequest): Strin
         when (request.command) {
             Command.BOOST -> return compactBoostLabel(context, preset.minutes)
             Command.TURBO -> return context.getString(R.string.widget_turbo_duration, preset.minutes)
+            // A quick preset is named by its mode, as on its widget control: Heat, Long heat, Cool or Dry.
+            Command.WARM, Command.COOL -> return context.getString(io.github.willzy12h.nocturne.ui.Format.modeNameRes(preset.mode))
             else -> Unit
         }
     }

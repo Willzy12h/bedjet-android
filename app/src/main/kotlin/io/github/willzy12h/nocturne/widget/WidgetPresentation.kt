@@ -8,8 +8,9 @@ import io.github.willzy12h.nocturne.night.compactBoostLabel
 import io.github.willzy12h.nocturne.ui.captureQuickAction
 
 fun widgetRequest(context: Context, action: WidgetAction): CommandRequest {
+    // A quick preset carries its saved run; the shared capture recaptures it at each render, as the app does.
     val request = context.graph.actions.capture(action.command, action.profileId, requireIdentity = true)
-        .copy(origin = io.github.willzy12h.nocturne.night.CommandOrigin.WIDGET)
+        .copy(origin = io.github.willzy12h.nocturne.night.CommandOrigin.WIDGET, actionPreset = action.preset)
     // Preserve the original End preset. The shared dialog derives its separately capped Temporary copy.
     // Idle actions retain the same behaviour as the other quick entries, which do not show this choice.
     return request.copy(actionPreset = captureQuickAction(context.graph, request)?.end?.actionPreset)
@@ -60,40 +61,6 @@ fun widgetMode(context: Context, observation: io.github.willzy12h.nocturne.platf
         context.getString(io.github.willzy12h.nocturne.ui.Format.modeNameRes(mode)),age,java.time.ZonedDateTime.parse(observation.at).format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm XXX")))
 }
 
-
-internal data class WidgetPage(val key: String, val label: String, val actions: List<WidgetAction>, val opensApp: Boolean = false)
-
-/** Chunk each group, including the primary group, so resizing never makes its later actions unreachable. */
-internal fun widgetPages(context: Context, capacity: Int,
-    profiles: List<io.github.willzy12h.nocturne.core.plan.Profile> = context.graph.repository.profiles.value): List<WidgetPage> {
-    val fixed = widgetActions(context).filter { it.profileId == null }
-    val groups = listOf(
-        Triple("night", io.github.willzy12h.nocturne.R.string.widget_page_night, fixed.take(3)),
-        Triple("quick", io.github.willzy12h.nocturne.R.string.widget_page_quick, fixed.filter { it.command in setOf(
-            io.github.willzy12h.nocturne.night.NightActions.Command.COOL, io.github.willzy12h.nocturne.night.NightActions.Command.WARM) }),
-        Triple("device", io.github.willzy12h.nocturne.R.string.widget_page_device, fixed.filter { it.command in setOf(
-            io.github.willzy12h.nocturne.night.NightActions.Command.OFF, io.github.willzy12h.nocturne.night.NightActions.Command.STOP_TRACKING) }),
-        Triple("profiles", io.github.willzy12h.nocturne.R.string.widget_page_profiles, profiles.map {
-            WidgetAction(context.getString(io.github.willzy12h.nocturne.R.string.feature_start_profile, it.name),
-                io.github.willzy12h.nocturne.night.NightActions.Command.START_NIGHT, it.id)
-        }),
-    )
-    return groups.flatMap { (key, title, actions) ->
-        val chunks = actions.chunked(capacity)
-        chunks.mapIndexed { index, chunk -> WidgetPage("$key:${index * capacity}",
-            if (chunks.size == 1) context.getString(title) else context.getString(
-                io.github.willzy12h.nocturne.R.string.widget_page_position, context.getString(title), index + 1, chunks.size), chunk) }
-    } + WidgetPage("app:0", context.getString(io.github.willzy12h.nocturne.R.string.widget_page_app), emptyList(), opensApp = true)
-}
-
-internal fun selectedWidgetPage(pages: List<WidgetPage>, stored: String?): Int {
-    pages.indexOfFirst { it.key == stored }.takeIf { it >= 0 }?.let { return it }
-    // Preserve the group and nearest earlier action when a resize changes the number of actions per page.
-    val group = stored?.substringBefore(':') ?: return 0
-    val offset = stored.substringAfter(':', "0").toIntOrNull() ?: return 0
-    return pages.indexOfLast { it.key.substringBefore(':') == group && it.key.substringAfter(':').toInt() <= offset }
-        .coerceAtLeast(0)
-}
 
 internal fun widgetHeadline(context: Context, observation: io.github.willzy12h.nocturne.platform.DeviceObservation?): String {
     val mode = observation?.takeIf { it.device == context.graph.repository.settings.value.deviceId() }

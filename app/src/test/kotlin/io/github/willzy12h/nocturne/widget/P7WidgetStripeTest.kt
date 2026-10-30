@@ -42,7 +42,7 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
 
     private data class Example(val command: String, val label: String, val page: String, val mode: Mode)
 
-    @Test fun navigationAndOpenAppTextHasReadableContrast() = runBlocking {
+    @Test fun controlLabelsHaveReadableContrastOnTheirFill() = runBlocking {
         val size = DpSize(280.dp, 180.dp)
         for (palette in listOf(Palette.FOREST, Palette.OVERCAST)) {
             context.graph.repository.updateSettings { it.copy(demoMode = true,
@@ -51,7 +51,7 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
             for (single in listOf(false, true)) {
                 val widget: GlanceAppWidget = if (single) SingleActionWidget() else QuickControlsWidget()
                 val state = if (single) preferencesOf(SingleActionWidget.KEY_COMMAND to "WARM", SingleActionWidget.KEY_LABEL to "Warm")
-                    else preferencesOf(QuickControlsWidget.KEY_PAGE to "app:0")
+                    else preferencesOf(QuickControlsWidget.KEY_PRESETS to "TURBO,HEAT,COOL")
                 val root = widget.compose(context, size = size, state = state).apply(context, FrameLayout(context)) as ViewGroup
                 val density = context.resources.displayMetrics.density
                 root.measure(View.MeasureSpec.makeMeasureSpec((size.width.value * density).toInt(), View.MeasureSpec.EXACTLY),
@@ -59,11 +59,12 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
                 root.layout(0, 0, root.measuredWidth, root.measuredHeight)
                 val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
                 root.draw(Canvas(bitmap))
-                val labels = if (single) listOf("Open app") else listOf("‹", "›", "Open app")
+                val labels = if (single) listOf("Warm") else listOf("Turbo", "Heat", "Cool", "Off")
                 for (label in labels) {
-                    val button = descendants(root).filterIsInstance<Button>().single { it.text.toString() == label }
+                    val text = descendants(root).filterIsInstance<android.widget.TextView>().single { it.text.toString() == label }
+                    val button = requireNotNull(widgetControl(root, label)) { "$label must be tappable" }
                     assertTrue("$label target", button.width / density >= 56 && button.height / density >= 56)
-                    if (label != "Open app") assertTrue("$label description", !button.contentDescription.isNullOrBlank())
+                    assertTrue("$label description", widgetDescription(button).isNotBlank())
                     val rect = Rect().also { button.getDrawingRect(it); root.offsetDescendantRectToMyCoords(button, it) }
                     // The most common opaque pixel in the central half is the flat button fill, avoiding rounded corners and glyphs.
                     val counts = mutableMapOf<Int, Int>()
@@ -73,7 +74,7 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
                             if (android.graphics.Color.alpha(color) == 255) counts[color] = (counts[color] ?: 0) + 1
                         }
                     val fill = counts.maxByOrNull { it.value }!!.key
-                    assertTrue("$palette $label contrast must reach 4.5:1", ColorUtils.calculateContrast(button.currentTextColor, fill) >= 4.5)
+                    assertTrue("$palette $label contrast must reach 4.5:1", ColorUtils.calculateContrast(text.currentTextColor, fill) >= 4.5)
                 }
                 bitmap.recycle()
             }
@@ -87,24 +88,25 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
                 themeMode = if (palette.dark) ThemeMode.DARK else ThemeMode.LIGHT,
                 nightPalette = if (palette.dark) palette else Palette.MIDNIGHT_INK, dayPalette = Palette.OVERCAST) }
             for ((command, label, page, typedMode) in listOf(
-                Example("WARM", "Warm", "quick:0", Mode.HEAT),
-                Example("TURBO", "Turbo 10m", "night:2", Mode.TURBO),
-                Example("OFF", "Off", "device:0", Mode.STANDBY))) {
+                Example("WARM", "Warm", "HEAT", Mode.HEAT),
+                Example("TURBO", "Turbo 10m", "TURBO", Mode.TURBO),
+                Example("OFF", "Off", "OFF", Mode.STANDBY))) {
                 val temperature = if (typedMode == Mode.STANDBY) 0 else QuickDefaults.resolve(context.graph.repository.settings.value, typedMode).temperature
                 val expected = palette.tokens.stepColor(typedMode, temperature).toArgb()
                 for (single in listOf(false, true)) {
                     val widget: GlanceAppWidget = if (single) SingleActionWidget() else QuickControlsWidget()
                     val state = if (single) preferencesOf(SingleActionWidget.KEY_COMMAND to command,
                         SingleActionWidget.KEY_LABEL to label)
-                    else preferencesOf(QuickControlsWidget.KEY_PAGE to page)
+                    else preferencesOf(QuickControlsWidget.KEY_PRESETS to page)
                     val root = widget.compose(context, size = size, state = state).apply(context, FrameLayout(context))
                     val density = context.resources.displayMetrics.density
                     root.measure(View.MeasureSpec.makeMeasureSpec((size.width.value * density).toInt(), View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec((size.height.value * density).toInt(), View.MeasureSpec.EXACTLY))
                     root.layout(0, 0, root.measuredWidth, root.measuredHeight)
-                    val action = descendants(root).filterIsInstance<Button>().first { it.text.toString() == label }
+                    val shown = if (single) label else widgetPreset(context, page)!!.label
+                    val action = requireNotNull(widgetControl(root, shown)) { "$shown must be tappable" }
                     assertTrue("$label must be at least 48dp", action.width / density >= 48 && action.height / density >= 48)
-                    assertTrue("$label must retain its action description", !action.contentDescription.isNullOrBlank())
+                    assertTrue("$label must retain its action description", widgetDescription(action).isNotBlank())
                     val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
                     root.draw(Canvas(bitmap))
                     val stripe = palette.tokens.stepColor(typedMode, temperature)

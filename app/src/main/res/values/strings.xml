@@ -9,8 +9,8 @@
     <string name="palette_winter_storm">Winter · Storm</string>
     <string name="palette_overcast">Overcast</string>
     <string name="app_name">Nocturne</string>
-    <string name="widget_quick_description">Start a night, Turbo, Boost, Cool, Warm and Off. Shows more buttons when you make it bigger.</string>
-    <string name="widget_single_description">One button: a profile, Turbo, Boost, Cool, Warm or Off.</string>
+    <string name="widget_quick_description">Room temperature, status and your quick presets, with Off always there. Shows more presets when you make it bigger.</string>
+    <string name="widget_single_description">A one-cell tile that runs one quick preset, starts a profile or turns the BedJet off.</string>
     <string name="shortcut_start">Start tonight</string>
     <string name="shortcut_turbo">Turbo</string>
     <string name="shortcut_boost">Boost</string>
