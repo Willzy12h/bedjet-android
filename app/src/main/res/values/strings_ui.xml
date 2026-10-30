@@ -63,7 +63,6 @@
     <string name="slider_minutes">Minutes</string>
     <string name="slider_fan_limits">Fan limits</string>
     <string name="slider_temp_limits">Temperature limits</string>
-    <string name="slider_boost">Boost length</string>
     <!-- "per cent" does not change with the number in English. -->
     <string name="a11y_percent" tools:ignore="PluralsCandidate">%1$d per cent</string>
     <string name="a11y_celsius">%1$s degrees Celsius</string>
@@ -179,7 +178,6 @@
     <string name="tonight_set_wake">Set tonight-only wake</string>
     <string name="tonight_clear_wake">Clear wake override</string>
     <string name="tonight_follow_schedule">Tonight only · Follow schedule</string>
-    <string name="tonight_the_night">The night</string>
     <!-- The connection chip: mode, room and air temperatures. -->
     <!-- Night guard: "This will …" completions, and the dialog itself. -->
     <string name="guard_turn_off">turn the BedJet off</string>
@@ -200,8 +198,6 @@
     <string name="recovery_recheck_alarm">Re-check alarm</string>
     <string name="recovery_stop_tracking_title">Stop tracking this night?</string>
     <!-- Remote (P6). The "… set" and "… on/off" labels also name the command while it waits for the BedJet. -->
-    <string name="label_temperature">Temperature %1$s</string>
-    <string name="label_fan">Fan %1$d%%</string>
     <string name="remote_title">Remote</string>
     <string name="remote_connect">Connect to your BedJet to use the remote.</string>
     <string name="remote_air_room">Air %1$s · room %2$s</string>

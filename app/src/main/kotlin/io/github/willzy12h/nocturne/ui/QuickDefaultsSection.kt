@@ -122,7 +122,7 @@ internal fun BoostEditor(model: AppViewModel, settings: Settings, onClose: () ->
         title = { Text(stringResource(R.string.uat_quick_edit, stringResource(R.string.shortcut_boost))) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()).testTag("boost-editor"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.boost_editor_help, turbo))
+                Text(pluralStringResource(R.plurals.boost_editor_help, turbo, turbo))
                 Text(io.github.willzy12h.nocturne.night.boostDescription(context, minutes), fontWeight = FontWeight.Bold)
                 // The whole Boost to scale: Turbo's fixed ten minutes in the deepest Ember, then the chosen Heat
                 // in a lighter one, each labelled, so the two parts never read as one block.

@@ -11,7 +11,10 @@
     <string name="sleep_usual_bedtime">Usual bedtime</string>
     <string name="sleep_trend_hint">Tap a night to open it.</string>
     <string name="sleep_trend_none">No sleep from Health Connect in this range yet.</string>
-    <string name="sleep_trend_accessibility">%1$d nights with sleep data. Average asleep %2$s.</string>
+    <plurals name="sleep_trend_accessibility">
+        <item quantity="one">%1$d night with sleep data. Average asleep %2$s.</item>
+        <item quantity="other">%1$d nights with sleep data. Average asleep %2$s.</item>
+    </plurals>
     <string name="sleep_trend_hours">%1$d h</string>
     <string name="sleep_previous_night">Previous night</string>
     <string name="sleep_next_night">Next night</string>
@@ -48,7 +51,10 @@
     <string name="sleep_compare_less">−%1$s</string>
     <string name="sleep_compare_same">same</string>
     <string name="sleep_noticed">Noticed</string>
-    <string name="sleep_noticed_text">You woke at %1$s, %2$s after the BedJet changed to %3$s. That happened on %4$d of the last %5$d nights.</string>
+    <plurals name="sleep_noticed_text">
+        <item quantity="one">You woke at %1$s, %2$s after the BedJet changed to %3$s. That happened on %4$d of the last %5$d night.</item>
+        <item quantity="other">You woke at %1$s, %2$s after the BedJet changed to %3$s. That happened on %4$d of the last %5$d nights.</item>
+    </plurals>
     <string name="sleep_noticed_caveat">Nocturne only points out patterns; it can\'t say what caused them.</string>
     <string name="sleep_timeline">Stage by stage</string>
     <string name="sleep_timeline_awake">← Awake</string>
@@ -56,7 +62,6 @@
     <string name="sleep_timeline_up">Up</string>
     <string name="sleep_timeline_up_bedjet">Up · BedJet ended at %1$s</string>
     <string name="sleep_nights">Nights</string>
-    <string name="sleep_nights_empty">No nights in this range.</string>
 
     <!-- Sleep history (retention) -->
     <string name="sleep_history_title">Sleep history</string>

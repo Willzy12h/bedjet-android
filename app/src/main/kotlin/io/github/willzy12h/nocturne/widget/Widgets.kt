@@ -339,8 +339,8 @@ private fun Header(context: Context, prefs: Preferences, report: DeviceStatus?, 
 
 /** Tonight's plan while a night runs: its profile, the step it is in and the wake-up. */
 @Composable
-private fun PlanCard(context: Context, active: ActiveNight, modifier: GlanceModifier, settings: Settings, at: java.time.ZonedDateTime) {
-    val runtime = context.graph.repository.runtime.value
+private fun PlanCard(context: Context, active: ActiveNight, runtime: io.github.willzy12h.nocturne.night.RuntimeState, modifier: GlanceModifier,
+    settings: Settings, at: java.time.ZonedDateTime) {
     val name = active.profile?.name ?: context.graph.repository.profile(active.profileId)?.name
         ?: context.getString(R.string.feature_deleted_profile)
     val phase = widgetPhaseText(context, active, compact = true)
@@ -408,7 +408,7 @@ class QuickControlsWidget : GlanceAppWidget() {
             val active by repo.activeNight.collectAsState()
             @Suppress("UNUSED_VARIABLE") val observed by repo.automation.collectAsState()
             @Suppress("UNUSED_VARIABLE") val profiles by repo.profiles.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val runtime by repo.runtime.collectAsState()
+            val runtime by repo.runtime.collectAsState()
             val ownerStatus by context.graph.actions.status.collectAsState()
             val prefs = currentState<Preferences>()
             val size = LocalSize.current
@@ -429,7 +429,7 @@ class QuickControlsWidget : GlanceAppWidget() {
                             Header(context, prefs, report, active, layout.stackedHeader, GlanceModifier.fillMaxWidth(), settings, at)
                             Spacer(GlanceModifier.defaultWeight())
                             active?.takeIf { layout.plan }?.let {
-                                PlanCard(context, it, GlanceModifier.fillMaxWidth(), settings, at)
+                                PlanCard(context, it, runtime, GlanceModifier.fillMaxWidth(), settings, at)
                                 Spacer(GlanceModifier.height(6.dp))
                             }
                             layout.arrange(controlKeys(context, prefs[KEY_PRESETS])).forEachIndexed { index, row ->

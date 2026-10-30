@@ -185,7 +185,7 @@ internal fun SleepTrendCard(days: List<SleepDay>, today: LocalDate, range: Int, 
     val figures = remember(days) { days.associateWith { day -> day.sleep?.let(SleepInsights::figures) } }
     val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it?.asleepMinutes ?: 0 } ?: 0)
     val average = if (averages.nights > 0) durationText(averages.asleepMinutes) else stringResource(R.string.sleep_figure_none)
-    val description = stringResource(R.string.sleep_trend_accessibility, averages.nights, average)
+    val description = pluralStringResource(R.plurals.sleep_trend_accessibility, averages.nights, averages.nights, average)
     val measurer = rememberTextMeasurer()
     val labelStyle = TextStyle(color = tokens.ink3, fontSize = 11.sp)
     val selectedStyle = TextStyle(color = tokens.ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
@@ -518,7 +518,7 @@ internal fun SleepNoticedCard(noticed: io.github.willzy12h.nocturne.sleep.SleepN
         else modeName(noticed.mode)
     Column(Modifier.sleepCard(tokens).testTag("sleep-noticed"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionLabel(stringResource(R.string.sleep_noticed))
-        Text(stringResource(R.string.sleep_noticed_text, Format.clock(noticed.wokeAt.atZone(zone)), durationText(noticed.minutesAfter), change,
+        Text(pluralStringResource(R.plurals.sleep_noticed_text, noticed.ofNights, Format.clock(noticed.wokeAt.atZone(zone)), durationText(noticed.minutesAfter), change,
             noticed.nights, noticed.ofNights), color = tokens.ink, fontSize = 16.sp, lineHeight = 22.sp)
         Text(stringResource(R.string.sleep_noticed_caveat), color = tokens.ink2, fontSize = 14.sp, lineHeight = 20.sp)
     }

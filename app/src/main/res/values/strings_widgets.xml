@@ -34,14 +34,7 @@
     <string name="widget_manual_until_short">Until %1$s</string>
     <string name="widget_temperature_unknown_short">—</string>
     <string name="widget_room_temperature_short">◷ %1$s</string>
-    <string name="widget_status_pending_glyph">…</string>
-    <string name="widget_status_confirmed_glyph">✓</string>
-    <string name="widget_status_failed_glyph">!</string>
-    <string name="widget_status_unknown_glyph">?</string>
-    <string name="widget_status_local_glyph">•</string>
-    <string name="widget_status_last_glyph">◷</string>
     <string name="widget_result_description">%1$s — %2$s. %3$s</string>
-    <string name="widget_temperature_description">%1$s. %2$s</string>
     <string name="widget_status_description">%1$s. %2$s</string>
     <string name="widget_start_short">Start</string>
     <string name="widget_control_sending">%1$s, sending</string>
