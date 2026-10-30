@@ -696,3 +696,104 @@ internal fun mergeSectionOrder(saved: List<String>, shown: List<String>): List<S
     val moving = shown.toSet()
     return saved.map { if (it in moving && next.hasNext()) next.next() else it }
 }
+
+/** The night that ended this morning (or yesterday morning), or null when Health Connect has no sleep for it. */
+internal fun lastNight(days: List<SleepDay>, today: LocalDate): SleepDay? =
+    days.firstOrNull { it.sleep != null && !it.date.isBefore(today.minusDays(1)) && !it.date.isAfter(today) }
+
+/**
+ * Tonight's look back at last night: time asleep and wakes, the stages in order, and the week's bars. It only shows
+ * when Health Connect (or Demo mode) has sleep for last night, and a tap opens the Sleep page.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun LastNightCard(model: AppViewModel, onOpen: () -> Unit) {
+    val data = rememberSleepDays(model, SleepInsights.RECENT_NIGHTS + 1)
+    val now = model.now()
+    val today = now.toLocalDate()
+    val zone = now.zone
+    val day = remember(data.days, today) { lastNight(data.days, today) } ?: return
+    val sleep = day.sleep ?: return
+    val tokens = paletteTokens
+    val figures = remember(sleep) { SleepInsights.figures(sleep) }
+    val week = remember(data.days, today) { SleepInsights.inRange(data.days, today, SleepInsights.RECENT_NIGHTS) }
+    val average = remember(week) { SleepInsights.averages(week, zone) }
+    val asleep = durationText(figures.asleepMinutes)
+    val description = stringResource(R.string.last_night_accessibility, asleep)
+    val stageLabels = (1..6).associateWith { stringResource(stageName(it)) }
+    Column(Modifier.sleepCard(tokens).testTag("last-night")
+        .clickable(role = Role.Button, onClick = onOpen)
+        .clearAndSetSemantics { contentDescription = description },
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.last_night_title), Modifier.weight(1f), color = tokens.ink2, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.last_night_open) + " ›", color = tokens.readableText(tokens.accent, tokens.surface), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+        FlowRow(verticalArrangement = Arrangement.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(asleep, color = tokens.ink, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text(if (figures.wakeCount == 0) stringResource(R.string.last_night_straight)
+                else pluralStringResource(R.plurals.last_night_woke, figures.wakeCount, figures.wakeCount),
+                Modifier.align(Alignment.Bottom).padding(bottom = 6.dp), color = tokens.ink2, fontSize = 14.sp)
+        }
+        // The night's stages in order, end to end.
+        val span = Duration.between(sleep.start, sleep.end).toMillis().coerceAtLeast(1).toFloat()
+        Canvas(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(7.dp)).testTag("last-night-strip")) {
+            drawRect(tokens.surface2)
+            condensedStages(sleep.stages.ifEmpty { listOf(SleepStage(sleep.start, sleep.end, SleepInsights.SLEEPING)) }).forEach { stage ->
+                val left = size.width * Duration.between(sleep.start, stage.start).toMillis() / span
+                val right = size.width * Duration.between(sleep.start, stage.end).toMillis() / span
+                drawRect(laneColour(stage.stage), Offset(left, 0f), Size((right - left).coerceAtLeast(1f), size.height))
+            }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            STACK.reversed().forEach { stage ->
+                val minutes = figures.stageMinutes[stage] ?: return@forEach
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(laneColour(stage)))
+                    Text("${stageLabels[stage]} ${durationText(minutes)}", color = tokens.ink2, fontSize = 12.sp)
+                }
+            }
+        }
+        HorizontalDivider(color = tokens.hairline)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.last_night_week), color = tokens.ink2, fontSize = 13.sp)
+                if (average.nights > 0) Text(stringResource(R.string.last_night_average, durationText(average.asleepMinutes)),
+                    color = tokens.ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+            WeekBars(week, today, day, Modifier.width(140.dp).height(44.dp))
+        }
+    }
+}
+
+/** Seven small stacked bars, one per night, last night drawn at full strength. */
+@Composable
+private fun WeekBars(week: List<SleepDay>, today: LocalDate, last: SleepDay, modifier: Modifier) {
+    val tokens = paletteTokens
+    val byDate = remember(week) { week.groupBy { it.date }.mapValues { it.value.first() } }
+    val figures = remember(week) { week.associateWith { d -> d.sleep?.let(SleepInsights::figures) } }
+    val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it?.asleepMinutes ?: 0 } ?: 0)
+    Canvas(modifier.testTag("last-night-week")) {
+        val slots = SleepInsights.RECENT_NIGHTS
+        val slot = size.width / slots
+        val gap = 4.dp.toPx()
+        for (i in 0 until slots) {
+            val day = byDate[today.minusDays((slots - 1 - i).toLong())]
+            val figure = day?.let { figures[it] }
+            val left = i * slot + gap / 2
+            val width = slot - gap
+            if (figure == null) {
+                drawRoundRect(tokens.ink3.copy(alpha = .35f), Offset(left, size.height - 3.dp.toPx()), Size(width, 3.dp.toPx()), CornerRadius(1.5f.dp.toPx()))
+                continue
+            }
+            val alpha = if (day == last) 1f else .55f
+            var y = size.height
+            STACK.forEach { stage ->
+                val minutes = figure.stageMinutes[stage] ?: return@forEach
+                val height = size.height * minutes / maxMinutes
+                drawRect(laneColour(stage).copy(alpha = alpha), Offset(left, y - height), Size(width, (height - .5f).coerceAtLeast(.5f)))
+                y -= height
+            }
+        }
+    }
+}

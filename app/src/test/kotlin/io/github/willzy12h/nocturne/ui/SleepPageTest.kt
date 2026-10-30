@@ -84,4 +84,22 @@ class SleepPageTest {
         ui.compose.onNodeWithTag("sleep-delete-confirm").performClick()
         ui.waitUntil { ui.graph.repository.history.value.isEmpty() }
     }
+
+    @Test fun lastNightOnTonightOpensTheSleepPage() {
+        val card = ui.compose.onNodeWithTag("last-night").performScrollTo()
+        card.assertHasClickAction()
+        ui.compose.onNodeWithTag("last-night-week", useUnmergedTree = true).assertExists()
+        card.performClick()
+        ui.compose.onNodeWithTag("sleep-range").assertExists()
+    }
+
+    @Test fun lastNightIsOnlyTheNightThatEndedThisMorningOrYesterday() {
+        val today = java.time.LocalDate.of(2026, 10, 30)
+        val zone = java.time.ZoneId.of("Europe/London")
+        val night = io.github.willzy12h.nocturne.sleep.SleepNight(today.atStartOfDay(zone).toInstant(), today.atStartOfDay(zone).plusHours(7).toInstant(), emptyList())
+        fun day(date: java.time.LocalDate) = io.github.willzy12h.nocturne.sleep.SleepDay(date, night, null, null)
+        assertEquals(today, lastNight(listOf(day(today), day(today.minusDays(1))), today)?.date)
+        assertEquals(today.minusDays(1), lastNight(listOf(day(today.minusDays(1))), today)?.date)
+        assertNull(lastNight(listOf(day(today.minusDays(2))), today))
+    }
 }

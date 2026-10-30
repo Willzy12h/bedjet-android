@@ -170,6 +170,8 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
     // Tapping Settings while already on it returns to its home, out of any page such as Sleep.
     var settingsHomeRequest by remember { mutableIntStateOf(0) }
     var alarmsRequest by remember { mutableIntStateOf(0) }
+    // Tonight's "Last night" card opens Settings at the Sleep page.
+    var sleepRequest by remember { mutableIntStateOf(0) }
     val edit: (Profile) -> Unit = { profile ->
         val parked = parkedDrafts.firstOrNull { Json.decodeFromString<ProfileDraft>(it).original.id == profile.id }
         draftJson = parked ?: Json.encodeToString(ProfileDraft(profile, profile))
@@ -290,13 +292,15 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         when (tab) {
             Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onEditPhase = editPhase,
                 onOpenRemote = { tab = Tab.REMOTE },
-                onOpenBackups = { tab = Tab.SETTINGS; alarmsRequest = 0; backupsRequest++ },
-                onOpenAlarmSettings = { tab = Tab.SETTINGS; backupsRequest = 0; alarmsRequest++ })
+                onOpenBackups = { tab = Tab.SETTINGS; alarmsRequest = 0; sleepRequest = 0; backupsRequest++ },
+                onOpenAlarmSettings = { tab = Tab.SETTINGS; backupsRequest = 0; sleepRequest = 0; alarmsRequest++ },
+                onOpenSleep = { tab = Tab.SETTINGS; backupsRequest = 0; alarmsRequest = 0; sleepRequest++ })
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
             Tab.REMOTE -> RemoteScreen(model, modifier)
             Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest, settingsHomeRequest,
                 onBackupsRequestHandled = { if (backupsRequest == it) backupsRequest = 0 },
-                onAlarmsRequestHandled = { if (alarmsRequest == it) alarmsRequest = 0 })
+                onAlarmsRequestHandled = { if (alarmsRequest == it) alarmsRequest = 0 },
+                sleepRequest = sleepRequest, onSleepRequestHandled = { if (sleepRequest == it) sleepRequest = 0 })
         }
     }
 }

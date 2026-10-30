@@ -101,7 +101,7 @@ import java.time.ZonedDateTime
 @Composable
 fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenBackups: () -> Unit = {},
     onOpenAlarmSettings: () -> Unit = {}, onEditPhase: (Profile, EditorPhaseSelection) -> Unit = { p, _ -> onEdit(p) },
-    onOpenRemote: () -> Unit = {}) {
+    onOpenRemote: () -> Unit = {}, onOpenSleep: () -> Unit = {}) {
     val profiles by model.profiles.collectAsState()
     val settings by model.settings.collectAsState()
     val running by model.activeNight.collectAsState()
@@ -313,6 +313,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             SlotWriteNotice(it, onChecked = model::acknowledgeSlotWrite)
         }
         SetupChecks()
+        // Last night stays apart from tonight's controls, below them.
+        LastNightCard(model, onOpenSleep)
         // UX-01: once a BedJet is chosen the picker lives in Settings; it returns here if the target is removed.
         if (settings.targetDevice == null) BedJetPicker(model, compact = true)
     }
