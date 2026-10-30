@@ -167,6 +167,8 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
     var parkedDrafts by rememberSaveable { mutableStateOf(emptyList<String>()) }
     // Tonight's "Restore" opens Settings at the snapshots.
     var backupsRequest by remember { mutableIntStateOf(0) }
+    // Tapping Settings while already on it returns to its home, out of any page such as Sleep.
+    var settingsHomeRequest by remember { mutableIntStateOf(0) }
     var alarmsRequest by remember { mutableIntStateOf(0) }
     val edit: (Profile) -> Unit = { profile ->
         val parked = parkedDrafts.firstOrNull { Json.decodeFromString<ProfileDraft>(it).original.id == profile.id }
@@ -269,7 +271,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                         val label = androidx.compose.ui.res.stringResource(it.label)
                         NavigationBarItem(
                             selected = tab == it,
-                            onClick = { tab = it },
+                            onClick = { if (tab == it && it == Tab.SETTINGS) settingsHomeRequest++; tab = it },
                             modifier = if (compactNavigation) Modifier.semantics { contentDescription = label } else Modifier,
                             icon = { Icon(androidx.compose.ui.res.painterResource(it.icon), null, Modifier.size(22.dp)) },
                             label = if (compactNavigation) null else { { Text(label, fontSize = 10.5.sp,
@@ -292,7 +294,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                 onOpenAlarmSettings = { tab = Tab.SETTINGS; backupsRequest = 0; alarmsRequest++ })
             Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
             Tab.REMOTE -> RemoteScreen(model, modifier)
-            Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest,
+            Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest, settingsHomeRequest,
                 onBackupsRequestHandled = { if (backupsRequest == it) backupsRequest = 0 },
                 onAlarmsRequestHandled = { if (alarmsRequest == it) alarmsRequest = 0 })
         }

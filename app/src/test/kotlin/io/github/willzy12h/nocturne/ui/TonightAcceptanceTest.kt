@@ -101,7 +101,7 @@ class TonightAcceptanceTest {
         restartWithLegacyCollapse("connection")
         ui.compose.openRemote()
         ui.compose.onNodeWithTag("main-navigation").assertIsDisplayed()
-        ui.compose.onNodeWithText(ui.s(R.string.remote_title)).assertExists()
+        ui.compose.onNode(hasText(ui.s(R.string.remote_title)) and isHeading()).assertExists()
     }
 
     @Test fun legacyQuickCollapseCannotHideTheApprovedPresetsAfterRestart() {

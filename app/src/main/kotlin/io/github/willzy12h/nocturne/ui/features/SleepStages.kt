@@ -84,22 +84,24 @@ fun SleepStageChart(stages: List<SleepStage>, start: Instant, end: Instant, plan
     val span = Duration.between(start, end).toMillis().coerceAtLeast(1).toFloat()
     val words = totals.map { (lane, minutes) -> stringResource(R.string.feature_stage_total, stringResource(lane.label), durationText(minutes)) }
     val summary = stringResource(R.string.feature_stage_chart_accessibility, words.joinToString(", "))
-    val laneHeight = 14.dp
+    val laneHeight = 20.dp
+    val stripHeight = 14.dp
+    val stripGap = 6.dp
     val labelWidth = 52.dp
     Column(Modifier.fillMaxWidth().testTag("sleep-stage-chart"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = summary }) {
             Column(Modifier.width(labelWidth)) {
                 lanes.forEach { lane ->
                     Box(Modifier.height(laneHeight), contentAlignment = Alignment.CenterStart) {
-                        Text(stringResource(lane.label), color = tokens.ink2, fontSize = 10.sp, maxLines = 1)
+                        Text(stringResource(lane.label), color = tokens.ink2, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1)
                     }
                 }
-                if (plan != null) Box(Modifier.padding(top = 6.dp).height(10.dp), contentAlignment = Alignment.CenterStart) {
-                    Text(stringResource(R.string.feature_stage_bedjet), color = tokens.ink2, fontSize = 10.sp, maxLines = 1)
+                if (plan != null) Box(Modifier.padding(top = stripGap).height(stripHeight), contentAlignment = Alignment.CenterStart) {
+                    Text(stringResource(R.string.feature_stage_bedjet), color = tokens.ink2, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1)
                 }
             }
             val guide = tokens.ink3.copy(alpha = .35f)
-            Canvas(Modifier.weight(1f).height(laneHeight * lanes.size + if (plan != null) 16.dp else 0.dp)) {
+            Canvas(Modifier.weight(1f).height(laneHeight * lanes.size + if (plan != null) stripGap + stripHeight else 0.dp)) {
                 val lane = laneHeight.toPx()
                 fun x(at: Instant) = (Duration.between(start, at).toMillis() / span * size.width).coerceIn(0f, size.width)
                 lanes.indices.forEach { i ->
@@ -117,13 +119,13 @@ fun SleepStageChart(stages: List<SleepStage>, start: Instant, end: Instant, plan
                     previous = right to top + (lane - 4.dp.toPx()) / 2
                 }
                 if (plan != null) {
-                    val top = lane * lanes.size + 6.dp.toPx()
+                    val top = lane * lanes.size + stripGap.toPx()
                     plan.steps.filter { it.minutes > 0 && it.step.mode != Mode.WAIT }.forEach { step ->
                         val from = step.startsAt.toInstant()
                         val left = x(from)
                         val right = x(from.plusSeconds(step.minutes * 60L))
                         if (right > left) drawRoundRect(tokens.stepColor(step.step.mode, step.step.temperature), Offset(left, top),
-                            Size(right - left, 10.dp.toPx()), CornerRadius(3.dp.toPx()))
+                            Size(right - left, stripHeight.toPx()), CornerRadius(3.dp.toPx()))
                     }
                 }
             }

@@ -99,7 +99,7 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0, alarmsRequest: Int = 0,
+fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0, alarmsRequest: Int = 0, homeRequest: Int = 0,
     onBackupsRequestHandled: (Int) -> Unit = {}, onAlarmsRequestHandled: (Int) -> Unit = {}) {
     val settings by model.settings.collectAsState()
     val selectedName by model.selectedBedJetName.collectAsState()
@@ -113,6 +113,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     val originalsBlocked by model.originalsBlocked.collectAsState()
     var page by rememberSaveable { mutableStateOf("home") }
     BackHandler(enabled = page != "home") { page = "home" }
+    LaunchedEffect(homeRequest) { if (homeRequest > 0) page = "home" }
     val backups = remember { BringIntoViewRequester() }
     LaunchedEffect(backupsRequest) { if (backupsRequest > 0) {
         try { page = "backups"; withFrameNanos { }; backups.bringIntoView() }

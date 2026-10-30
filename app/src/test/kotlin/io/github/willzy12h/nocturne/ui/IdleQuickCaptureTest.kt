@@ -127,8 +127,8 @@ class IdleQuickCaptureTest {
         val holder = graph.scope.launch { graph.actions.exclusive { entered.complete(Unit); release.await() } }
         try {
             waitUntil { entered.isCompleted }
-            compose.openRemote()
-            compose.onNode(hasText("Turbo 10m + Heat 5m") and hasClickAction()).performScrollTo().performClick()
+            compose.onNode(hasTestTag("quick-mode-BOOST") and hasText("Turbo + Heat 5m", substring = true) and hasClickAction())
+                .performScrollTo().performClick()
             waitUntil { graph.actions.busy.value.queuedCount > 0 }
             assertTrue("The queued tap must not write before owner admission", writes.isEmpty())
             assertTrue(outcomes.isEmpty())

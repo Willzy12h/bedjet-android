@@ -4,6 +4,8 @@ import androidx.compose.ui.res.pluralStringResource
 import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -119,11 +121,23 @@ internal fun BoostEditor(model: AppViewModel, settings: Settings, onClose: () ->
             Column(Modifier.verticalScroll(rememberScrollState()).testTag("boost-editor"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.boost_editor_help, turbo))
                 Text(io.github.willzy12h.nocturne.night.boostDescription(context, minutes), fontWeight = FontWeight.Bold)
+                // The whole Boost to scale: Turbo's fixed ten minutes, then the chosen Heat.
+                val tokens = paletteTokens
+                val heatColour = tokens.modeColor(io.github.willzy12h.nocturne.core.protocol.Mode.HEAT)
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().height(14.dp).testTag("boost-editor-bar")
+                    .clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    androidx.compose.foundation.layout.Box(Modifier.weight(turbo.toFloat()).fillMaxHeight()
+                        .background(tokens.modeColor(io.github.willzy12h.nocturne.core.protocol.Mode.TURBO), RoundedCornerShape(4.dp)))
+                    if (minutes > turbo) androidx.compose.foundation.layout.Box(Modifier.weight((minutes - turbo).toFloat()).fillMaxHeight()
+                        .background(heatColour, RoundedCornerShape(4.dp)))
+                    if (minutes < 30) androidx.compose.foundation.layout.Box(Modifier.weight((30 - minutes).toFloat()))
+                }
                 Text(stringResource(R.string.boost_editor_heat))
-                Slider((minutes - turbo).toFloat(), { minutes = turbo + ((it / 5).roundToInt() * 5) },
-                    valueRange = 0f..20f, steps = 3,
+                ScaledSlider((minutes - turbo).toFloat(), { minutes = turbo + ((it / 5).roundToInt() * 5) },
+                    range = 0f..20f, steps = 3, enabled = true,
                     modifier = Modifier.sliderSemantics(stringResource(R.string.boost_editor_heat), spokenMinutes(minutes - turbo)),
-                    colors = nocturneSliderColors())
+                    ticks = listOf(0, 10, 20).map { it.toFloat() to stringResource(R.string.minutes_short, it) }, tag = "boost-heat",
+                    onValueChangeFinished = {}, colors = remoteSliderColors(heatColour))
             }
         },
         confirmButton = { TextButton(onClick = { model.updateSettings { it.copy(boostMinutes = minutes) }; onClose() }) {

@@ -5,7 +5,6 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -81,6 +82,7 @@ internal fun PaletteTokens.modeColor(mode: Mode): Color = when (mode) {
  * a control that does not apply is shown disabled with the reason underneath, and progress appears
  * in the status card's reserved line instead of a banner above it.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     val status by model.status.collectAsState()
@@ -193,20 +195,22 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                     enabled = canControl && usable,
                     modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(shown)),
                     ticks = listOf(0, 50, 100).map { it.toFloat() to stringResource(R.string.remote_percent_tick, it) }, tag = "fan",
-                    onValueChangeFinished = { val step = shown / 5 - 1; fan = shown.toFloat()
+                    // Read the slider's latest value here, not this composition's rounded copy, which is a frame behind.
+                    onValueChangeFinished = { val percent = ((fan / 5).roundToInt() * 5).coerceIn(5, 100); val step = percent / 5 - 1
+                        fan = percent.toFloat()
                         model.remote(fanSet, affectsProgramme = true, confirms = { it.fanStep == step }, announceConfirmation = false) { it.setFan(step) } },
                     colors = remoteSliderColors(colour),
                 )
             }
         }
-        // Run for: one scrolling line of chips, so a mode with fewer choices keeps the same height.
+        // Run for: chips wrap within a reserved height, so a mode with fewer choices keeps the same layout.
         run {
             val maximumMinutes = if (s.isRunning) manualRuntimeMaximum(s) else 0
             val timerChoices = listOf(15, 30, 60, 120, 240, 480).filter { it <= maximumMinutes }
                 .ifEmpty { listOf(maximumMinutes).filter { it > 0 } }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(stringResource(R.string.remote_run_for), color = tokens.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(Modifier.fillMaxWidth().heightIn(min = 104.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     timerChoices.forEach { minutes ->
                         AssistChip({ runDuration(captureDuration(model.graph, s, minutes)) }, enabled = canControl, label = { Text(durationText(minutes)) })
                     }
@@ -303,7 +307,7 @@ private fun RemoteSection(title: String, value: String, colour: Color, note: Str
 }
 
 @Composable
-private fun remoteSliderColors(colour: Color) = SliderDefaults.colors(
+internal fun remoteSliderColors(colour: Color) = SliderDefaults.colors(
     thumbColor = colour, activeTrackColor = colour, inactiveTrackColor = colour.copy(alpha = .22f),
     activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent,
     disabledThumbColor = paletteTokens.ink3, disabledActiveTrackColor = paletteTokens.ink3.copy(alpha = .5f),

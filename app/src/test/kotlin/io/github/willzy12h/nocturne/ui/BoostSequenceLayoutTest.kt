@@ -12,7 +12,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /** Independent copy contract: the displayed number belongs to its actual mode segment. */
 internal fun expectedBoostActionLabel(minutes: Int): String =
-    if (minutes == 10) "Turbo 10m" else "Turbo 10m + Heat ${minutes - 10}m"
+    if (minutes == 10) "Turbo 10m" else "Turbo + Heat ${minutes - 10}m"
 
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
@@ -26,7 +26,7 @@ class BoostSequenceLayoutTest(look: U06Look) {
         fun looks(): List<Array<Any>> = U06Look.entries.map { arrayOf(it) }
     }
 
-    private fun everyDuration(quick: Boolean) {
+    private fun everyDuration() {
         for (minutes in listOf(10, 15, 20, 25, 30)) {
             ui.compose.runOnUiThread { runBlocking {
                 ui.graph.repository.updateSettings { it.copy(boostMinutes = minutes) }
@@ -35,11 +35,10 @@ class BoostSequenceLayoutTest(look: U06Look) {
             val label = expectedBoostActionLabel(minutes)
             val description = if (minutes == 10) "Turbo heat for 10 minutes"
                 else "Turbo heat for 10 minutes, then Heat for ${minutes - 10} minutes"
-            val control = hasText(label) and hasClickAction()
-            val node = ui.compose.onNode(if (quick) control and hasAnyAncestor(hasTestTag("quick-controls")) else control)
-            node.assertContentDescriptionEquals(description)
+            val node = ui.compose.onNode(hasTestTag("quick-mode-BOOST") and hasText(label, substring = true) and hasClickAction())
+            node.assertContentDescriptionContains(description, substring = true)
             // U06 checks the actual rendered characters/line bounds, viewport clipping and >=48dp touch bounds.
-            ui.checkControl(node, "${if (quick) "Tonight" else "Remote"} $label")
+            ui.checkControl(node, "Tonight Boost $label")
         }
     }
 
@@ -54,9 +53,7 @@ class BoostSequenceLayoutTest(look: U06Look) {
         }
     }
 
-    @Test fun remoteShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent() {
-        ui.tab(ui.s(R.string.tab_remote))
-        ui.waitUntil { ui.compose.onAllNodes(hasText(ui.s(R.string.mode_heat)) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
-        everyDuration(quick = false)
+    @Test fun tonightBoostShowsBothActualSegmentsForEveryDurationAtTwoHundredPercent() {
+        everyDuration()
     }
 }

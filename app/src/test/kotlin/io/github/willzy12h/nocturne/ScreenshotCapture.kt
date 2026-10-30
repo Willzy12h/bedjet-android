@@ -6,6 +6,9 @@ import io.github.willzy12h.nocturne.ui.backSettingsPage
 import android.Manifest
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.ui.*
@@ -326,6 +329,97 @@ class ScreenshotCapture {
         assertEquals("Running capture must not show a pending adjustment", Confidence.CONFIRMED, graph.actions.status.value.confidence)
         assertEquals("Running capture waits for its command owner", null, graph.actions.busy.value.runningLabel)
         shot("$look-06-tonight-running")
+    }
+
+    /** The tab-bar, Remote, Boost and Sleep changes at a glance; run with --tests '*ScreenshotCapture.redesignTour'. */
+    @Test fun redesignTour() {
+        for (theme in listOf(ThemeMode.DARK, ThemeMode.LIGHT)) {
+            val look = if (theme == ThemeMode.DARK) "tour-dark" else "tour-light"
+            compose.runOnUiThread { runBlocking {
+                graph.repository.updateSettings { it.copy(demoMode = true, themeMode = theme, simpleView = false) }
+                graph.repository.setActiveNight(null)
+            } }
+            settle()
+            acceptLight(theme)
+            // Demo mode was switched on after launch; connect the demo BedJet as the status chip would.
+            if (graph.link.status.value == null) compose.runOnUiThread { graph.sessions.reconnect() }
+            compose.waitUntil(15_000) { settle(250); graph.link.status.value != null }
+            compose.onAllNodesWithText("Tonight")[0].performClick()
+            settle()
+            compose.onNodeWithTag("quick-mode-BOOST", useUnmergedTree = true).performScrollTo()
+            settle()
+            shot("$look-01-tonight-presets")
+            compose.onNodeWithTag("quick-mode-BOOST", useUnmergedTree = true).performTouchInput { longClick() }
+            settle()
+            shot("$look-02-boost-editor")
+            compose.onAllNodesWithText(compose.activity.getString(R.string.feature_cancel))[0].performClick()
+            settle()
+            compose.onAllNodesWithText("Remote")[0].performClick()
+            // Demo mode was switched on after launch; connect the demo BedJet as the status chip would.
+            if (graph.link.status.value == null) compose.runOnUiThread { graph.sessions.reconnect() }
+            compose.waitUntil(15_000) { settle(250); graph.link.status.value != null &&
+                compose.onAllNodesWithTag("remote-mode-COOL").fetchSemanticsNodes().isNotEmpty() }
+            if (graph.link.status.value?.isRunning == true) {
+                compose.onNodeWithTag("remote-mode-STANDBY").performScrollTo().performClick()
+                settle(1_500)
+            }
+            compose.onNodeWithTag("remote-status").performScrollTo()
+            settle()
+            shot("$look-03-remote-off")
+            for (mode in listOf("COOL", "HEAT", "TURBO")) {
+                compose.onNodeWithTag("remote-mode-$mode").performScrollTo().performClick()
+                settle(1_500)
+                compose.onNodeWithTag("remote-mode-COOL").performScrollTo()
+                settle()
+                shot("$look-04-remote-${mode.lowercase()}")
+            }
+            compose.onNodeWithContentDescription("Fan").performScrollTo()
+            settle()
+            shot("$look-05-remote-lower")
+            compose.onNodeWithTag("remote-mode-STANDBY").performScrollTo().performClick()
+            settle(1_500)
+            seedHistory()
+            compose.onAllNodesWithText("Settings")[0].performClick()
+            settle()
+            shot("$look-06-settings-home")
+            compose.onNodeWithTag("settings-page-sleep").performScrollTo().performClick()
+            settle()
+            shot("$look-07-sleep-page")
+            compose.onNodeWithTag("settings-back").performClick()
+            settle()
+        }
+        // Health Connect cannot run here, so the chart is drawn on its own with a typical night's stages
+        // against a seeded night's BedJet programme.
+        val night = graph.repository.history.value.first { it.id == "capture-2" }
+        val start = java.time.ZonedDateTime.parse(night.startedAt).toInstant()
+        val end = java.time.ZonedDateTime.parse(night.wakeAt).toInstant()
+        val pattern = listOf(1 to 12, 4 to 25, 5 to 45, 4 to 30, 6 to 20, 4 to 40, 5 to 35, 1 to 5, 4 to 45, 6 to 30, 4 to 50,
+            5 to 20, 4 to 40, 6 to 35, 1 to 8, 4 to 30, 6 to 25)
+        var at = start
+        val stages = pattern.mapNotNull { (code, minutes) ->
+            if (!at.isBefore(end)) null else io.github.willzy12h.nocturne.platform.SleepStage(at, minOf(at.plusSeconds(minutes * 60L), end), code)
+                .also { at = at.plusSeconds(minutes * 60L) }
+        }
+        for (theme in listOf(ThemeMode.DARK, ThemeMode.LIGHT)) {
+            compose.runOnUiThread {
+                compose.activity.setContent {
+                    NocturneTheme(graph.repository.settings.value.copy(themeMode = theme), graph.now(), dark = theme == ThemeMode.DARK) {
+                        androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()
+                            .background(paletteTokens.ground).padding(16.dp)) {
+                            androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier
+                                .background(paletteTokens.surface, androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).padding(20.dp),
+                                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+                                androidx.compose.material3.Text(compose.activity.getString(R.string.feature_health_source),
+                                    color = paletteTokens.ink, style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+                                io.github.willzy12h.nocturne.ui.features.SleepStageChart(stages, start, end, historyPlan(night))
+                            }
+                        }
+                    }
+                }
+            }
+            settle(1_000)
+            shot("tour-${if (theme == ThemeMode.DARK) "dark" else "light"}-08-sleep-chart")
+        }
     }
 
     private fun acceptLight(theme: ThemeMode) {

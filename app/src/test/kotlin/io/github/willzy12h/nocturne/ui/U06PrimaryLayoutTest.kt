@@ -129,7 +129,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     @PrimarySeed(PrimaryScenario.IDLE)
-    @Test fun remoteModeTimerAndBoostControlsAreReachableAboveFeedback() {
+    @Test fun remoteModeAndTimerControlsAreReachableAboveFeedback() {
         val graph = ui.graph
         val warmPreset = graph.repository.settings.value.extendWarm
         val warmFeedback = ui.compose.activity.resources.getQuantityString(
@@ -150,7 +150,8 @@ class U06PrimaryLayoutTest(look: U06Look) {
             listOf(15, 30).forEach { ui.control(ui.s(R.string.minutes_short, it)) }
             listOf(1, 2, 4).forEach { ui.control(ui.s(R.string.duration_hours, it)) }
             ui.compose.onAllNodes(hasText(ui.s(R.string.duration_hours, 8)) and hasClickAction()).assertCountEquals(0)
-            ui.control(expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))
+            // Boost lives on Tonight's Quick Presets only; Remote has no Boost of its own.
+            ui.compose.onNodeWithTag("quick-mode-BOOST").assertDoesNotExist()
         }
     }
 
