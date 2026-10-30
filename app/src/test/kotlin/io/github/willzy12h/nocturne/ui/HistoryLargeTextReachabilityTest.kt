@@ -98,7 +98,8 @@ class HistoryLargeTextReachabilityTest(private val look: U06Look) {
         keep.performTouchInput { click() }
         ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.checkin_change_title)).fetchSemanticsNodes().isEmpty() }
         assertEquals(profile.middle, ui.graph.repository.profile(profile.id)!!.middle)
-        ui.compose.onNodeWithText(ui.s(R.string.checkin_review)).performScrollTo().performClick()
+        // The "check-in saved" bubble can cover the link; checkControl dismisses it the way a person would.
+        ui.checkControl(ui.compose.onNodeWithText(ui.s(R.string.checkin_review)), "Review suggestion").performClick()
         ui.checkControl(apply, "Apply reviewed suggestion", scroll = false).performTouchInput { click() }
         ui.waitUntil { ui.graph.repository.profile(profile.id)!!.middle.fanStart == 60 }
         assertEquals(35, ui.graph.repository.profile(profile.id)!!.middle.fanEnd)

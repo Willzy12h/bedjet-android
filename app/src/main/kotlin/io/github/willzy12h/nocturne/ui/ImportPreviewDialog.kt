@@ -190,6 +190,8 @@ private fun readableImportTime(value: String): String = runCatching {
     "collapsedTonightSections" -> R.string.import_setting_sections_collapsed
     "tonightSectionOrder" -> R.string.import_setting_section_order
     "quietNightNotification" -> R.string.import_setting_quiet_notification
+    "sleepSectionOrder", "sleepRangeDays" -> R.string.import_setting_sleep_page
+    "historyKeepDays" -> R.string.import_setting_history_keep
     "platform.bedtimeReminder" -> R.string.import_setting_reminder
     "platform.reminderMinutes" -> R.string.import_setting_reminder_time
     "platform.chargerAutoStart", "platform.autoStart" -> R.string.import_setting_auto_start

@@ -592,6 +592,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit(text(R.string.runtime_snapshot_saved)) }
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
+    fun setHistoryKeepDays(days: Int) = save { repo.setHistoryKeepDays(days) }
+    fun deleteHistory() = save { repo.deleteHistory() }
     fun restoreSnapshot(id: String) = stageImport { repo.previewSnapshot(id) }
 
     private fun stageImport(read: suspend () -> ImportPreview?) {

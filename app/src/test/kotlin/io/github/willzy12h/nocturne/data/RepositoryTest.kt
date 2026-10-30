@@ -1067,9 +1067,9 @@ class RepositoryTest {
     }
 
     @Test
-    fun importedHistoryOlderThanSixtyDaysIsDropped() = runBlocking {
+    fun importedHistoryOlderThanTheKeepPeriodIsDropped() = runBlocking {
         val repo = repository()
-        val old = NightRecord("old", "p", "P", now.minusDays(61).toString(), now.minusDays(61).toString(), false)
+        val old = NightRecord("old", "p", "P", now.minusDays(91).toString(), now.minusDays(91).toString(), false)
         repo.restore(importable().let { it.copy(history = it.history + old) })
         assertEquals(listOf("n1"), repo.history.value.map { it.id })
     }
@@ -1158,11 +1158,30 @@ class RepositoryTest {
     }
 
     @Test
-    fun historyKeepsSixtyDays() = runBlocking {
+    fun historyKeepsNinetyDaysByDefault() = runBlocking {
         val repo = repository()
-        repo.addRecord(NightRecord("old", "p", "P", now.minusDays(61).toString(), now.toString(), false))
-        repo.addRecord(NightRecord("recent", "p", "P", now.minusDays(59).toString(), now.toString(), false))
+        repo.addRecord(NightRecord("old", "p", "P", now.minusDays(91).toString(), now.toString(), false))
+        repo.addRecord(NightRecord("recent", "p", "P", now.minusDays(89).toString(), now.toString(), false))
         assertEquals(listOf("recent"), repo.history.value.map { it.id })
+    }
+
+    @Test
+    fun shorteningTheKeepPeriodDeletesOlderNights() = runBlocking {
+        val repo = repository()
+        repo.addRecord(NightRecord("month", "p", "P", now.minusDays(20).toString(), now.minusDays(20).toString(), false))
+        repo.addRecord(NightRecord("week", "p", "P", now.minusDays(3).toString(), now.minusDays(3).toString(), false))
+        repo.setHistoryKeepDays(7)
+        assertEquals(7, repo.settings.value.historyKeepDays)
+        assertEquals(listOf("week"), repo.history.value.map { it.id })
+    }
+
+    @Test
+    fun deletingHistoryRemovesEveryFinishedNight() = runBlocking {
+        val repo = repository()
+        repo.addRecord(NightRecord("a", "p", "P", now.minusDays(3).toString(), now.minusDays(3).toString(), false))
+        repo.addRecord(NightRecord("b", "p", "P", now.minusDays(2).toString(), now.minusDays(2).toString(), false))
+        repo.deleteHistory()
+        assertTrue(repo.history.value.isEmpty())
     }
 
     // Secrets

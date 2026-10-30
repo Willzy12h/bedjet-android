@@ -1,6 +1,22 @@
 package io.github.willzy12h.nocturne.ui
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.zIndex
+import io.github.willzy12h.nocturne.core.store.History
+import io.github.willzy12h.nocturne.core.store.SLEEP_RANGES
+import io.github.willzy12h.nocturne.sleep.SleepInsights
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.FlowRow
@@ -72,43 +88,190 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * One card per night, newest first: what was planned, how you slept and everything that happened.
- * Lives under Settings as the Sleep page; [onBack] returns to the Settings list.
+ * The Sleep page under Settings. The range switch stays at the top; below it the sections (trend, the chosen
+ * night, its figures, comparisons, the stage timeline and the saved nights) can be held and dragged into any order.
+ * [onBack] returns to the Settings list; [onOpenPage] opens another Settings page, such as Health.
  */
 @Composable
-fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)? = null) {
+fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)? = null, onOpenPage: (String) -> Unit = {}) {
+    var retention by rememberSaveable { mutableStateOf(false) }
+    if (retention) {
+        SleepHistorySettings(model, modifier, onBack = { retention = false }, onOpenHealth = { onOpenPage("health") })
+        return
+    }
+    val settings by model.settings.collectAsState()
+    val tokens = paletteTokens
+    val range = settings.normalisedSleepRange()
+    // Eight days more than the range, so the oldest night in range can still be compared with the week before it.
+    val data = rememberSleepDays(model, range + SleepInsights.RECENT_NIGHTS + 1)
+    val now = model.now()
+    val zone = now.zone
+    val today = now.toLocalDate()
+    val inRange = remember(data.days, today, range) { SleepInsights.inRange(data.days, today, range) }
+    var selectedDay by rememberSaveable { mutableStateOf<Long?>(null) }
+    val selected = inRange.firstOrNull { it.date.toEpochDay() == selectedDay } ?: inRange.firstOrNull()
+    val position = selected?.let(inRange::indexOf) ?: -1
+    val sleep = selected?.sleep
+    val noticed = remember(selected, data.days) { selected?.let { SleepInsights.noticed(it, data.days) } }
+    val averageEfficiency = remember(inRange) {
+        inRange.mapNotNull { it.sleep }.takeIf { it.isNotEmpty() }?.let { nights -> nights.sumOf { SleepInsights.figures(it).efficiencyPercent } / nights.size }
+    }
+    val available = settings.normalisedSleepOrder().filter { id ->
+        when (id) {
+            "nights", "stages" -> selected != null
+            "figures", "compare", "timeline" -> sleep != null
+            "noticed" -> noticed != null
+            else -> true
+        }
+    }
+    val listState = rememberLazyListState()
+    val reorder = remember { ProfileReorder() }
+    val spacingPx = with(LocalDensity.current) { 12.dp.toPx() }
+    val latestAvailable by rememberUpdatedState(available)
+    val latestSaved by rememberUpdatedState(settings.normalisedSleepOrder())
+    val shown = reorder.order?.let { ids -> ids.filter { it in available } + available.filterNot { it in ids } } ?: available
+    fun save(order: List<String>) {
+        val merged = mergeSectionOrder(latestSaved, order)
+        model.updateSettings { it.copy(sleepSectionOrder = merged) }
+    }
+    LaunchedEffect(available, reorder.dragging) {
+        if (reorder.dragging == null && reorder.order?.let { it == available } != false) reorder.order = null
+    }
+    LaunchedEffect(reorder.dragging) {
+        // Near the top or bottom edge the list scrolls under the held section, as on the Profiles page.
+        while (reorder.dragging != null) {
+            val info = listState.layoutInfo
+            val item = info.visibleItemsInfo.firstOrNull { it.key == reorder.dragging }
+            if (item != null) {
+                val top = item.offset + reorder.offset
+                val bottom = top + item.size
+                val edge = info.viewportSize.height * .12f
+                val step = when {
+                    top < info.viewportStartOffset + edge -> -12f
+                    bottom > info.viewportEndOffset - edge -> 12f
+                    else -> 0f
+                }
+                if (step != 0f) {
+                    val moved = listState.scrollBy(step)
+                    reorder.offset += moved
+                    reorder.swapIfPast(listState, spacingPx)
+                }
+            }
+            delay(16)
+        }
+    }
+    val moveUp = stringResource(R.string.sleep_move_up)
+    val moveDown = stringResource(R.string.sleep_move_down)
+    val rangeNames = mapOf(7 to stringResource(R.string.sleep_range_7), 30 to stringResource(R.string.sleep_range_30),
+        90 to stringResource(R.string.sleep_range_90))
+    // The range switch stays put above the sections, unless large text or a short screen would leave too little room for them.
+    val configuration = LocalConfiguration.current
+    val pinned = configuration.fontScale < 1.5f && configuration.screenHeightDp >= 600
+    val header: @Composable () -> Unit = {
+        Column(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            onBack?.let { AccentLink("‹ " + stringResource(R.string.settings_nav_back), it, Modifier.testTag("settings-back"), fontSize = 15.sp) }
+            Text(stringResource(R.string.history_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.semantics { heading() })
+            Segmented(SLEEP_RANGES.map { it to rangeNames.getValue(it) }, range, Modifier.fillMaxWidth(), tag = "sleep-range") { days ->
+                selectedDay = null
+                model.updateSettings { it.copy(sleepRangeDays = days) }
+            }
+            Text(stringResource(R.string.sleep_move_hint), color = tokens.ink2, fontSize = 13.sp)
+        }
+    }
+    Column(modifier.fillMaxSize()) {
+        if (pinned) Box(Modifier.padding(horizontal = 16.dp)) { header() }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp).testTag("sleep-list"), state = listState,
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!pinned) item(key = "header") { header() }
+            if (data.healthOff) item(key = "health-off") {
+                Column(Modifier.sleepCard(tokens).testTag("sleep-health-off").clickable(role = Role.Button) { onOpenPage("health") }) {
+                    Text(stringResource(R.string.sleep_health_off), color = tokens.ink2, fontSize = 14.sp)
+                }
+            }
+            items(shown, key = { it }) { id ->
+                val dragged = reorder.dragging == id
+                val at = shown.indexOf(id)
+                Box(Modifier.fillMaxWidth().testTag("sleep-section-$id")
+                    .zIndex(if (dragged) 1f else 0f)
+                    .graphicsLayer {
+                        translationY = if (dragged) reorder.offset else 0f
+                        if (dragged) { scaleX = 1.02f; scaleY = 1.02f; shadowElevation = 12.dp.toPx() }
+                    }
+                    .pointerInput(id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { reorder.start(id, latestAvailable) },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                reorder.offset += amount.y
+                                reorder.swapIfPast(listState, spacingPx)
+                            },
+                            onDragEnd = { reorder.finish()?.let(::save) },
+                            onDragCancel = { reorder.finish()?.let(::save) },
+                        )
+                    }
+                    .semantics {
+                        customActions = listOfNotNull(
+                            if (at > 0) CustomAccessibilityAction(moveUp) {
+                                save(shown.toMutableList().apply { add(at - 1, removeAt(at)) }); true } else null,
+                            if (at < shown.lastIndex) CustomAccessibilityAction(moveDown) {
+                                save(shown.toMutableList().apply { add(at + 1, removeAt(at)) }); true } else null,
+                        )
+                    }) {
+                    when (id) {
+                        "trend" -> SleepTrendCard(inRange, today, range, selected, zone) { selectedDay = it.date.toEpochDay() }
+                        "nights" -> selected?.let { day ->
+                            SleepNightPicker(day, zone, inRange.getOrNull(position + 1), inRange.getOrNull(position - 1)) {
+                                selectedDay = it.date.toEpochDay()
+                            }
+                        }
+                        "stages" -> selected?.let { SleepNightChart(it, zone, settings.fahrenheit, data.availability) }
+                        "figures" -> sleep?.let { SleepFiguresBlock(it, zone, averageEfficiency) }
+                        "compare" -> selected?.let { SleepCompareCard(it, data.days, zone) }
+                        "noticed" -> noticed?.let { SleepNoticedCard(it, zone, settings.fahrenheit) }
+                        "timeline" -> sleep?.let { SleepTimelineCard(it, selected.plan, zone, settings.fahrenheit) }
+                        "history" -> SavedNights(model, settings) { retention = true }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The saved BedJet nights: how long they are kept, a card per night (the newest three, then the rest on request) and export. */
+@Composable
+private fun SavedNights(model: AppViewModel, settings: io.github.willzy12h.nocturne.core.store.Settings, onRetention: () -> Unit) {
     val history by model.history.collectAsState()
     val profiles by model.profiles.collectAsState()
-    val settings by model.settings.collectAsState()
     val activeNight by model.activeNight.collectAsState()
     val tokens = paletteTokens
     var earlier by rememberSaveable { mutableStateOf(false) }
     val nights = history.sortedByDescending { it.startedAt }
-    LazyColumn(modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Column(Modifier.padding(top = 16.dp)) {
-            onBack?.let { AccentLink("‹ " + stringResource(R.string.settings_nav_back), it, Modifier.testTag("settings-back"), fontSize = 15.sp) }
-            Text(stringResource(R.string.history_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.semantics { heading() })
-        } }
-        if (history.isEmpty()) item { Text(stringResource(R.string.history_empty), color = tokens.ink2, fontSize = 15.sp) }
-        items(nights.take(RECENT_NIGHTS), key = { it.id }) { night -> NightCard(model, night, profiles, settings, activeNight) }
-        if (nights.size > RECENT_NIGHTS) {
-            item(key = "earlier") {
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
-                    .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)
-                    .testTag("history-earlier").clickable(role = Role.Button) { earlier = !earlier }.padding(horizontal = 18.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.parity_history_earlier), color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(pluralStringResource(R.plurals.parity_history_earlier_count, nights.size - RECENT_NIGHTS, nights.size - RECENT_NIGHTS),
-                            color = tokens.ink2, fontSize = 14.sp)
-                    }
-                    Text(if (earlier) "⌃" else "⌄", color = tokens.ink2, fontSize = 16.sp)
-                }
-            }
-            if (earlier) items(nights.drop(RECENT_NIGHTS), key = { it.id }) { night -> NightCard(model, night, profiles, settings, activeNight) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.sleep_nights), color = tokens.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 8.dp).semantics { heading() })
+        Column(Modifier.sleepCard(tokens).padding(horizontal = 2.dp)) {
+            SettingsLine(stringResource(R.string.sleep_history_title),
+                stringResource(R.string.sleep_history_row_detail, stringResource(keepName(History.keepDays(settings.historyKeepDays)))),
+                tokens.ink, "sleep-history-row", onClick = onRetention)
         }
-        item(key = "export") { HistoryExportButton(model.graph) }
+        if (history.isEmpty()) Text(stringResource(R.string.history_empty), color = tokens.ink2, fontSize = 15.sp)
+        nights.take(RECENT_NIGHTS).forEach { night -> key(night.id) { NightCard(model, night, profiles, settings, activeNight) } }
+        if (nights.size > RECENT_NIGHTS) {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
+                .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)
+                .testTag("history-earlier").clickable(role = Role.Button) { earlier = !earlier }.padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.parity_history_earlier), color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(pluralStringResource(R.plurals.parity_history_earlier_count, nights.size - RECENT_NIGHTS, nights.size - RECENT_NIGHTS),
+                        color = tokens.ink2, fontSize = 14.sp)
+                }
+                Text(if (earlier) "⌃" else "⌄", color = tokens.ink2, fontSize = 16.sp)
+            }
+            if (earlier) nights.drop(RECENT_NIGHTS).forEach { night -> key(night.id) { NightCard(model, night, profiles, settings, activeNight) } }
+        }
+        HistoryExportButton(model.graph)
     }
 }
 
@@ -279,7 +442,7 @@ private fun nightLabel(night: NightRecord, now: ZonedDateTime, running: Boolean)
 }
 
 @StringRes
-private fun comfortName(comfort: MorningComfort) = when (comfort) {
+internal fun comfortName(comfort: MorningComfort) = when (comfort) {
     MorningComfort.TOO_HOT -> R.string.checkin_too_hot
     MorningComfort.JUST_RIGHT -> R.string.checkin_just_right
     MorningComfort.TOO_COLD -> R.string.checkin_too_cold

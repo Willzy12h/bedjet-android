@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import io.github.willzy12h.nocturne.core.store.Palette
+import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.EventKind
@@ -75,6 +76,7 @@ class P6SettingsHistoryTest {
         } }
         for (choice in listOf(Palette.MIDNIGHT_INK, Palette.OVERCAST)) {
             ui.compose.runOnIdle { palette.value = choice }
+            ui.compose.onNodeWithTag("sleep-list").performScrollToKey("history")
             val chip = ui.compose.onNodeWithTag("history-issues-p6-warning", useUnmergedTree = true).performScrollTo()
             ui.compose.onNodeWithText("1 issue").assertExists()
             val bounds = chip.fetchSemanticsNode().boundsInRoot
@@ -97,7 +99,7 @@ class P6SettingsHistoryTest {
             events = listOf(HistoryEvent("2026-10-23T01:00Z", EventKind.ERROR, "Outcome unknown")))
         ui.compose.runOnUiThread { runBlocking { ui.graph.repository.addRecord(record) } }
         ui.tab("History")
-        ui.compose.onNodeWithText("Uncertain night", substring = true).performClick()
+        ui.compose.onNodeWithText("Uncertain night", substring = true).performScrollTo().performClick()
         ui.compose.onNodeWithText("Outcome unknown", substring = true).assertExists()
         ui.compose.onAllNodesWithText("didn't send", substring = true).assertCountEquals(0)
     }

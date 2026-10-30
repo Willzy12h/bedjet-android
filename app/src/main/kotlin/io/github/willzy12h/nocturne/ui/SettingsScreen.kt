@@ -161,7 +161,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
 
     // Sleep (the nights' history) has its own lazy list, so it replaces the settings column rather than nesting in it.
     if (page == "sleep") {
-        HistoryScreen(model, modifier, onBack = { page = "home" })
+        HistoryScreen(model, modifier, onBack = { page = "home" }, onOpenPage = { page = it })
         return
     }
     var alarmDetails by rememberSaveable { mutableStateOf(false) }

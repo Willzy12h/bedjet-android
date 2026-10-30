@@ -76,6 +76,12 @@ data class Settings(
     /** Stable section IDs; unknown, repeated and missing IDs are normalised when displayed. */
     val tonightSectionOrder: List<String> = listOf("night", "wake", "connection"),
     val quietNightNotification: Boolean = false,
+    /** Stable Sleep page section IDs, normalised like [tonightSectionOrder]. */
+    val sleepSectionOrder: List<String> = SLEEP_SECTIONS,
+    /** The Sleep page's range: 7, 30 or 90 days. */
+    val sleepRangeDays: Int = 7,
+    /** How many days of nights this phone keeps; see [History.KEEP_OPTIONS]. */
+    val historyKeepDays: Int = History.DEFAULT_KEEP_DAYS,
     val cooldownOfferAnswered: Boolean = false,
     val platform: PlatformSettings = PlatformSettings(),
 ) {
@@ -88,6 +94,13 @@ data class Settings(
         val saved = tonightSectionOrder.filter { it in known }.distinct()
         return saved + known.filterNot { it in saved }
     }
+
+    fun normalisedSleepOrder(): List<String> {
+        val saved = sleepSectionOrder.filter { it in SLEEP_SECTIONS }.distinct()
+        return saved + SLEEP_SECTIONS.filterNot { it in saved }
+    }
+
+    fun normalisedSleepRange(): Int = sleepRangeDays.takeIf { it in SLEEP_RANGES } ?: SLEEP_RANGES.first()
 
     /** The palette to draw with at [at]: [nightPalette] while the theme means dark, otherwise [dayPalette]. */
     fun palette(at: ZonedDateTime, systemDark: Boolean): Palette = if (isDarkTheme(at, systemDark)) nightPalette else dayPalette
@@ -130,3 +143,7 @@ data class Settings(
 
 /** The BedJet commands go to: the demo unit, the chosen real one, or null when none is chosen yet. */
 fun Settings.deviceId(): String? = if (demoMode) DeviceId.DEMO else targetDevice
+
+/** The Sleep page's movable sections, in their default order. */
+val SLEEP_SECTIONS = listOf("trend", "nights", "stages", "figures", "compare", "noticed", "timeline", "history")
+val SLEEP_RANGES = listOf(7, 30, 90)

@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.*
 
@@ -24,6 +25,8 @@ internal fun ComposeTestRule.navTab(label: String) {
         if (onAllNodesWithTag("settings-page-sleep").fetchSemanticsNodes().isEmpty()) backSettingsPage()
         openSettingsPage("sleep")
         waitForIdle()
+        // "History" means the saved nights, which sit below the Sleep page's charts.
+        if (label == "History") { onNodeWithTag("sleep-list").performScrollToKey("history"); waitForIdle() }
         return
     }
     onNode((hasText(label) or hasContentDescription(label)) and hasClickAction() and hasAnyAncestor(hasTestTag("main-navigation")))

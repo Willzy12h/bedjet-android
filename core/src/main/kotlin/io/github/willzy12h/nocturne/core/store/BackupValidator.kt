@@ -195,6 +195,10 @@ object BackupValidator {
         settings.alarmPackages.take(129).forEach { bounded(it, "settings.alarmPackages", 255) }
         count(settings.tonightSectionOrder.size, 64, "settings.tonightSectionOrder")
         settings.tonightSectionOrder.take(65).forEach { bounded(it, "settings.tonightSectionOrder", MAX_ID) }
+        count(settings.sleepSectionOrder.size, 64, "settings.sleepSectionOrder")
+        settings.sleepSectionOrder.take(65).forEach { bounded(it, "settings.sleepSectionOrder", MAX_ID) }
+        if (settings.historyKeepDays !in History.KEEP_OPTIONS) invalid("settings.historyKeepDays")
+        if (settings.sleepRangeDays !in SLEEP_RANGES) invalid("settings.sleepRangeDays")
         // Also bound additive schema-2 fields introduced alongside this importer without depending on their
         // compile-time model revision. Local device remembrance and Health proof still have strict import types.
         if (isNotEmpty()) return@buildList

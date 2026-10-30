@@ -139,12 +139,12 @@ class NavigationRestoreTest {
         launch(Intent(originalLaunch))
         assertFalse(controller!!.get().intent.hasExtra("openTonight"))
         compose.navTab("History")
-        compose.onNodeWithText("Export history CSV").assertExists()
+        compose.onNodeWithTag("sleep-list").assertExists()
 
         // Android may redeliver the original launch intent after process death.
         restore(originalLaunch)
 
-        compose.onNodeWithText("Export history CSV").assertExists()
+        compose.onNodeWithTag("sleep-list").assertExists()
         compose.onNodeWithText("Start night now").assertDoesNotExist()
     }
 
@@ -152,11 +152,11 @@ class NavigationRestoreTest {
         launch()
         compose.navTab("History")
         restore()
-        compose.onNodeWithText("Export history CSV").assertExists()
+        compose.onNodeWithTag("sleep-list").assertExists()
 
         openTonight()
 
-        compose.onNodeWithText("Export history CSV").assertDoesNotExist()
+        compose.onNodeWithTag("sleep-list").assertDoesNotExist()
         assertFalse(controller!!.get().intent.hasExtra("openTonight"))
     }
 
@@ -198,7 +198,7 @@ class NavigationRestoreTest {
         launch()
         compose.navTab("History")
         restore()
-        compose.onNodeWithText("Export history CSV").assertExists()
+        compose.onNodeWithTag("sleep-list").assertExists()
         compose.onNodeWithText("Start night now").assertDoesNotExist()
     }
 

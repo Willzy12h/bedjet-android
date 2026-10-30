@@ -51,7 +51,7 @@ class ImportPreviewRepositoryTest {
             settings = repo.settings.value.copy(fahrenheit = true, targetDevice = "ble:11:22:33:44:55:66"),
             slotBackups = listOf(protected.copy(program = StoredProgram("Foreign", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), empty = false),
                 SlotBackup(Migrations.UNKNOWN_DEVICE, 1, null, now.toString(), uncertain = true)),
-            history = listOf(night("old").copy(startedAt = now.minusDays(61).toString()), night("new")))
+            history = listOf(night("old").copy(startedAt = now.minusDays(91).toString()), night("new")))
         val before = repo.bundle()
         val snapshots = repo.snapshotList.value
         val preview = repo.previewImport(incoming)
@@ -126,7 +126,7 @@ class ImportPreviewRepositoryTest {
 
     @Test fun aRetentionBoundaryChangeRequiresReviewAgainBeforeApplying() = runBlocking {
         val repo = repo()
-        val incoming = repo.bundle().copy(history = listOf(night("near-cutoff").copy(startedAt = now.minusDays(60).plusMinutes(1).toString())))
+        val incoming = repo.bundle().copy(history = listOf(night("near-cutoff").copy(startedAt = now.minusDays(History.DEFAULT_KEEP_DAYS.toLong()).plusMinutes(1).toString())))
         val preview = repo.previewImport(incoming)
         assertEquals(1, preview.sections.first { it.area == ImportArea.HISTORY }.count(ImportDisposition.ADDED))
         now = now.plusMinutes(2)

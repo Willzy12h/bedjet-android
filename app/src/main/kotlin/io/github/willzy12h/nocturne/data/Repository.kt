@@ -180,7 +180,7 @@ class Repository(
     internal val sessionRevision: StateFlow<Long> = _sessionRevision.asStateFlow()
     // Activity recreation keeps this instance; a new process/repository must invalidate every pending Share.
     private val shareInstanceNonce = UUID.randomUUID().toString()
-    private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now()))
+    private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now(), _settings.value.historyKeepDays))
     val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     private val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
     /** What each device's slots held before the app first wrote them. See [recordOriginalSlot]. */
@@ -453,7 +453,20 @@ class Repository(
     suspend fun setActiveNight(night: ActiveNight?) = update(_activeNight, ACTIVE_NIGHT, ActiveNight.serializer().nullable) { night }
 
     suspend fun addRecord(record: NightRecord) = update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { list ->
-        History.prune(list.filterNot { it.id == record.id } + record, now())
+        History.prune(list.filterNot { it.id == record.id } + record, now(), _settings.value.historyKeepDays)
+    }
+
+    /** Keeps [days] of nights from now on; a shorter period deletes the older nights straight away. */
+    suspend fun setHistoryKeepDays(days: Int) {
+        val keep = History.keepDays(days)
+        updateSettings { it.copy(historyKeepDays = keep) }
+        update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { History.prune(it, now(), keep) }
+    }
+
+    /** Deletes every saved night except one still running or being ended. Health Connect keeps its own copy. */
+    suspend fun deleteHistory() {
+        val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
+        update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { list -> list.filter { it.id in tonight } }
     }
 
     suspend fun addEvent(recordId: String, event: HistoryEvent) =
@@ -769,7 +782,7 @@ class Repository(
             // reset an exported marker or change a record while carrying its old hardware confirmation.
             localHistory[incoming.id]?.takeIf { withoutImportedProof(it) == unverified } ?: unverified
         }
-        val history = History.prune(importedHistory, restoreAt).filterNot { restored -> carried.any { it.id == restored.id } } + carried
+        val history = History.prune(importedHistory, restoreAt, bundle.settings.historyKeepDays).filterNot { restored -> carried.any { it.id == restored.id } } + carried
         val slotBackups = _slotBackups.value.let { current ->
             val incoming = bundle.slotBackups.map { it.copy(imported = true, deviceId = canonicalImportDevice(it.deviceId)) }
             // One saved after the loss of unreadable originals was accepted may be the app's own programme, so
