@@ -174,8 +174,8 @@ internal class U06ControlSemanticsTest(look: U06Look) {
                 scalar(label(R.string.slider_fan), preset.fan.toFloat(), percent(preset.fan))
                 scalar(label(R.string.slider_minutes), preset.minutes.toFloat(), minutes(preset.minutes))
             }
-            scalar(s(R.string.slider_boost), 15f, minutes(15))
-            compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(13)
+            // Boost is a row that opens its editor; the page itself holds no Boost slider.
+            compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(12)
         }
     }
 

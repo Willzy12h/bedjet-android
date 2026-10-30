@@ -5,6 +5,9 @@ import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -121,23 +124,31 @@ internal fun BoostEditor(model: AppViewModel, settings: Settings, onClose: () ->
             Column(Modifier.verticalScroll(rememberScrollState()).testTag("boost-editor"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.boost_editor_help, turbo))
                 Text(io.github.willzy12h.nocturne.night.boostDescription(context, minutes), fontWeight = FontWeight.Bold)
-                // The whole Boost to scale: Turbo's fixed ten minutes, then the chosen Heat.
+                // The whole Boost to scale: Turbo's fixed ten minutes in the deepest Ember, then the chosen Heat
+                // in a lighter one, each labelled, so the two parts never read as one block.
                 val tokens = paletteTokens
-                val heatColour = tokens.modeColor(io.github.willzy12h.nocturne.core.protocol.Mode.HEAT)
-                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().height(14.dp).testTag("boost-editor-bar")
+                val turboColour = tokens.ember[3]
+                val heatColour = tokens.ember[1]
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().height(34.dp).testTag("boost-editor-bar")
                     .clearAndSetSemantics { }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     androidx.compose.foundation.layout.Box(Modifier.weight(turbo.toFloat()).fillMaxHeight()
-                        .background(tokens.modeColor(io.github.willzy12h.nocturne.core.protocol.Mode.TURBO), RoundedCornerShape(4.dp)))
+                        .background(turboColour, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(stringResource(R.string.boost_bar_turbo, turbo), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
                     if (minutes > turbo) androidx.compose.foundation.layout.Box(Modifier.weight((minutes - turbo).toFloat()).fillMaxHeight()
-                        .background(heatColour, RoundedCornerShape(4.dp)))
-                    if (minutes < 30) androidx.compose.foundation.layout.Box(Modifier.weight((30 - minutes).toFloat()))
+                        .background(heatColour, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                        Text(stringResource(R.string.boost_bar_heat, minutes - turbo), color = Color(0xFF12152A), fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Clip)
+                    }
+                    if (minutes < 30) androidx.compose.foundation.layout.Box(Modifier.weight((30 - minutes).toFloat()).fillMaxHeight()
+                        .border(1.dp, tokens.ink3.copy(alpha = .4f), RoundedCornerShape(8.dp)))
                 }
                 Text(stringResource(R.string.boost_editor_heat))
                 ScaledSlider((minutes - turbo).toFloat(), { minutes = turbo + ((it / 5).roundToInt() * 5) },
                     range = 0f..20f, steps = 3, enabled = true,
                     modifier = Modifier.sliderSemantics(stringResource(R.string.boost_editor_heat), spokenMinutes(minutes - turbo)),
                     ticks = listOf(0, 10, 20).map { it.toFloat() to stringResource(R.string.minutes_short, it) }, tag = "boost-heat",
-                    onValueChangeFinished = {}, colors = remoteSliderColors(heatColour))
+                    onValueChangeFinished = {}, colors = sliderColors(heatColour))
             }
         },
         confirmButton = { TextButton(onClick = { model.updateSettings { it.copy(boostMinutes = minutes) }; onClose() }) {
@@ -161,19 +172,23 @@ internal fun QuickPresetEditor(model: AppViewModel, settings: Settings, original
                     if (draft.mode.usesTemperature) {
                         val range = draft.mode.temperatureRange
                         Text(stringResource(R.string.slider_temp))
-                        Slider(draft.temperature.coerceIn(range).toFloat(), { draft = draft.copy(temperature = it.roundToInt()) },
-                            valueRange = range.first.toFloat()..range.last.toFloat(), steps = range.last - range.first - 1,
-                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(draft.temperature, settings.fahrenheit)), colors = nocturneSliderColors())
+                        ScaledSlider(draft.temperature.coerceIn(range).toFloat(), { draft = draft.copy(temperature = it.roundToInt()) },
+                            range = range.first.toFloat()..range.last.toFloat(), steps = range.last - range.first - 1, enabled = true,
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(draft.temperature, settings.fahrenheit)),
+                            ticks = temperatureTicks(range, settings.fahrenheit), tag = "quick-temperature", onValueChangeFinished = {},
+                            colors = temperatureSliderColors(draft.mode, draft.temperature))
                     }
                     Text(stringResource(R.string.slider_fan))
-                    Slider(draft.fanPercent.coerceIn(5, 100).toFloat(), { draft = draft.copy(fanPercent = (it / 5).roundToInt() * 5) },
-                        valueRange = 5f..100f, steps = 18,
-                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(draft.fanPercent)), colors = nocturneSliderColors())
+                    ScaledSlider(draft.fanPercent.coerceIn(5, 100).toFloat(), { draft = draft.copy(fanPercent = (it / 5).roundToInt() * 5) },
+                        range = 5f..100f, steps = 18, enabled = true,
+                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(draft.fanPercent)),
+                        ticks = fanTicks(), tag = "quick-fan", onValueChangeFinished = {}, colors = fanSliderColors(draft.mode))
                     val maximum = QuickDefaults.maximumMinutes(draft).coerceAtLeast(1)
                     Text(stringResource(R.string.slider_minutes))
-                    if (maximum > 1) Slider(draft.minutes.coerceIn(1, maximum).toFloat(), { draft = draft.copy(minutes = it.roundToInt()) },
-                        valueRange = 1f..maximum.toFloat(), steps = maximum - 2,
-                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(draft.minutes)), colors = nocturneSliderColors())
+                    if (maximum > 1) ScaledSlider(draft.minutes.coerceIn(1, maximum).toFloat(), { draft = draft.copy(minutes = it.roundToInt()) },
+                        range = 1f..maximum.toFloat(), steps = maximum - 2, enabled = true,
+                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(draft.minutes)),
+                        ticks = minuteTicks(1, maximum), tag = "quick-minutes", onValueChangeFinished = {}, colors = amountSliderColors())
                 }
             },
             confirmButton = { TextButton(onClick = {

@@ -356,7 +356,7 @@ internal fun AddStepContent(initial: Block, fahrenheit: Boolean, onCancel: () ->
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun StepEditorContent(title: String, phase: Phase, fahrenheit: Boolean, runs: String?, tag: String,
-    fanSlider: @Composable (Int, (Int) -> Unit) -> Unit, onDone: () -> Unit, onDelete: () -> Unit, onChange: (Phase) -> Unit) {
+    fanSlider: @Composable (Int, Mode, (Int) -> Unit) -> Unit, onDone: () -> Unit, onDelete: () -> Unit, onChange: (Phase) -> Unit) {
     val tokens = paletteTokens
     var typing by remember { mutableStateOf(false) }
     val turbo = phase.mode == Mode.TURBO
@@ -412,7 +412,7 @@ internal fun StepEditorContent(title: String, phase: Phase, fahrenheit: Boolean,
                 SectionLabel(stringResource(R.string.parity_fan), Modifier.weight(1f))
                 Text("${if (turbo) 100 else phase.fanPercent}%", color = tokens.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
-            if (!turbo) fanSlider(phase.fanPercent) { onChange(phase.copy(fanPercent = it)) }
+            if (!turbo) fanSlider(phase.fanPercent, phase.mode) { onChange(phase.copy(fanPercent = it)) }
         }
         SectionLabel(stringResource(R.string.parity_how_long))
         val lengthLabel = stringResource(R.string.slider_length)

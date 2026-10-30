@@ -67,10 +67,10 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
                         Text(stringResource(R.string.temporary_running, name))
                         temporaryDetails(context, request!!, preview!!, settings.fahrenheit).forEach { Text(it) }
                         Text(stringResource(R.string.temporary_duration, durationText(minutes)))
-                        if (temporary.maximumMinutes > 1) Slider(minutes.toFloat().coerceIn(1f, temporary.maximumMinutes.toFloat()),
+                        if (temporary.maximumMinutes > 1) NocturneSlider(minutes.toFloat().coerceIn(1f, temporary.maximumMinutes.toFloat()),
                             { minutes = it.roundToInt() }, valueRange = 1f..temporary.maximumMinutes.toFloat(),
                             steps = temporary.maximumMinutes - 2,
-                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(minutes)), colors = nocturneSliderColors())
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(minutes)), colors = amountSliderColors())
                         temporaryReturn(context, preview)?.let { Text(it) }
                         Text(stringResource(R.string.temporary_schedule))
                         temporary.endPreset?.takeIf { temporary.canEnd && it.minutes > temporary.maximumMinutes }?.let {

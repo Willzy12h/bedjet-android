@@ -280,8 +280,8 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         ends?.takeIf { it.isNotEmpty() }?.let { MiddleBars(it, f) }
                     }
                     Labelled(stringResource(R.string.editor_steps, m.rampSteps)) {
-                        Slider(m.rampSteps.toFloat(), { profile = profile.copy(middle = m.copy(rampSteps = it.roundToInt())) }, valueRange = 1f..8f, steps = 6,
-                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_steps), pluralStringResource(R.plurals.a11y_steps, m.rampSteps, m.rampSteps)), colors = nocturneSliderColors())
+                        NocturneSlider(m.rampSteps.toFloat(), { profile = profile.copy(middle = m.copy(rampSteps = it.roundToInt())) }, valueRange = 1f..8f, steps = 6,
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_steps), pluralStringResource(R.plurals.a11y_steps, m.rampSteps, m.rampSteps)), colors = amountSliderColors())
                     }
                     if (m.mode.usesFan) {
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -305,18 +305,18 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                         val limits = profile.limits
                         when (fanShape) {
                             FanShape.STEADY -> Labelled(stringResource(R.string.editor_fan_start, m.fanStart)) {
-                                FanSlider(m.fanStart, stringResource(R.string.slider_fan_start), limits) { profile = profile.copy(middle = m.copy(fanStart = it, fanEnd = it, quietFan = null)) }
+                                FanSlider(m.fanStart, stringResource(R.string.slider_fan_start), limits, m.mode) { profile = profile.copy(middle = m.copy(fanStart = it, fanEnd = it, quietFan = null)) }
                             }
                             FanShape.EASE -> {
-                                Labelled(stringResource(R.string.editor_fan_start, m.fanStart)) { FanSlider(m.fanStart, stringResource(R.string.slider_fan_start), limits) { profile = profile.copy(middle = m.copy(fanStart = it, quietFan = null)) } }
-                                Labelled(stringResource(R.string.editor_fan_end, m.fanEnd)) { FanSlider(m.fanEnd, stringResource(R.string.slider_fan_end), limits) { profile = profile.copy(middle = m.copy(fanEnd = it, quietFan = null)) } }
+                                Labelled(stringResource(R.string.editor_fan_start, m.fanStart)) { FanSlider(m.fanStart, stringResource(R.string.slider_fan_start), limits, m.mode) { profile = profile.copy(middle = m.copy(fanStart = it, quietFan = null)) } }
+                                Labelled(stringResource(R.string.editor_fan_end, m.fanEnd)) { FanSlider(m.fanEnd, stringResource(R.string.slider_fan_end), limits, m.mode) { profile = profile.copy(middle = m.copy(fanEnd = it, quietFan = null)) } }
                             }
                             FanShape.QUIET_MIDDLE -> m.quietFan?.let { q ->
                                 fun updateQuiet(next: QuietFan) { profile = profile.copy(middle = m.copy(fanStart = next.settle, fanEnd = next.rise, quietFan = next)) }
-                                Labelled(stringResource(R.string.editor_settle_speed, q.settle)) { FanSlider(q.settle, stringResource(R.string.slider_settle_speed), limits) { updateQuiet(q.copy(settle = it)) } }
+                                Labelled(stringResource(R.string.editor_settle_speed, q.settle)) { FanSlider(q.settle, stringResource(R.string.slider_settle_speed), limits, m.mode) { updateQuiet(q.copy(settle = it)) } }
                                 Labelled(stringResource(R.string.editor_settle_minutes, q.settleMinutes)) { MinuteSlider(q.settleMinutes, stringResource(R.string.slider_settle_minutes), 0) { updateQuiet(q.copy(settleMinutes = it)) } }
-                                Labelled(stringResource(R.string.editor_asleep_speed, q.asleep)) { FanSlider(q.asleep, stringResource(R.string.slider_asleep_speed), limits) { updateQuiet(q.copy(asleep = it)) } }
-                                Labelled(stringResource(R.string.editor_rise_speed, q.rise)) { FanSlider(q.rise, stringResource(R.string.slider_rise_speed), limits) { updateQuiet(q.copy(rise = it)) } }
+                                Labelled(stringResource(R.string.editor_asleep_speed, q.asleep)) { FanSlider(q.asleep, stringResource(R.string.slider_asleep_speed), limits, m.mode) { updateQuiet(q.copy(asleep = it)) } }
+                                Labelled(stringResource(R.string.editor_rise_speed, q.rise)) { FanSlider(q.rise, stringResource(R.string.slider_rise_speed), limits, m.mode) { updateQuiet(q.copy(rise = it)) } }
                                 Labelled(stringResource(R.string.editor_rise_minutes, q.riseMinutes)) { MinuteSlider(q.riseMinutes, stringResource(R.string.slider_rise_minutes), 0) { updateQuiet(q.copy(riseMinutes = it)) } }
                             }
                         }
@@ -356,7 +356,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     Text(stringResource(R.string.editor_limits_help), style = MaterialTheme.typography.bodySmall)
                     val limits = profile.limits
                     Text(stringResource(R.string.editor_fan_limits, limits.minFan, limits.maxFan))
-                    RangeSlider(
+                    NocturneRangeSlider(
                         modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan_limits),
                             spokenRange(spokenPercent(limits.minFan), spokenPercent(limits.maxFan))),
                         value = limits.minFan.toFloat()..limits.maxFan.toFloat(),
@@ -364,15 +364,16 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                             val next = limits.copy(minFan = it.start.round5(), maxFan = it.endInclusive.round5())
                             profile = profile.copy(limits = next, middle = profile.middle.withFanLimits(next))
                         },
-                        valueRange = 5f..100f, steps = 18, colors = nocturneSliderColors(),
+                        valueRange = 5f..100f, steps = 18, startColour = paletteTokens.accent, endColour = paletteTokens.accent,
                     )
                     Text(stringResource(R.string.editor_temp_limits, tempText(limits.minTemp, f), tempText(limits.maxTemp, f)))
-                    RangeSlider(
+                    NocturneRangeSlider(
                         modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp_limits),
                             spokenRange(spokenTemp(limits.minTemp, f), spokenTemp(limits.maxTemp, f))),
                         value = limits.minTemp.toFloat()..limits.maxTemp.toFloat(),
                         onValueChange = { profile = profile.copy(limits = limits.copy(minTemp = it.start.roundToInt(), maxTemp = it.endInclusive.roundToInt())) },
-                        valueRange = 38f..86f, steps = 47, colors = nocturneSliderColors(),
+                        // Coolest to hottest: the limits apply to every mode, so the fill runs from Cool blue to the deepest Ember.
+                        valueRange = 38f..86f, steps = 47, startColour = paletteTokens.cool, endColour = paletteTokens.ember.last(),
                     )
                     TextButton(onClick = { profile = profile.copy(limits = ProfileLimits(), middle = profile.middle.withFanLimits(ProfileLimits())) }) { Text(stringResource(R.string.editor_reset_limits)) }
                 }
@@ -467,7 +468,7 @@ private fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boole
                         phase = phase, fahrenheit = f,
                         runs = phaseStart?.let { at -> stringResource(R.string.parity_runs, Format.clock(at), Format.clock(at.plusMinutes(phase.minutes.toLong()))) },
                         tag = "editor-phase-controls-${block.name}-$index",
-                        fanSlider = { value, update -> FanSlider(value, stringResource(R.string.slider_fan), limits, update) },
+                        fanSlider = { value, mode, update -> FanSlider(value, stringResource(R.string.slider_fan), limits, mode, update) },
                         onDone = { open = null },
                         onDelete = { open = null; onChange(phases.filterIndexed { i, _ -> i != index }) },
                     ) { value -> onChange(phases.mapIndexed { i, old -> if (i == index) value else old }) }
@@ -611,27 +612,27 @@ private fun Middle.withFanLimits(limits: ProfileLimits): Middle {
 }
 
 @Composable
-private fun FanSlider(value: Int, label: String, limits: ProfileLimits = ProfileLimits(), onChange: (Int) -> Unit) {
+private fun FanSlider(value: Int, label: String, limits: ProfileLimits = ProfileLimits(), mode: Mode, onChange: (Int) -> Unit) {
     val low = ((limits.minFan + 4) / 5) * 5
     val high = (limits.maxFan / 5) * 5
     val hasRange = low < high
     val display = if (low <= high) legalFan(value, limits) else value.coerceIn(5, 100)
-    Slider(
+    NocturneSlider(
         display.toFloat(),
         { onChange(legalFan(it.roundToInt(), limits)) },
         valueRange = if (hasRange) low.toFloat()..high.toFloat() else 5f..100f,
         enabled = hasRange,
         steps = if (hasRange) (high - low) / 5 - 1 else 18,
-        colors = nocturneSliderColors(hideTicks = true),
+        colors = fanSliderColors(mode),
         modifier = Modifier.sliderSemantics(label, spokenPercent(value)),
     )
 }
 
 @Composable
 private fun MinuteSlider(value: Int, label: String, minimum: Int, onChange: (Int) -> Unit) =
-    Slider(value.coerceIn(minimum, 720).toFloat(), { onChange(it.roundToInt().coerceIn(minimum, 720)) },
+    NocturneSlider(value.coerceIn(minimum, 720).toFloat(), { onChange(it.roundToInt().coerceIn(minimum, 720)) },
         valueRange = minimum.toFloat()..720f, steps = 720 - minimum - 1,
-        modifier = Modifier.sliderSemantics(label, spokenMinutes(value)), colors = nocturneSliderColors())
+        modifier = Modifier.sliderSemantics(label, spokenMinutes(value)), colors = amountSliderColors())
 
 @Composable
 fun SwitchRow(title: String, detail: String?, checked: Boolean, modifier: Modifier = Modifier, enabled: Boolean = true, onChange: (Boolean) -> Unit) {

@@ -301,9 +301,17 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             PresetEditor(stringResource(R.string.settings_preset_snooze_cool), settings.snoozeCool, f) { p -> model.updateSettings { it.copy(snoozeCool = p) } }
             PresetEditor(stringResource(R.string.settings_preset_extend_warm), settings.extendWarm, f, quickCommand = Command.WARM) { p -> model.updateSettings { it.copy(extendWarm = p) } }
             PresetEditor(stringResource(R.string.settings_preset_extend_cool), settings.extendCool, f, quickCommand = Command.COOL) { p -> model.updateSettings { it.copy(extendCool = p) } }
-            Text(io.github.willzy12h.nocturne.night.boostDescription(context, settings.boostMinutes))
-            Slider(settings.boostMinutes.toFloat(), { v -> model.updateSettings { it.copy(boostMinutes = v.roundToInt()) } }, valueRange = 10f..30f, steps = 3,
-                modifier = Modifier.sliderSemantics(stringResource(R.string.slider_boost), spokenMinutes(settings.boostMinutes)), colors = nocturneSliderColors())
+            // Boost has one editor, the same one Home and Quick presets open.
+            var editingBoost by remember { mutableStateOf(false) }
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = stringResource(R.string.settings_boost_edit)) { editingBoost = true }
+                .testTag("settings-boost-row"), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_boost_row), color = paletteTokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(io.github.willzy12h.nocturne.night.boostDescription(context, settings.boostMinutes), color = paletteTokens.ink2, fontSize = 13.sp)
+                }
+                Text(stringResource(R.string.settings_boost_edit), color = paletteTokens.readableText(paletteTokens.accent, paletteTokens.surface), fontWeight = FontWeight.Bold)
+            }
+            if (editingBoost) BoostEditor(model, settings) { editingBoost = false }
         }
 
         if (page == "night") Group(stringResource(R.string.settings_alarms), Modifier.bringIntoViewRequester(alarms)) {
@@ -664,15 +672,24 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, quickC
             }
             if (preset.mode.usesTemperature) {
                 val range = preset.mode.temperatureRange
-                Slider(preset.temperature.toFloat(), { onChange(preset.copy(temperature = it.roundToInt())) }, valueRange = range.first.toFloat()..range.last.toFloat(),
-                    modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_temp)), spokenTemp(preset.temperature, f)), colors = nocturneSliderColors())
+                Text(stringResource(R.string.slider_temp), style = MaterialTheme.typography.labelSmall)
+                ScaledSlider(preset.temperature.coerceIn(range).toFloat(), { onChange(preset.copy(temperature = it.roundToInt())) },
+                    range = range.first.toFloat()..range.last.toFloat(), steps = 0, enabled = true,
+                    modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_temp)), spokenTemp(preset.temperature, f)),
+                    ticks = temperatureTicks(range, f), tag = "preset-temperature", onValueChangeFinished = {},
+                    colors = temperatureSliderColors(preset.mode, preset.temperature))
             }
             Text(stringResource(R.string.slider_fan), style = MaterialTheme.typography.labelSmall)
-            Slider(preset.fanPercent.toFloat(), { onChange(preset.copy(fanPercent = ((it / 5).roundToInt() * 5).coerceIn(5, 100))) }, valueRange = 5f..100f, steps = 18,
-                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_fan)), spokenPercent(preset.fanPercent)), colors = nocturneSliderColors())
+            ScaledSlider(preset.fanPercent.toFloat(), { onChange(preset.copy(fanPercent = ((it / 5).roundToInt() * 5).coerceIn(5, 100))) },
+                range = 5f..100f, steps = 18, enabled = true,
+                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_fan)), spokenPercent(preset.fanPercent)),
+                ticks = fanTicks(), tag = "preset-fan", onValueChangeFinished = {}, colors = fanSliderColors(preset.mode))
             Text(stringResource(R.string.slider_minutes), style = MaterialTheme.typography.labelSmall)
-            Slider(preset.minutes.toFloat(), { onChange(preset.copy(minutes = (it / 5).roundToInt() * 5)) }, valueRange = 5f..120f, steps = 22,
-                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_minutes)), spokenMinutes(preset.minutes)), colors = nocturneSliderColors())
+            ScaledSlider(preset.minutes.toFloat(), { onChange(preset.copy(minutes = (it / 5).roundToInt() * 5)) },
+                range = 5f..120f, steps = 22, enabled = true,
+                modifier = Modifier.sliderSemantics(stringResource(R.string.settings_preset_slider, title, stringResource(R.string.slider_minutes)), spokenMinutes(preset.minutes)),
+                ticks = minuteTicks(5, 120).let { listOf(it[0], 60f to durationText(60), it[2]) }, tag = "preset-minutes", onValueChangeFinished = {},
+                colors = amountSliderColors())
         }
     }
 }

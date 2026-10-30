@@ -4,7 +4,6 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButtonDefaults
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
@@ -17,13 +16,6 @@ private fun controlForeground() = paletteTokens.readableText(paletteTokens.prima
 internal fun nocturneTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedLabelColor = controlForeground(), focusedBorderColor = controlForeground(),
     cursorColor = controlForeground(), unfocusedBorderColor = paletteTokens.ink3,
-)
-
-@Composable
-internal fun nocturneSliderColors(hideTicks: Boolean = false) = SliderDefaults.colors(
-    thumbColor = controlForeground(), activeTrackColor = controlForeground(),
-    activeTickColor = if (hideTicks) Color.Transparent else paletteTokens.ground,
-    inactiveTickColor = if (hideTicks) Color.Transparent else controlForeground(),
 )
 
 @Composable

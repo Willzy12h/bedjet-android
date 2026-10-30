@@ -81,8 +81,10 @@ class AccessibilitySemanticsTest {
     @Test fun theBoostSliderSaysItsMinutes() {
         compose.onAllNodesWithText("Settings")[0].performClick()
         compose.openSettingsPage("notifications")
-        val boost = slider(s(R.string.slider_boost)).performScrollTo()
-        assertEquals(compose.activity.resources.getQuantityString(R.plurals.a11y_minutes, 15, 15), stateOf(boost))
+        // Settings opens the one Boost editor, whose slider sets the Heat that follows Turbo's ten minutes.
+        compose.onNodeWithTag("settings-boost-row").performScrollTo().performClick()
+        val heat = slider(s(R.string.boost_editor_heat))
+        assertEquals(compose.activity.resources.getQuantityString(R.plurals.a11y_minutes, 5, 5), stateOf(heat))
     }
 
     @Test fun featureSwitchesAreOneToggleableRowAtLeast48dpTall() {

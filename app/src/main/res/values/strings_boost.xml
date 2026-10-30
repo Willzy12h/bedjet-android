@@ -14,4 +14,8 @@
     <string name="boost_tile_turbo_only">Turbo 10m</string>
     <string name="boost_editor_help">Boost runs Turbo for %1$d minutes, the most the BedJet allows, then Heat for as long as you choose below.</string>
     <string name="boost_editor_heat">Heat afterwards</string>
+    <string name="boost_bar_turbo">Turbo %1$d m</string>
+    <string name="boost_bar_heat">Heat %1$d m</string>
+    <string name="settings_boost_row">Boost</string>
+    <string name="settings_boost_edit">Edit Boost</string>
 </resources>

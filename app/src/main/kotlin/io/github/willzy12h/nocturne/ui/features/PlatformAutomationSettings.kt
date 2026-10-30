@@ -1,7 +1,8 @@
 package io.github.willzy12h.nocturne.ui.features
 
 import io.github.willzy12h.nocturne.ui.nocturneRadioColors
-import io.github.willzy12h.nocturne.ui.nocturneSliderColors
+import io.github.willzy12h.nocturne.ui.NocturneSlider
+import io.github.willzy12h.nocturne.ui.amountSliderColors
 import io.github.willzy12h.nocturne.ui.nocturneSwitchColors
 import android.Manifest
 import android.content.pm.PackageManager
@@ -134,9 +135,9 @@ import kotlin.math.roundToInt
             var offset by remember(config.minutesBeforeWake) { mutableFloatStateOf(config.minutesBeforeWake.toFloat()) }
             val duration = stringResource(R.string.auto_start_relative_value, offset.roundToInt() / 60, offset.roundToInt() % 60)
             Text(duration)
-            Slider(value = offset, onValueChange = { offset = it }, valueRange = 60f..1080f, steps = 33,
+            NocturneSlider(value = offset, onValueChange = { offset = it }, valueRange = 60f..1080f, steps = 33,
                 enabled = editable, onValueChangeFinished = { save { it.copy(minutesBeforeWake = offset.roundToInt()) } },
-                modifier = Modifier.semantics { contentDescription = duration }, colors = nocturneSliderColors())
+                modifier = Modifier.semantics { contentDescription = duration }, colors = amountSliderColors())
             val preview = plan ?: AutoStartSchedule.next(graph, graph.now())
             Text(when (preview?.wakeSource) {
                 AutoStartWakeSource.ALARM -> stringResource(R.string.auto_start_alarm_wake, Format.clock(preview.wakeAt!!))

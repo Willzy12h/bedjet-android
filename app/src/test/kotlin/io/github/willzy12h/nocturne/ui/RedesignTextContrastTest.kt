@@ -490,7 +490,7 @@ class RedesignTextContrastTest {
             NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
                 Surface(color = palette.value.tokens.sheet) {
                     Column(Modifier.verticalScroll(rememberScrollState())) {
-                        StepEditorContent("Step", phase.value, false, null, "contrast-step", fanSlider = { _, _ -> },
+                        StepEditorContent("Step", phase.value, false, null, "contrast-step", fanSlider = { _, _, _ -> },
                             onDone = {}, onDelete = {}, onChange = { phase.value = it })
                     }
                 }

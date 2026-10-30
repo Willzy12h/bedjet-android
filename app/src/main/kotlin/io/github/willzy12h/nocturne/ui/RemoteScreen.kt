@@ -29,7 +29,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -176,7 +175,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                         .map { it.toFloat() to tempText(it, f) }, tag = "temperature",
                     onValueChangeFinished = { val t = temp.roundToInt(); temp = t.toFloat()
                         model.remote(temperatureSet, affectsProgramme = true, confirms = { it.targetTemperature == t }) { it.setTemperature(t) } },
-                    colors = remoteSliderColors(colour),
+                    colors = sliderColors(colour),
                 )
             }
         }
@@ -199,7 +198,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                     onValueChangeFinished = { val percent = ((fan / 5).roundToInt() * 5).coerceIn(5, 100); val step = percent / 5 - 1
                         fan = percent.toFloat()
                         model.remote(fanSet, affectsProgramme = true, confirms = { it.fanStep == step }, announceConfirmation = false) { it.setFan(step) } },
-                    colors = remoteSliderColors(colour),
+                    colors = sliderColors(colour),
                 )
             }
         }
@@ -305,11 +304,3 @@ private fun RemoteSection(title: String, value: String, colour: Color, note: Str
         if (note != null) Text(note, color = tokens.ink2, fontSize = 13.sp)
     }
 }
-
-@Composable
-internal fun remoteSliderColors(colour: Color) = SliderDefaults.colors(
-    thumbColor = colour, activeTrackColor = colour, inactiveTrackColor = colour.copy(alpha = .22f),
-    activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent,
-    disabledThumbColor = paletteTokens.ink3, disabledActiveTrackColor = paletteTokens.ink3.copy(alpha = .5f),
-    disabledInactiveTrackColor = paletteTokens.ink3.copy(alpha = .2f),
-)

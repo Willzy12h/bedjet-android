@@ -7,6 +7,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -59,6 +60,21 @@ data class PaletteTokens(
 
     /** The flat, soft tint of [stripe] drawn over the surface of a side-stripe tile, at the design's [level]. */
     fun tint(stripe: Color, level: TintLevel = TintLevel.TILE): Color = stripe.copy(alpha = level.alpha)
+
+    /**
+     * A control indicator (a slider's thumb or fill) in [color], moved towards [ink] only as far as it must go
+     * to reach [minimumContrast] against [background]. Each palette so keeps the role's hue, just lighter on the
+     * dark grounds or deeper on Overcast where the approved colour alone would be too faint.
+     */
+    fun visible(color: Color, background: Color = ground, minimumContrast: Float = 3f): Color {
+        val behind = background.luminance()
+        for (step in 0..10) {
+            val candidate = lerp(color, ink, step / 10f)
+            val foreground = candidate.compositeOver(background).luminance()
+            if ((maxOf(foreground, behind) + .05f) / (minOf(foreground, behind) + .05f) >= minimumContrast) return candidate
+        }
+        return ink
+    }
 
     /** Keep the approved mode colour where it is readable; use the palette's ink for text otherwise. */
     fun readableText(color: Color, background: Color = ground, minimumContrast: Float = 4.5f): Color {
