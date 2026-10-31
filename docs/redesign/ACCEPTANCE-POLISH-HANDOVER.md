@@ -166,6 +166,8 @@ Recorded on 30 October 2026 after the owner installed `0.3.0-acceptance.1`. All 
 
 Also fixed while running the gate: the alarm-settings refresh from item 4 wrote to a field before it was set, which would have crashed the app when it opened. The full gate caught it.
 
+No changes are needed to Appearance. Health Connect import worked on the device and the Sleep page reads well with real data.
+
 ## Feedback on `0.3.0-acceptance.2` (to do)
 
 14. **Tonight used a 09:00 calendar event as the wake alarm.** Reported 31 October 2026. The owner has earlier clock alarms, but Tonight picked up a 09:00 alarm that came from the calendar.
@@ -178,4 +180,3 @@ Also fixed while running the gate: the alarm-settings refresh from item 4 wrote 
     - When the next alarm is from another app, or doesn't name its app, Tonight says so (for example "Next alarm 09:00 is from Calendar, not used") and uses the profile's saved wake time instead.
     - Limit to explain in the app: if another app's alarm is due before the clock's, Android hides the clock alarm until the earlier one has passed. In that gap Nocturne uses the saved wake time and does not guess.
 
-No changes are needed to Appearance. Health Connect import worked on the device and the Sleep page reads well with real data.
