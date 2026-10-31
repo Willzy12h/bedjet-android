@@ -80,6 +80,18 @@ Widget renders (host Robolectric images, not device evidence) were produced by `
 
 This APK is signed with a **new test key** made for this acceptance build. It is **not** the permanent TEST certificate (`bd233ddc…5f15`) and not a production key, so it **cannot install over** an existing Nocturne. Before uninstalling the current app, export a backup file (Settings → Backups and snapshots → Export file) and keep the BedJet originals. Sleep history is local only and is lost when the app is uninstalled. Nothing was published as a release.
 
+### Test APK `0.3.0-acceptance.2` (31 October 2026)
+
+| Item | Value |
+| --- | --- |
+| Built from | `a21fe4a` with `assembleRelease -PversionCode=20261081 -PversionName=0.3.0-acceptance.2`, then `zipalign -p 4` and `apksigner` |
+| Version | `0.3.0-acceptance.2`, version code `20261081` (above `20261080`) |
+| Signing | APK Signature Scheme v3 (apksigner leaves out v2 for minSdk 31), verified with `apksigner verify` |
+| Certificate SHA-256 | `fd5fa67050e21e2f7e4c6926623ba75ac8236c0f53b72d057fa15cba34f40d81`, the same test key as `0.3.0-acceptance.1` |
+| APK SHA-256 | `3a0af0d825b8cdcbcd8783e502de01128a8ac7bc4961ab2def16e1ff14777357` (5,755,140 bytes) |
+
+Same key as acceptance.1, so it installs over it as an update and keeps the app's data. It still cannot install over a build signed with any other key. Gate on `a21fe4a`: `:core:test` 334 tests, 0 failures; `:app:testDebugUnitTest` 1,884 tests, 0 failures, 43 skipped; `:app:assembleDebug` built; `:app:lintDebug` 0 issues. These are host results. Hosted CI has not been run.
+
 ## Known issues
 
 - `U06RecoveryLayoutTest` has failed intermittently on earlier full runs and passed when re-run alone. It was not changed on this branch. It needs a root cause, not a retry.

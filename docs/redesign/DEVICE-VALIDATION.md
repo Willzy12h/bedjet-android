@@ -2,7 +2,7 @@
 
 Delivery continuation and artifact acceptance rules are recorded in [DELIVERY-STATUS.md](DELIVERY-STATUS.md). Use the final delivery manifest for the actual signed APK identity.
 
-The acceptance-polish test APK (`0.3.0-acceptance.1`, new test key) and its widget, Sleep and Remote checks are in [ACCEPTANCE-POLISH-HANDOVER.md](ACCEPTANCE-POLISH-HANDOVER.md).
+The acceptance-polish test APKs (`0.3.0-acceptance.1`, and `0.3.0-acceptance.2` signed with the same test key) and their widget, background-read, Sleep and Remote checks are in [ACCEPTANCE-POLISH-HANDOVER.md](ACCEPTANCE-POLISH-HANDOVER.md).
 
 Date: 29 October 2026. **Every physical result is NOT RUN.**
 
