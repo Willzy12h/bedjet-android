@@ -189,6 +189,27 @@ class NightActions(private val graph: Graph) {
         } } finally { admission.close() }
     }
 
+    /**
+     * A read-only status read for the widgets, so they can show the BedJet without the app open. It steps aside
+     * rather than wait: in demo, with no BedJet chosen, while a screen or command already holds the connection,
+     * while the BedJet is released for another phone, during an import and while the owner is busy. It writes
+     * nothing and reports no outcome; the report reaches the widgets the way every report does.
+     */
+    suspend fun readForWidget(): Boolean {
+        val settings = repo.settings.value
+        if (settings.demoMode || settings.deviceId() == null || graph.sessions.hasStatusDemand || graph.sessions.released.value) return false
+        val admission = repo.operationAdmission.tryCommand() ?: return false
+        try {
+            val owner = Any()
+            if (!lock.tryLock(owner)) return false
+            try {
+                return withTimeoutOrNull(OPERATION_MS) { connected { freshReport(requireProgress = false); true } } ?: false
+            } catch (e: CancellationException) { throw e
+            } catch (_: Exception) { return false
+            } finally { try { drainLocalSafely() } finally { lock.unlock(owner) } }
+        } finally { admission.close() }
+    }
+
     private suspend fun owned(label: String, target: String?, minimumRemainingMs: Long = 0, retimeWork: Boolean = false,
         origin: CommandOrigin? = null, declineIfBusy: Boolean = false,
         work: suspend () -> CommandOutcome): CommandOutcome {

@@ -59,7 +59,8 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
                 root.layout(0, 0, root.measuredWidth, root.measuredHeight)
                 val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
                 root.draw(Canvas(bitmap))
-                val labels = if (single) listOf("Warm") else listOf("Turbo", "Heat", "Cool", "Off")
+                // 280 dp wide is four cells: three columns, so one row holds two presets and Off.
+                val labels = if (single) listOf("Warm") else listOf("Turbo", "Heat", "Off")
                 for (label in labels) {
                     val text = descendants(root).filterIsInstance<android.widget.TextView>().single { it.text.toString() == label }
                     val button = requireNotNull(widgetControl(root, label)) { "$label must be tappable" }

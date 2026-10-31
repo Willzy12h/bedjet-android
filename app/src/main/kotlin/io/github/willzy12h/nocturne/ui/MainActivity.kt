@@ -82,6 +82,11 @@ class MainActivity : ComponentActivity() {
     private var tonightRequest by mutableIntStateOf(0)
 
     private fun consumeTonightRequest(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_EDIT_PRESETS, false) == true) {
+            intent.removeExtra(EXTRA_EDIT_PRESETS)
+            model.presetEditingRequested.value = true
+            tonightRequest++
+        }
         if (intent?.getBooleanExtra("openTonight", false) == true) {
             intent.removeExtra("openTonight")
             tonightRequest++
@@ -109,6 +114,11 @@ class MainActivity : ComponentActivity() {
                 ThemeDuePrompt(theme)
             }
         }
+    }
+
+    companion object {
+        /** Opens Tonight with its Quick presets editor, for the widgets' "Edit presets in Nocturne". */
+        const val EXTRA_EDIT_PRESETS = "editPresets"
     }
 
     override fun onNewIntent(intent: Intent) {

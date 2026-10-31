@@ -54,6 +54,7 @@ class SingleActionConfigActivity : ComponentActivity() {
                         actions.forEach { action ->
                             FilledTonalButton(onClick = { choose(widgetId, action) }, modifier = Modifier.fillMaxWidth()) { Text(action.label) }
                         }
+                        EditPresetsInApp(this@SingleActionConfigActivity)
                     }
                 }
                 ThemeDuePrompt(theme)

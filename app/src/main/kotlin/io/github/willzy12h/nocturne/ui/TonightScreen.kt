@@ -169,6 +169,10 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     var showDetail by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     var editingQuick by remember { mutableStateOf(false) }
+    val presetEditingRequested by model.presetEditingRequested.collectAsState()
+    LaunchedEffect(presetEditingRequested) {
+        if (presetEditingRequested) { editingQuick = true; model.presetEditingRequested.value = false }
+    }
     var editingPreset by remember { mutableStateOf<Mode?>(null) }
     var editingBoost by remember { mutableStateOf(false) }
     val sending = rememberPresetSending()

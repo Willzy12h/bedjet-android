@@ -35,7 +35,8 @@ class WidgetResponsiveLayoutTest : io.github.willzy12h.nocturne.platform.Platfor
 
     /** Launcher cells are roughly 73 × 92 dp on a 411 dp phone. */
     private val controlsSizes = listOf("2x1" to DpSize(146.dp, 92.dp), "2x2" to DpSize(146.dp, 184.dp), "3x2" to DpSize(219.dp, 184.dp),
-        "4x2" to DpSize(292.dp, 184.dp), "4x3" to DpSize(292.dp, 276.dp), "4x4" to DpSize(292.dp, 368.dp))
+        "4x2" to DpSize(292.dp, 184.dp), "2x3" to DpSize(146.dp, 276.dp), "3x3" to DpSize(219.dp, 276.dp),
+        "4x3" to DpSize(292.dp, 276.dp), "4x4" to DpSize(292.dp, 368.dp), "4x5" to DpSize(292.dp, 460.dp))
     private val tileSizes = listOf("1x1" to DpSize(73.dp, 92.dp), "small 1x1" to DpSize(64.dp, 64.dp))
 
     private fun rendered(size: DpSize, widget: GlanceAppWidget, state: Preferences): ViewGroup = runBlocking {
@@ -64,11 +65,14 @@ class WidgetResponsiveLayoutTest : io.github.willzy12h.nocturne.platform.Platfor
     private fun described(view: View) = widgetDescription(view)
     private fun isControl(view: View) = view.hasOnClickListeners() && !described(view).endsWith("Opens Nocturne.")
 
-    /** Whether [label] is laid out whole on one line: no ellipsis and no characters pushed to a hidden line. */
+    /** Whether [label] is laid out whole: no ellipsis, nothing pushed past its last line, every line inside its width. */
     private fun whole(label: TextView): Boolean {
         val layout = label.layout ?: return true
-        return layout.getEllipsisCount(0) == 0 && layout.getLineEnd(0) >= label.text.length &&
-            layout.getLineWidth(0) <= label.width - label.totalPaddingLeft - label.totalPaddingRight + 1f
+        val lines = minOf(layout.lineCount, label.maxLines.takeIf { it > 0 } ?: layout.lineCount)
+        val last = lines - 1
+        return (0..last).all { layout.getEllipsisCount(it) == 0 &&
+            layout.getLineWidth(it) <= label.width - label.totalPaddingLeft - label.totalPaddingRight + 1f } &&
+            layout.getLineEnd(last) >= label.text.length
     }
 
     private fun checkControls(name: String, size: DpSize, scale: Float, presets: String? = null) {
@@ -123,33 +127,57 @@ class WidgetResponsiveLayoutTest : io.github.willzy12h.nocturne.platform.Platfor
             for (scale in listOf(1f, 2f)) atFontScale(scale) { for ((name, size) in controlsSizes) checkControls("$name night", size, scale) }
             val roomy = rendered(DpSize(292.dp, 276.dp), QuickControlsWidget(), preferencesOf())
             assertTrue("4 × 3 has room for tonight's plan", widgetDescendants(roomy).filterIsInstance<TextView>()
-                .any { it.text.toString() == context.getString(io.github.willzy12h.nocturne.R.string.widget_running, profile.name) })
+                .any { it.text.toString() == profile.name })
         } finally { graph.repository.setActiveNight(null) }
     }
 
-    @Test fun theLayoutGrowsToShowMorePresetsAndKeepsOffInReach() {
-        assertEquals("2 × 1 is a strip: the header and Off", 0, ControlsLayout.of(146f, 92f, 1f, false).rows)
-        val narrow = ControlsLayout.of(146f, 184f, 1f, false)
-        assertEquals("2 × 2 keeps pills wide enough for their names: one column", 1, narrow.columns)
-        assertEquals(PRESET_OFF, narrow.arrange(DEFAULT_CONTROLS).last().first())
-        val wide = ControlsLayout.of(292f, 184f, 1f, false)
-        assertEquals(4, wide.columns)
-        assertEquals(2, wide.rows)
-        assertEquals("With two rows Off starts the last row", listOf(listOf("TURBO", "HEAT", "COOL", "BOOST"), listOf(PRESET_OFF, "DRY", null, null)),
-            wide.arrange(DEFAULT_CONTROLS))
-        assertEquals("A short list shares one row with Off at its end", listOf(listOf("COOL", PRESET_OFF)), wide.arrange(listOf("COOL")))
-        assertEquals("Off alone when nothing is chosen", listOf(listOf(PRESET_OFF)), wide.arrange(emptyList()))
-        val strip = ControlsLayout.of(146f, 60f, 1f, false)
-        assertEquals("Too short for a row: the header and Off share the strip", 0, strip.rows)
-        ControlsLayout.of(292f, 184f, 1f, true).let { assertTrue("4 × 2 shows the plan above one row of controls", it.plan && it.rows == 1) }
-        assertTrue("4 × 3 adds the plan while a night runs", ControlsLayout.of(292f, 276f, 1f, true).plan)
-        val large = ControlsLayout.of(292f, 368f, 2f, false)
-        assertTrue("Large text gets wider pills", large.columns <= 2)
-        assertTrue("Large text stacks the header", large.stackedHeader)
+    @Test fun theLayoutFollowsTheAgreedSizes() {
+        assertEquals("2 × 1 is a strip: the header and Off", 0, ControlsLayout.of(146f, 92f, 1f, false, 5).rows)
+        ControlsLayout.of(146f, 184f, 1f, false, 5).let {
+            assertEquals("2 × 2: buttons only", NightCard.NONE, it.card)
+            assertEquals(HeaderStyle.STACKED, it.header)
+            assertEquals(2, it.columns)
+            assertEquals(1, it.rows)
+        }
+        ControlsLayout.of(219f, 184f, 1f, true, 5).let {
+            assertEquals("3 × 2: buttons only, even while a night runs", NightCard.NONE, it.card)
+            assertEquals(HeaderStyle.WIDE, it.header)
+        }
+        ControlsLayout.of(146f, 276f, 1f, false, 7).let {
+            assertEquals("2 × 3: the night card above four buttons", NightCard.TWO, it.card)
+            assertEquals(2 * 2, it.columns * it.rows)
+        }
+        ControlsLayout.of(146f, 276f, 1f, false, 7, sixButtons = true).let {
+            assertEquals("2 × 3 can be six buttons instead", NightCard.NONE, it.card)
+            assertEquals(6, it.columns * it.rows)
+        }
+        ControlsLayout.of(219f, 276f, 1f, true, 7).let {
+            assertEquals("3 × 3: the night sits in the header", HeaderStyle.STRIP, it.header)
+            assertEquals(NightCard.NONE, it.card)
+            assertEquals(6, it.columns * it.rows)
+        }
+        assertEquals("4 × 3 idle: one night line", NightCard.LINE, ControlsLayout.of(292f, 276f, 1f, false, 7).card)
+        ControlsLayout.of(292f, 368f, 1f, true, 8).let {
+            assertEquals("4 × 4 running: the plan graph", NightCard.TIMELINE, it.card)
+            assertEquals(3, it.columns)
+            assertEquals(3, it.rows)
+            assertTrue("Buttons are at least 56dp tall", it.tileDp >= ControlsLayout.TILE)
+        }
+        assertEquals("Rows stop when every preset is shown", 2, ControlsLayout.of(292f, 460f, 1f, false, 4).rows)
+        val grid = ControlsLayout.of(292f, 368f, 1f, false, 4)
+        assertEquals("Off ends the last row, after any gap", listOf(listOf("TURBO", "HEAT", "COOL"), listOf("DRY", null, PRESET_OFF)),
+            grid.arrange(listOf("TURBO", "HEAT", "COOL", "DRY")))
+        assertEquals("Off alone when nothing is chosen", listOf(listOf(null, null, PRESET_OFF)), grid.arrange(emptyList()))
+        assertEquals("Too short for a row: the header and Off share the strip", 0, ControlsLayout.of(146f, 60f, 1f, false, 5).rows)
+        val large = ControlsLayout.of(292f, 368f, 2f, false, 7)
+        assertTrue("Large text gets wider buttons", large.columns <= 2)
+        assertTrue("Large text gets taller buttons", large.tileDp >= 88f)
     }
 
     @Test fun savedPresetsAreReadInOrderWithoutOffOrUnknownKeys() {
-        assertEquals(DEFAULT_CONTROLS, controlKeys(context, null))
+        assertEquals(defaultControls(context), controlKeys(context, null))
+        assertEquals("Profiles follow Turbo, Heat and Cool by default", PROFILE_PREFIX + context.graph.repository.profiles.value.first().id,
+            controlKeys(context, null)[3])
         assertEquals(listOf("COOL", "TURBO"), controlKeys(context, "COOL,OFF,NOPE,TURBO"))
         assertEquals(emptyList<String>(), controlKeys(context, ""))
     }

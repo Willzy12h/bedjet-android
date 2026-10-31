@@ -79,7 +79,8 @@ class WidgetInPlaceActionTest : io.github.willzy12h.nocturne.platform.PlatformGr
         header.performClick()
         assertEquals("io.github.willzy12h.nocturne.ui.MainActivity",
             shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity?.component?.className)
-        for (label in listOf("Turbo", "Heat", "Cool", "Off")) {
+        // One row at this size: two presets and Off.
+        for (label in listOf("Turbo", "Heat", "Off")) {
             widgetControl(root, label)!!.performClick()
             assertNull("$label must not open the app", shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity)
         }

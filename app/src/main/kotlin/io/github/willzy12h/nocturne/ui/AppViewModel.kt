@@ -225,6 +225,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Declared before init: the alarm-settings collector below writes it straight away.
+    private val _nextAlarm = MutableStateFlow<AlarmSource.NextAlarm?>(null)
+    val nextAlarm: StateFlow<AlarmSource.NextAlarm?> = _nextAlarm.asStateFlow()
+
     init {
         // The one in-app outcome collector (U08): widget, shortcut, alarm and charger outcomes are shown while the
         // app is open, and an outcome this screen asked for is shown once, whichever side sees it first.
@@ -258,8 +262,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (!outcome.announceInApp && outcome.kind == OutcomeKind.CONFIRMED) return
         _messages.tryEmit(outcome.message)
     }
-    private val _nextAlarm = MutableStateFlow<AlarmSource.NextAlarm?>(null)
-    val nextAlarm: StateFlow<AlarmSource.NextAlarm?> = _nextAlarm.asStateFlow()
+    /** Set when a widget's setup asks to edit the quick presets; Tonight opens its editor and clears it. */
+    val presetEditingRequested = MutableStateFlow(false)
     private val _alarmCheck = MutableStateFlow<String?>(null)
     val alarmCheck: StateFlow<String?> = _alarmCheck.asStateFlow()
 

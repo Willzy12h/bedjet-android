@@ -35,6 +35,7 @@ object WidgetUpdater {
         graph.scope.launch {
             observeUpdates(app) {
                 runCatching {
+                    WidgetRefresh.sync(app)
                     QuickControlsWidget().updateAll(app)
                     SingleActionWidget().updateAll(app)
                 }
@@ -67,8 +68,10 @@ object WidgetUpdater {
         val shownState = combine(repo.activeNight, repo.automation, repo.runtime, boundaries, graph.actions.status) { active, observation, runtime, _, status ->
             listOf(active, observation, runtime, status, widgetPhase(app, active), widgetWake(app, active, runtime))
         }
-        combine(repo.profiles, repo.settings, linkState, shownState) { profiles, settings, _, shown ->
-            Shown(profiles, settings, widgetBedJetName(app, settings), shown, settings.isDarkTheme(graph.now(), false))
+        // A report arrives every few seconds while connected; the widgets show its age in minutes.
+        val read = graph.statusReadAt.map { it?.withSecond(0)?.withNano(0) }.distinctUntilChanged()
+        combine(repo.profiles, repo.settings, linkState, shownState, read) { profiles, settings, _, shown, at ->
+            Shown(profiles, settings, widgetBedJetName(app, settings), listOf(shown, at), settings.isDarkTheme(graph.now(), false))
         }
             .distinctUntilChanged()
             // A slider drag writes settings many times a second; widgets only need the result.

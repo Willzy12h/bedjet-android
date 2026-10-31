@@ -106,8 +106,9 @@ internal const val PROFILE_PREFIX = "profile:"
 /** The Tonight screen's quick presets that a widget can run, in the Tonight screen's order. */
 internal val QUICK_PRESETS = listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST")
 
-/** What Controls shows until the person chooses: Turbo, Heat and Cool first, then Boost and Dry as it grows. */
-internal val DEFAULT_CONTROLS = listOf("TURBO", "HEAT", "COOL", "BOOST", "DRY")
+/** What Controls shows until the person chooses: Turbo, Heat and Cool first, then the first two profiles, Dry and Boost. */
+internal fun defaultControls(context: Context): List<String> =
+    listOf("TURBO", "HEAT", "COOL") + context.graph.repository.profiles.value.take(2).map { PROFILE_PREFIX + it.id } + listOf("DRY", "BOOST")
 
 /** A quick preset, Start tonight, a profile or Off by its stored key; null for a removed profile or an unknown key. */
 internal fun widgetPreset(context: Context, key: String): WidgetAction? {
@@ -135,7 +136,7 @@ internal fun widgetPresetChoices(context: Context): List<WidgetAction> =
 
 /** The saved Controls list, without Off (always shown) and without presets that no longer exist. */
 internal fun controlKeys(context: Context, stored: String?): List<String> =
-    (stored?.split(',')?.filter { it.isNotBlank() } ?: DEFAULT_CONTROLS).distinct()
+    (stored?.split(',')?.filter { it.isNotBlank() } ?: defaultControls(context)).distinct()
         .filter { it != PRESET_OFF && widgetPreset(context, it) != null }
 
 fun widgetBedJetName(context: Context, settings: Settings): String =
@@ -153,7 +154,9 @@ private fun widgetColor(settings: Settings, at: java.time.ZonedDateTime, color: 
 /** What one widget control shows and does, worked out once per render. */
 private class Control(val action: WidgetAction, val request: CommandRequest, val click: Action,
     val stripe: (PaletteTokens) -> Color, val icon: Int, val detail: String?, val short: String?,
-    val running: Boolean, val sending: Boolean, val description: String, val brief: String = action.label)
+    val running: Boolean, val sending: Boolean, val description: String, val brief: String = action.label,
+    /** A profile button for the night that is running now: ringed, with a green dot. */
+    val current: Boolean = false)
 
 private fun stripeOf(tokens: PaletteTokens, action: WidgetAction, request: CommandRequest): Color =
     (request.actionPreset ?: action.preset)?.takeIf { action.command != Command.BOOST }?.let { tokens.stepColor(it.mode, it.temperature) }
@@ -191,8 +194,10 @@ private fun control(context: Context, action: WidgetAction, kind: String, id: Gl
         widgetNeedsConfirmation(request, active) -> actionStartActivity(WidgetConfirmationActivity.intent(context, request, id, kind))
         else -> actionRunCallback<WidgetActionCallback>(widgetParameters(request, kind))
     }
+    val current = action.profileId != null && active?.profileId == action.profileId
     val detail = when {
         active != null && action.command == Command.START_NIGHT && widgetUnconfirmed(context, active) -> context.getString(R.string.widget_phase_unknown)
+        current -> context.getString(R.string.widget_profile_running)
         action.command == Command.BOOST -> (settings.boostMinutes - 10).let {
             if (it > 0) context.getString(R.string.boost_tile_detail, it) else context.getString(R.string.boost_tile_turbo_only) }
         action.command == Command.OFF -> null
@@ -220,12 +225,18 @@ private fun control(context: Context, action: WidgetAction, kind: String, id: Gl
     val description = when {
         sending -> context.getString(R.string.widget_control_sending, base)
         running -> context.getString(R.string.widget_control_running, base)
+        current -> context.getString(R.string.widget_control_current, base)
         else -> base
     }
-    // A narrow pill names Start tonight by its verb; the spoken description keeps the full name.
-    val brief = if (action.command == Command.START_NIGHT && action.profileId == null) context.getString(R.string.widget_start_short) else action.label
+    // A narrow button names Start tonight by its verb and a profile by its first word; the spoken description keeps
+    // the full name.
+    val brief = when {
+        action.command == Command.START_NIGHT && action.profileId == null -> context.getString(R.string.widget_start_short)
+        action.profileId != null -> action.label.substringBefore(' ')
+        else -> action.label
+    }
     return Control(action, request, click, { stripeOf(it, action, request) }, iconOf(action, request), detail, short,
-        running, sending, description, brief)
+        running, sending, description, brief, current)
 }
 
 @Composable
@@ -243,39 +254,61 @@ private fun labelWidthDp(context: Context, text: String, bold: Boolean = true): 
     return paint.measureText(text) / metrics.density * 1.05f
 }
 
-/** One pill: the mode's stripe and tint, its icon and name, and a dot while it runs or is being sent. */
+/** The green of a running night's dot, as on the Tonight screen. */
+private val RunningGreen = Color(0xFF3DDC84)
+
+/**
+ * One preset button: the mode's stripe and tint, its name, and its detail when the tile is tall enough. A long name
+ * wraps onto two lines in a tall tile, else it shortens. The running night's profile is ringed with a green dot.
+ */
 @Composable
-private fun Pill(context: Context, control: Control, width: Dp, modifier: GlanceModifier, settings: Settings, at: java.time.ZonedDateTime) {
-    val level = if (control.running || control.sending) TintLevel.ON else TintLevel.TILE
+private fun Tile(context: Context, control: Control, widthDp: Float, heightDp: Float, modifier: GlanceModifier,
+    settings: Settings, at: java.time.ZonedDateTime) {
+    val scale = context.resources.configuration.fontScale.coerceAtLeast(1f)
+    val level = if (control.running || control.sending || control.current) TintLevel.ON else TintLevel.TILE
     val tint = widgetColor(settings, at) { it.tint(control.stripe(it), level).compositeOver(it.surface.compositeOver(it.ground)) }
     val stripe = widgetColor(settings, at, control.stripe)
-    val roomy = width >= 112.dp && context.resources.configuration.fontScale <= 1.3f
-    val room = width.value - 16f - (if (roomy) 22f else 0f) - (if (control.running || control.sending) 16f else 0f)
+    val marked = control.running || control.sending || control.current
+    val compact = widthDp < 80f
+    val room = widthDp - 4f - (if (compact) 8f else 12f) - (if (control.current) 4f else 0f)
+    val tall = heightDp >= ControlsLayout.DETAIL * scale
     val fits = { text: String -> labelWidthDp(context, text) <= room }
-    val label = when {
-        roomy && width >= 132.dp && control.short != null && fits("${control.action.label} ${control.short}") -> "${control.action.label} ${control.short}"
-        fits(control.action.label) -> control.action.label
-        else -> control.brief
+    val words = control.action.label.split(' ')
+    val wraps = !fits(control.action.label) && tall && words.size > 1 && words.all(fits) &&
+        heightDp >= (2 * 21f + 16f) * scale
+    val label = if (fits(control.action.label) || wraps) control.action.label else control.brief
+    val detail = if (!tall || wraps) null else listOfNotNull(control.detail, control.short)
+        .firstOrNull { labelWidthDp(context, it, bold = false) <= room }
+    // The dot gives way to the name: the tint, the ring and the spoken description still say it is running.
+    val dotted = marked && labelWidthDp(context, if (wraps) words.maxBy { labelWidthDp(context, it) } else label) <= room - 14f
+    val dot = when {
+        !dotted -> null
+        control.sending -> widgetColor(settings, at) { it.warn }
+        control.current -> ColorProvider(RunningGreen)
+        control.running -> stripe
+        else -> null
     }
-    Row(modifier.height(56.dp).cornerRadius(14.dp).background(tint).clickable(control.click)
-        .semantics { contentDescription = control.description }, verticalAlignment = Alignment.CenterVertically) {
+    val outer = modifier.cornerRadius(14.dp).clickable(control.click).semantics { contentDescription = control.description }
+    @Composable fun Face(face: GlanceModifier) = Row(face.background(tint)) {
         Box(GlanceModifier.width(4.dp).fillMaxHeight().background(stripe)) { }
-        Spacer(GlanceModifier.width(if (roomy) 8.dp else 4.dp))
-        if (roomy) {
-            Image(ImageProvider(control.icon), null, GlanceModifier.size(16.dp), colorFilter = ColorFilter.tint(stripe))
-            Spacer(GlanceModifier.width(6.dp))
+        Column(GlanceModifier.defaultWeight().fillMaxHeight().padding(start = if (compact) 6.dp else 8.dp,
+            end = if (compact) 2.dp else 4.dp, top = if (tall) 8.dp else 0.dp),
+            verticalAlignment = if (tall) Alignment.Top else Alignment.CenterVertically) {
+            Text(label, maxLines = if (wraps) 2 else 1,
+                style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+            if (detail != null) Text(detail, maxLines = 1, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp))
         }
-        Text(label, GlanceModifier.defaultWeight(), maxLines = 1,
-            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold))
-        if (control.running || control.sending) {
-            Dot(if (control.sending) widgetColor(settings, at) { it.warn } else stripe)
-            Spacer(GlanceModifier.width(8.dp))
-        }
+        if (dot != null) Column(GlanceModifier.fillMaxHeight().padding(top = if (tall) 12.dp else 0.dp, end = 8.dp),
+            verticalAlignment = if (tall) Alignment.Top else Alignment.CenterVertically) { Dot(dot, 10.dp) }
     }
+    // Glance draws no borders: the ring is the stripe colour showing round a face inset by 2dp.
+    if (control.current) Box(outer.background(stripe).padding(2.dp)) { Face(GlanceModifier.fillMaxSize().cornerRadius(12.dp)) }
+    else Face(outer)
 }
 
 /** The status line: the last tap's outcome, else what the BedJet last reported, else why nothing is shown. */
-private fun statusLine(context: Context, prefs: Preferences, report: DeviceStatus?, active: ActiveNight?): Pair<String, String> {
+private fun statusLine(context: Context, prefs: Preferences, report: DeviceStatus?, active: ActiveNight?,
+    withNight: Boolean = true): Pair<String, String> {
     val settings = context.graph.repository.settings.value
     val words = Format.Words { res, args -> context.getString(res, *args) }
     if (settings.deviceId() == null && !settings.demoMode)
@@ -293,6 +326,7 @@ private fun statusLine(context: Context, prefs: Preferences, report: DeviceStatu
     val where = when {
         settings.demoMode -> context.getString(R.string.widget_demo)
         // The BedJet's own report stays; an unconfirmed programme says so instead of naming its profile.
+        !withNight -> null
         active != null && widgetUnconfirmed(context, active) -> context.getString(R.string.widget_phase_unknown)
         active != null -> active.profile?.name ?: context.graph.repository.profile(active.profileId)?.name
         else -> null
@@ -301,22 +335,53 @@ private fun statusLine(context: Context, prefs: Preferences, report: DeviceStatu
     return shown to context.getString(R.string.widget_status_description, shown, widgetBedJetName(context, settings))
 }
 
-/** Room temperature and status; tapping it opens Nocturne. */
+/** How long ago the chosen BedJet last reported in this process, or null with no report to date. */
+internal fun widgetReadAge(context: Context, long: Boolean): String? {
+    val at = context.graph.statusReadAt.value ?: return null
+    val minutes = java.time.Duration.between(at, context.graph.now()).toMinutes().coerceAtLeast(0)
+    return when {
+        minutes < 1 -> context.getString(if (long) R.string.widget_read_now else R.string.widget_age_now)
+        minutes < 60 -> context.getString(if (long) R.string.widget_read_minutes else R.string.widget_age_minutes, minutes.toInt())
+        else -> context.getString(if (long) R.string.widget_read_hours else R.string.widget_age_hours, (minutes / 60).toInt())
+    }
+}
+
+/** Tonight at a glance: the running night and its wake, else tonight's profile and when it starts by itself. */
+private data class NightSummary(val name: String, val running: Boolean, val time: String)
+
+private fun nightSummary(context: Context, active: ActiveNight?, runtime: io.github.willzy12h.nocturne.night.RuntimeState): NightSummary? {
+    val graph = context.graph
+    if (active != null) {
+        val name = active.profile?.name ?: graph.repository.profile(active.profileId)?.name
+            ?: context.getString(R.string.feature_deleted_profile)
+        return NightSummary(name, true, widgetWakeShort(context, active, runtime))
+    }
+    val planned = runCatching { io.github.willzy12h.nocturne.platform.AutoStartSchedule.next(graph) }.getOrNull()
+    val profile = planned?.profile ?: graph.repository.tonightsProfile() ?: return null
+    val time = planned?.let { context.getString(R.string.widget_night_starts, it.startAt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))) }
+        ?: context.getString(R.string.widget_night_tonight)
+    return NightSummary(profile.name, false, time)
+}
+
+/** Room temperature, the BedJet's status and when it was read; tapping it opens Nocturne. */
 @Composable
-private fun Header(context: Context, prefs: Preferences, report: DeviceStatus?, active: ActiveNight?, stacked: Boolean,
-    modifier: GlanceModifier, settings: Settings, at: java.time.ZonedDateTime, strip: Boolean = false) {
+private fun Header(context: Context, prefs: Preferences, report: DeviceStatus?, active: ActiveNight?, layout: ControlsLayout,
+    night: NightSummary?, modifier: GlanceModifier, settings: Settings, at: java.time.ZonedDateTime) {
     val words = Format.Words { res, args -> context.getString(res, *args) }
     val temperature = report?.let { Format.temp(it.ambientTemperature, settings.fahrenheit, words) }
         ?: context.getString(R.string.widget_temperature_unknown_short)
-    val (status, statusDescription) = statusLine(context, prefs, report, active)
+    val style = layout.header
+    val (status, statusDescription) = statusLine(context, prefs, report, active, withNight = style == HeaderStyle.STACKED)
     val sending = WidgetFeedback.visible(context, prefs)?.state == WidgetFeedbackState.PENDING
     val running = report != null && report.mode != Mode.STANDBY
+    val age = report?.let { widgetReadAge(context, long = style == HeaderStyle.WIDE && layout.columns >= 3) }
     val open = actionStartActivity(Intent(context, MainActivity::class.java))
     val description = context.getString(R.string.widget_header_description,
         if (report == null) context.getString(R.string.widget_temperature_unknown) else context.getString(R.string.widget_room_temperature, temperature),
-        statusDescription)
+        age?.let { context.getString(R.string.widget_read_description, statusDescription, it) } ?: statusDescription)
+    val quiet = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp)
     @Composable fun Value() = Text(temperature, maxLines = 1,
-        style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = if (strip) 20.sp else 24.sp, fontWeight = FontWeight.Bold))
+        style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 28.sp, fontWeight = FontWeight.Bold))
     @Composable fun Status(modifier: GlanceModifier) = Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         if (sending || running) {
             Dot(widgetColor(settings, at) { tokens ->
@@ -324,75 +389,179 @@ private fun Header(context: Context, prefs: Preferences, report: DeviceStatus?, 
             Spacer(GlanceModifier.width(6.dp))
         }
         Text(status, GlanceModifier.defaultWeight(), maxLines = 1,
-            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp))
+            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium))
     }
     val tappable = modifier.clickable(open).semantics { contentDescription = description }
-    if (stacked) Column(tappable, verticalAlignment = Alignment.CenterVertically) {
-        Value()
-        Status(GlanceModifier.fillMaxWidth())
-    } else Row(tappable, verticalAlignment = Alignment.CenterVertically) {
-        Value()
-        Spacer(GlanceModifier.width(10.dp))
-        Status(GlanceModifier.defaultWeight())
-    }
-}
-
-/** Tonight's plan while a night runs: its profile, the step it is in and the wake-up. */
-@Composable
-private fun PlanCard(context: Context, active: ActiveNight, runtime: io.github.willzy12h.nocturne.night.RuntimeState, modifier: GlanceModifier,
-    settings: Settings, at: java.time.ZonedDateTime) {
-    val name = active.profile?.name ?: context.graph.repository.profile(active.profileId)?.name
-        ?: context.getString(R.string.feature_deleted_profile)
-    val phase = widgetPhaseText(context, active, compact = true)
-    val surface = widgetColor(settings, at) { it.surface.compositeOver(it.ground) }
-    Column(modifier.cornerRadius(14.dp).background(surface).padding(horizontal = 10.dp, vertical = 6.dp)
-        .semantics { contentDescription = context.getString(R.string.widget_plan_description, name,
-            widgetPhase(context, active), widgetWake(context, active, runtime)) }) {
-        Text(context.getString(R.string.widget_running, name), maxLines = 1,
-            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold))
-        Row(GlanceModifier.fillMaxWidth()) {
-            Text(phase.title, GlanceModifier.defaultWeight(), maxLines = 1,
-                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp))
-            Spacer(GlanceModifier.width(8.dp))
-            Text(widgetWakeShort(context, active, runtime), maxLines = 1,
-                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp))
+    when (style) {
+        HeaderStyle.STACKED -> Column(tappable, verticalAlignment = Alignment.CenterVertically) {
+            Value()
+            Status(GlanceModifier.fillMaxWidth())
+        }
+        HeaderStyle.WIDE -> Row(tappable, verticalAlignment = Alignment.CenterVertically) {
+            Value()
+            Spacer(GlanceModifier.width(12.dp))
+            Column(GlanceModifier.defaultWeight()) {
+                Status(GlanceModifier.fillMaxWidth())
+                if (age != null) Text(age, maxLines = 1, style = quiet)
+            }
+        }
+        HeaderStyle.STRIP -> Row(tappable, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Value()
+                if (age != null) Text(age, maxLines = 1, style = quiet)
+            }
+            Spacer(GlanceModifier.width(12.dp))
+            Column(GlanceModifier.defaultWeight()) {
+                Status(GlanceModifier.fillMaxWidth())
+                if (night != null) Text(if (night.running) night.name else context.getString(R.string.widget_night_line, night.name, night.time),
+                    maxLines = 1, style = quiet)
+            }
         }
     }
 }
 
-/** How Controls fills the space it has: columns of pills, how many rows and whether tonight's plan fits. */
-internal data class ControlsLayout(val columns: Int, val rows: Int, val plan: Boolean, val stackedHeader: Boolean) {
-    /** Off's place: the start of the last row when there is more than one row, else the end of the row. */
+/** Tonight between the header and the buttons, in the form the layout chose; tapping it opens Nocturne. */
+@Composable
+private fun NightCardView(context: Context, kind: NightCard, night: NightSummary, active: ActiveNight?, widthDp: Float,
+    modifier: GlanceModifier, settings: Settings, at: java.time.ZonedDateTime) {
+    val surface = widgetColor(settings, at) { it.surface.compositeOver(it.ground) }
+    val dot = if (night.running) ColorProvider(RunningGreen) else widgetColor(settings, at) { it.accent }
+    val strong = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    val quiet = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp)
+    val card = modifier.cornerRadius(14.dp).background(surface).padding(horizontal = 10.dp)
+        .clickable(actionStartActivity(Intent(context, MainActivity::class.java)))
+        .semantics { contentDescription = context.getString(R.string.widget_night_description, night.name, night.time) }
+    @Composable fun Name(modifier: GlanceModifier) = Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Dot(dot)
+        Spacer(GlanceModifier.width(8.dp))
+        Text(night.name, GlanceModifier.defaultWeight(), maxLines = 1, style = strong)
+    }
+    when (kind) {
+        NightCard.LINE -> Row(card, verticalAlignment = Alignment.CenterVertically) {
+            Dot(dot)
+            Spacer(GlanceModifier.width(8.dp))
+            Text(context.getString(R.string.widget_night_line, night.name, night.time), maxLines = 1, style = strong)
+        }
+        NightCard.TWO -> Column(card, verticalAlignment = Alignment.CenterVertically) {
+            Name(GlanceModifier.fillMaxWidth())
+            Text(night.time, maxLines = 1, style = quiet)
+        }
+        NightCard.TIMELINE -> Column(card.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Name(GlanceModifier.defaultWeight())
+                Spacer(GlanceModifier.width(8.dp))
+                Text(night.time, maxLines = 1, style = quiet)
+            }
+            Spacer(GlanceModifier.height(4.dp))
+            val steps = active?.takeIf { !widgetUnconfirmed(context, it) && !it.trackingManual }
+                ?.let { it.activePlan(context.graph.repository.profile(it.profileId)) }?.steps.orEmpty().filter { it.minutes > 0 }
+            if (steps.isEmpty()) Text(widgetPhaseText(context, active, compact = true).title, maxLines = 1, style = quiet)
+            else PlanBar(context, steps, widthDp - 20f, settings, at)
+        }
+        NightCard.NONE -> Unit
+    }
+}
+
+/** The plan as coloured spans by length, with a marker at now. */
+@Composable
+private fun PlanBar(context: Context, steps: List<io.github.willzy12h.nocturne.core.plan.PlannedStep>, widthDp: Float,
+    settings: Settings, at: java.time.ZonedDateTime) {
+    val gap = 2f
+    val total = steps.sumOf { it.minutes }.coerceAtLeast(1)
+    val usable = (widthDp - gap * (steps.size - 1)).coerceAtLeast(steps.size.toFloat())
+    val start = steps.first().startsAt
+    val elapsed = java.time.Duration.between(start, context.graph.now()).toMinutes().coerceIn(0, total.toLong())
+    val marker = (elapsed.toFloat() / total * widthDp - 2f).coerceIn(0f, (widthDp - 4f).coerceAtLeast(0f))
+    Box(GlanceModifier.fillMaxWidth().height(18.dp), contentAlignment = Alignment.CenterStart) {
+        Row(GlanceModifier.height(10.dp).cornerRadius(5.dp)) {
+            steps.forEachIndexed { index, step ->
+                if (index > 0) Spacer(GlanceModifier.width(gap.dp))
+                Box(GlanceModifier.width((step.minutes.toFloat() / total * usable).dp).fillMaxHeight()
+                    .background(widgetColor(settings, at) { it.stepColor(step.step.mode, step.step.temperature) })) { }
+            }
+        }
+        Row(GlanceModifier.fillMaxHeight()) {
+            Spacer(GlanceModifier.width(marker.dp))
+            Box(GlanceModifier.width(4.dp).fillMaxHeight().cornerRadius(2.dp).background(GlanceTheme.colors.onSurface)) { }
+        }
+    }
+}
+
+/** What sits between the header and the buttons. */
+internal enum class NightCard { NONE, LINE, TIMELINE, TWO }
+
+/** How the header sets out the temperature and the BedJet's status. */
+internal enum class HeaderStyle {
+    /** Narrow widgets: the temperature over one status line. */
+    STACKED,
+    /** The temperature beside the status and when it was read. */
+    WIDE,
+    /** The temperature with its read age under it, beside the status and tonight's night. */
+    STRIP,
+}
+
+/**
+ * How Controls fills the space it has, as agreed for each size: buttons only at two cells high; at 2 × 3 a night
+ * card above four buttons (or six buttons, by choice); at 3 × 3 the night in the header; from 4 × 3 a night line,
+ * with the plan graph while a night runs. Buttons are at least 56dp tall and grow to fill the rest.
+ */
+internal data class ControlsLayout(val columns: Int, val rows: Int, val header: HeaderStyle, val card: NightCard,
+    val headerDp: Float, val cardDp: Float, val tileDp: Float, val padding: Float = PADDING) {
+    /** Off's place: the last column of the last row used, with any gap before it. */
     fun arrange(presets: List<String>): List<List<String?>> {
+        if (rows == 0) return emptyList()
         val chosen = presets.take(columns * rows - 1)
-        val used = ((chosen.size + 1 + columns - 1) / columns).coerceIn(1, rows)
-        val cells: List<String?> = if (used == 1) chosen + PRESET_OFF
-            else chosen.take((used - 1) * columns) + PRESET_OFF + chosen.drop((used - 1) * columns)
-        // A single row shares the whole width; with more rows the last keeps the grid's columns.
-        if (used == 1) return listOf(cells)
-        return cells.chunked(columns).map { it + List(columns - it.size) { null } }
+        val used = (chosen.size + columns) / columns
+        return (chosen + List(used * columns - 1 - chosen.size) { null } + PRESET_OFF).chunked(columns)
     }
 
     companion object {
-        private const val PILL = 56f
-        private const val GAP = 6f
-        private const val PADDING = 8f
+        const val PADDING = 12f
+        const val NARROW_PADDING = 8f
+        const val GAP = 6f
+        const val TILE = 56f
+        /** The least tile height that shows a detail line under the name. */
+        const val DETAIL = 69f
+        private const val HEADER = 56f
 
-        fun of(widthDp: Float, heightDp: Float, fontScale: Float, nightRunning: Boolean): ControlsLayout {
+        /** The card's height, or 0 for none. */
+        private fun cardHeight(card: NightCard, scale: Float) = scale * when (card) {
+            NightCard.NONE -> 0f
+            NightCard.LINE -> 37f
+            NightCard.TIMELINE -> 56f
+            NightCard.TWO -> 60f
+        }
+
+        fun of(widthDp: Float, heightDp: Float, fontScale: Float, nightRunning: Boolean, presetCount: Int,
+            sixButtons: Boolean = false): ControlsLayout {
+            val scale = fontScale.coerceAtLeast(1f)
             val large = fontScale > 1.3f
-            val width = widthDp - 2 * PADDING
-            val height = heightDp - 2 * PADDING
-            val narrowest = if (large) 128f else 64f
-            val columns = floor((width + GAP) / (narrowest + GAP)).toInt().coerceIn(1, 4)
-            val stacked = large || width < 200f
-            val header = (if (stacked) 50f else 32f) * fontScale.coerceAtLeast(1f)
-            // Below one row of pills under the header, the header and Off share a single row.
-            val rows = floor((height - header - GAP + GAP) / (PILL + GAP)).toInt().coerceAtLeast(0)
-            if (rows == 0) return ControlsLayout(1, 0, false, stacked)
-            val card = 66f * fontScale.coerceAtLeast(1f) + GAP
-            val plan = nightRunning && rows >= 2 && floor((height - header - card) / (PILL + GAP)).toInt() >= 1
-            val left = if (plan) floor((height - header - card) / (PILL + GAP)).toInt() else rows
-            return ControlsLayout(columns, left.coerceIn(1, if (large) 2 else 4), plan, stacked)
+            val cellsWide = when { widthDp >= 280f -> 4; widthDp >= 200f -> 3; else -> 2 }
+            val tall = heightDp >= 230f
+            val header = when {
+                cellsWide == 2 -> HeaderStyle.STACKED
+                cellsWide == 3 && tall -> HeaderStyle.STRIP
+                else -> HeaderStyle.WIDE
+            }
+            val wanted = when {
+                !tall || cellsWide == 3 -> NightCard.NONE
+                cellsWide == 2 -> if (sixButtons) NightCard.NONE else NightCard.TWO
+                nightRunning -> NightCard.TIMELINE
+                else -> NightCard.LINE
+            }
+            val columns = (if (cellsWide == 4) 3 else 2).let { if (large) (it - 1).coerceAtLeast(1) else it }
+            val headerDp = HEADER * scale
+            val tile = maxOf(TILE, 44f * fontScale)
+            // Two cells wide, a narrower edge leaves each button room for its name.
+            val padding = if (cellsWide == 2) NARROW_PADDING else PADDING
+            fun space(card: NightCard) = heightDp - 2 * padding - headerDp - GAP -
+                cardHeight(card, scale).let { if (it > 0f) it + GAP else 0f }
+            fun fit(card: NightCard) = floor((space(card) + GAP) / (tile + GAP)).toInt().coerceAtLeast(0)
+            // A card only shows with at least one row of buttons under it.
+            val card = if (wanted != NightCard.NONE && fit(wanted) == 0) NightCard.NONE else wanted
+            val rows = minOf(fit(card), (presetCount + columns) / columns)
+            val tileDp = if (rows == 0) 0f else (space(card) - GAP * (rows - 1)) / rows
+            return ControlsLayout(columns, rows, header, card, headerDp, cardHeight(card, scale), tileDp, padding)
         }
     }
 }
@@ -408,6 +577,7 @@ class QuickControlsWidget : GlanceAppWidget() {
             val active by repo.activeNight.collectAsState()
             @Suppress("UNUSED_VARIABLE") val observed by repo.automation.collectAsState()
             @Suppress("UNUSED_VARIABLE") val profiles by repo.profiles.collectAsState()
+            @Suppress("UNUSED_VARIABLE") val read by context.graph.statusReadAt.collectAsState()
             val runtime by repo.runtime.collectAsState()
             val ownerStatus by context.graph.actions.status.collectAsState()
             val prefs = currentState<Preferences>()
@@ -416,31 +586,45 @@ class QuickControlsWidget : GlanceAppWidget() {
             // Status triggers a fresh read of the owner's identity/target-scoped uncertainty.
             key(ownerStatus) {
                 val report = widgetReport(context)
-                val layout = ControlsLayout.of(size.width.value, size.height.value,
-                    context.resources.configuration.fontScale, active != null)
+                val keys = controlKeys(context, prefs[KEY_PRESETS])
+                val layout = ControlsLayout.of(size.width.value, size.height.value, context.resources.configuration.fontScale,
+                    active != null, keys.size, prefs[KEY_LAYOUT] == LAYOUT_SIX)
+                val night = nightSummary(context, active, runtime)
                 fun controlFor(key: String) = widgetPreset(context, key)?.let { control(context, it, WidgetActionCallback.QUICK, id, prefs, active, report) }
                 GlanceTheme(colors = widgetColors(settings, at)) {
-                    Column(GlanceModifier.fillMaxSize().background(widgetColor(settings, at) { it.ground }).cornerRadius(22.dp).padding(8.dp)) {
+                    Column(GlanceModifier.fillMaxSize().background(widgetColor(settings, at) { it.ground }).cornerRadius(22.dp)
+                        .padding(layout.padding.dp)) {
                         if (layout.rows == 0) Row(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                            Header(context, prefs, report, active, stacked = true, GlanceModifier.defaultWeight(), settings, at, strip = true)
-                            Spacer(GlanceModifier.width(6.dp))
-                            controlFor(PRESET_OFF)?.let { Pill(context, it, 56.dp, GlanceModifier.width(56.dp), settings, at) }
+                            Header(context, prefs, report, active, layout.copy(header = HeaderStyle.STACKED), night,
+                                GlanceModifier.defaultWeight(), settings, at)
+                            Spacer(GlanceModifier.width(ControlsLayout.GAP.dp))
+                            controlFor(PRESET_OFF)?.let { Tile(context, it, ControlsLayout.TILE, ControlsLayout.TILE,
+                                GlanceModifier.width(ControlsLayout.TILE.dp).height(ControlsLayout.TILE.dp), settings, at) }
                         } else {
-                            Header(context, prefs, report, active, layout.stackedHeader, GlanceModifier.fillMaxWidth(), settings, at)
-                            Spacer(GlanceModifier.defaultWeight())
-                            active?.takeIf { layout.plan }?.let {
-                                PlanCard(context, it, runtime, GlanceModifier.fillMaxWidth(), settings, at)
-                                Spacer(GlanceModifier.height(6.dp))
+                            Header(context, prefs, report, active, layout, night,
+                                GlanceModifier.fillMaxWidth().height(layout.headerDp.dp), settings, at)
+                            Spacer(GlanceModifier.height(ControlsLayout.GAP.dp))
+                            if (layout.card != NightCard.NONE && night != null) {
+                                NightCardView(context, layout.card, night, active, size.width.value - 2 * layout.padding,
+                                    GlanceModifier.fillMaxWidth().height(layout.cardDp.dp), settings, at)
+                                Spacer(GlanceModifier.height(ControlsLayout.GAP.dp))
                             }
-                            layout.arrange(controlKeys(context, prefs[KEY_PRESETS])).forEachIndexed { index, row ->
-                                val pillWidth = ((size.width.value - 16f - 6f * (row.size - 1)) / row.size).dp
-                                if (index > 0) Spacer(GlanceModifier.height(6.dp))
-                                Row(GlanceModifier.fillMaxWidth()) {
-                                    row.forEachIndexed { column, key ->
-                                        if (column > 0) Spacer(GlanceModifier.width(6.dp))
-                                        val control = key?.let(::controlFor)
-                                        if (control == null) Spacer(GlanceModifier.defaultWeight().height(56.dp))
-                                        else Pill(context, control, pillWidth, GlanceModifier.defaultWeight(), settings, at)
+                            val rows = layout.arrange(keys)
+                            val tileWidth = (size.width.value - 2 * layout.padding - ControlsLayout.GAP * (layout.columns - 1)) / layout.columns
+                            // Without a night to show, the card's space goes to the buttons.
+                            val tileHeight = layout.tileDp + if (layout.card != NightCard.NONE && night == null)
+                                (layout.cardDp + ControlsLayout.GAP) / rows.size else 0f
+                            Column(GlanceModifier.fillMaxWidth().defaultWeight()) {
+                                rows.forEachIndexed { index, row ->
+                                    if (index > 0) Spacer(GlanceModifier.height(ControlsLayout.GAP.dp))
+                                    Row(GlanceModifier.fillMaxWidth().defaultWeight()) {
+                                        row.forEachIndexed { column, key ->
+                                            if (column > 0) Spacer(GlanceModifier.width(ControlsLayout.GAP.dp))
+                                            val control = key?.let(::controlFor)
+                                            if (control == null) Spacer(GlanceModifier.defaultWeight().fillMaxHeight())
+                                            else Tile(context, control, tileWidth, tileHeight,
+                                                GlanceModifier.defaultWeight().fillMaxHeight(), settings, at)
+                                        }
                                     }
                                 }
                             }
@@ -451,13 +635,19 @@ class QuickControlsWidget : GlanceAppWidget() {
         }
     }
     companion object {
-        /** The chosen presets in order, comma separated. Absent means [DEFAULT_CONTROLS]. */
+        /** The chosen presets in order, comma separated. Absent means [defaultControls]. */
         val KEY_PRESETS = stringPreferencesKey("widget_presets")
+        /** The 2 × 3 layout: [LAYOUT_NIGHT] (the default) or [LAYOUT_SIX]. */
+        val KEY_LAYOUT = stringPreferencesKey("widget_layout")
+        const val LAYOUT_NIGHT = "night"
+        const val LAYOUT_SIX = "six"
     }
 }
 
 class QuickControlsReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = QuickControlsWidget()
+    override fun onEnabled(context: Context) { super.onEnabled(context); WidgetRefresh.sync(context) }
+    override fun onDisabled(context: Context) { super.onDisabled(context); WidgetRefresh.sync(context) }
 }
 
 /** The preset tile chosen when it was placed, or the legacy single-action command for older placements. */
@@ -532,4 +722,6 @@ class SingleActionWidget : GlanceAppWidget() {
 
 class SingleActionReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = SingleActionWidget()
+    override fun onEnabled(context: Context) { super.onEnabled(context); WidgetRefresh.sync(context) }
+    override fun onDisabled(context: Context) { super.onDisabled(context); WidgetRefresh.sync(context) }
 }

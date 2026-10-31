@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- How long ago the widget's BedJet status was read. -->
+    <string name="widget_read_now">Read just now</string>
+    <string name="widget_read_minutes">Read %1$d min ago</string>
+    <string name="widget_read_hours">Read %1$d h ago</string>
+    <string name="widget_age_now">Just now</string>
+    <string name="widget_age_minutes">%1$d min ago</string>
+    <string name="widget_age_hours">%1$d h ago</string>
+    <string name="widget_read_description">%1$s. %2$s</string>
+
+    <!-- The night card and line. -->
+    <string name="widget_night_line">%1$s · %2$s</string>
+    <string name="widget_night_starts">Starts %1$s</string>
+    <string name="widget_night_tonight">Tonight</string>
+    <string name="widget_night_description">%1$s. %2$s. Opens Nocturne.</string>
+    <string name="widget_profile_running">Running</string>
+    <string name="widget_control_current">%1$s, running tonight</string>
+
+    <!-- Controls setup. -->
+    <string name="widget_controls_config_drag">Tick the presets to show and hold one to drag it into place. Off is always there. Bigger widgets show more.</string>
+    <string name="widget_presets_in_app">Temperatures, times and fan are set in Nocturne.</string>
+    <string name="widget_edit_presets">Edit presets in Nocturne</string>
+    <string name="widget_layout_title">Widget layout</string>
+    <string name="widget_layout_help">Used when the widget is 2 × 3.</string>
+    <string name="widget_layout_night">Night card and four buttons</string>
+    <string name="widget_layout_six">Six buttons</string>
+    <string name="widget_drag_handle">Hold to move %1$s</string>
+</resources>

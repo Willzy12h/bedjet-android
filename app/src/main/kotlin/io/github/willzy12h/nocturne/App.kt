@@ -85,6 +85,8 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     val sessions = LinkSessions(this)
     val actions = NightActions(this)
     val platform = io.github.willzy12h.nocturne.platform.PlatformRuntime(this)
+    /** When the chosen BedJet last reported in this process, for the widgets' "Read 2 min ago". */
+    val statusReadAt = MutableStateFlow<ZonedDateTime?>(null)
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun startRuntime() {
@@ -107,6 +109,7 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
             }.collect { (target, report) ->
                 // A report from a session still on the previous BedJet says nothing about the chosen one.
                 if (report != null && report.isFrom(target)) {
+                    statusReadAt.value = now()
                     actions.observeStatus(report, target, now())
                     platform.observe(report.status, target)
                 }
