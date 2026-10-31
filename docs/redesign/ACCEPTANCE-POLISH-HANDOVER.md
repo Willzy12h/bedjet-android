@@ -166,4 +166,16 @@ Recorded on 30 October 2026 after the owner installed `0.3.0-acceptance.1`. All 
 
 Also fixed while running the gate: the alarm-settings refresh from item 4 wrote to a field before it was set, which would have crashed the app when it opened. The full gate caught it.
 
+## Feedback on `0.3.0-acceptance.2` (to do)
+
+14. **Tonight used a 09:00 calendar event as the wake alarm.** Reported 31 October 2026. The owner has earlier clock alarms, but Tonight picked up a 09:00 alarm that came from the calendar.
+
+    **Why it happens.** Android gives apps only one alarm: the phone's next alarm clock, from whichever app set it (`AlarmManager.getNextAlarmClock`). Nocturne cannot list the clock app's alarms. It accepts that one alarm when its app is one of the known clock apps (Google Clock, Samsung Clock), or when the alarm does not say which app set it and "Next known alarm, from any app" is on. That switch is **on by default**. Once the earlier clock alarms had passed, the calendar's 09:00 alarm was the phone's next alarm clock. Most likely it did not name its app, so the switch let it through. The fix for item 4 makes Tonight pick up a new next alarm straight away, which is probably why this showed up now. The acceptance rule itself has not changed. A diagnostics export would confirm this: it records `creatorPackage` and `sourceAccepted`.
+
+    **Proposed change (for the owner to confirm before building):**
+    - Add an **Alarm app** setting. It lists the installed clock apps (apps that handle Android's show-alarms and set-alarm actions; this needs a `<queries>` entry). It preselects the one it detects, and if the current next alarm came from a recognised app it offers "Use this app's alarms". Only the chosen app's alarms count.
+    - Turn **"from any app" off by default**, and move it under the Alarm app setting as an advanced option with a plain warning. Existing installs have it saved as on, so it needs a one-off migration to off.
+    - When the next alarm is from another app, or doesn't name its app, Tonight says so (for example "Next alarm 09:00 is from Calendar, not used") and uses the profile's saved wake time instead.
+    - Limit to explain in the app: if another app's alarm is due before the clock's, Android hides the clock alarm until the earlier one has passed. In that gap Nocturne uses the saved wake time and does not guess.
+
 No changes are needed to Appearance. Health Connect import worked on the device and the Sleep page reads well with real data.
