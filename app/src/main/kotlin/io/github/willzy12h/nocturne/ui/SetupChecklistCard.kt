@@ -85,9 +85,15 @@ internal fun SetupChecklistCard(model: AppViewModel) {
     var refresh by remember { mutableIntStateOf(0) }
     var healthGranted by remember { mutableStateOf(false) }
     var pairDialog by remember { mutableStateOf(false) }
+    // Pairing asked before nearby-device access: ask for access, then open the picker, which scans by itself.
+    var pairAfterAccess by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
     LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh++ }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        refresh++
+        if (pairAfterAccess && granted.isNotEmpty() && granted.values.all { it }) pairDialog = true
+        pairAfterAccess = false
+    }
     val enableBluetooth = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh++ }
     val health = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { refresh++ }
     LaunchedEffect(refresh, settings.demoMode) {
@@ -113,7 +119,14 @@ internal fun SetupChecklistCard(model: AppViewModel) {
     val fix: (SetupItem) -> Unit = { item ->
         note = null
         when (item) {
-            SetupItem.PAIR -> if (settings.demoMode) note = context.getString(R.string.uat_setup_demo) else pairDialog = true
+            SetupItem.PAIR -> when {
+                settings.demoMode -> note = context.getString(R.string.uat_setup_demo)
+                BluetoothAvailability.permissions.any { context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED } -> {
+                    pairAfterAccess = true
+                    permission.launch(BluetoothAvailability.permissions)
+                }
+                else -> pairDialog = true
+            }
             SetupItem.BLUETOOTH -> if (BluetoothAvailability.permissions.any {
                     context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }) permission.launch(BluetoothAvailability.permissions)
                 else enableBluetooth.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
@@ -150,7 +163,7 @@ internal fun SetupChecklistCard(model: AppViewModel) {
                 StripeTile(
                     stripe = paletteTokens.cool,
                     title = title,
-                    subtitle = null,
+                    subtitle = if (item == SetupItem.HEALTH) stringResource(R.string.setup_health_optional) else null,
                     modifier = Modifier.fillMaxWidth().testTag("setup-${item.key}"),
                     trailing = {
                         OutlinedButton(onClick = { fix(item) }, modifier = Modifier.heightIn(min = 48.dp)) {

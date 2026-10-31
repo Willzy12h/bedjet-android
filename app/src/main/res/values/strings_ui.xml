@@ -328,7 +328,6 @@
         <item quantity="one">%d night recorded</item>
         <item quantity="other">%d nights recorded</item>
     </plurals>
-    <string name="remote_not_running">Off · choose a mode to start</string>
     <string name="remote_choose_mode_first">Choose a mode above to adjust this.</string>
     <string name="remote_temperature_unused">%1$s runs without a temperature.</string>
 </resources>

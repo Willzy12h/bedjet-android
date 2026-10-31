@@ -38,6 +38,16 @@ internal fun captureDuration(graph: Graph, status: DeviceStatus, minutes: Int): 
     manualRuntimeMaximum(status),
 )
 
+/**
+ * The limit as people say it: the BedJet's 11 hours 59 minutes reads as 12 hours, and 12 hours entered is
+ * stored as the BedJet's maximum.
+ */
+internal fun spokenMaximum(maximumMinutes: Int): Int = if (maximumMinutes % 60 == 59) maximumMinutes + 1 else maximumMinutes
+
+/** The minutes to send for what was entered, or null when it is outside 1 minute to the spoken limit. */
+internal fun enteredMinutes(total: Int?, maximumMinutes: Int): Int? =
+    total?.takeIf { it in 1..spokenMaximum(maximumMinutes) }?.coerceAtMost(maximumMinutes)
+
 @Composable
 internal fun CustomRunDuration(captured: CapturedDuration, onDismiss: () -> Unit, onConfirm: (CapturedDuration) -> Unit) {
     val initial = requireNotNull(captured.request.actionPreset).minutes.coerceIn(1, captured.maximumMinutes)
@@ -46,12 +56,13 @@ internal fun CustomRunDuration(captured: CapturedDuration, onDismiss: () -> Unit
     val h = hours.toIntOrNull()
     val m = minutes.toIntOrNull()
     val total = if (h != null && h in 0..255 && m != null && m in 0..59) h * 60 + m else null
-    val valid = total != null && total in 1..captured.maximumMinutes
+    val chosen = enteredMinutes(total, captured.maximumMinutes)
+    val valid = chosen != null
     AlertDialog(onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.remote_custom_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.remote_custom_bounds, durationText(captured.maximumMinutes)))
+                Text(stringResource(R.string.remote_custom_bounds, durationText(spokenMaximum(captured.maximumMinutes))))
                 OutlinedTextField(hours, { hours = it.take(4) }, label = { Text(stringResource(R.string.remote_custom_hours)) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = nocturneTextFieldColors())
                 OutlinedTextField(minutes, { minutes = it.take(3) }, label = { Text(stringResource(R.string.remote_custom_minutes)) },
@@ -59,7 +70,7 @@ internal fun CustomRunDuration(captured: CapturedDuration, onDismiss: () -> Unit
                 if (!valid) Text(stringResource(R.string.remote_custom_invalid))
             }
         },
-        confirmButton = { TextButton(onClick = { if (valid) onConfirm(captured.forMinutes(total!!)) }, enabled = valid) {
+        confirmButton = { TextButton(onClick = { if (valid) onConfirm(captured.forMinutes(chosen!!)) }, enabled = valid) {
             Text(stringResource(R.string.remote_custom_set)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.feature_cancel)) } },
     )

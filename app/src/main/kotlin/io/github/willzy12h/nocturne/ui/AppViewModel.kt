@@ -220,6 +220,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val bluetoothReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == BluetoothAdapter.ACTION_STATE_CHANGED && screenVisible) refreshBluetooth()
+            // Tonight and Settings read the same alarm; read it again the moment Android says it changed.
+            if (intent.action == android.app.AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED && screenVisible) refreshAlarm()
         }
     }
 
@@ -240,6 +242,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             repo.settings.map { it.demoMode }.distinctUntilChanged().collect {
                 if (screenVisible) refreshBluetooth()
             }
+        }
+        // Whether the next alarm counts depends on the alarm settings, so a change there is shown at once.
+        viewModelScope.launch {
+            repo.settings.map { it.acceptUnknownAlarmSource to it.alarmPackages }.distinctUntilChanged().collect { refreshAlarm() }
         }
     }
 
@@ -270,7 +276,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         tapHaptics.setVisible(true)
         if (!bluetoothReceiverRegistered) {
             ContextCompat.registerReceiver(getApplication(), bluetoothReceiver,
-                IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED), ContextCompat.RECEIVER_EXPORTED)
+                IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED).apply {
+                    addAction(android.app.AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED) }, ContextCompat.RECEIVER_EXPORTED)
             bluetoothReceiverRegistered = true
         }
         refreshBluetooth()

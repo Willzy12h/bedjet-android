@@ -50,6 +50,13 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false) {
     val found by model.foundBedJets.collectAsState()
     val discovering by model.discovering.collectAsState()
     val tokens = paletteTokens
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Nothing chosen yet and nearby-device access granted: start looking straight away instead of waiting for a tap.
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (!settings.demoMode && settings.targetDevice == null && found.isEmpty() &&
+            io.github.willzy12h.nocturne.ble.BluetoothAvailability.permissions.all {
+                context.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }) model.discoverBedJets()
+    }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
         .then(tokens.edge?.let { Modifier.border(1.dp, it, RoundedCornerShape(18.dp)) } ?: Modifier)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

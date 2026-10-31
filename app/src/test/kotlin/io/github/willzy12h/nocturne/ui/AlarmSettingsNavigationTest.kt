@@ -71,7 +71,7 @@ class AlarmSettingsNavigationTest {
             .performScrollTo().assertIsDisplayed().performClick()
         ui.compose.waitForIdle()
         ui.compose.onNodeWithText(ui.s(R.string.settings_alarms), ignoreCase = true).performScrollTo().assertIsDisplayed()
-        val toggle = ui.control("Use alarms from unknown apps")
+        val toggle = ui.control("Next known alarm, from any app")
         toggle.assertIsOff().performClick()
         ui.waitUntil { ui.graph.repository.settings.value.acceptUnknownAlarmSource && ui.model.nextAlarm.value?.counts == true }
         toggle.assertIsOn()
@@ -82,7 +82,7 @@ class AlarmSettingsNavigationTest {
     @Test fun theUnknownSourceControlCanBeDisabledAgain() {
         ui.tab(ui.s(R.string.tab_settings))
         ui.compose.openSettingsPage("night")
-        val toggle = ui.control("Use alarms from unknown apps")
+        val toggle = ui.control("Next known alarm, from any app")
         toggle.assertIsOn().performClick()
         ui.waitUntil { !ui.graph.repository.settings.value.acceptUnknownAlarmSource && ui.model.nextAlarm.value?.counts == false }
         toggle.assertIsOff()

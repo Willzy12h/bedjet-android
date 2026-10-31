@@ -137,29 +137,9 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
     LaunchedEffect(available, reorder.dragging) {
         if (reorder.dragging == null && reorder.order?.let { it == available } != false) reorder.order = null
     }
-    LaunchedEffect(reorder.dragging) {
-        // Near the top or bottom edge the list scrolls under the held section, as on the Profiles page.
-        while (reorder.dragging != null) {
-            val info = listState.layoutInfo
-            val item = info.visibleItemsInfo.firstOrNull { it.key == reorder.dragging }
-            if (item != null) {
-                val top = item.offset + reorder.offset
-                val bottom = top + item.size
-                val edge = info.viewportSize.height * .12f
-                val step = when {
-                    top < info.viewportStartOffset + edge -> -12f
-                    bottom > info.viewportEndOffset - edge -> 12f
-                    else -> 0f
-                }
-                if (step != 0f) {
-                    val moved = listState.scrollBy(step)
-                    reorder.offset += moved
-                    reorder.swapIfPast(listState, spacingPx)
-                }
-            }
-            delay(16)
-        }
-    }
+    val holdThreshold = with(LocalDensity.current) { 24.dp.toPx() }
+    // Near the top or bottom edge the list scrolls under the held section, as on the Profiles page.
+    LaunchedEffect(reorder.dragging) { scrollWhileHeld(listState, reorder, spacingPx, holdThreshold) }
     val moveUp = stringResource(R.string.sleep_move_up)
     val moveDown = stringResource(R.string.sleep_move_down)
     val rangeNames = mapOf(7 to stringResource(R.string.sleep_range_7), 30 to stringResource(R.string.sleep_range_30),
@@ -193,17 +173,15 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
                 val dragged = reorder.dragging == id
                 val at = shown.indexOf(id)
                 Box(Modifier.fillMaxWidth().testTag("sleep-section-$id")
-                    .zIndex(if (dragged) 1f else 0f)
-                    .graphicsLayer {
-                        translationY = if (dragged) reorder.offset else 0f
-                        if (dragged) { scaleX = 1.02f; scaleY = 1.02f; shadowElevation = 12.dp.toPx() }
-                    }
+                    .then(if (dragged) Modifier else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null))
+                    .heldForReorder(dragged) { reorder.offset }
                     .pointerInput(id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { reorder.start(id, latestAvailable) },
                             onDrag = { change, amount ->
                                 change.consume()
                                 reorder.offset += amount.y
+                                reorder.travel += amount.y
                                 reorder.swapIfPast(listState, spacingPx)
                             },
                             onDragEnd = { reorder.finish()?.let(::save) },

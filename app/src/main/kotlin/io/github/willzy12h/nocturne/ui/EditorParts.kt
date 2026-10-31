@@ -105,13 +105,14 @@ internal fun phaseIcon(mode: Mode): Int = when (mode) {
 }
 
 /**
- * One step: grip, icon, "Heat 36°" over "Fan 40%", and its length. Dragging the grip after a long press moves
- * it on release. The parent measures rows and resolves the drop; screen readers move one row at a time.
+ * One step: grip, icon, "Heat 36°" over "Fan 40%", and its length. Holding the card and dragging it moves it,
+ * in the same style as the Profiles list: [onDragging] reports how far it has been carried so the parent can slide
+ * the other steps out of its way ([shift]), and the drop is resolved by the parent. Screen readers move one row at a time.
  */
 @Composable
 internal fun StepCard(phase: Phase, title: String, subtitle: String, length: String, modifier: Modifier,
     canMoveUp: Boolean, canMoveDown: Boolean, onMove: (Int) -> Unit, onDrop: (Float) -> Unit,
-    onHeightChanged: (Int) -> Unit, onClick: () -> Unit) {
+    onHeightChanged: (Int) -> Unit, shift: Float = 0f, onDragging: (Float?) -> Unit = {}, onClick: () -> Unit) {
     val tokens = paletteTokens
     val temperature = if (phase.mode == Mode.TURBO) 86 else phase.temperature
     val stripe = tokens.stepColor(phase.mode, temperature)
@@ -121,12 +122,28 @@ internal fun StepCard(phase: Phase, title: String, subtitle: String, length: Str
     val largeText = LocalConfiguration.current.fontScale >= 1.5f
     val move by rememberUpdatedState(onMove)
     val drop by rememberUpdatedState(onDrop)
+    val dragging by rememberUpdatedState(onDragging)
     val moveUp = stringResource(R.string.parity_move_up)
     val moveDown = stringResource(R.string.parity_move_down)
     Row(modifier.fillMaxWidth().onSizeChanged { onHeightChanged(it.height) }
-        .zIndex(if (lifted) 1f else 0f)
-        .graphicsLayer { if (lifted) { translationY = drag; rotationZ = -2f } }
-        .then(if (lifted) Modifier.shadow(14.dp, shape) else Modifier)
+        .graphicsLayer { if (!lifted) translationY = shift }
+        .heldForReorder(lifted) { drag }
+        .pointerInput(Unit) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { lifted = true; drag = 0f; dragging(0f) },
+                onDragEnd = {
+                    val distance = drag
+                    lifted = false; drag = 0f
+                    dragging(null)
+                    drop(distance)
+                },
+                onDragCancel = { lifted = false; drag = 0f; dragging(null) },
+            ) { change, amount ->
+                change.consume()
+                drag += amount.y
+                dragging(drag)
+            }
+        }
         .clip(shape).background(if (lifted) { if (tokens.dark) Color(0xFF262A45) else tokens.surface2 } else tokens.surface)
         .sideStripe(stripe, tokens, width = 5.dp, level = TintLevel.STEP)
         .then(when {
@@ -142,21 +159,7 @@ internal fun StepCard(phase: Phase, title: String, subtitle: String, length: Str
         }
         .heightIn(min = 64.dp).padding(start = 14.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(48.dp)
-            .pointerInput(Unit) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { lifted = true; drag = 0f },
-                    onDragEnd = {
-                        val distance = drag
-                        lifted = false; drag = 0f
-                        drop(distance)
-                    },
-                    onDragCancel = { lifted = false; drag = 0f },
-                ) { change, amount ->
-                    change.consume()
-                    drag += amount.y
-                }
-            }, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
             Icon(painterResource(R.drawable.ic_nc_grip), null, Modifier.size(18.dp), tint = tokens.ink2)
         }
         if (!largeText) IconBox(phaseIcon(phase.mode), stripe)

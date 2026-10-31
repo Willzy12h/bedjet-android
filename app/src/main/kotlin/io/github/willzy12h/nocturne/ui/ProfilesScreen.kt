@@ -122,29 +122,9 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     LaunchedEffect(profiles, reorder.dragging) {
         if (reorder.dragging == null && reorder.order?.let { it == profiles.map { p -> p.id } } != false) reorder.order = null
     }
-    LaunchedEffect(reorder.dragging) {
-        // Near the top or bottom edge the list scrolls under the held card, so a long list can still be reordered.
-        while (reorder.dragging != null) {
-            val info = listState.layoutInfo
-            val item = info.visibleItemsInfo.firstOrNull { it.key == reorder.dragging }
-            if (item != null) {
-                val top = item.offset + reorder.offset
-                val bottom = top + item.size
-                val edge = info.viewportSize.height * .12f
-                val step = when {
-                    top < info.viewportStartOffset + edge -> -12f
-                    bottom > info.viewportEndOffset - edge -> 12f
-                    else -> 0f
-                }
-                if (step != 0f) {
-                    val moved = listState.scrollBy(step)
-                    reorder.offset += moved
-                    reorder.swapIfPast(listState, spacingPx)
-                }
-            }
-            delay(16)
-        }
-    }
+    val holdThreshold = with(LocalDensity.current) { 24.dp.toPx() }
+    // Near the top or bottom edge the list scrolls under the held card, so a long list can still be reordered.
+    LaunchedEffect(reorder.dragging) { scrollWhileHeld(listState, reorder, spacingPx, holdThreshold) }
 
     val importPreview by model.importPreview.collectAsState()
     val importApplying by model.importApplying.collectAsState()
@@ -184,18 +164,16 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                 val moveUp = stringResource(R.string.profiles_move_up)
                 val moveDown = stringResource(R.string.profiles_move_down)
                 Box(Modifier.fillMaxWidth().testTag("profile-card-${profile.id}")
-                    // The held card draws above its neighbours and follows the finger; rows of any height swap cleanly.
-                    .zIndex(if (dragged) 1f else 0f)
-                    .graphicsLayer {
-                        translationY = if (dragged) reorder.offset else 0f
-                        if (dragged) { scaleX = 1.02f; scaleY = 1.02f; shadowElevation = 12.dp.toPx() }
-                    }
+                    // The held card follows the finger; the others slide into their new places as it passes.
+                    .then(if (dragged) Modifier else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null))
+                    .heldForReorder(dragged) { reorder.offset }
                     .pointerInput(profile.id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { reorder.start(profile.id, latestProfiles.map { it.id }) },
                             onDrag = { change, amount ->
                                 change.consume()
                                 reorder.offset += amount.y
+                                reorder.travel += amount.y
                                 reorder.swapIfPast(listState, spacingPx)
                             },
                             onDragEnd = { reorder.finish()?.let(model::reorderProfiles) },
@@ -404,9 +382,11 @@ internal class ProfileReorder {
     var dragging by mutableStateOf<String?>(null)
     var offset by mutableFloatStateOf(0f)
     var order by mutableStateOf<List<String>?>(null)
+    /** How far the finger has moved since the hold began, whatever has swapped since. */
+    var travel = 0f
     private var startOrder: List<String>? = null
 
-    fun start(id: String, ids: List<String>) { dragging = id; offset = 0f; order = ids; startOrder = ids }
+    fun start(id: String, ids: List<String>) { dragging = id; offset = 0f; travel = 0f; order = ids; startOrder = ids }
 
     /** Ends the drag; returns the new order when it changed, for saving. */
     fun finish(): List<String>? {

@@ -229,12 +229,14 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     }
 }
 
-/** What the BedJet reports, tinted in the running mode's colour, with one reserved line for progress. */
+/**
+ * What the BedJet reports, as plain text rather than a card, so it reads as the current state and not as a button.
+ * The mode buttons below change it. One line is reserved for progress.
+ */
 @Composable
 private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturne.core.protocol.DeviceStatus, canControl: Boolean,
     accent: Color, f: Boolean) {
     val tokens = paletteTokens
-    val shape = RoundedCornerShape(20.dp)
     val local by model.busy.collectAsState()
     val owner by model.commandBusy.collectAsState()
     val sending = if (local || owner.runningLabel != null || owner.queuedCount > 0) {
@@ -242,26 +244,23 @@ private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturn
         val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
         listOfNotNull(label, queued).joinToString(" · ")
     } else null
-    Column(Modifier.fillMaxWidth().clip(shape)
-        .background(Brush.verticalGradient(listOf(tokens.tint(accent, TintLevel.ON).compositeOver(tokens.surface), tokens.surface)))
-        .border(1.dp, tokens.tint(accent, TintLevel.ON).compositeOver(tokens.outline), shape)
-        .testTag("remote-status").padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(44.dp).clip(CircleShape).background(tokens.tint(accent, TintLevel.ON)), contentAlignment = Alignment.Center) {
-                Icon(painterResource(modeIcon(s.mode)), null, Modifier.size(24.dp), tint = tokens.readableText(accent, tokens.surface, 3f))
-            }
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { }
+        .testTag("remote-status").padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(R.string.remote_now_label), color = tokens.ink2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(painterResource(modeIcon(s.mode)), null, Modifier.size(20.dp), tint = tokens.readableText(accent, tokens.ground, 3f))
             Column(Modifier.weight(1f)) {
-                Text(modeName(s.mode), color = tokens.ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(modeName(s.mode), color = tokens.ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(stringResource(R.string.remote_air_room, tempText(s.actualTemperature, f), tempText(s.ambientTemperature, f)),
                     color = tokens.ink2, fontSize = 14.sp)
             }
         }
         Text(if (s.isRunning) stringResource(R.string.remote_running, tempText(s.targetTemperature, f), s.fanPercent, durationText(s.remainingSeconds / 60))
-            else stringResource(R.string.remote_not_running), color = tokens.ink, fontSize = 14.sp)
+            else stringResource(R.string.remote_not_running_choose), color = tokens.ink2, fontSize = 14.sp)
         // The reserved line: progress, then "Last reported", then a night's step; never a banner that pushes controls down.
         val line = sending ?: if (!canControl) stringResource(R.string.remote_last_reported)
             else s.extra?.takeIf { it.programStep > 0 }?.let { stringResource(R.string.remote_program_step, it.programStep) } ?: ""
-        Text(line, color = if (sending != null) tokens.readableText(tokens.warn, tokens.surface) else tokens.ink2, fontSize = 13.sp,
+        Text(line, color = if (sending != null) tokens.readableText(tokens.warn, tokens.ground) else tokens.ink2, fontSize = 13.sp,
             minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().testTag("remote-progress").semantics { liveRegion = LiveRegionMode.Polite })
     }

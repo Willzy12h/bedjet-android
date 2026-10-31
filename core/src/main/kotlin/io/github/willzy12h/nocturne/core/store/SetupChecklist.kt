@@ -1,8 +1,9 @@
 package io.github.willzy12h.nocturne.core.store
 
 /** System state is sampled on resume; saved flags can never hide a missing required item. */
+/** In the order the checklist asks: Bluetooth first, because pairing cannot find a BedJet without it. */
 enum class SetupItem(val key: String, val required: Boolean = true) {
-    PAIR("pair"), BLUETOOTH("bluetooth"), NOTIFICATIONS("notifications"), EXACT_ALARMS("exact"),
+    BLUETOOTH("bluetooth"), PAIR("pair"), NOTIFICATIONS("notifications"), EXACT_ALARMS("exact"),
     BATTERY("battery"), HEALTH("health", false), WIDGET("widget", false),
 }
 

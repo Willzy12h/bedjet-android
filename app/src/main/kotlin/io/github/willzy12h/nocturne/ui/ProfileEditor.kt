@@ -75,6 +75,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -403,6 +407,23 @@ private fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boole
     val rowGap = 8.dp
     val gapPx = with(LocalDensity.current) { rowGap.toPx() }
     val requested = focus?.takeIf { it.block == block }?.index
+    // The step being carried and how far, so the others slide out of its way as it passes them.
+    var held by remember(block) { mutableStateOf<Int?>(null) }
+    var carried by remember(block) { mutableFloatStateOf(0f) }
+    /** Where a step carried [distance] from [from] would land; null until every row has been measured. */
+    fun destination(from: Int, distance: Float): Int? {
+        var top = 0f
+        val centres = phases.indices.map { row ->
+            val height = rowHeights[row] ?: return null
+            (top + height / 2f).also { top += height + gapPx }
+        }
+        val droppedCentre = centres[from] + distance
+        // A tall row owns its full measured interval, including the area past a centre midpoint.
+        return phases.indices.minByOrNull {
+            (abs(centres[it] - droppedCentre) - rowHeights.getValue(it) / 2f).coerceAtLeast(0f)
+        }
+    }
+    val landing = held?.let { destination(it, carried) }
     LaunchedEffect(requested, focusRequest) { requested?.let { open = it } }
     val start = when (block) {
         Block.START -> plan?.start
@@ -442,24 +463,25 @@ private fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boole
                 onChange(phases.toMutableList().apply { add(to, removeAt(index)) })
             }
             fun drop(distance: Float) {
-                var top = 0f
-                val centres = phases.indices.map { row ->
-                    val height = rowHeights[row] ?: return
-                    (top + height / 2f).also { top += height + gapPx }
-                }
-                val droppedCentre = centres[index] + distance
-                // A tall row owns its full measured interval, including the area past a centre midpoint.
-                val destination = phases.indices.minByOrNull {
-                    (abs(centres[it] - droppedCentre) - rowHeights.getValue(it) / 2f).coerceAtLeast(0f)
-                } ?: return
-                move(destination - index)
+                move((destination(index, distance) ?: return) - index)
             }
+            val from = held
+            val room = from?.let { (rowHeights[it] ?: 0) + gapPx } ?: 0f
+            val target = when {
+                from == null || landing == null || index == from -> 0f
+                index in (from + 1)..landing -> -room
+                index in landing until from -> room
+                else -> 0f
+            }
+            // Slides while a step is carried; snaps back as the drop reorders the list, so nothing moves twice.
+            val shift by animateFloatAsState(target, if (from != null) tween(150) else snap(), label = "step-shift")
             StepCard(phase, title, subtitle, compactDuration(phase.minutes),
                 Modifier.testTag("editor-phase-${block.name}-$index").bringIntoViewRequester(requester)
                     .semantics { contentDescription = phaseDescription; stateDescription = phaseStart?.let(Format::clock).orEmpty() },
                 canMoveUp = index > 0, canMoveDown = index < phases.lastIndex,
                 onMove = { by -> move(by) }, onDrop = { distance -> drop(distance) },
-                onHeightChanged = { height -> rowHeights[index] = height }) { open = index }
+                onHeightChanged = { height -> rowHeights[index] = height }, shift = shift,
+                onDragging = { distance -> held = distance?.let { index }; carried = distance ?: 0f }) { open = index }
             if (open == index) ModalBottomSheet(onDismissRequest = { open = null }, containerColor = paletteTokens.sheet,
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
                 Column(Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp).verticalScroll(rememberScrollState())) {
