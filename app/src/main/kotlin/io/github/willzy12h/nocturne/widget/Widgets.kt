@@ -335,15 +335,20 @@ private fun statusLine(context: Context, prefs: Preferences, report: DeviceStatu
     return shown to context.getString(R.string.widget_status_description, shown, widgetBedJetName(context, settings))
 }
 
-/** How long ago the chosen BedJet last reported in this process, or null with no report to date. */
+/**
+ * When the chosen BedJet last reported in this process, as a clock time ("Read 01:42"), or null with no report to
+ * date. A clock time stays true between redraws, where an age such as "just now" would go stale. A read from another
+ * day names the day.
+ */
 internal fun widgetReadAge(context: Context, long: Boolean): String? {
     val at = context.graph.statusReadAt.value ?: return null
-    val minutes = java.time.Duration.between(at, context.graph.now()).toMinutes().coerceAtLeast(0)
-    return when {
-        minutes < 1 -> context.getString(if (long) R.string.widget_read_now else R.string.widget_age_now)
-        minutes < 60 -> context.getString(if (long) R.string.widget_read_minutes else R.string.widget_age_minutes, minutes.toInt())
-        else -> context.getString(if (long) R.string.widget_read_hours else R.string.widget_age_hours, (minutes / 60).toInt())
-    }
+    val now = context.graph.now()
+    val local = at.withZoneSameInstant(now.zone)
+    val clock = local.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    val shown = if (local.toLocalDate() == now.toLocalDate()) clock
+        else context.getString(R.string.widget_read_day_time,
+            local.format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.UK)), clock)
+    return if (long) context.getString(R.string.widget_read_at, shown) else shown
 }
 
 /** Tonight at a glance: the running night and its wake, else tonight's profile and when it starts by itself. */

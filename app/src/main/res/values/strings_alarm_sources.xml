@@ -9,7 +9,6 @@
     <string name="alarm_source_override">Tonight-only wake %1$s — alarm not used</string>
     <string name="alarm_source_no_profile">Choose a profile to set a wake time</string>
     <string name="alarm_source_reason_unknown">source unknown</string>
-    <string name="alarm_source_reason_not_allowed">app not allowed</string>
     <string name="alarm_source_reason_too_soon">too soon — normal nights need at least 1 hour</string>
     <string name="alarm_source_reason_too_late">too late — beyond tonight’s 18 hours</string>
     <string name="alarm_source_reason_profile_off">alarms off for this profile</string>

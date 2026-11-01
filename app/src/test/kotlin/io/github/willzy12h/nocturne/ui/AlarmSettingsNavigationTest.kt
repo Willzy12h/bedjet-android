@@ -1,12 +1,14 @@
 package io.github.willzy12h.nocturne.ui
 
+import io.github.willzy12h.nocturne.core.store.AlarmApps
+import androidx.compose.ui.test.onNodeWithTag
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -39,7 +41,7 @@ import java.util.TimeZone
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 class AlarmSettingsNavigationTest {
-    private val ui = U06Fixture(U06Look.MIDNIGHT) { fixture, description ->
+    private val ui = U06Fixture(U06Look.MIDNIGHT) { fixture, _ ->
         val graph = fixture.graph
         graph.clock = Clock.fixed(Instant.parse("2026-10-25T22:30:00Z"), ZoneOffset.UTC)
         runBlocking {
@@ -47,10 +49,7 @@ class AlarmSettingsNavigationTest {
                 it.copy(wakeSource = it.wakeSource.copy(useAlarm = true, defaultWakeMinute = 7 * 60))
             }
             graph.repository.saveProfile(profile)
-            graph.repository.updateSettings {
-                it.chooseTonight(profile.id, graph.now()).copy(
-                    acceptUnknownAlarmSource = description.methodName == "theUnknownSourceControlCanBeDisabledAgain")
-            }
+            graph.repository.updateSettings { it.chooseTonight(profile.id, graph.now()) }
         }
         val app = RuntimeEnvironment.getApplication() as App
         val operation = PendingIntent.getBroadcast(app, 91, Intent("test.alarm.settings"), PendingIntent.FLAG_IMMUTABLE)
@@ -66,26 +65,26 @@ class AlarmSettingsNavigationTest {
     } }
     @get:Rule val rules: TestRule = RuleChain.outerRule(timezone).around(ui.rules)
 
-    @Test fun anIgnoredUnknownAlarmOpensTheRelevantSettingAndCanBeEnabled() {
+    @Test fun anIgnoredUnknownAlarmOpensTheAlarmAppChoiceAndStaysIgnored() {
         ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change")
             .performScrollTo().assertIsDisplayed().performClick()
-        ui.compose.waitForIdle()
-        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms), ignoreCase = true).performScrollTo().assertIsDisplayed()
-        val toggle = ui.control("Next known alarm, from any app")
-        toggle.assertIsOff().performClick()
-        ui.waitUntil { ui.graph.repository.settings.value.acceptUnknownAlarmSource && ui.model.nextAlarm.value?.counts == true }
-        toggle.assertIsOn()
-        ui.tab(ui.s(R.string.tab_tonight))
-        ui.compose.onNodeWithText("Next alarm 06:30 · Phone alarm (app not identified) — used").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
+        // There is no longer a way to accept alarms from an app Android doesn't name.
+        ui.compose.onNodeWithText("Next known alarm, from any app").assertDoesNotExist()
+        ui.compose.onNodeWithTag("alarm-apps-any").performScrollTo().performClick()
+        ui.waitUntil { ui.graph.repository.settings.value.alarmAppsChosen }
+        assertEquals(AlarmApps.CLOCK_APPS, ui.graph.repository.settings.value.alarmApps)
+        assertFalse(ui.graph.repository.settings.value.acceptUnknownAlarmSource)
+        assertEquals(false, ui.model.nextAlarm.value?.counts)
     }
 
-    @Test fun theUnknownSourceControlCanBeDisabledAgain() {
+    @Test fun settingsAlarmsFromRowChangesTheChoice() {
         ui.tab(ui.s(R.string.tab_settings))
         ui.compose.openSettingsPage("night")
-        val toggle = ui.control("Next known alarm, from any app")
-        toggle.assertIsOn().performClick()
-        ui.waitUntil { !ui.graph.repository.settings.value.acceptUnknownAlarmSource && ui.model.nextAlarm.value?.counts == false }
-        toggle.assertIsOff()
+        ui.compose.onNodeWithTag("alarm-apps-change").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("alarm-apps-none").performScrollTo().performClick()
+        ui.waitUntil { ui.graph.repository.settings.value.alarmApps == AlarmApps.NONE }
+        assertTrue(ui.graph.repository.settings.value.alarmAppsChosen)
     }
 
     @Test fun exportedDiagnosticsIncludeTheReasonAnAlarmWasIgnored() {

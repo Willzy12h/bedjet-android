@@ -225,6 +225,24 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     onFailure = { Text(it.message.orEmpty(), color = tokens.ink) },
                 )
                 if (!validDurations) Text(stringResource(R.string.editor_invalid_phase_duration), color = tokens.ink)
+                Section(stringResource(R.string.editor_timing), Modifier.testTag("editor-timing")) {
+                    TimeRow(stringResource(R.string.editor_bedtime), profile.bedtimeMinute) { profile = profile.copy(bedtimeMinute = it) }
+                    SwitchRow(stringResource(R.string.editor_wake_with_alarm), stringResource(R.string.editor_wake_with_alarm_help), profile.wakeSource.useAlarm) {
+                        profile = profile.copy(wakeSource = profile.wakeSource.copy(useAlarm = it))
+                    }
+                    TimeRow(stringResource(if (profile.wakeSource.useAlarm) R.string.editor_wake_no_alarm else R.string.wake_time), profile.wakeSource.defaultWakeMinute) {
+                        profile = profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = it))
+                    }
+                    Text(stringResource(R.string.editor_days), style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        DayOfWeek.entries.forEach { day ->
+                            FilterChip(day.value in profile.days, {
+                                profile = profile.copy(days = if (day.value in profile.days) profile.days - day.value else profile.days + day.value)
+                            }, label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) }, colors = nocturneFilterChipColors())
+                        }
+                    }
+                }
+
                 PhaseList(Block.START, stringResource(R.string.parity_group_start), profile.start, f, preview.getOrNull(), focusedPhase, focusRequest,
                     profile.limits, onAdd = { addingTo = Block.START }) { profile = profile.copy(start = it) }
 
@@ -336,24 +354,6 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                 OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneTextFieldColors())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }, colors = nocturneFilterChipColors()) }
-                }
-
-                Section(stringResource(R.string.editor_timing)) {
-                    TimeRow(stringResource(R.string.editor_bedtime), profile.bedtimeMinute) { profile = profile.copy(bedtimeMinute = it) }
-                    SwitchRow(stringResource(R.string.editor_wake_with_alarm), stringResource(R.string.editor_wake_with_alarm_help), profile.wakeSource.useAlarm) {
-                        profile = profile.copy(wakeSource = profile.wakeSource.copy(useAlarm = it))
-                    }
-                    TimeRow(stringResource(if (profile.wakeSource.useAlarm) R.string.editor_wake_no_alarm else R.string.wake_time), profile.wakeSource.defaultWakeMinute) {
-                        profile = profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = it))
-                    }
-                    Text(stringResource(R.string.editor_days), style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        DayOfWeek.entries.forEach { day ->
-                            FilterChip(day.value in profile.days, {
-                                profile = profile.copy(days = if (day.value in profile.days) profile.days - day.value else profile.days + day.value)
-                            }, label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) }, colors = nocturneFilterChipColors())
-                        }
-                    }
                 }
 
                 Section(stringResource(R.string.editor_limits)) {

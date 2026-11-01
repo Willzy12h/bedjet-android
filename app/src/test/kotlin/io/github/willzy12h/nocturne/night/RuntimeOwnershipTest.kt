@@ -331,7 +331,7 @@ class RuntimeOwnershipTest {
         demo.send(Codec.setMode(Mode.STANDBY)!!)
         demo.disconnect()
         val alarm = context.getSystemService(AlarmManager::class.java)
-        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 188, Intent("retime-test"), PendingIntent.FLAG_IMMUTABLE))
         sent.clear()
         graph.actions.recordPendingRetime()
@@ -350,7 +350,7 @@ class RuntimeOwnershipTest {
         demo.send(Codec.setFan(if (oldFan < 19) oldFan + 1 else oldFan - 1))
         demo.disconnect()
         val alarm = context.getSystemService(AlarmManager::class.java)
-        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 189, Intent("retime-fan-test"), PendingIntent.FLAG_IMMUTABLE))
         sent.clear()
         graph.actions.recordPendingRetime()
@@ -363,7 +363,7 @@ class RuntimeOwnershipTest {
     @Test fun physicalOffDuringRetimeUploadBlocksStartAndLeavesWrittenSlotUncertain() = runBlocking {
         val night = start()
         val alarm = context.getSystemService(AlarmManager::class.java)
-        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 190, Intent("retime-upload-off-test"), PendingIntent.FLAG_IMMUTABLE))
         graph.actions.recordPendingRetime()
         sent.clear()

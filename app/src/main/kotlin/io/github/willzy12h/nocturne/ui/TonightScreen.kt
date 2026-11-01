@@ -143,9 +143,15 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
     }
     val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, night, runtime, nightStatus, previewWake = preview?.wake)
+    var choosingAlarmApps by remember { mutableStateOf(false) }
+    if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false }) {
+        // The other way out of an unwanted alarm: this profile's own wake time, or a time for tonight only.
+        profile?.let { p -> AlarmAppsAction(stringResource(R.string.alarm_apps_fixed, p.name)) { choosingAlarmApps = false; onEdit(p) } }
+        if (overridable) AlarmAppsAction(stringResource(R.string.alarm_apps_tonight)) { choosingAlarmApps = false; pickWake() }
+    }
     val openExplanation = {
         when (explanation.target) {
-            AlarmSettingsTarget.ALARM_SOURCES -> onOpenAlarmSettings()
+            AlarmSettingsTarget.ALARM_SOURCES -> { choosingAlarmApps = true }
             AlarmSettingsTarget.PROFILE_WAKE -> profile?.let(onEdit) ?: onOpenAlarmSettings()
             AlarmSettingsTarget.TONIGHT_WAKE -> if (overridable) pickWake() else onOpenAlarmSettings()
         }

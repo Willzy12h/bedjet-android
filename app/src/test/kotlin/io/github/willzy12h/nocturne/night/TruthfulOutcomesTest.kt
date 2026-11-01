@@ -82,7 +82,7 @@ class TruthfulOutcomesTest {
     private fun moveAlarm(hours: Long): ZonedDateTime {
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
         val at = graph.now().plusHours(hours).withSecond(0).withNano(0)
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), null), fire)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)), fire)
         return at
     }
     private fun retryScheduled() = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms
@@ -139,7 +139,7 @@ class TruthfulOutcomesTest {
         // An earlier alarm: the new wake-up starts well before the old one.
         val alarm = ZonedDateTime.parse("2026-10-22T04:45:00Z")
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), null), fire)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)), fire)
         assertEquals(OutcomeKind.LOCAL, graph.actions.submitAlarmChange().kind)
         val count = sent.size
         // The backup read is slow: by the final check before writing, the new wake-up has begun.

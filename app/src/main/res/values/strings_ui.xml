@@ -231,7 +231,7 @@
     <string name="editor_timing">Timing</string>
     <string name="editor_bedtime">Usual bedtime</string>
     <string name="editor_wake_with_alarm">Wake with my alarm</string>
-    <string name="editor_wake_with_alarm_help">Uses the next Samsung or Google Clock alarm when there is one.</string>
+    <string name="editor_wake_with_alarm_help">On: wakes you with your next alarm from the alarm app chosen in Settings. Off: always wakes at the fixed time below.</string>
     <string name="editor_wake_no_alarm">Wake time when there\'s no alarm</string>
     <string name="editor_days">Default for these days</string>
     <string name="editor_limits">Limits</string>

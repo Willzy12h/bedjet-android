@@ -70,7 +70,7 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         val graph = setup()
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
         context.getSystemService(AlarmManager::class.java).setAlarmClock(
-            AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T06:30:00Z").toEpochMilli(), null),
+            AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T06:30:00Z").toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 920, Intent("test.boundary.alarm"), PendingIntent.FLAG_IMMUTABLE))
         graph.repository.updateSettings { it.copy(platform = it.platform.copy(autoStart = it.platform.autoStart!!.copy(mode = AutoStartMode.BEFORE_WAKE))) }
         ChargerJobs.sync(graph)
@@ -153,7 +153,7 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         val profile = graph.repository.profiles.value.first()
         graph.repository.saveProfile(profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = 7 * 60)))
         context.getSystemService(AlarmManager::class.java).setAlarmClock(
-            AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T06:30:00Z").toEpochMilli(), null),
+            AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T06:30:00Z").toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 921, Intent("test.delivery.alarm"), PendingIntent.FLAG_IMMUTABLE))
         graph.repository.updateSettings { it.copy(platform = it.platform.copy(autoStart = it.platform.autoStart!!.copy(mode = AutoStartMode.BEFORE_WAKE))) }
     }
@@ -187,7 +187,7 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         val graph = setup()
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T10:00:00Z"), ZoneOffset.UTC)
         context.getSystemService(AlarmManager::class.java).setAlarmClock(
-            AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T08:00:00Z").toEpochMilli(), null),
+            AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T08:00:00Z").toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 923, Intent("test.future.alarm"), PendingIntent.FLAG_IMMUTABLE))
         graph.repository.updateSettings { it.copy(platform = it.platform.copy(autoStart = it.platform.autoStart!!.copy(mode = AutoStartMode.BEFORE_WAKE))) }
         val plan = AutoStartSchedule.next(graph)!!

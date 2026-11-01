@@ -39,6 +39,8 @@ import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.data.MiddleSuggestion
 import io.github.willzy12h.nocturne.data.MorningCheckIn
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.night.ClockApps
+import io.github.willzy12h.nocturne.core.store.AlarmApps
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.AlarmExplanation
 import io.github.willzy12h.nocturne.night.ShortTestPreview
@@ -249,7 +251,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         // Whether the next alarm counts depends on the alarm settings, so a change there is shown at once.
         viewModelScope.launch {
-            repo.settings.map { it.acceptUnknownAlarmSource to it.alarmPackages }.distinctUntilChanged().collect { refreshAlarm() }
+            repo.settings.map { Triple(it.acceptUnknownAlarmSource, it.alarmPackages, it.alarmApps) }.distinctUntilChanged().collect { refreshAlarm() }
         }
     }
 
@@ -286,7 +288,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         refreshBluetooth()
         refreshAlarm()
+        refreshClockApps()
         graph.sessions.holdForScreen(true)
+        // The app connects by itself while open; the widget's background reads go back to every 15 minutes.
+        io.github.willzy12h.nocturne.widget.WidgetRefresh.resetBackoff(graph.context)
         // An alarm change that couldn't reach the BedJet earlier.
         graph.scope.launch {
             graph.actions.reconcile()
@@ -595,10 +600,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Lets [creator]'s alarms move the wake-up, and shows the next alarm under the saved setting. */
-    fun useAlarmsFrom(creator: String) = save {
-        repo.updateSettings { it.copy(alarmPackages = it.alarmPackages + creator) }
-        refreshAlarm()
+    private val _clockApps = MutableStateFlow<List<ClockApps.App>>(emptyList())
+    /** The clock apps on this phone, for choosing where alarms come from. */
+    val clockApps: StateFlow<List<ClockApps.App>> = _clockApps.asStateFlow()
+
+    /** Looks for clock apps again; with "any clock app" chosen, a newly installed one counts from now on. */
+    fun refreshClockApps() {
+        val found = ClockApps.installed(getApplication())
+        _clockApps.value = found
+        val settings = repo.settings.value
+        if (settings.alarmApps == AlarmApps.CLOCK_APPS && !settings.demoMode) {
+            val packages = ClockApps.packagesFor(AlarmApps.CLOCK_APPS, found)
+            if (packages != settings.alarmPackages) save { repo.updateSettings { it.copy(alarmPackages = packages) } }
+        }
+    }
+
+    /**
+     * Where alarms come from: any clock app, only [chosen], or none. A running night is checked against the new
+     * choice straight away, so a wake taken from an app no longer chosen goes back.
+     */
+    fun chooseAlarmApps(choice: AlarmApps, chosen: String? = null) = save {
+        repo.updateSettings { ClockApps.choose(it, choice, _clockApps.value, chosen) }
+        if (activeNight.value != null) recheckAlarm() else refreshAlarm()
     }
     fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit(text(R.string.runtime_snapshot_saved)) }
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }

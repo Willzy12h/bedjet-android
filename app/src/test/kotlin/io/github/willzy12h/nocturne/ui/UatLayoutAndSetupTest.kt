@@ -1,5 +1,8 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performClick
 import io.github.willzy12h.nocturne.R
 
 import android.Manifest
@@ -88,6 +91,9 @@ class UatLayoutAndSetupTest {
 
     @Test fun U4_resumeRechecksRevocationWithoutReturningCompletedOrOptionalItems() {
         val model = model(false)
+        // The alarm app choice stays on the card until made; this test is about the phone checks.
+        model.updateSettings { it.copy(alarmAppsChosen = true) }
+        compose.waitUntil(5_000) { model.settings.value.alarmAppsChosen }
         val owner = Owner().also { it.lifecycle.currentState = Lifecycle.State.RESUMED }
         assertTrue(setupSnapshot(app, model.settings.value, false).requiredComplete)
         compose.setContent { CompositionLocalProvider(LocalLifecycleOwner provides owner) {
@@ -229,5 +235,21 @@ class UatLayoutAndSetupTest {
             assertEquals(preset, captured.end.actionPreset)
             assertEquals(preset, captured.temporary.preset)
         }
+    }
+
+    @Test fun theAlarmAppChoiceStaysOnTheSetupCardUntilMade() {
+        val model = model(false)
+        assertFalse(model.settings.value.alarmAppsChosen)
+        compose.setContent {
+            val settings by model.settings.collectAsState()
+            NocturneTheme(settings, model.now()) { Box(Modifier.requiredSize(320.dp, 640.dp)) { SetupChecklistCard(model) } }
+        }
+        compose.waitUntil(5_000) { model.settings.value.setupChecklistCompleted }
+        compose.onNodeWithTag("setup-alarm-apps").assertExists()
+        compose.onNodeWithTag("setup-alarm-apps-choose").performClick()
+        compose.onNodeWithTag("alarm-apps-any").performScrollTo().performClick()
+        compose.waitUntil(5_000) { model.settings.value.alarmAppsChosen }
+        compose.onNodeWithText(app.getString(R.string.alarm_apps_done)).performClick()
+        compose.onNodeWithTag("setup-checklist").assertDoesNotExist()
     }
 }

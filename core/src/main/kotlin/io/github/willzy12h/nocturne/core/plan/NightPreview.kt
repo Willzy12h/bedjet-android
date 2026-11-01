@@ -15,7 +15,11 @@ import java.time.ZonedDateTime
 /** Attribution and window shared by start and re-time. The original start anchors both boundaries:
  * exactly 1 h and exactly 18 h are accepted; less than 1 h or more than 18 h is refused. */
 class AlarmPolicy(private val settings: Settings = Settings()) {
-    fun acceptsSource(origin: String?): Boolean = if (origin == null) settings.acceptUnknownAlarmSource else origin in settings.alarmPackages
+    fun acceptsSource(origin: String?): Boolean = when {
+        settings.alarmApps == io.github.willzy12h.nocturne.core.store.AlarmApps.NONE -> false
+        origin == null -> settings.acceptUnknownAlarmSource
+        else -> origin in settings.alarmPackages
+    }
     fun accept(alarm: ZonedDateTime?, origin: String?, nightStart: ZonedDateTime): Boolean =
         alarm != null && acceptsSource(origin) && Duration.between(nightStart, alarm).let {
             it >= WakeResolver.MIN_NIGHT && it <= WakeResolver.MAX_NIGHT

@@ -89,12 +89,13 @@ class LinkSessions(
         releaseEnds = releasedUntil?.takeUnless { it == Long.MAX_VALUE }?.let(::releaseTimer)
     }
 
-    suspend fun <T> withConnection(work: suspend (BedJetLink) -> T): T {
-        val link = acquire()
+    /** [releaseAfterMs] is how long the connection stays once nobody needs it; a background read lets go at once. */
+    suspend fun <T> withConnection(releaseAfterMs: Long = graceMs, work: suspend (BedJetLink) -> T): T {
+        val link = acquire(releaseAfterMs)
         try {
             return work(link)
         } finally {
-            releaseLater()
+            releaseLater(releaseAfterMs)
         }
     }
 
@@ -102,19 +103,19 @@ class LinkSessions(
      * Connects (if needed) and keeps the connection until a matching [releaseLater]. On failure or cancellation
      * nothing is held. While the BedJet is released for another phone, this throws [BedJetError.NotConnected].
      */
-    suspend fun acquire(): BedJetLink {
+    suspend fun acquire(releaseAfterMs: Long = graceMs): BedJetLink {
         val link = hold()
         try {
             if (isReleased()) throw BedJetError.NotConnected(RELEASED)
             connect(link)
         } catch (e: Throwable) {
-            releaseLater()
+            releaseLater(releaseAfterMs)
             throw e
         }
         return link
     }
 
-    fun releaseLater() {
+    fun releaseLater(releaseAfterMs: Long = graceMs) {
         scope.launch {
             lock.withLock {
                 holders = maxOf(0, holders - 1)
@@ -126,7 +127,7 @@ class LinkSessions(
                 connects.forEach { it.cancel() }
                 release?.cancel()
                 release = scope.launch {
-                    delay(graceMs)
+                    delay(releaseAfterMs)
                     lock.withLock { if (holders == 0) { held?.disconnect(); held = null } }
                 }
             }

@@ -38,7 +38,7 @@ class RuntimeDeliveryTest {
         graph.actions.confirmMs = 1
     }
     private fun alarm(hours: Long) {
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + hours * 3600000, null),
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + hours * 3600000, io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 99, Intent("test"), PendingIntent.FLAG_IMMUTABLE))
     }
     @Test fun clearingEqualTimeOverrideFollowsSubsequentAlarmChange() = runBlocking {

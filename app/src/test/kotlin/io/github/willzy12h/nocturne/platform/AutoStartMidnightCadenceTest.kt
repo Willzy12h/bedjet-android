@@ -40,7 +40,7 @@ class AutoStartMidnightCadenceTest : PlatformGraphFixture() {
             platform = it.platform.copy(autoStart = AutoStartSettings(enabled = true, mode = AutoStartMode.BEFORE_WAKE,
                 profileId = profile.id, deviceId = device, minutesBeforeWake = 480))) }
         val alarms = context.getSystemService(AlarmManager::class.java)
-        alarms.setAlarmClock(AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T08:00:00Z").toEpochMilli(), null),
+        alarms.setAlarmClock(AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T08:00:00Z").toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 924, Intent("test.midnight.alarm"), PendingIntent.FLAG_IMMUTABLE))
         shadowOf(RuntimeEnvironment.getApplication()).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         graph.actions.confirmMs = 1

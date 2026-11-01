@@ -120,6 +120,14 @@ Use this with [DEVICE-VALIDATION.md](DEVICE-VALIDATION.md). Keep physical Off wi
 | Controls layouts (acceptance.2) | Place Controls at 2 × 2, 2 × 3, 3 × 3, 4 × 3, 4 × 4 and 4 × 5. Each matches the agreed layout, labels are not cut short, and while a night runs its profile button is ringed and the 4-wide card shows the plan bar. | NOT RUN |
 | Widget setup links | "Edit presets in Nocturne" on both setup screens opens Tonight's quick preset editor. | NOT RUN |
 | First-run order | A fresh install asks for Nearby devices before pairing, and the picker scans by itself. | NOT RUN |
+| Alarm app in setup (acceptance.3) | The setup card shows "Choose your alarm app" until a choice is made, on the existing install too. Each choice saves and Settings → Alarms shows it. | NOT RUN |
+| Calendar alarm ignored | With a calendar or reminder alarm due before the clock alarm, Tonight says it is from that app and not used, and uses the profile's wake time. It does not move a running night. | NOT RUN |
+| Only one app | Choosing Only Samsung Clock (or Google Clock) ignores the other clock's alarm. No alarms makes every profile use its own wake time. | NOT RUN |
+| Tonight alarm line | Tapping the underlined line opens the alarm choice with "Use a fixed wake time for …" and "Change tonight's wake time"; each does what it says. | NOT RUN |
+| Profile editor | Wake with my alarm and the wake time are at the top of the editor. | NOT RUN |
+| Wake change continues | During Turbo, a Quiet settle and late in the Middle, change the wake time. The BedJet stays on the same step and carries on; nothing jumps back or ahead. | NOT RUN |
+| Widget read time | The widget shows "Read hh:mm" and the time matches the last read. | NOT RUN |
+| Widget battery | Overnight away from the BedJet with a Controls widget placed, Nocturne's battery use stays low and no read runs while the screen is off. | NOT RUN |
 
 ## Feedback from the first install (done in `0.3.0-acceptance.2`)
 
@@ -168,7 +176,7 @@ Also fixed while running the gate: the alarm-settings refresh from item 4 wrote 
 
 No changes are needed to Appearance. Health Connect import worked on the device and the Sleep page reads well with real data.
 
-## Feedback on `0.3.0-acceptance.2` (to do)
+## Feedback on `0.3.0-acceptance.2` (done in `0.3.0-acceptance.3`)
 
 14. **Tonight used a 09:00 calendar event as the wake alarm.** Reported 31 October 2026. The owner has earlier clock alarms, but Tonight picked up a 09:00 alarm that came from the calendar.
 
@@ -192,4 +200,39 @@ No changes are needed to Appearance. Health Connect import worked on the device 
 
 17. **The calendar alarm can also move a running night.** A night that follows the alarm re-times itself when the phone's next alarm changes, using the same acceptance rule as item 14. So an earlier alarm from a calendar that doesn't name itself could move tonight's wake-up. Item 14's fix covers this too, and it needs a test of its own.
 
-Not yet checked on a device: the background widget read's battery use, and what it does when another phone or the BedJet app holds the BedJet's connection (the read should simply fail and try again 15 minutes later).
+18. **"Tap to change" didn't show how to switch a profile between a fixed wake time and the alarm.** Reported 1 November 2026. The Tonight line opened Settings, which didn't help.
+
+Owner decisions (1 November 2026): the person chooses their alarm app in first-time setup and can change it later in Settings and from Tonight; a wake change should "just continue"; the widget shows the read time; item 17 is handled with item 14. The BedJet app being locked out while Nocturne holds the connection is expected. App battery use overnight was 0.4% and needs no change; the widgets' use when away from the BedJet was investigated (below).
+
+### What was built for this feedback
+
+| Item | Change |
+| --- | --- |
+| 14 | New **Alarms from** choice: *Any clock app* (default; Google Clock, Samsung Clock and the clock apps found on the phone through the set-alarm and show-alarms actions), *Only &lt;app&gt;*, or *No alarms* (every profile uses its own wake time). It is offered on the setup card until made, in Settings → Alarms, and from Tonight. Alarms from an app Android doesn't name are never used: the "from any app" switch is gone, and the saved value is turned off on load, on every save and on restore, including on the current install. The old "Use alarms from X" button, which could add a calendar, is gone. Tonight says which app set an ignored alarm, by its name where Android shows it ("from Calendar, not your alarm app"); a `<queries>` entry for calendar apps makes their names visible. Samsung's extra clock package names still count only when the phone reports them as a clock app, so display identification never widens acceptance. |
+| 15 | `PlanCompiler.replan` carries the night on: the rest of a running Turbo and every unfinished Start step is kept, the rest of a Quiet settle is kept, and the Middle continues from the current temperature and fan to its end values over the new remaining time. `NightRunner.resume` and re-applying a profile on purpose still drop a running Turbo; that is unchanged. Tests: `WakeChangeContinuesTest` (every built-in profile at 3–400 minutes, wake moved −45, +30 and +90 minutes). |
+| 16 | The widget shows the time of the last read ("Read 01:42", or "Sat 23:10" from another day). |
+| 17 | A running night re-times through the same `AlarmPolicy`, so a calendar or unnamed alarm can't move it. Test: `AlarmAppChoiceTest`. |
+| 18 | Tapping the Tonight alarm line opens the alarm choice, with "Use a fixed wake time for &lt;profile&gt;" (opens the editor) and "Change tonight's wake time". The line is underlined in the accent colour. In the profile editor, Timing (bedtime, **Wake with my alarm**, the fixed wake time and days) is now at the top, and the switch says what on and off do. |
+
+### Widget battery
+
+The 15-minute background read cost far more when the BedJet was out of range. Each read tried a direct connection three times (12 seconds each, plus back-off), so about 40 seconds of Bluetooth every 15 minutes, roughly an hour a day. In range, each read connected twice and held the connection for 30 seconds afterwards.
+
+Now each read:
+- is skipped while the screen is off (nobody sees the widget then);
+- makes one connection attempt within a 15-second budget, with no second connection for the fresh report;
+- disconnects straight after the read;
+- backs off when the BedJet isn't found: the next read waits 30 minutes, then 1 hour, then 2 hours. A successful read or opening the app resets it.
+
+Not yet checked on a device: the widgets' battery use with these changes.
+
+### Proposed widget sleep behaviour (awaiting the owner's answers)
+
+Owner feedback (1 November 2026): the widget should look clearly disconnected when the BedJet isn't reachable, stay asleep until the app connects again, stop after a force stop, and never leave the owner waiting hours after getting home. Proposed, not built:
+
+1. An **Asleep** look: dimmed, "BedJet not nearby", "Last seen hh:mm", presets greyed, **Off always usable**, and a **Check now** button.
+2. After three misses (30 minutes, 1 hour, 2 hours) background reads stop until the app connects, Check now is tapped or a widget button is used. Background reads only start once the app has connected at least once.
+3. Optional: Android's companion-device presence (Android 12+) wakes the widget when the BedJet comes into range, at system-level battery cost. Needs a one-time prompt and Nocturne does not use CompanionDeviceManager today, so this needs new device-association work.
+4. Force stop: Android cancels the app's scheduled jobs; add a test and show the Asleep look until the app is opened.
+
+Open questions for the owner: approve 1, 2 and 4; whether to add 3; whether a greyed preset tries to send when tapped.

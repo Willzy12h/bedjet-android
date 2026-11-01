@@ -34,7 +34,7 @@ class P8ConsumedSettingsRequestTest {
                 it.copy(wakeSource = it.wakeSource.copy(useAlarm = true, defaultWakeMinute = 7 * 60))
             }
             graph.repository.saveProfile(profile)
-            graph.repository.updateSettings { it.chooseTonight(profile.id, graph.now()).copy(acceptUnknownAlarmSource = false) }
+            graph.repository.updateSettings { it.chooseTonight(profile.id, graph.now()) }
         }
         val app = RuntimeEnvironment.getApplication() as App
         val operation = PendingIntent.getBroadcast(app, 91, Intent("test.alarm.settings"), PendingIntent.FLAG_IMMUTABLE)
@@ -50,15 +50,16 @@ class P8ConsumedSettingsRequestTest {
     } }
     @get:Rule val rules = RuleChain.outerRule(timezone).around(ui.rules)
 
-    @Test fun handledAlarmLinkDoesNotReopenWhenReturningToSettings() {
+    @Test fun handledAlarmLinkDoesNotReopenWhenReturningToTonight() {
         ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").performScrollTo().assertIsDisplayed().performClick()
-        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms), ignoreCase = true).performScrollTo().assertIsDisplayed()
-        ui.compose.onNodeWithTag("settings-back").performScrollTo().performClick()
-        ui.compose.onNodeWithTag("settings-page-night").assertExists()
-        ui.tab(ui.s(R.string.tab_tonight))
+        ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
+        ui.compose.onNodeWithText(ui.s(R.string.alarm_apps_done)).performClick()
+        ui.compose.onNodeWithTag("alarm-apps-dialog").assertDoesNotExist()
         ui.tab(ui.s(R.string.tab_settings))
-        ui.compose.onNodeWithTag("settings-page-night").assertExists()
-        ui.compose.onNodeWithText(ui.s(R.string.settings_alarms), ignoreCase = true).assertDoesNotExist()
+        ui.tab(ui.s(R.string.tab_tonight))
+        ui.compose.onNodeWithTag("alarm-apps-dialog").assertDoesNotExist()
+        ui.compose.activityRule.scenario.recreate()
+        ui.compose.onNodeWithTag("alarm-apps-dialog").assertDoesNotExist()
     }
     @Test fun handledSetupRequestDoesNotNavigateAgainAfterRecreation() {
         ui.tab("Settings")

@@ -181,7 +181,7 @@ private fun readableImportTime(value: String): String = runCatching {
     "setupFanCheckedDevice" -> R.string.import_setting_setup_check
     "rememberedBedJets" -> R.string.import_setting_remembered
     "demoTargetMigrated" -> R.string.import_setting_pairing
-    "alarmPackages" -> R.string.import_setting_alarm_apps
+    "alarmPackages", "alarmApps", "alarmAppsChosen" -> R.string.import_setting_alarm_apps
     "themeMode" -> R.string.import_setting_theme
     "scheduledDarkMinute" -> R.string.import_setting_dark_from
     "scheduledLightMinute" -> R.string.import_setting_light_from

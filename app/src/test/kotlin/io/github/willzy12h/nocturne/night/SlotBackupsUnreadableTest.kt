@@ -117,7 +117,7 @@ class SlotBackupsUnreadableTest {
         val requestedWakeAt = at.atZone(ZoneId.systemDefault())
         val warning = context.getString(R.string.runtime_retime_request_context, Format.clock(requestedWakeAt),
             context.getString(R.string.settings_demo), refusal())
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toEpochMilli(), null), fire)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)), fire)
         assertEquals(OutcomeKind.LOCAL, first.actions.submitAlarmChange().kind)
         assertTrue(retryScheduled())
 

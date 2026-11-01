@@ -1163,11 +1163,9 @@ class RetimeNotificationTest {
 
     @Test fun aQueuedSourcePolicyChangeWarnsAboutTheWakeActuallyPreparedForTheRetry() = runBlocking {
         val night = start()
-        graph.repository.updateSettings { it.copy(acceptUnknownAlarmSource = true) }
-        alarm(8, null)
-        val unknown = io.github.willzy12h.nocturne.night.AlarmSource.describe(app, graph.repository.settings.value)!!
-        assertNull("No show intent means Android supplied no creator metadata", unknown.creator)
-        assertTrue("The queued null-source alarm must initially be accepted", unknown.counts)
+        alarm(8)
+        val accepted = io.github.willzy12h.nocturne.night.AlarmSource.describe(app, graph.repository.settings.value)!!
+        assertTrue("The queued clock alarm must initially be accepted", accepted.counts)
         unreachable = true
         assertEquals(OutcomeKind.LOCAL, graph.actions.submitAlarmChange().kind)
         assertEquals(OutcomeKind.FAILED, retryService().kind)
@@ -1175,7 +1173,9 @@ class RetimeNotificationTest {
         assertNotNull("The original accepted alarm has a resolved requested wake", queued.requestedWakeAt)
         assertEquals(night, graph.repository.activeNight.value)
 
-        assertEquals(OutcomeKind.LOCAL, graph.actions.updateSettings { it.copy(acceptUnknownAlarmSource = false) }.kind)
+        // The person turns alarms off while the retry is queued.
+        assertEquals(OutcomeKind.LOCAL, graph.actions.updateSettings {
+            it.copy(alarmApps = io.github.willzy12h.nocturne.core.store.AlarmApps.NONE) }.kind)
         unreachable = false
         val count = writes
         beforeSend = { if (it.contentEquals(Codec.startProgram(night.slot))) throw BedJetError.NotConnected() }

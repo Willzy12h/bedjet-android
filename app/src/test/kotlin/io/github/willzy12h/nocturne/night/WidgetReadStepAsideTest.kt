@@ -9,7 +9,6 @@ import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,14 +40,14 @@ class WidgetReadStepAsideTest {
     @Test fun demoNeverReadsInTheBackground() = runBlocking {
         val graph = graph()
         graph.repository.updateSettings { it.copy(demoMode = true, targetDevice = "AA:BB:CC:DD:EE:FF") }
-        assertFalse(graph.actions.readForWidget())
+        assertEquals(WidgetRead.STEPPED_ASIDE, graph.actions.readForWidget())
         assertEquals(0, connects); assertEquals(0, writes)
     }
 
     @Test fun noTargetMeansNoRead() = runBlocking {
         val graph = graph()
         graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = null) }
-        assertFalse(graph.actions.readForWidget())
+        assertEquals(WidgetRead.STEPPED_ASIDE, graph.actions.readForWidget())
         assertEquals(0, connects); assertEquals(0, writes)
     }
 
@@ -59,7 +58,7 @@ class WidgetReadStepAsideTest {
         graph.sessions.holdForScreen(true)
         try {
             val before = connects
-            assertFalse(graph.actions.readForWidget())
+            assertEquals(WidgetRead.STEPPED_ASIDE, graph.actions.readForWidget())
             assertEquals(before, connects)
         } finally { graph.sessions.holdForScreen(false) }
         assertEquals(0, writes)

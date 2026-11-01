@@ -195,17 +195,22 @@ class NightActions(private val graph: Graph) {
      * while the BedJet is released for another phone, during an import and while the owner is busy. It writes
      * nothing and reports no outcome; the report reaches the widgets the way every report does.
      */
-    suspend fun readForWidget(): Boolean {
+    suspend fun readForWidget(): WidgetRead {
         val settings = repo.settings.value
-        if (settings.demoMode || settings.deviceId() == null || graph.sessions.hasStatusDemand || graph.sessions.released.value) return false
-        val admission = repo.operationAdmission.tryCommand() ?: return false
+        if (settings.demoMode || settings.deviceId() == null || graph.sessions.hasStatusDemand || graph.sessions.released.value)
+            return WidgetRead.STEPPED_ASIDE
+        val admission = repo.operationAdmission.tryCommand() ?: return WidgetRead.STEPPED_ASIDE
         try {
             val owner = Any()
-            if (!lock.tryLock(owner)) return false
+            if (!lock.tryLock(owner)) return WidgetRead.STEPPED_ASIDE
             try {
-                return withTimeoutOrNull(OPERATION_MS) { connected { freshReport(requireProgress = false); true } } ?: false
+                // Battery: one short try, the report the connection already streams rather than a second
+                // connection, and the BedJet let go as soon as the read is done.
+                return withTimeoutOrNull(WIDGET_READ_MS) {
+                    connected(releaseAfterMs = 0) { freshReport(requireProgress = false, reconnect = false); WidgetRead.READ }
+                } ?: WidgetRead.NOT_REACHED
             } catch (e: CancellationException) { throw e
-            } catch (_: Exception) { return false
+            } catch (_: Exception) { return WidgetRead.NOT_REACHED
             } finally { try { drainLocalSafely() } finally { lock.unlock(owner) } }
         } finally { admission.close() }
     }
@@ -295,12 +300,13 @@ class NightActions(private val graph: Graph) {
         Command.RESUME -> repo.runtime.value.resumeOffer?.night?.slot
         else -> null
     })
-    private suspend fun <T> connected(work: suspend () -> T): T {
+    private suspend fun <T> connected(releaseAfterMs: Long? = null, work: suspend () -> T): T {
         check(repo.settings.value.deviceId() != null) { text(R.string.runtime_choose_target) }
         val radio = currentCoroutineContext()[BluetoothAdmission]
         if (radio != null) radio.admit()
         else io.github.willzy12h.nocturne.ble.BluetoothAvailability.requireEnabled(context)
-        return graph.sessions.withConnection { work() }
+        return if (releaseAfterMs == null) graph.sessions.withConnection { work() }
+            else graph.sessions.withConnection(releaseAfterMs) { work() }
     }
     /** A newly displaced programme gets a new choice. Manual-only adjustments, including after tracking ended,
      * preserve its valid choice and expiry; programme replacement/reapply/resume and target changes supersede it. */
@@ -1344,14 +1350,20 @@ class NightActions(private val graph: Graph) {
         CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_manual_tracking))
     }
     private suspend fun freshStatus(requireProgress: Boolean = true): DeviceStatus = freshReport(requireProgress).status
-    private suspend fun freshReport(requireProgress: Boolean = true): SourcedStatus {
-        // Reconnect under whole-command ownership. Existing READY status may predate this operation.
+    /**
+     * The chosen BedJet's next report. Commands reconnect first, under whole-command ownership, because an existing
+     * READY status may predate the operation. A read-only background read passes [reconnect] false: the connection
+     * it holds streams reports by itself, so a report received after this call is just as fresh.
+     */
+    private suspend fun freshReport(requireProgress: Boolean = true, reconnect: Boolean = true): SourcedStatus {
         val target = repo.settings.value.deviceId()
         // Default links stamp their cached snapshot lazily; observe it before the read's receipt boundary.
         graph.link.latestSourcedStatus()
         val receivedAfter = StatusReceiptOrder.next()
-        graph.link.disconnect()
-        graph.link.connect()
+        if (reconnect) {
+            graph.link.disconnect()
+            graph.link.connect()
+        }
         // Only the chosen BedJet's own report counts: one from a session still on another unit says nothing about it.
         // A status that never arrives is a failed attempt with nothing written. Only this wait's own timeout is turned
         // into that: a cancellation from outside, such as the owner's budget running out, still cancels.
@@ -2184,6 +2196,8 @@ class NightActions(private val graph: Graph) {
     private fun clock(iso: String) = ZonedDateTime.parse(iso).format(DateTimeFormatter.ofPattern("HH:mm"))
     companion object {
         const val OPERATION_MS = 90_000L
+        /** A background widget read's whole budget: one connection attempt and its first report, no retries. */
+        const val WIDGET_READ_MS = 15_000L
         /** The least of [OPERATION_MS] a hardware request must have left once it holds the lock (IR-11). */
         const val MIN_BUDGET_MS = 30_000L
         private val TIMED_MANUAL = setOf(Command.SNOOZE_WARM, Command.SNOOZE_COOL, Command.EXTEND_WARM, Command.EXTEND_COOL)
@@ -2213,4 +2227,14 @@ class NightActions(private val graph: Graph) {
             Command.TEMPORARY -> R.string.runtime_command_temporary
         })
     }
+}
+
+/** How a background widget read went. Only [NOT_REACHED] counts towards reading less often. */
+enum class WidgetRead {
+    /** A fresh report arrived. */
+    READ,
+    /** Another holder, demo, a release for another phone or a busy owner: nothing was tried. */
+    STEPPED_ASIDE,
+    /** The BedJet did not answer in time: out of range, off, or Bluetooth unavailable. */
+    NOT_REACHED,
 }

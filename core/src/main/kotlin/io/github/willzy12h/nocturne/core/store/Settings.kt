@@ -26,6 +26,17 @@ enum class Palette(val dark: Boolean) {
     MIDNIGHT_INK(true), FOREST(true), GRAPHITE(true), PLUM(true), AUTUMN_RUST(true), WINTER_STORM(true), OVERCAST(false)
 }
 
+/** Where wake-up alarms may come from. Alarms from calendars, reminders and other apps are never used. */
+@Serializable
+enum class AlarmApps {
+    /** Any clock app on the phone; [Settings.alarmPackages] holds the clock apps found on it. */
+    CLOCK_APPS,
+    /** Only the one clock app in [Settings.alarmPackages]. */
+    ONE_APP,
+    /** No alarms: every profile uses its own wake time. */
+    NONE,
+}
+
 @Serializable
 data class Settings(
     /** BedJet slot (0-based) that tonight's plan is written into. */
@@ -34,7 +45,11 @@ data class Settings(
     val selectedProfileId: String? = null,
     val tonightChoice: TonightChoice? = null,
     val tonightOverride: TonightOverride? = null,
-    /** Android sometimes omits the alarm creator; accepted by default for backwards compatibility. */
+    /**
+     * Android sometimes omits the alarm creator. Retired in 0.3.0-acceptance.3: the app turns it off on load and on
+     * every save, because an alarm from an unidentified app moved a night to a calendar reminder. Kept so older
+     * settings and backups still read, and so a core caller can still state it.
+     */
     val acceptUnknownAlarmSource: Boolean = true,
     /** Up to three, in the order they appear on the notification. */
     val notificationActions: List<WakeAction> = listOf(WakeAction.SNOOZE_WARM, WakeAction.EXTEND_COOL, WakeAction.OFF),
@@ -56,6 +71,10 @@ data class Settings(
     val setupFanCheckedDevice: String? = null,
     /** Alarms set by these apps move the wake-up; others (calendar reminders, timers) don't. */
     val alarmPackages: Set<String> = setOf("com.google.android.deskclock", "com.sec.android.app.clockpackage"),
+    /** Which apps' alarms count; see [AlarmApps]. */
+    val alarmApps: AlarmApps = AlarmApps.CLOCK_APPS,
+    /** True once the person has chosen [alarmApps] themselves, in setup or Settings. */
+    val alarmAppsChosen: Boolean = false,
     // Appearance. Defaults keep older saved settings and backups loading unchanged.
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** The palette used while [themeMode] means dark, and while it means light. */
@@ -118,6 +137,8 @@ data class Settings(
             }
         }
     }
+    /** Alarms from an app Android does not name are never used (see [acceptUnknownAlarmSource]). */
+    fun withoutUnidentifiedAlarms(): Settings = if (acceptUnknownAlarmSource) copy(acceptUnknownAlarmSource = false) else this
     fun setWakeOverride(wakeAt: ZonedDateTime, at: ZonedDateTime): Settings =
         copy(tonightOverride = TonightOverride(wakeAt.toString(), at.toString()))
     fun clearWakeOverride(): Settings = copy(tonightOverride = null)

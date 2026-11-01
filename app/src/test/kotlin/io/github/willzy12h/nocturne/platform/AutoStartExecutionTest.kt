@@ -46,7 +46,7 @@ class AutoStartExecutionTest : PlatformGraphFixture() {
         PlatformNotifications.channel(context)
         return graph
     }
-    private fun alarm(at: String, creator: String? = null) {
+    private fun alarm(at: String, creator: String? = "com.google.android.deskclock") {
         val fire = PendingIntent.getBroadcast(context, 922, Intent("test.auto.alarm"),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         if (creator != null) shadowOf(fire).setCreatorPackage(creator)

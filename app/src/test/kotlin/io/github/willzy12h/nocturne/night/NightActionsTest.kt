@@ -85,7 +85,7 @@ class NightActionsTest {
         // No creator package, so it counts as the clock app's alarm.
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
         val at = graph.now().plusHours(5).withSecond(0).withNano(0)
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), null), fire)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)), fire)
 
         graph.actions.perform(Command.RETIME)
 

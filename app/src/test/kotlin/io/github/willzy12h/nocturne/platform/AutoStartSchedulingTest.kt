@@ -76,7 +76,7 @@ class AutoStartSchedulingTest : PlatformGraphFixture() {
         val profile = graph.repository.profiles.value.first()
         graph.repository.saveProfile(profile.copy(wakeSource = profile.wakeSource.copy(useAlarm = false)))
         val alarm = context.getSystemService(AlarmManager::class.java)
-        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T07:30:00Z").toEpochMilli(), null),
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T07:30:00Z").toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 919, Intent("test.next-alarm"), PendingIntent.FLAG_IMMUTABLE))
         explicit(graph, mode = "BEFORE_WAKE")
         ChargerJobs.sync(graph)

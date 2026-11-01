@@ -88,7 +88,7 @@ class SaveOrderingTest {
     }
 
     @Test
-    fun trustingAnAlarmAppUpdatesTheNextAlarmAtOnce() {
+    fun choosingAnAlarmAppUpdatesTheNextAlarmAtOnce() {
         val context = compose.activity.applicationContext
         // Created by this app, which isn't one of the allowed clock apps.
         val show = PendingIntent.getActivity(context, 0, Intent(), PendingIntent.FLAG_IMMUTABLE)
@@ -100,7 +100,7 @@ class SaveOrderingTest {
         val creator = model.nextAlarm.value!!.creator!!
         assertFalse(model.nextAlarm.value!!.counts)
 
-        compose.runOnUiThread { model.useAlarmsFrom(creator) }
+        compose.runOnUiThread { model.chooseAlarmApps(io.github.willzy12h.nocturne.core.store.AlarmApps.ONE_APP, creator) }
 
         idleUntil { creator in graph.repository.settings.value.alarmPackages }
         // Once saved, the next alarm shown follows the saved setting without another refresh.

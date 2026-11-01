@@ -33,12 +33,13 @@ class P8EditorSheetsTest {
         } }
         ui.compose.waitForIdle()
     }
-    @Test fun phaseGroupsPrecedeTimingAndLimits() {
+    /** Since 0.3.0-acceptance.3 Timing (with Wake with my alarm) comes first, before the phases and limits. */
+    @Test fun timingPrecedesPhaseGroupsAndLimits() {
         show()
         val phase = ui.compose.onNodeWithTag("editor-phase-START-0").fetchSemanticsNode().positionInRoot.y
         val timing = ui.compose.onNodeWithText(ui.s(R.string.editor_timing)).fetchSemanticsNode().positionInRoot.y
         val limits = ui.compose.onNodeWithText(ui.s(R.string.editor_limits)).fetchSemanticsNode().positionInRoot.y
-        assertTrue(phase < timing && timing < limits)
+        assertTrue(timing < phase && phase < limits)
     }
     @Test fun middleSheetRetainsDraftAfterDone() {
         show()

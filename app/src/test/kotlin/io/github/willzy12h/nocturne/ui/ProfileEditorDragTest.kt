@@ -45,6 +45,9 @@ class ProfileEditorDragTest {
             }
         } }
         ui.compose.waitForIdle()
+        // Timing sits above the phases (0.3.0-acceptance.3): bring the whole Start list into view, first row at the top.
+        row(phases.lastIndex).performScrollTo()
+        row(0).performScrollTo()
     }
 
     private fun row(index: Int) = ui.compose.onNodeWithTag("editor-phase-START-$index")

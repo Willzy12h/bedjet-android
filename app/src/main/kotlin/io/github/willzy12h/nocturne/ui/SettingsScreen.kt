@@ -333,16 +333,19 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                     )
                 }
             }
-            if (next?.creator != null && !next.counts) {
-                FilledTonalButton(onClick = { model.useAlarmsFrom(next.creator!!) }) {
-                    Text(stringResource(R.string.settings_use_alarms_from, next.creator.orEmpty()))
+            HorizontalDivider(color = paletteTokens.hairline)
+            // Where alarms come from: one clear row and one button, the same choice setup offered.
+            var choosingAlarmApps by remember { mutableStateOf(false) }
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.alarm_apps_row), color = paletteTokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(alarmAppsSummary(settings), color = paletteTokens.ink2, fontSize = 14.sp, modifier = Modifier.testTag("alarm-apps-summary"))
+                }
+                FilledTonalButton(onClick = { choosingAlarmApps = true }, modifier = Modifier.heightIn(min = 48.dp).testTag("alarm-apps-change")) {
+                    Text(stringResource(R.string.alarm_apps_change))
                 }
             }
-            HorizontalDivider(color = paletteTokens.hairline)
-            SwitchRow(stringResource(R.string.settings_unknown_alarm_sources),
-                stringResource(R.string.settings_unknown_alarm_sources_help), settings.acceptUnknownAlarmSource) { on ->
-                model.updateSettings { it.copy(acceptUnknownAlarmSource = on) }
-            }
+            if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false })
             HorizontalDivider(color = paletteTokens.hairline)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 AccentLink(stringResource(R.string.recovery_recheck_alarm), model::recheckAlarm, fontSize = 14.sp)
@@ -526,7 +529,8 @@ private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
             stringResource(R.string.parity_settings_slot, bedjetState, slot), R.drawable.ic_nc_bt, tokens.cool)),
         listOf(SettingsDestination("night", stringResource(R.string.settings_nav_night),
                 stringResource(R.string.parity_settings_night,
-                    stringResource(if (settings.alarmPackages.isEmpty()) R.string.parity_settings_alarm_ignored else R.string.parity_settings_clock_alarm),
+                    stringResource(if (settings.alarmApps == io.github.willzy12h.nocturne.core.store.AlarmApps.NONE || settings.alarmPackages.isEmpty())
+                        R.string.parity_settings_alarm_ignored else R.string.parity_settings_clock_alarm),
                     stringResource(if (autoStart) R.string.parity_settings_on else R.string.parity_settings_off).lowercase()), R.drawable.ic_nc_alarm),
             SettingsDestination("appearance", stringResource(R.string.settings_nav_appearance),
                 "${stringResource(themeName(settings.themeMode))} · $palettes", R.drawable.ic_nc_sun),

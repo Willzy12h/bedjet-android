@@ -16,7 +16,9 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /** ELIGIBLE describes the current candidate, never proof that a running BedJet has applied it. */
-enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED, OUTSIDE_WINDOW, PROFILE_ALARMS_OFF, OVERRIDE, NO_PROFILE, TEST_RUN, AUTO_START }
+enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED, OUTSIDE_WINDOW, PROFILE_ALARMS_OFF, OVERRIDE, NO_PROFILE, TEST_RUN, AUTO_START,
+    /** "No alarms" is chosen in Settings: every profile uses its own wake time. */
+    ALARMS_OFF }
 enum class WakeExplanationState { PREVIEW, SAVED, PENDING, FAILED, UNKNOWN, MANUAL }
 enum class AlarmSettingsTarget { ALARM_SOURCES, PROFILE_WAKE, TONIGHT_WAKE }
 
@@ -51,6 +53,7 @@ data class AlarmExplanation(
                 origin == WakeOrigin.AUTO_START -> AlarmReason.AUTO_START
                 effectiveProfile == null -> AlarmReason.NO_PROFILE
                 !effectiveProfile.wakeSource.useAlarm -> AlarmReason.PROFILE_ALARMS_OFF
+                settings.alarmApps == io.github.willzy12h.nocturne.core.store.AlarmApps.NONE -> AlarmReason.ALARMS_OFF
                 alarm == null -> AlarmReason.NO_ALARM
                 sourceAccepted == false && alarm.creator == null -> AlarmReason.UNKNOWN_SOURCE
                 sourceAccepted == false -> AlarmReason.SOURCE_NOT_ALLOWED
@@ -99,7 +102,10 @@ fun alarmSourceName(context: Context, creator: String?): String = when (creator)
     in samsungClockPackages -> context.getString(R.string.alarm_source_samsung_clock)
     "com.google.android.deskclock" -> context.getString(R.string.alarm_source_google_clock)
     null, "", "android" -> context.getString(R.string.uat_alarm_unidentified)
-    else -> creator
+    // The app's own name where Android lets us see it (clock and calendar apps are declared in the manifest).
+    else -> runCatching {
+        context.packageManager.run { getApplicationLabel(getApplicationInfo(creator, 0)).toString() }.ifBlank { creator }
+    }.getOrDefault(creator)
 }
 
 fun AlarmExplanation.description(context: Context): String {
@@ -107,19 +113,22 @@ fun AlarmExplanation.description(context: Context): String {
     val wake = wakeAt.clock()
     val next = alarm?.time.clock()
     val source = alarmSourceName(context, alarm?.identifiedCreator)
-    fun ignored(): String = text(R.string.alarm_source_ignored, next, text(when (reason) {
-        AlarmReason.UNKNOWN_SOURCE -> R.string.alarm_source_reason_unknown
-        AlarmReason.SOURCE_NOT_ALLOWED -> R.string.alarm_source_reason_not_allowed
-        AlarmReason.OUTSIDE_WINDOW -> if (alarm!!.time.isBefore(nightStart.plus(WakeResolver.MIN_NIGHT)))
-            R.string.alarm_source_reason_too_soon else R.string.alarm_source_reason_too_late
-        AlarmReason.PROFILE_ALARMS_OFF -> R.string.alarm_source_reason_profile_off
-        AlarmReason.OVERRIDE -> R.string.alarm_source_reason_override
+    fun ignored(): String = text(R.string.alarm_source_ignored, next, when (reason) {
+        AlarmReason.UNKNOWN_SOURCE -> text(R.string.alarm_source_reason_unknown)
+        // Name the app, so a stray alarm from a calendar or reminder app is easy to place.
+        AlarmReason.SOURCE_NOT_ALLOWED -> text(R.string.alarm_source_reason_other_app, source)
+        AlarmReason.ALARMS_OFF -> text(R.string.alarm_source_reason_alarms_off)
+        AlarmReason.OUTSIDE_WINDOW -> text(if (alarm!!.time.isBefore(nightStart.plus(WakeResolver.MIN_NIGHT)))
+            R.string.alarm_source_reason_too_soon else R.string.alarm_source_reason_too_late)
+        AlarmReason.PROFILE_ALARMS_OFF -> text(R.string.alarm_source_reason_profile_off)
+        AlarmReason.OVERRIDE -> text(R.string.alarm_source_reason_override)
         else -> error("Only a rejected candidate has an ignored-alarm description")
-    }))
+    })
     if (state == WakeExplanationState.PREVIEW) return when (reason) {
         AlarmReason.ELIGIBLE -> text(R.string.alarm_source_used, next, source)
         AlarmReason.NO_ALARM -> text(R.string.alarm_source_no_alarm, wake)
         AlarmReason.PROFILE_ALARMS_OFF -> if (alarm == null) text(R.string.alarm_source_profile_only, wake) else ignored()
+        AlarmReason.ALARMS_OFF -> if (alarm == null) text(R.string.alarm_source_alarms_off, wake) else ignored()
         AlarmReason.OVERRIDE -> text(R.string.alarm_source_override, wake)
         AlarmReason.NO_PROFILE -> text(R.string.alarm_source_no_profile)
         else -> ignored()

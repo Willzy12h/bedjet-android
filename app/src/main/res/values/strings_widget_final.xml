@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- How long ago the widget's BedJet status was read. -->
-    <string name="widget_read_now">Read just now</string>
-    <string name="widget_read_minutes">Read %1$d min ago</string>
-    <string name="widget_read_hours">Read %1$d h ago</string>
-    <string name="widget_age_now">Just now</string>
-    <string name="widget_age_minutes">%1$d min ago</string>
-    <string name="widget_age_hours">%1$d h ago</string>
+    <!-- When the widget's BedJet status was read, as a clock time so it stays right between redraws. -->
+    <string name="widget_read_at">Read %1$s</string>
+    <!-- A read from another day: the day, then the time, e.g. "Mon 23:10". -->
+    <string name="widget_read_day_time">%1$s %2$s</string>
     <string name="widget_read_description">%1$s. %2$s</string>
 
     <!-- The night card and line. -->

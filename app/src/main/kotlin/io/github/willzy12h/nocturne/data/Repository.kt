@@ -170,7 +170,7 @@ class Repository(
     private val _profiles = MutableStateFlow(load(PROFILES) { decode(ListSerializer(Profile.serializer()), it) } ?: Presets.all)
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
     private val settingsLoadedAt = now()
-    private val _settings = MutableStateFlow(load(SETTINGS) { decode(Settings.serializer(), it) } ?: Settings())
+    private val _settings = MutableStateFlow(load(SETTINGS) { decode(Settings.serializer(), it) } ?.withoutUnidentifiedAlarms() ?: Settings().withoutUnidentifiedAlarms())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
     // Publication signal, not persisted state: equal-value restores must still reconcile side effects.
     private val _settingsPublication = MutableStateFlow(0L)
@@ -261,7 +261,7 @@ class Repository(
         originalsLossAcceptedAt = state.originalsLossAcceptedAt
         _restoreUnfinished.value = state.restoreUnfinished
         // Switch the transport only after every flow belongs to the incoming session.
-        _settings.value = state.settings
+        _settings.value = state.settings.withoutUnidentifiedAlarms()
         _sessionRevision.value += 1
         _settingsPublication.value += 1
     }
@@ -279,7 +279,7 @@ class Repository(
                 themeMode = appearance.themeMode, nightPalette = appearance.nightPalette, dayPalette = appearance.dayPalette,
                 scheduledDarkMinute = appearance.scheduledDarkMinute,
                 scheduledLightMinute = appearance.scheduledLightMinute, alarmPackages = appearance.alarmPackages,
-                acceptUnknownAlarmSource = appearance.acceptUnknownAlarmSource,
+                acceptUnknownAlarmSource = false, alarmApps = appearance.alarmApps, alarmAppsChosen = appearance.alarmAppsChosen,
                 quickControlsCollapsed = appearance.quickControlsCollapsed, collapsedTonightSections = appearance.collapsedTonightSections,
                 tonightSectionOrder = appearance.tonightSectionOrder),
             profiles = Presets.all, history = emptyList(), originals = emptyList(), activeNight = null,
@@ -442,7 +442,7 @@ class Repository(
     suspend fun deleteProfile(id: String) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list -> list.filterNot { it.id == id } }
 
     suspend fun updateSettings(change: (Settings) -> Settings) = update(_settings, SETTINGS, Settings.serializer()) {
-        change(it).migrateTonightChoice(now()).let { changed ->
+        change(it).migrateTonightChoice(now()).withoutUnidentifiedAlarms().let { changed ->
             if (isDemoSession) changed.copy(demoMode = true, targetDevice = null, rememberedBedJets = emptyList(),
                 setupFanCheckedDevice = null) else changed
         }
@@ -771,7 +771,7 @@ class Repository(
             rememberedBedJets = current.rememberedBedJets, demoTargetMigrated = current.demoTargetMigrated,
             setupFanCheckedDevice = current.setupFanCheckedDevice,
             platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null, healthSleepExport = false,
-                autoStart = bundle.settings.platform.autoStart?.copy(enabled = false)))
+                autoStart = bundle.settings.platform.autoStart?.copy(enabled = false))).withoutUnidentifiedAlarms()
         // Tonight's record, and that of a night being ended (its end is still to be added), are kept as they are.
         val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
         val carried = _history.value.filter { it.id in tonight }

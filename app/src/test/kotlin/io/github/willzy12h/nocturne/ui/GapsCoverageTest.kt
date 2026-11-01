@@ -133,8 +133,8 @@ class GapsCoverageTest {
         val wake = ZonedDateTime.parse("2026-10-23T06:00:00Z")
         val alarm = wake.plusHours(1)
         val fire = PendingIntent.getBroadcast(compose.activity, 17, Intent("gaps-alarm"), PendingIntent.FLAG_IMMUTABLE)
-        compose.activity.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), null), fire)
-        settings { it.setWakeOverride(wake, now).copy(acceptUnknownAlarmSource = true) }
+        compose.activity.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(compose.activity)), fire)
+        settings { it.setWakeOverride(wake, now) }
         compose.runOnUiThread { model.refreshAlarm() }
         assertEquals(alarm.toInstant(), model.nextAlarm.value!!.time.toInstant())
         assertTrue("The 07:00 alarm must qualify before the tonight-only wake takes precedence", model.nextAlarm.value!!.counts)

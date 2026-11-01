@@ -79,7 +79,7 @@ class RemoteTakeoverRewriteTest {
     private fun moveAlarm(hours: Long): ZonedDateTime {
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
         val at = graph.now().plusHours(hours).withSecond(0).withNano(0)
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), null), fire)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)), fire)
         return at
     }
     private fun retryScheduled() = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms

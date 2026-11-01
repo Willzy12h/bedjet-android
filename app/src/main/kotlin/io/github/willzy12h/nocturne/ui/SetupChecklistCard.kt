@@ -111,7 +111,11 @@ internal fun SetupChecklistCard(model: AppViewModel) {
             model.updateSettings { it.copy(setupChecklistCompleted = true) }
     }
     val shown = snapshot.visible(settings, forced)
-    if (shown.isEmpty() && !forced) return
+    // The alarm choice stays on the card until the person makes it, even once the phone checks are done.
+    val alarmPending = !settings.demoMode && !settings.alarmAppsChosen
+    var choosingAlarmApps by remember { mutableStateOf(false) }
+    if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false })
+    if (shown.isEmpty() && !forced && !alarmPending) return
     fun open(intent: Intent) {
         try { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         catch (_: Exception) { note = context.getString(R.string.uat_setup_unavailable) }
@@ -158,6 +162,18 @@ internal fun SetupChecklistCard(model: AppViewModel) {
             Text(stringResource(R.string.uat_setup_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() })
             if (snapshot.requiredComplete) Text(stringResource(R.string.uat_setup_complete), style = MaterialTheme.typography.bodySmall)
+            if (alarmPending || forced) StripeTile(
+                stripe = paletteTokens.cool,
+                title = stringResource(R.string.setup_alarm_title),
+                subtitle = if (settings.alarmAppsChosen) stringResource(R.string.setup_alarm_value, alarmAppsSummary(settings))
+                    else stringResource(R.string.setup_alarm_body),
+                modifier = Modifier.fillMaxWidth().testTag("setup-alarm-apps"),
+                trailing = {
+                    OutlinedButton(onClick = { choosingAlarmApps = true }, modifier = Modifier.heightIn(min = 48.dp).testTag("setup-alarm-apps-choose")) {
+                        Text(stringResource(if (settings.alarmAppsChosen) R.string.alarm_apps_change else R.string.setup_alarm_choose))
+                    }
+                },
+            )
             shown.forEach { item ->
                 val title = stringResource(setupItemTitle(item))
                 StripeTile(
