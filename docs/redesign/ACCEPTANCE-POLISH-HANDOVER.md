@@ -180,3 +180,16 @@ No changes are needed to Appearance. Health Connect import worked on the device 
     - When the next alarm is from another app, or doesn't name its app, Tonight says so (for example "Next alarm 09:00 is from Calendar, not used") and uses the profile's saved wake time instead.
     - Limit to explain in the app: if another app's alarm is due before the clock's, Android hides the clock alarm until the earlier one has passed. In that gap Nocturne uses the saved wake time and does not guess.
 
+
+15. **Changing the wake time during a night jumps or resets the plan.** Reported 1 November 2026. Changing the wake time replans the rest of the night from now (`PlanCompiler.replan`). A host check against the built-in profiles (22:30 start, 07:00 wake, wake moved by +30 and −60 minutes) found three behaviours:
+    - **A Turbo step under way is dropped.** Winter Warm and Warm Start, Cool Night: three minutes in, the night jumps from Turbo straight to the following Heat step. If the Start section is only Turbo, the night jumps straight to the Middle. (`resume` drops a running Turbo the same way.)
+    - **A Quiet fan's settle is skipped.** Hot Sleeper, 45 minutes in: the fan drops from the settle speed (step 9) to the asleep speed (step 4) at once. The code does this on purpose ("settles once"), but it reads as skipping ahead.
+    - **The Middle ramp starts again from its beginning.** Winter Warm, 4 hours in: back from 56 to 58 with the fan from step 4 to 5. Summer Cool, about 6.5 hours in: fan from step 4 back up to 9.
+
+    **Proposed fix:** carry the night on from where it is. Keep the rest of a running Turbo (the total never exceeds the original Turbo time), finish the rest of a Quiet settle rather than cutting it, and continue the Middle ramp from the current temperature and fan to its end values over the new remaining time. Core tests for each case, using the profiles above.
+
+16. **The widget's read age stays at "Read just now".** The age text is worked out when the widget is drawn, and the widget is only redrawn when something it shows changes, so it can read "Read just now" for up to 15 minutes. **Proposed fix:** show the time of the read ("Read 01:42"), which needs no redraws.
+
+17. **The calendar alarm can also move a running night.** A night that follows the alarm re-times itself when the phone's next alarm changes, using the same acceptance rule as item 14. So an earlier alarm from a calendar that doesn't name itself could move tonight's wake-up. Item 14's fix covers this too, and it needs a test of its own.
+
+Not yet checked on a device: the background widget read's battery use, and what it does when another phone or the BedJet app holds the BedJet's connection (the read should simply fail and try again 15 minutes later).
