@@ -48,16 +48,17 @@ internal fun WidgetPresenceRow(inSetup: Boolean, onChanged: () -> Unit = {}) {
     if (!WidgetPresence.supported) return
     val context = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
-    var failed by remember { mutableStateOf(false) }
-    LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
+    var result by remember { mutableStateOf<WidgetPresence.Result?>(null) }
+    // Back from Android's prompt: take the BedJet back even if a cancelled prompt never reported.
+    LifecycleResumeEffect(Unit) { WidgetPresence.endSearchPause(context); refresh++; onPauseOrDispose { } }
     val associated = remember(refresh) { WidgetPresence.associated(context) }
     val offered = remember(refresh) { WidgetPresence.offered(context) }
     if (!associated && !offered) return
     val allow = {
-        failed = false
+        result = null
         val activity = context.activity()
-        if (activity == null) failed = true
-        else WidgetPresence.associate(activity) { ok -> failed = !ok; refresh++; onChanged() }
+        if (activity == null) result = WidgetPresence.Result.DECLINED
+        else WidgetPresence.associate(activity) { result = it; refresh++; onChanged() }
     }
     StripeTile(
         stripe = paletteTokens.accent,
@@ -71,7 +72,12 @@ internal fun WidgetPresenceRow(inSetup: Boolean, onChanged: () -> Unit = {}) {
         } },
     ) {
         Column {
-            if (failed) Text(stringResource(R.string.presence_failed), color = paletteTokens.ink2, fontSize = 14.sp)
+            if (!associated) Text(stringResource(R.string.presence_pause_note), color = paletteTokens.ink2, fontSize = 14.sp)
+            when (result) {
+                WidgetPresence.Result.DECLINED -> R.string.presence_failed
+                WidgetPresence.Result.BUSY -> R.string.presence_busy
+                else -> null
+            }?.let { Text(stringResource(it), color = paletteTokens.ink2, fontSize = 14.sp, modifier = Modifier.testTag("widget-presence-result")) }
             if (inSetup && !associated) TextButton(onClick = {
                 context.getSharedPreferences(PRESENCE_PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_SKIPPED, true) }
                 refresh++

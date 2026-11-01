@@ -215,6 +215,29 @@ class NightActions(private val graph: Graph) {
         } finally { admission.close() }
     }
 
+    /** What [pauseForPairing] did. */
+    enum class PairingPause { PAUSED, ALREADY_FREE, BUSY }
+
+    /**
+     * Lets go of the BedJet so Android's companion-device search can see it: a connected BedJet stops advertising,
+     * so the search would never find it. Nothing is sent. The release ends by itself after [forMs] should
+     * [endPairingPause] never come. A running command is never interrupted ([PairingPause.BUSY]), and a BedJet already
+     * released for another phone is left as it is ([PairingPause.ALREADY_FREE]).
+     */
+    suspend fun pauseForPairing(forMs: Long): PairingPause {
+        if (repo.settings.value.demoMode || graph.sessions.released.value) return PairingPause.ALREADY_FREE
+        val admission = repo.operationAdmission.tryCommand() ?: return PairingPause.BUSY
+        try {
+            val owner = Any()
+            if (!lock.tryLock(owner)) return PairingPause.BUSY
+            try { graph.sessions.suspendAutoConnect(graph.clock.millis() + forMs).join() } finally { lock.unlock(owner) }
+            return PairingPause.PAUSED
+        } finally { admission.close() }
+    }
+
+    /** Ends a [pauseForPairing] release: Nocturne reconnects if a screen is holding the BedJet. */
+    fun endPairingPause() = graph.sessions.resumeAutoConnect()
+
     private suspend fun owned(label: String, target: String?, minimumRemainingMs: Long = 0, retimeWork: Boolean = false,
         origin: CommandOrigin? = null, declineIfBusy: Boolean = false,
         work: suspend () -> CommandOutcome): CommandOutcome {

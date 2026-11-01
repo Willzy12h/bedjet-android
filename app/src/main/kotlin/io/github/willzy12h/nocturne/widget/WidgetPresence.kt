@@ -16,6 +16,7 @@ import androidx.annotation.RequiresApi
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.night.NightActions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -48,13 +49,41 @@ object WidgetPresence {
     /** Whether to offer the one-time prompt: Android 16+, a real BedJet chosen, not yet allowed. */
     fun offered(context: Context): Boolean = supported && address(context) != null && association(context) == null
 
+    /** How an [associate] request ended. */
+    enum class Result { ALLOWED, DECLINED, BUSY }
+
+    /** How long Nocturne stays off the BedJet at most while Android looks for it. */
+    internal const val SEARCH_PAUSE_MS = 3 * 60_000L
+
+    /** True while this search holds the BedJet released; only that release is ended here. */
+    private val searchPause = java.util.concurrent.atomic.AtomicBoolean(false)
+
     /**
-     * Asks Android once to let Nocturne see the chosen BedJet's presence. [done] gets true once it is allowed and
-     * presence is being observed, false if it was declined or failed.
+     * Asks Android once to let Nocturne see the chosen BedJet's presence. A connected BedJet stops advertising, so
+     * Nocturne first lets go of it ([NightActions.pauseForPairing]) and reconnects when Android's prompt ends.
+     * [done] runs on the main thread.
      */
-    fun associate(activity: Activity, done: (Boolean) -> Unit) {
-        if (!supported) { done(false); return }
-        associateOn36(activity, done)
+    fun associate(activity: Activity, done: (Result) -> Unit) {
+        if (!supported) { done(Result.DECLINED); return }
+        val graph = activity.graph
+        graph.scope.launch {
+            val pause = try {
+                graph.actions.pauseForPairing(SEARCH_PAUSE_MS)
+            } catch (e: CancellationException) { throw e
+            } catch (_: Exception) { NightActions.PairingPause.BUSY }
+            if (pause == NightActions.PairingPause.BUSY) { done(Result.BUSY); return@launch }
+            if (pause == NightActions.PairingPause.PAUSED) searchPause.set(true)
+            val finish = { ok: Boolean -> endSearchPause(activity); done(if (ok) Result.ALLOWED else Result.DECLINED) }
+            if (Build.VERSION.SDK_INT >= 36) associateOn36(activity, finish) else finish(false)
+        }
+    }
+
+    /**
+     * Android's prompt has closed: Nocturne takes the BedJet back if this search let go of it. Also called when the
+     * screen resumes, since a cancelled prompt may not report back.
+     */
+    fun endSearchPause(context: Context) {
+        if (searchPause.getAndSet(false)) runCatching { context.graph.actions.endPairingPause() }
     }
 
     @RequiresApi(36)

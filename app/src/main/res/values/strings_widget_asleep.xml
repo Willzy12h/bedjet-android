@@ -27,4 +27,6 @@
     <string name="presence_allow">Allow</string>
     <string name="presence_on">On. The widget wakes when your BedJet is in range.</string>
     <string name="presence_failed">Android did not allow it. You can try again.</string>
+    <string name="presence_pause_note">While Android looks for it, Nocturne lets go of your BedJet for a moment, then reconnects.</string>
+    <string name="presence_busy">Nocturne is busy with your BedJet. Try again in a moment.</string>
 </resources>
