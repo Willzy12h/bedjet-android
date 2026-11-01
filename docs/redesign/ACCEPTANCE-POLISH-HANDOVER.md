@@ -104,6 +104,18 @@ Same key as acceptance.1, so it installs over it as an update and keeps the app'
 
 It installs over acceptance.2 as an update and keeps the app's data. After the update the widget shows the asleep look until Nocturne next connects, because earlier versions did not record a first connection. Gate on `eaece10` with `docs/redesign/verification.init.gradle`: `:core:test` 339 tests, 0 failures; `:app:testDebugUnitTest` 1,913 tests, 0 failures, 43 skipped; `:app:assembleDebug` built; `:app:lintDebug` 0 errors, 6 warnings (strings already unused before this change). These are host results. Hosted CI has not been run. `WidgetProgrammeUncertaintyTest` now marks the BedJet as just read before rendering, as the app does on every report; its uncertainty assertions are unchanged.
 
+### Test APK `0.3.0-acceptance.4` (1 November 2026)
+
+| Item | Value |
+| --- | --- |
+| Built from | `ee8f90b` with `assembleRelease -PversionCode=20261083 -PversionName=0.3.0-acceptance.4`, then `zipalign -p 4` and `apksigner` |
+| Version | `0.3.0-acceptance.4`, version code `20261083` (above `20261082`) |
+| Signing | APK Signature Scheme v3, verified with `apksigner verify` |
+| Certificate SHA-256 | `fd5fa67050e21e2f7e4c6926623ba75ac8236c0f53b72d057fa15cba34f40d81`, the same test key as the earlier acceptance builds |
+| APK SHA-256 | `510ab92c2fe3533c1f793a9a00b07f2ee8983667d1b5481c30f4e667acf5121e` (5,746,806 bytes) |
+
+It installs over acceptance.3 as an update and keeps the app's data. It carries the presence search pause (`990e138`), the widget redraw fix and the Clock app names. Gate on the same source with `docs/redesign/verification.init.gradle`: `:core:test` 339 tests, 0 failures; `:app:testDebugUnitTest` 1,922 tests, 0 failures, 43 skipped; `:app:assembleDebug` built; `:app:lintDebug` 0 errors, 6 warnings (strings already unused before this work). These are host results. Hosted CI has not been run.
+
 ## Known issues
 
 - `U06RecoveryLayoutTest` has failed intermittently on earlier full runs and passed when re-run alone. It was not changed on this branch. It needs a root cause, not a retry.
@@ -253,3 +265,13 @@ What was built (`WidgetLink.kt`, `WidgetPresence.kt`, `Widgets.kt`):
 Tests: `WidgetLinkRulesTest` (states, the 08:15 / 08:45 / 09:45 / 11:45 timeline then sleep, opening the app, the presence guard, force-stop detection) and `WidgetAsleepTest` (rendered asleep widgets: grey taps send only the reconnect callback, Off keeps its own, the header and Reconnect button, the 2 × 1 wording, reconnect outcomes, sleep after four misses, force stop handled once).
 
 Not yet checked on a device: any of the above, including the Android 16 association prompt and presence events.
+
+## Feedback on `0.3.0-acceptance.3` (done in `0.3.0-acceptance.4`)
+
+Owner feedback from the first install (1 November 2026), reviewed before any change:
+
+1. **Widget stuck on "Looking for your BedJet".** Cause: the widgets subscribed to `WidgetLink.changes` (and the read time) through `collectAsState` delegates that were never read, so the subscription did nothing. Glance's `update()` on a running session only recomposes when observed state changes (`AppWidgetSession.UpdateGlanceState` reloads the widget's own state, which had not changed), so the redraw after a reconnect try was ignored and the last picture stayed. With Nocturne open, the try steps aside in under a second, well inside the session's lifetime, which is why it showed every time. The same gap could leave the widget grey while the app was connected. Fix: both widgets read the link signal (and the automation, profiles and runtime values they already meant to follow) as keys of their content, and `WidgetLink` bumps the signal on every stored change, since clearing an expired "Connecting…" changed nothing visible by the old look comparison. While Nocturne has a report from the chosen BedJet less than 2 minutes old, a grey tap now wakes the widget from that report instead of stepping aside. The live-session redraw itself cannot be exercised in Robolectric (Glance runs sessions through WorkManager); the tests cover the signal and the outcomes.
+2. **Widget presence Allow never found the BedJet** while Nocturne was connected. Owner test: releasing the BedJet by hand made Android's prompt find it. Fix in item 4 of "Widget sleep behaviour" above.
+3. **Two apps both called "Clock" in the alarm app choice.** The choice used each app's own label, and Samsung and Google both label theirs "Clock"; Tonight already used "Samsung Clock" and "Google Clock" by package. The choice now uses the same names (`alarmSourceName`), and any other apps that still share a name show their package, for example "Clock (com.example.clock)". Test: `ClockAppNamesTest`.
+
+Tests added: `WidgetAsleepTest` (a fresh app read wakes the widget on a grey tap; an old one does not; clearing an expired try still signals a redraw), `PresenceSearchPauseTest`, `ClockAppNamesTest`.
