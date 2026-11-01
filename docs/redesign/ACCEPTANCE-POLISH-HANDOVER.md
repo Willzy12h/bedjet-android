@@ -92,6 +92,18 @@ This APK is signed with a **new test key** made for this acceptance build. It is
 
 Same key as acceptance.1, so it installs over it as an update and keeps the app's data. It still cannot install over a build signed with any other key. Gate on `a21fe4a`: `:core:test` 334 tests, 0 failures; `:app:testDebugUnitTest` 1,884 tests, 0 failures, 43 skipped; `:app:assembleDebug` built; `:app:lintDebug` 0 issues. These are host results. Hosted CI has not been run.
 
+### Test APK `0.3.0-acceptance.3` (1 November 2026)
+
+| Item | Value |
+| --- | --- |
+| Built from | `eaece10` with `assembleRelease -PversionCode=20261082 -PversionName=0.3.0-acceptance.3`, then `zipalign -p 4` and `apksigner` |
+| Version | `0.3.0-acceptance.3`, version code `20261082` (above `20261081`) |
+| Signing | APK Signature Scheme v3, verified with `apksigner verify` |
+| Certificate SHA-256 | `fd5fa67050e21e2f7e4c6926623ba75ac8236c0f53b72d057fa15cba34f40d81`, the same test key as acceptance.1 and acceptance.2 |
+| APK SHA-256 | `a25646efe0a5220eae7b080a62ab6f2e1e8e6d102c991357c36e41d69cb2697b` (5,746,806 bytes) |
+
+It installs over acceptance.2 as an update and keeps the app's data. After the update the widget shows the asleep look until Nocturne next connects, because earlier versions did not record a first connection. Gate on `eaece10` with `docs/redesign/verification.init.gradle`: `:core:test` 339 tests, 0 failures; `:app:testDebugUnitTest` 1,913 tests, 0 failures, 43 skipped; `:app:assembleDebug` built; `:app:lintDebug` 0 errors, 6 warnings (strings already unused before this change). These are host results. Hosted CI has not been run. `WidgetProgrammeUncertaintyTest` now marks the BedJet as just read before rendering, as the app does on every report; its uncertainty assertions are unchanged.
+
 ## Known issues
 
 - `U06RecoveryLayoutTest` has failed intermittently on earlier full runs and passed when re-run alone. It was not changed on this branch. It needs a root cause, not a retry.
