@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.AlarmClock
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.AlarmApps
 import io.github.willzy12h.nocturne.core.store.Settings
 
@@ -32,8 +33,16 @@ object ClockApps {
         return found.mapNotNull { it.activityInfo?.applicationInfo }
             .filter { it.packageName != context.packageName }
             .distinctBy { it.packageName }
-            .map { App(it.packageName, runCatching { pm.getApplicationLabel(it).toString() }.getOrDefault(it.packageName)) }
+            // The names Tonight uses: Samsung and Google both call theirs plain "Clock".
+            .map { App(it.packageName, runCatching { alarmSourceName(context, it.packageName) }.getOrDefault(it.packageName)) }
+            .let { apps -> distinguished(apps) { name, pkg -> context.getString(R.string.alarm_app_with_package, name, pkg) } }
             .sortedWith(compareBy({ it.packageName !in builtIn }, { it.label.lowercase() }))
+    }
+
+    /** Apps that would still share a name are told apart by their package, so the person can see which is which. */
+    internal fun distinguished(apps: List<App>, withPackage: (String, String) -> String): List<App> {
+        val counts = apps.groupingBy { it.label.trim().lowercase() }.eachCount()
+        return apps.map { if ((counts[it.label.trim().lowercase()] ?: 0) > 1) it.copy(label = withPackage(it.label, it.packageName)) else it }
     }
 
     /** The packages whose alarms count for [choice]; [chosen] names the app for [AlarmApps.ONE_APP]. */

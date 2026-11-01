@@ -7,6 +7,8 @@
     <string name="alarm_apps_any_found">Recommended. Found on this phone: %1$s</string>
     <string name="alarm_apps_any_none_found">Recommended. Uses Google Clock or Samsung Clock.</string>
     <string name="alarm_apps_only">Only %1$s</string>
+    <!-- Two clock apps with the same name, told apart by package: "Clock (com.example.clock)". -->
+    <string name="alarm_app_with_package">%1$s (%2$s)</string>
     <string name="alarm_apps_none">No alarms</string>
     <string name="alarm_apps_none_help">Every profile uses its own wake time.</string>
     <string name="alarm_apps_never">Alarms from calendars, reminders and other apps are never used.</string>

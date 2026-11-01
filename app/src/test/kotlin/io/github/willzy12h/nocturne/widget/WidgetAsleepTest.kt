@@ -107,6 +107,31 @@ class WidgetAsleepTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixt
         assertEquals(WidgetLinkState.AWAKE, WidgetLink.state(context))
     }
 
+    @Test fun aGreyTapWhileTheAppHasAFreshReadWakesTheWidget() {
+        // Nocturne is open and connected, so the widget's own try steps aside; the app's report is the read.
+        context.graph.statusReadAt.value = context.graph.now().minusSeconds(30)
+        WidgetLink.beginConnecting(context, System.currentTimeMillis())
+        WidgetReconnect.apply(context, WidgetRead.STEPPED_ASIDE, readAt)
+        assertEquals(WidgetLinkState.AWAKE, WidgetLink.state(context))
+    }
+
+    @Test fun anOldReadDoesNotWakeTheWidget() {
+        context.graph.statusReadAt.value = context.graph.now().minusMinutes(10)
+        WidgetLink.beginConnecting(context, System.currentTimeMillis())
+        WidgetReconnect.apply(context, WidgetRead.STEPPED_ASIDE, readAt)
+        assertEquals(WidgetLinkState.ASLEEP, WidgetLink.state(context))
+    }
+
+    @Test fun clearingAnExpiredTryStillRedrawsTheWidget() {
+        // "Connecting…" already ran out by the clock, so the look is the same before and after; the stored
+        // change must still redraw, or a running widget keeps showing "Looking…".
+        WidgetLink.beginConnecting(context, System.currentTimeMillis() - 2 * WidgetLinkRules.CONNECTING_MS)
+        assertEquals(WidgetLinkState.ASLEEP, WidgetLink.state(context))
+        val before = WidgetLink.changes.value
+        WidgetLink.stopConnecting(context)
+        assertTrue("A stored change must bump the redraw signal", WidgetLink.changes.value > before)
+    }
+
     @Test fun backgroundReadsStopAfterFourMissesAndOpeningTheAppWakesThem() {
         WidgetLink.markRead(context, readAt)
         repeat(4) { WidgetRefresh.record(context, WidgetRead.NOT_REACHED, readAt + it * 60_000L) }

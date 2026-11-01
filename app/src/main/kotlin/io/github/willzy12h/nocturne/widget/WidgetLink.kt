@@ -130,10 +130,10 @@ object WidgetLink {
                 .putLong(KEY_CONNECTING, after.connectingUntilMs).putLong(KEY_FAILED, after.failedAtMs)
                 .putLong(KEY_PRESENCE, after.presenceReadMs)
         }
-        // Only a change of look redraws; a later "Last read" time redraws through the read-time flow.
-        if (WidgetLinkRules.state(after, System.currentTimeMillis(), true, false) !=
-            WidgetLinkRules.state(before, System.currentTimeMillis(), true, false) || after.failedAtMs != before.failedAtMs)
-            _changes.value++
+        // Every stored change redraws. The look also depends on the time ("Connecting…" runs out), so comparing
+        // looks would miss clearing an expired try and leave a stale "Looking…" drawn. Writes are rare: the read
+        // time is stored at most once a minute.
+        _changes.value++
         return true
     }
 
@@ -225,7 +225,19 @@ object WidgetReconnect {
     internal fun apply(context: Context, read: WidgetRead, nowMs: Long) = when (read) {
         WidgetRead.READ -> WidgetLink.markRead(context, nowMs)
         WidgetRead.NOT_REACHED -> WidgetLink.failed(context, nowMs)
-        WidgetRead.STEPPED_ASIDE -> WidgetLink.stopConnecting(context)
+        // The app holds the BedJet: its own fresh report is the read, so the widget wakes from that.
+        WidgetRead.STEPPED_ASIDE -> if (freshlyRead(context)) WidgetLink.markRead(context, nowMs) else WidgetLink.stopConnecting(context)
+    }
+
+    /** How recent the app's own report must be for a grey tap to count it as the read. */
+    internal const val FRESH_READ_MS = 2 * 60_000L
+
+    /** Whether the chosen BedJet reported in this process within [FRESH_READ_MS]. */
+    private fun freshlyRead(context: Context): Boolean {
+        val graph = context.graph
+        val at = graph.statusReadAt.value ?: return false
+        val age = java.time.Duration.between(at, graph.now()).toMillis()
+        return age in 0..FRESH_READ_MS
     }
 
     suspend fun redraw(context: Context) {

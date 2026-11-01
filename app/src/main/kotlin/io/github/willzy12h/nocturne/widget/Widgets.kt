@@ -735,17 +735,19 @@ class QuickControlsWidget : GlanceAppWidget() {
         provideContent {
             val settings by repo.settings.collectAsState()
             val active by repo.activeNight.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val observed by repo.automation.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val profiles by repo.profiles.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val read by context.graph.statusReadAt.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val linkChanges by WidgetLink.changes.collectAsState()
+            val observed by repo.automation.collectAsState()
+            val profiles by repo.profiles.collectAsState()
+            // Reports arrive every few seconds; the stored read time, and so [WidgetLink.changes], moves once a minute.
+            val linkChanges by WidgetLink.changes.collectAsState()
             val runtime by repo.runtime.collectAsState()
             val ownerStatus by context.graph.actions.status.collectAsState()
             val prefs = currentState<Preferences>()
             val size = LocalSize.current
             val at = context.graph.now()
-            // Status triggers a fresh read of the owner's identity/target-scoped uncertainty.
-            key(ownerStatus) {
+            // Each value must be read here to redraw a running widget: an update() of a live Glance session only
+            // recomposes when observed state changes. Status triggers a fresh read of the owner's uncertainty; the
+            // link and read time come from WidgetLink, which is not Compose state itself.
+            key(ownerStatus, linkChanges, observed, profiles) {
                 val report = widgetReport(context)
                 val keys = controlKeys(context, prefs[KEY_PRESETS])
                 val layout = ControlsLayout.of(size.width.value, size.height.value, context.resources.configuration.fontScale,
@@ -839,15 +841,16 @@ class SingleActionWidget : GlanceAppWidget() {
         provideContent {
             val settings by repo.settings.collectAsState()
             val active by repo.activeNight.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val observed by repo.automation.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val profiles by repo.profiles.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val runtime by repo.runtime.collectAsState()
-            @Suppress("UNUSED_VARIABLE") val linkChanges by WidgetLink.changes.collectAsState()
+            val observed by repo.automation.collectAsState()
+            val profiles by repo.profiles.collectAsState()
+            val runtime by repo.runtime.collectAsState()
+            val linkChanges by WidgetLink.changes.collectAsState()
             val ownerStatus by context.graph.actions.status.collectAsState()
             val prefs = currentState<Preferences>()
             val size = LocalSize.current
             val at = context.graph.now()
-            key(ownerStatus) {
+            // Read every value so a running widget redraws when it changes (see QuickControlsWidget).
+            key(ownerStatus, linkChanges, observed, profiles, runtime) {
                 val link = widgetLink(context)
                 val control = control(context, tileAction(context, prefs), WidgetActionCallback.SINGLE, id, prefs, active, widgetReport(context), link)
                 val large = context.resources.configuration.fontScale > 1.3f
