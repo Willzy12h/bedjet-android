@@ -372,6 +372,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         if (page == "permissions") {
             // The checks bring their own cards, so they sit straight on the page.
             SetupChecks(showAll = true)
+            WidgetPresenceRow(inSetup = false)
             SetupFlow(model)
         }
 

@@ -69,7 +69,8 @@ object WidgetUpdater {
             listOf(active, observation, runtime, status, widgetPhase(app, active), widgetWake(app, active, runtime))
         }
         // A report arrives every few seconds while connected; the widgets show its age in minutes.
-        val read = graph.statusReadAt.map { it?.withSecond(0)?.withNano(0) }.distinctUntilChanged()
+        // The asleep, connecting and not-in-range looks change with the widget's link state.
+        val read = combine(graph.statusReadAt.map { it?.withSecond(0)?.withNano(0) }.distinctUntilChanged(), WidgetLink.changes) { at, link -> at to link }
         combine(repo.profiles, repo.settings, linkState, shownState, read) { profiles, settings, _, shown, at ->
             Shown(profiles, settings, widgetBedJetName(app, settings), listOf(shown, at), settings.isDarkTheme(graph.now(), false))
         }

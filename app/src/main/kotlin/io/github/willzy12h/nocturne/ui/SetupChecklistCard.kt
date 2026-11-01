@@ -115,7 +115,9 @@ internal fun SetupChecklistCard(model: AppViewModel) {
     val alarmPending = !settings.demoMode && !settings.alarmAppsChosen
     var choosingAlarmApps by remember { mutableStateOf(false) }
     if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false })
-    if (shown.isEmpty() && !forced && !alarmPending) return
+    // Android 16+: the one-time "Allow" that lets the BedJet coming into range wake the widget.
+    val presencePending = remember(refresh, settings.targetDevice, settings.demoMode) { presenceSetupPending(context) }
+    if (shown.isEmpty() && !forced && !alarmPending && !presencePending) return
     fun open(intent: Intent) {
         try { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         catch (_: Exception) { note = context.getString(R.string.uat_setup_unavailable) }
@@ -196,6 +198,7 @@ internal fun SetupChecklistCard(model: AppViewModel) {
                     }
                 }
             }
+            if (presencePending || forced) WidgetPresenceRow(inSetup = true, onChanged = { refresh++ })
             note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             if (forced) TextButton(onClick = model::closeSetupChecklist) { Text(stringResource(R.string.uat_setup_done)) }
         }

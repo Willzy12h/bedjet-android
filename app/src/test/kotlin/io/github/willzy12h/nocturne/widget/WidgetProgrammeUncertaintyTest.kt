@@ -93,6 +93,8 @@ class WidgetProgrammeUncertaintyTest {
     }
 
     private suspend fun renderedLabels(f: ProgrammeOwnerFixture, widget: GlanceAppWidget): List<String> {
+        // The BedJet has just reported in this night, so the widget is awake (the app marks this on each report).
+        WidgetLink.markRead(f.app)
         val remote = widget.compose(f.app, size = DpSize(340.dp, 240.dp), state = preferencesOf())
         val root = remote.apply(f.app, FrameLayout(f.app))
         fun descendants(view: View): List<View> = listOf(view) +

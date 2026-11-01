@@ -93,6 +93,8 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
         // The application does not expose a first screen or start side effects until this durable boundary passes.
         if (!runBlocking(Dispatchers.IO) { repository.migrateLegacyDemoSelection() }) return
         platform.start()
+        // A force stop since the last start leaves the widget asleep until Nocturne is opened.
+        runCatching { io.github.willzy12h.nocturne.widget.WidgetLink.checkForceStop(context) }
         WidgetUpdater.start(context)
         scope.launch { actions.initialise() }
         scope.launch {
@@ -110,6 +112,8 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
                 // A report from a session still on the previous BedJet says nothing about the chosen one.
                 if (report != null && report.isFrom(target)) {
                     statusReadAt.value = now()
+                    // The widget is awake once the chosen BedJet reports, whoever connected.
+                    io.github.willzy12h.nocturne.widget.WidgetLink.markRead(context)
                     actions.observeStatus(report, target, now())
                     platform.observe(report.status, target)
                 }

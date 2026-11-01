@@ -290,8 +290,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         refreshAlarm()
         refreshClockApps()
         graph.sessions.holdForScreen(true)
-        // The app connects by itself while open; the widget's background reads go back to every 15 minutes.
-        io.github.willzy12h.nocturne.widget.WidgetRefresh.resetBackoff(graph.context)
+        // The app connects by itself while open: the widget wakes and its background reads go back to every 15 minutes.
+        io.github.willzy12h.nocturne.widget.WidgetLink.opened(graph.context)
         // An alarm change that couldn't reach the BedJet earlier.
         graph.scope.launch {
             graph.actions.reconcile()

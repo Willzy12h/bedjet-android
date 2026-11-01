@@ -156,7 +156,36 @@ private class Control(val action: WidgetAction, val request: CommandRequest, val
     val stripe: (PaletteTokens) -> Color, val icon: Int, val detail: String?, val short: String?,
     val running: Boolean, val sending: Boolean, val description: String, val brief: String = action.label,
     /** A profile button for the night that is running now: ringed, with a green dot. */
-    val current: Boolean = false)
+    val current: Boolean = false,
+    /** Not connected: greyed, and a tap only reconnects ([WidgetReconnectCallback]); it sends nothing. */
+    val asleep: Boolean = false,
+    /** The small moon that marks every button while the widget is not connected, Off included. */
+    val moon: Boolean = false)
+
+/** Whether [command] turns the BedJet off or ends tracking: it keeps its colour and works while the widget is asleep. */
+private fun stopsBedJet(command: Command) = command == Command.OFF || command == Command.END_NIGHT || command == Command.STOP_TRACKING
+
+/** The asleep look's colours, from the palette: a darker panel, grey buttons, readable grey names. */
+private object Asleep {
+    fun ground(tokens: PaletteTokens): Color = androidx.compose.ui.graphics.lerp(tokens.ground, Color.Black, if (tokens.dark) 0.35f else 0.06f)
+    fun tile(tokens: PaletteTokens): Color = tokens.surface.compositeOver(ground(tokens))
+    fun stripe(tokens: PaletteTokens): Color = tokens.ink3.copy(alpha = 0.45f).compositeOver(tile(tokens))
+    fun accentText(tokens: PaletteTokens, behind: Color): Color = tokens.readableText(tokens.accent, behind)
+    fun warnText(tokens: PaletteTokens, behind: Color): Color = tokens.readableText(tokens.warn, behind)
+    fun hue(tokens: PaletteTokens, link: WidgetLinkState): Color = if (link == WidgetLinkState.CONNECTING) tokens.warn else tokens.accent
+}
+
+/** The widget's link state, or awake when there is no BedJet to connect to (demo, none chosen). */
+internal fun widgetLink(context: Context): WidgetLinkState = runCatching { WidgetLink.state(context) }.getOrDefault(WidgetLinkState.AWAKE)
+
+/** A clock time for the asleep header, naming the day when it is not today. */
+internal fun widgetClock(context: Context, atMs: Long): String {
+    val now = context.graph.now()
+    val local = java.time.Instant.ofEpochMilli(atMs).atZone(now.zone)
+    val clock = local.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    return if (local.toLocalDate() == now.toLocalDate()) clock
+        else context.getString(R.string.widget_read_day_time, local.format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.UK)), clock)
+}
 
 private fun stripeOf(tokens: PaletteTokens, action: WidgetAction, request: CommandRequest): Color =
     (request.actionPreset ?: action.preset)?.takeIf { action.command != Command.BOOST }?.let { tokens.stepColor(it.mode, it.temperature) }
@@ -184,18 +213,26 @@ private fun widgetReport(context: Context): DeviceStatus? {
 }
 
 private fun control(context: Context, action: WidgetAction, kind: String, id: GlanceId, prefs: Preferences,
-    active: ActiveNight?, report: DeviceStatus?): Control {
+    active: ActiveNight?, report: DeviceStatus?, link: WidgetLinkState = WidgetLinkState.AWAKE): Control {
     val settings = context.graph.repository.settings.value
     val words = Format.Words { res, args -> context.getString(res, *args) }
     val request = widgetRequest(context, action)
     val preset = request.actionPreset ?: action.preset
+    // Asleep, a grey button only reconnects; Off keeps its own path, which connects first and then turns it off.
+    val asleep = link != WidgetLinkState.AWAKE && !stopsBedJet(action.command)
     val click = when {
         settings.deviceId() == null && !settings.demoMode -> actionStartActivity(Intent(context, MainActivity::class.java))
+        asleep -> actionRunCallback<WidgetReconnectCallback>()
         widgetNeedsConfirmation(request, active) -> actionStartActivity(WidgetConfirmationActivity.intent(context, request, id, kind))
         else -> actionRunCallback<WidgetActionCallback>(widgetParameters(request, kind))
     }
     val current = action.profileId != null && active?.profileId == action.profileId
     val detail = when {
+        asleep -> context.getString(when (link) {
+            WidgetLinkState.CONNECTING -> R.string.widget_connecting_short
+            WidgetLinkState.MISSING -> R.string.widget_missing_short
+            else -> R.string.widget_asleep_short
+        })
         active != null && action.command == Command.START_NIGHT && widgetUnconfirmed(context, active) -> context.getString(R.string.widget_phase_unknown)
         current -> context.getString(R.string.widget_profile_running)
         action.command == Command.BOOST -> (settings.boostMinutes - 10).let {
@@ -210,19 +247,21 @@ private fun control(context: Context, action: WidgetAction, kind: String, id: Gl
     }
     val short = preset?.takeIf { action.command != Command.BOOST && it.mode.usesTemperature }
         ?.let { Format.temp(it.temperature, settings.fahrenheit, words) }
-    val running = report != null && when (action.command) {
+    val running = !asleep && report != null && when (action.command) {
         Command.OFF -> report.mode == Mode.STANDBY
         Command.TURBO, Command.WARM, Command.COOL -> preset != null && active == null && quickMatches(report, preset)
         else -> false
     }
     val feedback = WidgetFeedback.visible(context, prefs)
-    val sending = feedback?.state == WidgetFeedbackState.PENDING && feedback.action == widgetActionLabel(context, request)
+    val sending = !asleep && feedback?.state == WidgetFeedbackState.PENDING && feedback.action == widgetActionLabel(context, request)
     val base = when {
         preset != null && action.command != Command.BOOST && action.command != Command.TURBO -> presetDetail(context, preset, settings.fahrenheit)
         action.profileId != null -> context.getString(R.string.feature_start_profile, action.label)
         else -> widgetActionDescription(context, action, request)
     }
     val description = when {
+        asleep -> context.getString(R.string.widget_asleep_control_description, action.label)
+        link != WidgetLinkState.AWAKE && action.command != Command.STOP_TRACKING -> context.getString(R.string.widget_asleep_off_description, base)
         sending -> context.getString(R.string.widget_control_sending, base)
         running -> context.getString(R.string.widget_control_running, base)
         current -> context.getString(R.string.widget_control_current, base)
@@ -235,8 +274,8 @@ private fun control(context: Context, action: WidgetAction, kind: String, id: Gl
         action.profileId != null -> action.label.substringBefore(' ')
         else -> action.label
     }
-    return Control(action, request, click, { stripeOf(it, action, request) }, iconOf(action, request), detail, short,
-        running, sending, description, brief, current)
+    return Control(action, request, click, { if (asleep) Asleep.stripe(it) else stripeOf(it, action, request) }, iconOf(action, request),
+        detail, if (asleep) null else short, running, sending, description, brief, current && !asleep, asleep, link != WidgetLinkState.AWAKE)
 }
 
 @Composable
@@ -266,11 +305,13 @@ private fun Tile(context: Context, control: Control, widthDp: Float, heightDp: F
     settings: Settings, at: java.time.ZonedDateTime) {
     val scale = context.resources.configuration.fontScale.coerceAtLeast(1f)
     val level = if (control.running || control.sending || control.current) TintLevel.ON else TintLevel.TILE
-    val tint = widgetColor(settings, at) { it.tint(control.stripe(it), level).compositeOver(it.surface.compositeOver(it.ground)) }
+    val tint = widgetColor(settings, at) { if (control.asleep) Asleep.tile(it)
+        else it.tint(control.stripe(it), level).compositeOver(it.surface.compositeOver(it.ground)) }
     val stripe = widgetColor(settings, at, control.stripe)
     val marked = control.running || control.sending || control.current
     val compact = widthDp < 80f
-    val room = widthDp - 4f - (if (compact) 8f else 12f) - (if (control.current) 4f else 0f)
+    // The moon takes the dot's place at the end of the button.
+    val room = widthDp - 4f - (if (compact) 8f else 12f) - (if (control.current) 4f else 0f) - (if (control.moon) 22f else 0f)
     val tall = heightDp >= ControlsLayout.DETAIL * scale
     val fits = { text: String -> labelWidthDp(context, text) <= room }
     val words = control.action.label.split(' ')
@@ -294,11 +335,15 @@ private fun Tile(context: Context, control: Control, widthDp: Float, heightDp: F
         Column(GlanceModifier.defaultWeight().fillMaxHeight().padding(start = if (compact) 6.dp else 8.dp,
             end = if (compact) 2.dp else 4.dp, top = if (tall) 8.dp else 0.dp),
             verticalAlignment = if (tall) Alignment.Top else Alignment.CenterVertically) {
-            Text(label, maxLines = if (wraps) 2 else 1,
-                style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+            Text(label, maxLines = if (wraps) 2 else 1, style = TextStyle(color = if (control.asleep) GlanceTheme.colors.onSurfaceVariant
+                else GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold))
             if (detail != null) Text(detail, maxLines = 1, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp))
         }
-        if (dot != null) Column(GlanceModifier.fillMaxHeight().padding(top = if (tall) 12.dp else 0.dp, end = 8.dp),
+        if (control.moon) Column(GlanceModifier.fillMaxHeight().padding(top = if (tall) 10.dp else 0.dp, end = 6.dp),
+            verticalAlignment = if (tall) Alignment.Top else Alignment.CenterVertically) {
+            Image(ImageProvider(R.drawable.ic_nc_moon), null, GlanceModifier.size(16.dp),
+                colorFilter = ColorFilter.tint(widgetColor(settings, at) { if (control.asleep) it.ink3 else it.ink2 }))
+        } else if (dot != null) Column(GlanceModifier.fillMaxHeight().padding(top = if (tall) 12.dp else 0.dp, end = 8.dp),
             verticalAlignment = if (tall) Alignment.Top else Alignment.CenterVertically) { Dot(dot, 10.dp) }
     }
     // Glance draws no borders: the ring is the stripe colour showing round a face inset by 2dp.
@@ -467,6 +512,116 @@ private fun NightCardView(context: Context, kind: NightCard, night: NightSummary
     }
 }
 
+/** The round badge in the asleep header: a moon, or the reconnect arrows in amber while it looks for the BedJet. */
+@Composable
+private fun LinkBadge(link: WidgetLinkState, sizeDp: Float, settings: Settings, at: java.time.ZonedDateTime) {
+    Box(GlanceModifier.size(sizeDp.dp).cornerRadius((sizeDp / 2).dp)
+        .background(widgetColor(settings, at) { Asleep.hue(it, link).copy(alpha = 0.2f).compositeOver(Asleep.ground(it)) }),
+        contentAlignment = Alignment.Center) {
+        Image(ImageProvider(if (link == WidgetLinkState.CONNECTING) R.drawable.ic_nc_refresh else R.drawable.ic_nc_moon), null,
+            GlanceModifier.size((sizeDp * 0.56f).dp), colorFilter = ColorFilter.tint(widgetColor(settings, at) { Asleep.hue(it, link) }))
+    }
+}
+
+/**
+ * The header while not connected: what is happening and when the BedJet was last read, beside a moon. The whole
+ * header reconnects when tapped. [short] uses the one-word titles of the narrowest widgets; [stacked] puts the moon
+ * above the words; [prompt] adds "Tap to reconnect"; [pill] adds a Reconnect button at the end.
+ */
+@Composable
+private fun AsleepHeader(context: Context, link: WidgetLinkState, short: Boolean, stacked: Boolean, prompt: Boolean, pill: Boolean,
+    heightDp: Float, modifier: GlanceModifier, settings: Settings, at: java.time.ZonedDateTime) {
+    val facts = WidgetLink.facts(context)
+    val busy = link == WidgetLinkState.CONNECTING
+    val missing = link == WidgetLinkState.MISSING
+    val title = context.getString(when {
+        busy -> if (short) R.string.widget_connecting_short else R.string.widget_connecting_title
+        missing -> if (short) R.string.widget_missing_short else R.string.widget_missing_title
+        else -> if (short) R.string.widget_asleep_short else R.string.widget_asleep_title
+    })
+    val sub = when {
+        busy -> if (short) null else context.getString(R.string.widget_connecting_body)
+        missing && facts.failedAtMs > 0 -> widgetClock(context, facts.failedAtMs).let { if (short) it else context.getString(R.string.widget_checked, it) }
+        facts.lastReadMs > 0 -> widgetClock(context, facts.lastReadMs).let { if (short) it else context.getString(R.string.widget_last_read, it) }
+        else -> null
+    }
+    val tap = if (prompt && !busy) context.getString(if (missing) R.string.widget_tap_try_again else R.string.widget_tap_reconnect) else null
+    val line = 21f * context.resources.configuration.fontScale.coerceAtLeast(1f)
+    val badgeDp = if (stacked) 28f else if (prompt) 40f else 32f
+    val words = listOfNotNull(title, sub, tap)
+    val badge = !stacked || heightDp >= badgeDp + 4f + line * minOf(2, words.size)
+    val fit = floor(((heightDp - if (stacked && badge) badgeDp + 4f else 0f) / line).toDouble()).toInt().coerceAtLeast(1)
+    val shown = words.take(fit)
+    val description = listOfNotNull(title, sub, if (busy) null else context.getString(R.string.widget_tap_reconnect)).joinToString(". ")
+    val reconnect = actionRunCallback<WidgetReconnectCallback>()
+    @Composable fun Words(modifier: GlanceModifier) = Column(modifier, verticalAlignment = Alignment.CenterVertically) {
+        shown.forEachIndexed { index, text ->
+            val color = when {
+                index == 0 && busy -> widgetColor(settings, at) { Asleep.warnText(it, Asleep.ground(it)) }
+                index == 0 -> GlanceTheme.colors.onSurface
+                text == tap -> widgetColor(settings, at) { Asleep.accentText(it, Asleep.ground(it)) }
+                else -> GlanceTheme.colors.onSurfaceVariant
+            }
+            Text(text, maxLines = 1, style = TextStyle(color = color, fontSize = 16.sp,
+                fontWeight = if (index == 0 || text == tap) FontWeight.Bold else FontWeight.Normal))
+        }
+    }
+    val tappable = modifier.clickable(reconnect).semantics { contentDescription = description }
+    if (stacked) Column(tappable, verticalAlignment = Alignment.CenterVertically) {
+        if (badge) { LinkBadge(link, badgeDp, settings, at); Spacer(GlanceModifier.height(4.dp)) }
+        Words(GlanceModifier.fillMaxWidth())
+    } else Row(tappable, verticalAlignment = Alignment.CenterVertically) {
+        LinkBadge(link, badgeDp, settings, at)
+        Spacer(GlanceModifier.width(10.dp))
+        Words(GlanceModifier.defaultWeight())
+        if (pill && !busy) {
+            Spacer(GlanceModifier.width(8.dp))
+            val label = context.getString(if (missing) R.string.widget_try_again else R.string.widget_reconnect)
+            Row(GlanceModifier.height(heightDp.coerceAtLeast(ControlsLayout.TILE).dp).cornerRadius(28.dp)
+                .background(widgetColor(settings, at) { it.accent.copy(alpha = 0.22f).compositeOver(Asleep.ground(it)) })
+                .padding(horizontal = 14.dp).clickable(reconnect)
+                .semantics { contentDescription = context.getString(R.string.widget_reconnect_description) },
+                verticalAlignment = Alignment.CenterVertically) {
+                val ink = widgetColor(settings, at) { Asleep.accentText(it, it.accent.copy(alpha = 0.22f).compositeOver(Asleep.ground(it))) }
+                Image(ImageProvider(R.drawable.ic_nc_refresh), null, GlanceModifier.size(18.dp), colorFilter = ColorFilter.tint(ink))
+                Spacer(GlanceModifier.width(6.dp))
+                Text(label, maxLines = 1, style = TextStyle(color = ink, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+            }
+        }
+    }
+}
+
+/** In the night card's place while not connected: a large reconnect target. */
+@Composable
+private fun ReconnectCard(context: Context, kind: NightCard, link: WidgetLinkState, widthDp: Float, modifier: GlanceModifier,
+    settings: Settings, at: java.time.ZonedDateTime) {
+    val busy = link == WidgetLinkState.CONNECTING
+    val background = { tokens: PaletteTokens -> Asleep.hue(tokens, link).copy(alpha = 0.14f).compositeOver(Asleep.ground(tokens)) }
+    val title = context.getString(when (link) {
+        WidgetLinkState.CONNECTING -> R.string.widget_connecting_title
+        WidgetLinkState.MISSING -> R.string.widget_try_again
+        else -> R.string.widget_tap_reconnect
+    })
+    val room = widthDp - 20f
+    val body = (if (busy) listOf(context.getString(R.string.widget_connecting_card_body))
+        else listOf(context.getString(R.string.widget_reconnect_card_body), context.getString(R.string.widget_reconnect_card_short)))
+        .firstOrNull { labelWidthDp(context, it, bold = false) <= room }
+    val ink = widgetColor(settings, at) { if (busy) Asleep.warnText(it, background(it)) else Asleep.accentText(it, background(it)) }
+    val card = modifier.cornerRadius(14.dp).background(widgetColor(settings, at, background)).padding(horizontal = 10.dp)
+        .clickable(actionRunCallback<WidgetReconnectCallback>())
+        .semantics { contentDescription = listOfNotNull(title, body).joinToString(". ") }
+    @Composable fun Title() = Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Image(ImageProvider(R.drawable.ic_nc_refresh), null, GlanceModifier.size(18.dp), colorFilter = ColorFilter.tint(ink))
+        Spacer(GlanceModifier.width(8.dp))
+        Text(title, GlanceModifier.defaultWeight(), maxLines = 1, style = TextStyle(color = ink, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+    }
+    if (kind == NightCard.LINE || body == null) Column(card, verticalAlignment = Alignment.CenterVertically) { Title() }
+    else Column(card, verticalAlignment = Alignment.CenterVertically) {
+        Title()
+        Text(body, maxLines = 1, style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 16.sp))
+    }
+}
+
 /** The plan as coloured spans by length, with a marker at now. */
 @Composable
 private fun PlanBar(context: Context, steps: List<io.github.willzy12h.nocturne.core.plan.PlannedStep>, widthDp: Float,
@@ -583,6 +738,7 @@ class QuickControlsWidget : GlanceAppWidget() {
             @Suppress("UNUSED_VARIABLE") val observed by repo.automation.collectAsState()
             @Suppress("UNUSED_VARIABLE") val profiles by repo.profiles.collectAsState()
             @Suppress("UNUSED_VARIABLE") val read by context.graph.statusReadAt.collectAsState()
+            @Suppress("UNUSED_VARIABLE") val linkChanges by WidgetLink.changes.collectAsState()
             val runtime by repo.runtime.collectAsState()
             val ownerStatus by context.graph.actions.status.collectAsState()
             val prefs = currentState<Preferences>()
@@ -595,29 +751,41 @@ class QuickControlsWidget : GlanceAppWidget() {
                 val layout = ControlsLayout.of(size.width.value, size.height.value, context.resources.configuration.fontScale,
                     active != null, keys.size, prefs[KEY_LAYOUT] == LAYOUT_SIX)
                 val night = nightSummary(context, active, runtime)
-                fun controlFor(key: String) = widgetPreset(context, key)?.let { control(context, it, WidgetActionCallback.QUICK, id, prefs, active, report) }
+                val link = widgetLink(context)
+                val asleep = link != WidgetLinkState.AWAKE
+                fun controlFor(key: String) = widgetPreset(context, key)?.let { control(context, it, WidgetActionCallback.QUICK, id, prefs, active, report, link) }
+                // Asleep, the reconnect card takes the night card's place.
+                val cardShown = layout.card != NightCard.NONE && (asleep || night != null)
                 GlanceTheme(colors = widgetColors(settings, at)) {
-                    Column(GlanceModifier.fillMaxSize().background(widgetColor(settings, at) { it.ground }).cornerRadius(22.dp)
-                        .padding(layout.padding.dp)) {
+                    Column(GlanceModifier.fillMaxSize().background(widgetColor(settings, at) { if (asleep) Asleep.ground(it) else it.ground })
+                        .cornerRadius(22.dp).padding(layout.padding.dp)) {
                         if (layout.rows == 0) Row(GlanceModifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                            Header(context, prefs, report, active, layout.copy(header = HeaderStyle.STACKED), night,
+                            val wide = size.width.value >= 280f
+                            if (asleep) AsleepHeader(context, link, short = !wide, stacked = !wide, prompt = wide, pill = false,
+                                heightDp = size.height.value - 2 * layout.padding, modifier = GlanceModifier.defaultWeight(), settings = settings, at = at)
+                            else Header(context, prefs, report, active, layout.copy(header = HeaderStyle.STACKED), night,
                                 GlanceModifier.defaultWeight(), settings, at)
                             Spacer(GlanceModifier.width(ControlsLayout.GAP.dp))
                             controlFor(PRESET_OFF)?.let { Tile(context, it, ControlsLayout.TILE, ControlsLayout.TILE,
                                 GlanceModifier.width(ControlsLayout.TILE.dp).height(ControlsLayout.TILE.dp), settings, at) }
                         } else {
-                            Header(context, prefs, report, active, layout, night,
+                            if (asleep) AsleepHeader(context, link, short = size.width.value < 200f, stacked = false, prompt = false,
+                                pill = layout.columns >= 3 && !cardShown, heightDp = layout.headerDp,
+                                modifier = GlanceModifier.fillMaxWidth().height(layout.headerDp.dp), settings = settings, at = at)
+                            else Header(context, prefs, report, active, layout, night,
                                 GlanceModifier.fillMaxWidth().height(layout.headerDp.dp), settings, at)
                             Spacer(GlanceModifier.height(ControlsLayout.GAP.dp))
-                            if (layout.card != NightCard.NONE && night != null) {
-                                NightCardView(context, layout.card, night, active, size.width.value - 2 * layout.padding,
-                                    GlanceModifier.fillMaxWidth().height(layout.cardDp.dp), settings, at)
+                            if (cardShown) {
+                                val cardModifier = GlanceModifier.fillMaxWidth().height(layout.cardDp.dp)
+                                if (asleep) ReconnectCard(context, layout.card, link, size.width.value - 2 * layout.padding, cardModifier, settings, at)
+                                else if (night != null) NightCardView(context, layout.card, night, active, size.width.value - 2 * layout.padding,
+                                    cardModifier, settings, at)
                                 Spacer(GlanceModifier.height(ControlsLayout.GAP.dp))
                             }
                             val rows = layout.arrange(keys)
                             val tileWidth = (size.width.value - 2 * layout.padding - ControlsLayout.GAP * (layout.columns - 1)) / layout.columns
                             // Without a night to show, the card's space goes to the buttons.
-                            val tileHeight = layout.tileDp + if (layout.card != NightCard.NONE && night == null)
+                            val tileHeight = layout.tileDp + if (layout.card != NightCard.NONE && !cardShown)
                                 (layout.cardDp + ControlsLayout.GAP) / rows.size else 0f
                             Column(GlanceModifier.fillMaxWidth().defaultWeight()) {
                                 rows.forEachIndexed { index, row ->
@@ -674,15 +842,18 @@ class SingleActionWidget : GlanceAppWidget() {
             @Suppress("UNUSED_VARIABLE") val observed by repo.automation.collectAsState()
             @Suppress("UNUSED_VARIABLE") val profiles by repo.profiles.collectAsState()
             @Suppress("UNUSED_VARIABLE") val runtime by repo.runtime.collectAsState()
+            @Suppress("UNUSED_VARIABLE") val linkChanges by WidgetLink.changes.collectAsState()
             val ownerStatus by context.graph.actions.status.collectAsState()
             val prefs = currentState<Preferences>()
             val size = LocalSize.current
             val at = context.graph.now()
             key(ownerStatus) {
-                val control = control(context, tileAction(context, prefs), WidgetActionCallback.SINGLE, id, prefs, active, widgetReport(context))
+                val link = widgetLink(context)
+                val control = control(context, tileAction(context, prefs), WidgetActionCallback.SINGLE, id, prefs, active, widgetReport(context), link)
                 val large = context.resources.configuration.fontScale > 1.3f
                 val level = if (control.running || control.sending) TintLevel.ON else TintLevel.TILE
-                val tint = widgetColor(settings, at) { it.tint(control.stripe(it), level).compositeOver(it.surface.compositeOver(it.ground)) }
+                val tint = widgetColor(settings, at) { if (control.asleep) Asleep.tile(it)
+                    else it.tint(control.stripe(it), level).compositeOver(it.surface.compositeOver(it.ground)) }
                 val stripe = widgetColor(settings, at, control.stripe)
                 val words = 21f * context.resources.configuration.fontScale
                 val showIcon = !large && size.height.value - 16f >= 20f + 2 * words
@@ -692,20 +863,24 @@ class SingleActionWidget : GlanceAppWidget() {
                     .firstOrNull { labelWidthDp(context, it, bold = false) <= size.width.value - 20f } ?: control.detail
                 val showDetail = detail != null && size.height.value - 16f >= 2 * words || control.sending
                 GlanceTheme(colors = widgetColors(settings, at)) {
-                    Row(GlanceModifier.fillMaxSize().cornerRadius(22.dp).background(widgetColor(settings, at) { it.ground })
+                    Row(GlanceModifier.fillMaxSize().cornerRadius(22.dp).background(widgetColor(settings, at) { if (control.moon) Asleep.ground(it) else it.ground })
                         .clickable(control.click).semantics { contentDescription = control.description }) {
                         Row(GlanceModifier.fillMaxSize().background(tint)) {
                             Box(GlanceModifier.width(4.dp).fillMaxHeight().background(stripe)) { }
                             Column(GlanceModifier.defaultWeight().fillMaxHeight().padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 if (showIcon) Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Image(ImageProvider(control.icon), null, GlanceModifier.size(20.dp), colorFilter = ColorFilter.tint(stripe))
+                                    Image(ImageProvider(control.icon), null, GlanceModifier.size(20.dp),
+                                        colorFilter = ColorFilter.tint(if (control.asleep) widgetColor(settings, at) { it.ink3 } else stripe))
                                     Spacer(GlanceModifier.defaultWeight())
-                                    if (control.running || control.sending) Dot(if (control.sending) widgetColor(settings, at) { it.warn } else stripe)
+                                    if (control.moon) Image(ImageProvider(R.drawable.ic_nc_moon), null, GlanceModifier.size(16.dp),
+                                        colorFilter = ColorFilter.tint(widgetColor(settings, at) { if (control.asleep) it.ink3 else it.ink2 }))
+                                    else if (control.running || control.sending) Dot(if (control.sending) widgetColor(settings, at) { it.warn } else stripe)
                                 }
                                 Text(if (labelWidthDp(context, control.action.label) <= size.width.value - 20f) control.action.label
                                     else control.brief, maxLines = 1,
-                                    style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+                                    style = TextStyle(color = if (control.asleep) GlanceTheme.colors.onSurfaceVariant else GlanceTheme.colors.onSurface,
+                                        fontSize = 16.sp, fontWeight = FontWeight.Bold))
                                 if (showDetail) Text(if (control.sending) context.getString(R.string.widget_tile_sending) else detail.orEmpty(),
                                     maxLines = 1, style = TextStyle(fontSize = 16.sp, color = if (control.sending)
                                         widgetColor(settings, at) { it.readableText(it.warn, it.tint(control.stripe(it), level).compositeOver(it.surface.compositeOver(it.ground))) }
