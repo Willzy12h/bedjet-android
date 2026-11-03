@@ -16,6 +16,8 @@ import io.github.willzy12h.nocturne.widget.WidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.*
@@ -50,9 +52,12 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val repository = repositoryFactory?.invoke(scope) { now() } ?: Repository(context, scope) { now() }
     val bleLink by lazy { AndroidBedJetLink(context) { repository.settings.value.deviceId() } }
-    private val demoLink by lazy {
+    private var demoTicker: Job? = null
+    @Volatile private var demoLinkHolder = newDemoLink()
+    private val demoLink: DemoBedJet get() = demoLinkHolder.value
+    private fun newDemoLink(): Lazy<DemoBedJet> = lazy {
         DemoBedJet(now = { now() }).also { demo ->
-            scope.launch {
+            demoTicker = scope.launch {
                 combine(sessions.statusDemand, repository.settings.map { it.demoMode }.distinctUntilChanged(),
                     repository.activeNight.map { it != null }.distinctUntilChanged(),
                     demo.status.map { it?.let { status -> status.isRunning || (status.extra?.programStep ?: 0) > 0 } == true }
@@ -68,15 +73,28 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
         }
     }
 
+    /** Called under command ownership after disconnecting the outgoing simulator. */
+    internal fun resetDemoSession() {
+        demoTicker?.cancel()
+        demoTicker = null
+        demoLinkHolder = newDemoLink()
+    }
+
     /** The real BedJet, or the simulated one when demo mode is on. */
     val link: BedJetLink get() = linkOverride ?: if (repository.settings.value.demoMode) demoLink else bleLink
     val sessions = LinkSessions(this)
     val actions = NightActions(this)
     val platform = io.github.willzy12h.nocturne.platform.PlatformRuntime(this)
+    /** When the chosen BedJet last reported in this process, for the widgets' "Read 2 min ago". */
+    val statusReadAt = MutableStateFlow<ZonedDateTime?>(null)
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun startRuntime() {
+        // The application does not expose a first screen or start side effects until this durable boundary passes.
+        if (!runBlocking(Dispatchers.IO) { repository.migrateLegacyDemoSelection() }) return
         platform.start()
+        // A force stop since the last start leaves the widget asleep until Nocturne is opened.
+        runCatching { io.github.willzy12h.nocturne.widget.WidgetLink.checkForceStop(context) }
         WidgetUpdater.start(context)
         scope.launch { actions.initialise() }
         scope.launch {
@@ -93,7 +111,10 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
             }.collect { (target, report) ->
                 // A report from a session still on the previous BedJet says nothing about the chosen one.
                 if (report != null && report.isFrom(target)) {
-                    actions.observeStatus(report.status, target, now(), report.source ?: target)
+                    statusReadAt.value = now()
+                    // The widget is awake once the chosen BedJet reports, whoever connected.
+                    io.github.willzy12h.nocturne.widget.WidgetLink.markRead(context)
+                    actions.observeStatus(report, target, now())
                     platform.observe(report.status, target)
                 }
             }

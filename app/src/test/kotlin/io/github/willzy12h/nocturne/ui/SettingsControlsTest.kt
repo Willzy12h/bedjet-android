@@ -8,6 +8,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import io.github.willzy12h.nocturne.App
+import io.github.willzy12h.nocturne.GraphLifecycle
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.ThemeMode
 import io.github.willzy12h.nocturne.graph
@@ -35,6 +36,7 @@ import java.time.ZoneOffset
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class SettingsControlsTest {
     private val compose = createAndroidComposeRule<MainActivity>()
+    private val graphs = GraphLifecycle()
     private val fixture = TestRule { base, _ -> object : Statement() {
         override fun evaluate() {
             val graph = (RuntimeEnvironment.getApplication() as App).graph
@@ -44,7 +46,7 @@ class SettingsControlsTest {
             try { base.evaluate() } finally { graph.clock = previous }
         }
     } }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(fixture).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(graphs).around(fixture).around(compose)
     @get:Rule val temp = TemporaryFolder()
     private val graph get() = compose.activity.graph
     private fun s(id: Int, vararg args: Any) = compose.activity.getString(id, *args)
@@ -56,6 +58,7 @@ class SettingsControlsTest {
     @Test fun theQuietStatusNotificationCanBeSwitchedOnAndOffFromSettings() {
         val graph = graph
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("notifications")
         val row = compose.onNode(hasContentDescription(s(R.string.settings_quiet_title)))
         row.performScrollTo()
         row.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
@@ -71,18 +74,21 @@ class SettingsControlsTest {
     @Test fun diagnosticsCanBeExportedFromSettings() {
         val graph = graph
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("about")
         compose.onNodeWithText(s(R.string.settings_diagnostics_export)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(s(R.string.settings_diagnostics_help)).assertExists()
         val file = temp.newFile("diagnostics.json")
         val model = ViewModelProvider(compose.activity)[AppViewModel::class.java]
-        model.updateToken = "secret-xyz-token"
+        graph.context.getSharedPreferences("secrets", 0).edit().putString("updateToken", "secret-xyz-token").commit()
         try {
-            compose.runOnUiThread { model.exportDiagnostics(Uri.fromFile(file)) }
+            val uri = Uri.parse("content://test.documents/diagnostics.json")
+            shadowOf(graph.context.contentResolver).registerOutputStream(uri, java.io.FileOutputStream(file))
+            compose.runOnUiThread { model.exportDiagnostics(uri) }
             waitUntil { compose.onAllNodesWithText(s(R.string.settings_diagnostics_saved)).fetchSemanticsNodes().isNotEmpty() }
             val text = file.readText()
             assertTrue(text, text.contains("\"linkState\""))
             assertFalse("the update token never leaves the phone", text.contains("secret-xyz-token"))
-        } finally { model.updateToken = "" }
+        } finally { graph.context.getSharedPreferences("secrets", 0).edit().remove("updateToken").commit() }
     }
 
     @Test fun aFileThatCannotBeOpenedIsReportedAsNotSaved() {
@@ -95,5 +101,19 @@ class SettingsControlsTest {
         }
         waitUntil { seen.isNotEmpty() }
         assertEquals(listOf(s(R.string.settings_diagnostics_failed, s(R.string.runtime_export_failed))), seen.toList())
+    }
+
+    @Test fun diagnosticsRefuseAPickerThatPointsAtPrivateStorage() {
+        compose.onNodeWithText("Settings").performClick()
+        val model = ViewModelProvider(compose.activity)[AppViewModel::class.java]
+        val private = java.io.File(graph.context.filesDir, "victim.json").apply { writeText("keep") }
+        val seen = java.util.Collections.synchronizedList(mutableListOf<String>())
+        compose.runOnUiThread {
+            graph.scope.launch { model.messages.collect { seen += it } }
+            model.exportDiagnostics(Uri.fromFile(private))
+        }
+        waitUntil { seen.isNotEmpty() }
+        assertEquals(listOf(s(R.string.settings_diagnostics_failed, s(R.string.export_destination_unsafe))), seen.toList())
+        assertEquals("SEC-01: nothing is truncated or written", "keep", private.readText())
     }
 }

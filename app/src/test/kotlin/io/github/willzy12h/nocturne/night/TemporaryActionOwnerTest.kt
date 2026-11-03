@@ -103,6 +103,7 @@ class TemporaryActionOwnerTest {
     }
 
     @Test fun theEndNightChoiceUsesThePresetThatWasReviewed() = runBlocking {
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val before = start()
         val request = graph.actions.capture(NightActions.Command.WARM, requireIdentity = true)
             .copy(replacementConfirmed = true, actionPreset = warm)

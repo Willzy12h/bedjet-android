@@ -21,7 +21,7 @@ class BackupTest {
         createdAt = now.toString(),
         profiles = listOf(Presets.summerCool.copy(id = "mine", name = name)),
         settings = Settings(workingSlot = 1, fahrenheit = true),
-        slotBackups = listOf(SlotBackup("ble:AA:BB", 0, StoredProgram("old", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now.toString())),
+        slotBackups = listOf(SlotBackup("ble:AA:BB:CC:DD:EE:FF", 0, StoredProgram("old", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now.toString())),
     )
 
     @Test

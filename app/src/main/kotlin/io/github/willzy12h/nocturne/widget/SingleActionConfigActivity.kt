@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.widget
 
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -26,33 +27,37 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.lifecycle.lifecycleScope
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.ui.NocturneTheme
-import io.github.willzy12h.nocturne.ui.rememberThemeNow
+import io.github.willzy12h.nocturne.ui.rememberThemePresentation
+import io.github.willzy12h.nocturne.ui.ThemeDuePrompt
 import kotlinx.coroutines.launch
 
-/** Picks what a single-button widget does. */
+/** Picks which preset a one-cell tile runs: a quick preset, Start tonight, a profile or Off. */
 class SingleActionConfigActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val widgetId = intent?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             ?: AppWidgetManager.INVALID_APPWIDGET_ID
         setResult(RESULT_CANCELED, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
-        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) { finish(); return }
-        val actions = widgetActions(this)
+        if (widgetId <= 0 || AppWidgetManager.getInstance(this).getAppWidgetInfo(widgetId)?.provider !=
+            ComponentName(this, SingleActionReceiver::class.java)) { finish(); return }
+        val actions = widgetPresetChoices(this)
         setContent {
             val settings by graph.repository.settings.collectAsState()
-            val now = rememberThemeNow(settings, graph::now)
-            NocturneTheme(settings, now) {
-                Surface(Modifier.fillMaxSize()) {
+            val theme = rememberThemePresentation(settings, graph::now)
+            NocturneTheme(settings, theme.at, paletteOverride = theme.palette) {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Column(
                         Modifier.systemBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.feature_widget_config), style = MaterialTheme.typography.titleLarge)
+                        Text(androidx.compose.ui.res.stringResource(io.github.willzy12h.nocturne.R.string.widget_tile_config), style = MaterialTheme.typography.titleLarge)
                         actions.forEach { action ->
                             FilledTonalButton(onClick = { choose(widgetId, action) }, modifier = Modifier.fillMaxWidth()) { Text(action.label) }
                         }
+                        EditPresetsInApp(this@SingleActionConfigActivity)
                     }
                 }
+                ThemeDuePrompt(theme)
             }
         }
     }
@@ -61,6 +66,7 @@ class SingleActionConfigActivity : ComponentActivity() {
         lifecycleScope.launch {
             val glanceId = GlanceAppWidgetManager(this@SingleActionConfigActivity).getGlanceIdBy(widgetId)
             updateAppWidgetState(this@SingleActionConfigActivity, glanceId) { prefs ->
+                prefs[SingleActionWidget.KEY_PRESET] = action.key
                 prefs[SingleActionWidget.KEY_COMMAND] = action.command.name
                 prefs[SingleActionWidget.KEY_LABEL] = action.label
                 if (action.profileId != null) prefs[SingleActionWidget.KEY_PROFILE] = action.profileId else prefs.remove(SingleActionWidget.KEY_PROFILE)

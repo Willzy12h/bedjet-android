@@ -12,6 +12,8 @@ import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.GraphLifecycle
+import io.github.willzy12h.nocturne.Graph
+import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
@@ -27,6 +29,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 import android.os.Looper
 import java.time.Duration
 import java.time.ZonedDateTime
@@ -82,7 +85,7 @@ class NightActionsTest {
         // No creator package, so it counts as the clock app's alarm.
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
         val at = graph.now().plusHours(5).withSecond(0).withNano(0)
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), null), fire)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)), fire)
 
         graph.actions.perform(Command.RETIME)
 
@@ -118,6 +121,12 @@ class NightActionsTest {
 
     @Test
     fun turboEndsTheNightOnceTheBedJetHasIt() = runBlocking {
+        val fixedClock = graph.clock
+        val replacement = graphs.fresh {
+            Graph(context, DemoBedJet(now = { ZonedDateTime.now(fixedClock) })).also { it.clock = fixedClock }
+        }
+        ReflectionHelpers.setField(context, "graph", replacement)
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val started = graph.actions.perform(Command.START_NIGHT, graph.repository.profiles.value.first().id)
         val night = graph.repository.activeNight.value
         assertNotNull(started, night)

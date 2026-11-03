@@ -14,6 +14,7 @@ import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.TurboChain
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.ActionPreset
+import io.github.willzy12h.nocturne.core.store.AutoStartSettings
 import io.github.willzy12h.nocturne.platform.PlatformNotifications
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -61,13 +62,14 @@ internal class U06ControlSemanticsTest(look: U06Look) {
             if (platformRows) {
                 f.graph.repository.updateSettings {
                     it.copy(demoMode = false, targetDevice = TARGET,
-                        platform = it.platform.copy(healthSleepOverlay = true))
+                        platform = it.platform.copy(healthSleepOverlay = true, healthSleepExport = true,
+                            autoStart = AutoStartSettings(profileId = Presets.summerCool.id, deviceId = TARGET)))
                 }
             }
         }
         if (platformRows) {
             val app: Application = RuntimeEnvironment.getApplication()
-            shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.BLUETOOTH_ADVERTISE)
+            shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
             PlatformNotifications.channel(app)
         }
     }
@@ -153,6 +155,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     @Test fun settingsSlidersExposeExactCelsiusAndFahrenheitStates() {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
+        compose.openSettingsPage("notifications")
         for (useFahrenheit in listOf(false, true)) {
             fahrenheit(useFahrenheit)
             data class Preset(val title: Int, val rawTemperature: Float, val celsius: String, val fahrenheit: String,
@@ -171,15 +174,15 @@ internal class U06ControlSemanticsTest(look: U06Look) {
                 scalar(label(R.string.slider_fan), preset.fan.toFloat(), percent(preset.fan))
                 scalar(label(R.string.slider_minutes), preset.minutes.toFloat(), minutes(preset.minutes))
             }
-            scalar(s(R.string.slider_boost), 15f, minutes(15))
-            compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(13)
+            // Boost is a row that opens its editor; the page itself holds no Boost slider.
+            compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(12)
         }
     }
 
     @Test fun remoteSlidersExposeExactCelsiusAndFahrenheitStates() {
         // Hold controlled feedback before any command can enqueue its own snackbar.
         fixture.snackbar()
-        fixture.control(s(R.string.feature_warm)).performClick()
+        fixture.quick(fixture.graph.repository.settings.value.extendWarm).performClick()
         fixture.waitUntil {
             graph.link.status.value?.let { it.mode == Mode.HEAT && it.targetTemperature == 64 && it.fanPercent == 30 } == true &&
                 graph.actions.busy.value.runningLabel == null
@@ -208,17 +211,35 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     @Test fun settingsRowsAreSingleToggleableTargets() {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
-        toggleTwice(s(R.string.settings_simple_view)) { graph.repository.settings.value.simpleView }
+        compose.openSettingsPage("appearance")
+        // UX-04: Simple view is retired; its switch is gone from Settings.
+        compose.onAllNodes(switchMatcher("Simple view")).assertCountEquals(0)
         toggleTwice(s(R.string.settings_show_f)) { graph.repository.settings.value.fahrenheit }
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("notifications")
         toggleTwice(s(R.string.settings_quiet_title)) { graph.repository.settings.value.quietNightNotification }
-        toggleTwice(s(R.string.settings_check_weekly)) { graph.repository.settings.value.autoUpdateCheck }
-        toggleTwice(s(R.string.settings_demo)) { graph.repository.settings.value.demoMode }
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("about")
+        fixture.control(s(R.string.settings_github_releases))
+        fixture.control(s(R.string.settings_source_code))
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        fixture.tab(s(R.string.tab_tonight))
+        fixture.control(s(R.string.gpt12_exit_demo), scroll = false).performClick()
+        fixture.waitUntil { !graph.repository.settings.value.demoMode }
+        fixture.tab(s(R.string.tab_settings))
+        fixture.snackbar() // The mode boundary disposes the old session and its SnackbarHost.
+        compose.runOnUiThread { fixture.model.useDemo() }
+        fixture.waitUntil { graph.repository.settings.value.demoMode }
+        fixture.snackbar()
+        fixture.tab(s(R.string.tab_tonight))
+        fixture.control(s(R.string.gpt12_exit_demo), scroll = false)
     }
 
-    @Test fun remoteRowsAreSingleToggleableTargets() {
+    @Test fun deviceRowsInSettingsAreSingleToggleableTargets() {
         fixture.waitUntil { graph.link.state.value == LinkState.READY && graph.link.status.value?.extra != null }
-        fixture.tab(s(R.string.tab_remote))
+        fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
+        compose.openSettingsPage("bedjet")
         toggleTwice(s(R.string.remote_lights)) { graph.link.status.value!!.extra!!.ledEnabled }
         toggleTwice(s(R.string.remote_beeps)) { !graph.link.status.value!!.extra!!.beepsMuted }
     }
@@ -227,54 +248,66 @@ internal class U06ControlSemanticsTest(look: U06Look) {
     fun platformRowsAreSingleToggleableTargets() {
         fixture.tab(s(R.string.tab_settings))
         fixture.snackbar()
+        compose.openSettingsPage("night")
         toggleTwice(s(R.string.feature_reminders)) { graph.repository.settings.value.platform.bedtimeReminder }
-        toggleTwice(s(R.string.feature_charger)) { graph.repository.settings.value.platform.chargerAutoStart }
-        toggleTwice(s(R.string.feature_lull)) { graph.repository.settings.value.platform.lullHandover }
+        toggleTwice(s(R.string.auto_start_title)) { graph.repository.settings.value.platform.autoStart?.enabled == true }
+        toggleTwice(s(R.string.auto_start_only_charging)) { graph.repository.settings.value.platform.autoStart?.onlyIfCharging == true }
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("health")
+        switchRow(s(R.string.health_export_title), true).assertIsEnabled().performClick()
+        fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepExport }
+        switchRow(s(R.string.health_export_title), false)
         // Disabling is a real supported action without a Health Connect provider or permission activity.
         switchRow(s(R.string.feature_health_title), true).assertIsEnabled().performClick()
         fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepOverlay }
         switchRow(s(R.string.feature_health_title), false)
     }
 
-    @Test fun chargerRowKeepsItsExplainedDisabledStateInDemo() {
+    @Test fun automaticFeatureRowsKeepTheirExplainedDisabledStateInDemo() {
         fixture.tab(s(R.string.tab_settings))
-        switchRow(s(R.string.feature_charger), false).assertIsNotEnabled()
-        compose.onNodeWithText(s(R.string.feature_select_device)).performScrollTo().assertIsDisplayed()
+        compose.openSettingsPage("night")
+        switchRow(s(R.string.auto_start_title), false).assertIsNotEnabled()
+        switchRow(s(R.string.auto_start_only_charging), false).assertIsNotEnabled()
+        compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+        compose.openSettingsPage("health")
+        switchRow(s(R.string.health_export_title), false).assertIsNotEnabled()
+        compose.onAllNodesWithText(s(R.string.platform_demo_unavailable)).onFirst().performScrollTo().assertIsDisplayed()
     }
 
     private fun openEditor() {
-        fixture.control(s(R.string.action_edit)).performClick()
-        compose.onNodeWithText(s(R.string.editor_title)).assertIsDisplayed()
+        compose.openTonightProfileEditor()
+        compose.onNodeWithTag("editor-save").assertIsDisplayed()
     }
 
     @Test fun editorSlidersAndBothRangeThumbsExposeTheirValuesInBothUnits() {
         openEditor()
-        // Compact phase rows reveal the same complete controls on demand.
-        listOf("START", "WAKE", "AFTER_WAKE").forEach { block ->
-            compose.onNodeWithTag("editor-phase-$block-0").performScrollTo().performClick()
-        }
         for (useFahrenheit in listOf(false, true)) {
             fahrenheit(useFahrenheit)
             range(s(R.string.slider_fan_limits), 5f, 100f,
                 s(R.string.a11y_range, percent(5), percent(100)))
             range(s(R.string.slider_temp_limits), 38f, 86f,
                 s(R.string.a11y_range, temperature("19", "66", useFahrenheit), temperature("43", "109", useFahrenheit)))
-            // Start, Wake and After wake each have their own Temperature, Fan and Length controls.
-            scalarGroup(s(R.string.slider_temp), listOf(
-                44f to temperature("22", "72", useFahrenheit),
-                60f to temperature("30", "86", useFahrenheit),
-                44f to temperature("22", "72", useFahrenheit),
-            ))
-            scalarGroup(s(R.string.slider_fan), listOf(70f to percent(70), 30f to percent(30), 40f to percent(40)))
-            scalarGroup(s(R.string.slider_length), listOf(30f to minutes(30), 20f to minutes(20), 20f to minutes(20)))
+            compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(4)
+            data class PhaseValues(val block: String, val temp: Float, val celsius: String, val fahrenheit: String, val fan: Int, val minutes: Int)
+            for (phase in listOf(PhaseValues("START", 44f, "22", "72", 70, 30),
+                PhaseValues("WAKE", 60f, "30", "86", 30, 20),
+                PhaseValues("AFTER_WAKE", 44f, "22", "72", 40, 20))) {
+                compose.onNodeWithTag("editor-phase-${phase.block}-0").performScrollTo().performClick()
+                scalar(s(R.string.slider_temp), phase.temp, temperature(phase.celsius, phase.fahrenheit, useFahrenheit))
+                scalar(s(R.string.slider_fan), phase.fan.toFloat(), percent(phase.fan))
+                scalar(s(R.string.slider_length), phase.minutes.toFloat(), minutes(phase.minutes))
+                compose.onAllNodes(adjustable and hasAnyAncestor(hasTestTag("editor-phase-controls-${phase.block}-0")), useUnmergedTree = true).assertCountEquals(3)
+                compose.onNodeWithText(s(R.string.uat_setup_done)).performScrollTo().performClick()
+            }
+            compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
             scalar(s(R.string.slider_fan_start), 50f, percent(50))
             scalar(s(R.string.slider_fan_end), 25f, percent(25))
             scalar(s(R.string.slider_temp_start), 44f, temperature("22", "72", useFahrenheit))
             scalar(s(R.string.slider_temp_end), 44f, temperature("22", "72", useFahrenheit))
             scalar(s(R.string.slider_steps), 3f,
                 compose.activity.resources.getQuantityString(R.plurals.a11y_steps, 3, 3))
-            // Four range thumbs plus fourteen scalar sliders: this also catches newly added unlabelled sliders.
-            compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(18)
+            compose.onAllNodes(adjustable and hasAnyAncestor(hasTestTag("editor-middle-sheet")), useUnmergedTree = true).assertCountEquals(5)
+            compose.onNodeWithText(s(R.string.uat_setup_done)).performScrollTo().performClick()
         }
     }
 
@@ -284,6 +317,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         switchRow(s(R.string.editor_wake_with_alarm), false)
         switchRow(s(R.string.editor_repeat_turbo), false).performClick()
         switchRow(s(R.string.editor_repeat_turbo), true)
+        fixture.checkLayout(compose.onNodeWithText(s(R.string.editor_repeat_turbo_help)), "Repeat Turbo explanation")
         fixture.control(s(R.string.editor_save), scroll = false).performClick()
         fixture.waitUntil {
             graph.repository.profiles.value.first { it.id == Presets.summerCool.id }.let {

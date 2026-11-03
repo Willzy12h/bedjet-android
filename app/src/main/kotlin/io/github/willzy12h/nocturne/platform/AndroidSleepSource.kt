@@ -10,11 +10,16 @@ import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.ui.nativeActionDialogContext
+import io.github.willzy12h.nocturne.ui.nativeDialogPalette
+import io.github.willzy12h.nocturne.ui.styleNativeDialog
 import java.time.Duration
 import java.time.Instant
 
 class AndroidSleepSource(context: Context) : SleepSource {
-    private val client=HealthConnectClient.getOrCreate(context)
+    private val client=HealthConnectAccess.client(context)
+    private val ownPackage=context.packageName
     override suspend fun permitted()=client.permissionController.getGrantedPermissions().containsAll(PERMISSIONS)
     override suspend fun sessions(start: Instant,end: Instant): List<SleepStage> {
         val stages=mutableListOf<SleepStage>();var token:String?=null
@@ -27,9 +32,35 @@ class AndroidSleepSource(context: Context) : SleepSource {
         } while (token != null)
         return stages
     }
+    override suspend fun nights(start: Instant, end: Instant): List<io.github.willzy12h.nocturne.sleep.SleepNight> {
+        val nights=mutableListOf<io.github.willzy12h.nocturne.sleep.SleepNight>();var token:String?=null
+        do {
+            val page=client.readRecords(ReadRecordsRequest(SleepSessionRecord::class,TimeRangeFilter.between(start,end),pageToken=token))
+            // Nocturne's own sessions only echo its BedJet nights back; the page shows those from the history instead.
+            page.records.filter { it.metadata.dataOrigin.packageName != ownPackage }.forEach { session ->
+                nights += io.github.willzy12h.nocturne.sleep.SleepNight.of(session.startTime, session.endTime,
+                    session.stages.map { SleepStage(it.startTime, it.endTime, it.stage) })
+            }
+            token=page.pageToken
+        } while (token != null)
+        return nights
+    }
     companion object {
         val PERMISSIONS=setOf(HealthPermission.getReadPermission(SleepSessionRecord::class))
-        fun reader(context: Context)=SleepOverlayReader({HealthConnectClient.getSdkStatus(context)==HealthConnectClient.SDK_AVAILABLE}) {AndroidSleepSource(context)}
+        fun reader(context: Context)=SleepOverlayReader({HealthConnectAccess.available(context)}) {AndroidSleepSource(context)}
+        fun nightsReader(context: Context)=SleepNightsReader({HealthConnectAccess.available(context)}) {AndroidSleepSource(context)}
+    }
+}
+
+class AndroidSleepWriter(context: Context) : SleepSessionWriter {
+    private val client by lazy { HealthConnectAccess.client(context) }
+    override suspend fun permitted() = client.permissionController.getGrantedPermissions().containsAll(PERMISSIONS)
+    override suspend fun upsert(record: SleepSessionRecord) {
+        // clientRecordId/clientRecordVersion make a retry an upsert, including an already accepted equal version.
+        client.insertRecords(listOf(record))
+    }
+    companion object {
+        val PERMISSIONS = setOf(HealthPermission.getWritePermission(SleepSessionRecord::class))
     }
 }
 
@@ -37,7 +68,8 @@ class AndroidSleepSource(context: Context) : SleepSource {
 class HealthRationaleActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AlertDialog.Builder(this).setTitle(R.string.feature_health_title).setMessage(R.string.feature_health_privacy)
+        AlertDialog.Builder(nativeActionDialogContext(this, graph)).setTitle(R.string.feature_health_title).setMessage(R.string.health_data_rationale)
             .setPositiveButton(android.R.string.ok){_,_->finish()}.setOnCancelListener{finish()}.show()
+            .also { styleNativeDialog(it, nativeDialogPalette(this, graph)) }
     }
 }

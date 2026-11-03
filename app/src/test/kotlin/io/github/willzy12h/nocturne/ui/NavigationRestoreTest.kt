@@ -34,7 +34,7 @@ import java.time.ZoneOffset
 
 /** A fresh Activity and ViewModel receive only the marshalled saved state, never retained editor state. */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
+@Config(sdk = [34, 36], qualifiers = "w411dp-h891dp-xhdpi")
 class NavigationRestoreTest {
     private val graphs = GraphLifecycle()
     private val compose = createEmptyComposeRule()
@@ -101,10 +101,10 @@ class NavigationRestoreTest {
     }
 
     private fun newDraft() {
-        compose.onNodeWithText("Profiles").performClick()
-        compose.onNodeWithText("New profile").performClick()
-        compose.onNodeWithText("Summer Cool (summer)").performClick()
-        compose.onNodeWithText("Edit profile").assertExists()
+        compose.navTab("Profiles")
+        compose.onNodeWithTag("profiles-new", useUnmergedTree = true).performClick()
+        compose.onNode(hasText("Summer Cool") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
+        compose.onNodeWithTag("editor-save").assertExists()
     }
 
     private fun renameDraft(name: String) {
@@ -113,13 +113,15 @@ class NavigationRestoreTest {
     }
 
     private fun editFirstProfile() {
-        compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodesWithText("Edit")[0].performClick()
-        compose.onNodeWithText("Edit profile").assertExists()
+        compose.navTab("Profiles")
+        val id = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(id)
+        compose.onNodeWithTag("profile-open-$id").performScrollTo().performClick()
+        compose.onNodeWithTag("editor-save").assertExists()
     }
 
     private fun discardDraft() {
-        compose.onNodeWithContentDescription("Cancel").performClick()
+        compose.onNodeWithTag("editor-back").performClick()
         compose.onNodeWithText("Discard changes?").assertExists()
         compose.onNodeWithText("Discard").performClick()
         compose.waitForIdle()
@@ -136,39 +138,41 @@ class NavigationRestoreTest {
         val originalLaunch = Intent(app, MainActivity::class.java).putExtra("openTonight", true)
         launch(Intent(originalLaunch))
         assertFalse(controller!!.get().intent.hasExtra("openTonight"))
-        compose.onNodeWithText("History").performClick()
-        compose.onNodeWithText("Export history CSV").assertExists()
+        compose.navTab("History")
+        compose.onNodeWithTag("sleep-list").assertExists()
 
         // Android may redeliver the original launch intent after process death.
         restore(originalLaunch)
 
-        compose.onNodeWithText("Export history CSV").assertExists()
+        compose.onNodeWithTag("sleep-list").assertExists()
         compose.onNodeWithText("Start night now").assertDoesNotExist()
     }
 
     @Test fun newIntentOverRestoredNavigationStillOpensTonight() {
         launch()
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         restore()
-        compose.onNodeWithText("Export history CSV").assertExists()
+        compose.onNodeWithTag("sleep-list").assertExists()
 
         openTonight()
 
-        compose.onNodeWithText("Export history CSV").assertDoesNotExist()
+        compose.onNodeWithTag("sleep-list").assertDoesNotExist()
         assertFalse(controller!!.get().intent.hasExtra("openTonight"))
     }
 
     @Test fun dirtyDraftIsParkedAndResumeRestoresItsUnsavedValues() {
         launch()
         val savedProfiles = graph.repository.profiles.value
-        compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodesWithText("Edit")[0].performClick()
+        compose.navTab("Profiles")
+        val id = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(id)
+        compose.onNodeWithTag("profile-open-$id").performScrollTo().performClick()
         renameDraft("Unsaved existing draft")
 
         openTonight()
         compose.onNodeWithText("Resume editing draft").performClick()
 
-        compose.onNodeWithText("Edit profile").assertExists()
+        compose.onNodeWithTag("editor-save").assertExists()
         compose.onNode(hasSetTextAction() and hasText("Unsaved existing draft")).assertExists()
         assertEquals(savedProfiles, graph.repository.profiles.value)
     }
@@ -192,10 +196,30 @@ class NavigationRestoreTest {
 
     @Test fun selectedTabSurvivesParcelledSavedState() {
         launch()
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         restore()
-        compose.onNodeWithText("Export history CSV").assertExists()
+        compose.onNodeWithTag("sleep-list").assertExists()
         compose.onNodeWithText("Start night now").assertDoesNotExist()
+    }
+
+    @Test fun newSetupRequestStillOpensAfterFreshViewModelRestoration() {
+        launch()
+        compose.navTab("Settings")
+        compose.openSettingsPage("permissions")
+        compose.onNodeWithTag("open-setup-checklist").performScrollTo().performClick()
+        compose.onNodeWithTag("setup-checklist").assertExists()
+        compose.navTab("Profiles")
+        compose.onNodeWithTag("profiles-new").assertIsDisplayed()
+
+        // The saved consumer count survives, but this helper creates a genuinely fresh ViewModel.
+        restore()
+        compose.onNodeWithTag("profiles-new").assertIsDisplayed()
+        compose.navTab("Settings")
+        compose.openSettingsPage("permissions")
+        compose.onNodeWithTag("open-setup-checklist").performScrollTo().performClick()
+
+        compose.onNodeWithTag("setup-checklist").assertExists()
+        compose.onNodeWithTag("open-setup-checklist").assertDoesNotExist()
     }
 
     @Test fun anotherTonightIntentPreservesAnAlreadyParkedNewDraft() {
@@ -212,13 +236,15 @@ class NavigationRestoreTest {
     @Test fun existingProfileDraftSurvivesParcelledSavedStateWithoutSavingIt() {
         launch()
         val originals = graph.repository.profiles.value
-        compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodesWithText("Edit")[0].performClick()
+        compose.navTab("Profiles")
+        val id = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(id)
+        compose.onNodeWithTag("profile-open-$id").performScrollTo().performClick()
         renameDraft("Parcel existing draft")
 
         restore()
 
-        compose.onNodeWithText("Edit profile").assertExists()
+        compose.onNodeWithTag("editor-save").assertExists()
         compose.onNode(hasSetTextAction() and hasText("Parcel existing draft")).assertExists()
         assertEquals(originals, graph.repository.profiles.value)
     }
@@ -231,7 +257,7 @@ class NavigationRestoreTest {
 
         restore()
 
-        compose.onNodeWithText("Edit profile").assertExists()
+        compose.onNodeWithTag("editor-save").assertExists()
         compose.onNode(hasSetTextAction() and hasText("Parcel new draft")).assertExists()
         assertEquals(originalIds, graph.repository.profiles.value.map { it.id }.toSet())
         compose.onNodeWithText("Save").performClick()
@@ -260,6 +286,41 @@ class NavigationRestoreTest {
         discardDraft()
         compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
         assertEquals(originals.first(), graph.repository.profiles.value.first { it.id == originals.first().id })
+    }
+
+    @Test fun leavingDemoDiscardsItsParkedDraftBeforeReturningToRealProfiles() {
+        runBlocking {
+            graph.actions.setDemoMode(false)
+            graph.actions.setDemoMode(true)
+        }
+        val originals = graph.repository.profiles.value
+        launch()
+        editFirstProfile()
+        renameDraft("Disposable demo draft")
+        openTonight()
+        compose.onNodeWithText("Resume editing draft").assertExists()
+        compose.onNodeWithText("Exit demo").performClick()
+        compose.waitUntil(5_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10))
+            !graph.repository.settings.value.demoMode
+        }
+        compose.onNodeWithText("Resume editing draft").assertDoesNotExist()
+        assertEquals(originals, graph.repository.profiles.value)
+        assertFalse(graph.repository.profiles.value.any { it.name == "Disposable demo draft" })
+    }
+
+    @Test fun aDemoSessionChangeClosesAnActiveEditorBeforeItCanSaveIntoRealProfiles() {
+        runBlocking {
+            graph.actions.setDemoMode(false)
+            graph.actions.setDemoMode(true)
+        }
+        launch()
+        editFirstProfile()
+        renameDraft("Discard on demo exit")
+        compose.runOnUiThread { runBlocking { graph.actions.setDemoMode(false) } }
+        compose.waitForIdle()
+        compose.onNode(hasSetTextAction() and hasText("Discard on demo exit")).assertDoesNotExist()
+        assertFalse(graph.repository.profiles.value.any { it.name == "Discard on demo exit" })
     }
 
     @Test fun parkedNewDraftSurvivesDiscardingAnotherEditorAcrossSavedState() {
@@ -365,7 +426,7 @@ class NavigationRestoreTest {
         openTonight()
 
         editFirstProfile()
-        compose.onNodeWithContentDescription("Cancel").performClick()
+        compose.onNodeWithTag("editor-back").performClick()
 
         compose.onNodeWithText("Resume editing draft").performClick()
         compose.onNode(hasSetTextAction() and hasText("Keep parked edits")).assertExists()
@@ -387,7 +448,7 @@ class NavigationRestoreTest {
         settleIntentNavigation()
 
         compose.onNodeWithText("Start night now").assertExists()
-        compose.onNodeWithText("Edit profile").assertDoesNotExist()
+        compose.onNodeWithTag("editor-save").assertDoesNotExist()
         compose.onNodeWithText("Resume editing draft").performClick()
         compose.onNode(hasSetTextAction() and hasText("Last edit before Tonight")).assertExists()
         discardDraft()

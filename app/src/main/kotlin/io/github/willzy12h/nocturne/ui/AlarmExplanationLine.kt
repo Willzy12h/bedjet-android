@@ -26,7 +26,9 @@ fun AlarmExplanationLine(explanation: AlarmExplanation, onClick: () -> Unit) {
         AlarmSettingsTarget.TONIGHT_WAKE -> R.string.alarm_source_open_tonight
     })
     Text(explanation.description(LocalContext.current),
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // Accent-coloured and underlined, so it reads as something to tap.
+        style = MaterialTheme.typography.bodySmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
+        color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             .clickable(role = Role.Button, onClickLabel = action, onClick = onClick).padding(vertical = 8.dp))
 }

@@ -40,13 +40,25 @@ data class NightRecord(
     val revisions: List<AppliedProgram> = emptyList(),
     /** Kept for equipment diagnostics, excluded from real sleep views and integrations. */
     val isTestRun: Boolean = false,
+    /** Set only after this app receives confirmation of the real BedJet's programme. Legacy/imported data has no proof. */
+    val bedJetRunConfirmed: Boolean = false,
+    /** Natural completion of that confirmed programme, persisted through the local ending journal. */
+    val confirmedCompletionAt: String? = null,
+    /** Monotonic provider version; a successful upsert is acknowledged separately. */
+    val healthExportVersion: Long = 0,
+    val healthExportedVersion: Long = 0,
 )
 
 object History {
-    const val KEEP_DAYS = 60L
+    /** How long nights are kept, in days, unless Settings › Sleep chooses another of [KEEP_OPTIONS]. */
+    const val DEFAULT_KEEP_DAYS = 90
+    val KEEP_OPTIONS = listOf(7, 30, 90, 365)
 
-    fun prune(records: List<NightRecord>, now: ZonedDateTime): List<NightRecord> {
-        val cutoff = now.minusDays(KEEP_DAYS)
+    /** [keepDays] outside [KEEP_OPTIONS] falls back to [DEFAULT_KEEP_DAYS], so a bad value can never delete everything. */
+    fun keepDays(saved: Int): Int = saved.takeIf { it in KEEP_OPTIONS } ?: DEFAULT_KEEP_DAYS
+
+    fun prune(records: List<NightRecord>, now: ZonedDateTime, keepDays: Int = DEFAULT_KEEP_DAYS): List<NightRecord> {
+        val cutoff = now.minusDays(keepDays(keepDays).toLong())
         return records.filter { runCatching { ZonedDateTime.parse(it.startedAt) }.getOrNull()?.isAfter(cutoff) ?: false }
     }
 

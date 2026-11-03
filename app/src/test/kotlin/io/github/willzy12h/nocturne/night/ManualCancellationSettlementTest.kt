@@ -35,6 +35,7 @@ import java.time.ZoneOffset
 class ManualCancellationSettlementTest {
     @get:Rule val graphs = GraphLifecycle()
     private val app = RuntimeEnvironment.getApplication() as App
+    private val realTarget = "ble:AA:BB:CC:DD:EE:FF"
     private lateinit var graph: Graph
     private lateinit var demo: DemoBedJet
     private var frozen: SourcedStatus? = null
@@ -82,6 +83,10 @@ class ManualCancellationSettlementTest {
         graph.actions.freshStatusMs = 60_000
     }
 
+    private suspend fun useRealHistory() {
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = realTarget) }
+    }
+
     private suspend fun start(): ActiveNight {
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT)).kind)
         return graph.repository.activeNight.value!!
@@ -103,8 +108,8 @@ class ManualCancellationSettlementTest {
     }
 
     private suspend fun temperature(written: CompletableDeferred<Unit>): CommandOutcome =
-        graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 72 }) {
-            it.setTemperature(72)
+        graph.actions.remote("Temperature set", affectsProgramme = true, confirms = { it.targetTemperature == 50 }) {
+            it.setTemperature(50) // Valid in Cool and Heat; cancellation assertions stay unchanged.
             workReturned = true
             written.complete(Unit)
         }
@@ -167,6 +172,7 @@ class ManualCancellationSettlementTest {
     }
 
     @Test fun cancelledOffKeepsItsDurableIntentionForALaterStandby() = runBlocking {
+        useRealHistory()
         val night = start()
         frozen = demo.latestSourcedStatus()
         val written = CompletableDeferred<Unit>()
@@ -192,7 +198,7 @@ class ManualCancellationSettlementTest {
             assertTrue(graph.repository.history.value.single { it.id == night.recordId }.events.none { it.kind == EventKind.STOPPED })
 
             frozen = null
-            graph.actions.observeStatus(demo.status.value!!, "demo", receipt = graph.actions.statusReceipt())
+            graph.actions.observeStatus(demo.status.value!!, realTarget, receipt = graph.actions.statusReceipt())
             assertNull("A later target Standby can still finish that Off", graph.repository.activeNight.value)
             assertNull(graph.repository.runtime.value.endRequested)
             assertEquals("Off", graph.repository.history.value.single { it.id == night.recordId }
@@ -288,6 +294,7 @@ class ManualCancellationSettlementTest {
     }
 
     @Test fun cancellingAsConfirmedOffEndingPublishesCompletesItBeforeReconciliation() = runBlocking {
+        useRealHistory()
         val night = start()
         val before = writes
         val owner = Job(currentCoroutineContext()[Job])
@@ -363,6 +370,7 @@ class ManualCancellationSettlementTest {
     }
 
     @Test fun confirmedManualControlsStillSettleNormally() = runBlocking {
+        useRealHistory()
         val night = start()
         assertEquals(OutcomeKind.CONFIRMED, temperature(CompletableDeferred()).kind)
         assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)

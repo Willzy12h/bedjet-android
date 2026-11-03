@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The widget's asleep look: not connected to the BedJet. A grey button connects first, then runs. -->
+    <string name="widget_asleep_title">Not connected</string>
+    <string name="widget_asleep_short">Asleep</string>
+    <string name="widget_connecting_title">Connecting…</string>
+    <string name="widget_connecting_short">Looking…</string>
+    <string name="widget_connecting_body">Looking for your BedJet</string>
+    <string name="widget_missing_title">Not in range</string>
+    <string name="widget_missing_short">Not near</string>
+    <string name="widget_last_read">Last read %1$s</string>
+    <string name="widget_checked">Checked %1$s</string>
+    <string name="widget_tap_reconnect">Tap to reconnect</string>
+    <string name="widget_tap_try_again">Tap to try again</string>
+    <string name="widget_reconnect">Reconnect</string>
+    <string name="widget_try_again">Try again</string>
+    <string name="widget_reconnect_description">Reconnect to your BedJet</string>
+    <string name="widget_reconnect_card_body">Also wakes when you open Nocturne</string>
+    <string name="widget_reconnect_card_short">Or open Nocturne</string>
+    <string name="widget_connecting_card_body">Buttons light up when it answers</string>
+    <string name="widget_asleep_control_description">%1$s: not connected. A tap connects first, then runs it.</string>
+    <string name="widget_asleep_off_description">%1$s: reconnects, then turns the BedJet off.</string>
+
+    <!-- Android 16 and later: the BedJet coming into range wakes the widget. -->
+    <string name="presence_title">Wake the widget near your BedJet</string>
+    <string name="presence_body">Android tells Nocturne when your BedJet is in range, so an asleep widget lights up again by itself. Android asks once.</string>
+    <string name="presence_allow">Allow</string>
+    <string name="presence_on">On. The widget wakes when your BedJet is in range.</string>
+    <string name="presence_failed">Android did not allow it. You can try again.</string>
+    <string name="presence_pause_note">While Android looks for it, Nocturne lets go of your BedJet for a moment, then reconnects.</string>
+    <string name="presence_busy">Nocturne is busy with your BedJet. Try again in a moment.</string>
+</resources>

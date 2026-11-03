@@ -1,11 +1,16 @@
 package io.github.willzy12h.nocturne
 
+import io.github.willzy12h.nocturne.ui.openSettingsPage
+
 import android.os.Looper
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.core.store.ThemeMode
@@ -66,25 +71,28 @@ class AppearanceTest {
     @Test
     fun simpleViewListsTheNightAndEndsAtTheWakeTime() {
         compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(simpleView = true) } } }
-        waitFor(hasText("Wake time") or hasText("Your alarm"))
+        waitFor(hasTestTag("tonight-fixed-wake"))
+        compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Wake", substring = true)
         compose.onNodeWithText("Start night now").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(io.github.willzy12h.nocturne.ui.expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))
+        compose.onNodeWithTag("quick-mode-TURBO")
             .performScrollTo().assertIsDisplayed()
+            .assertTextContains("Turbo").assertTextContains("10 min")
     }
 
     @Test
     fun themeChoiceIsSaved() {
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("appearance")
         compose.onNodeWithText("Light").performScrollTo().performClick()
         compose.onNodeWithText(compose.activity.getString(R.string.ux_light_theme_warning)).assertIsDisplayed()
         assertEquals(ThemeMode.SYSTEM, graph.repository.settings.value.themeMode)
         compose.onNodeWithText(compose.activity.getString(R.string.ux_switch)).performClick()
-        waitForText("Simple view")
+        waitForText(compose.activity.getString(R.string.settings_show_f))
         // Settings are saved off the main thread and show once they are on disk.
         compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.SYSTEM }
         assertEquals(ThemeMode.LIGHT, graph.repository.settings.value.themeMode)
         compose.onNodeWithText("Dark").performScrollTo().performClick()
-        waitForText("Simple view")
+        waitForText(compose.activity.getString(R.string.settings_show_f))
         compose.waitUntil(5_000) { graph.repository.settings.value.themeMode != ThemeMode.LIGHT }
         assertEquals(ThemeMode.DARK, graph.repository.settings.value.themeMode)
     }

@@ -89,7 +89,7 @@ class TemporaryNativeLayoutTest : PlatformGraphFixture() {
         graph = fresh { Graph(app, link) }
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
         ReflectionHelpers.setField(app, "graph", graph)
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false, themeMode = ThemeMode.DARK) }
+        graph.repository.updateSettings { it.copy(demoMode = true, themeMode = ThemeMode.DARK) }
         graph.actions.confirmMs = 20
         graph.actions.freshStatusMs = 20
         assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(Command.START_NIGHT)).kind)
@@ -263,10 +263,9 @@ class TemporaryNativeLayoutTest : PlatformGraphFixture() {
             state = preferencesOf(SingleActionWidget.KEY_COMMAND to Command.WARM.name,
                 SingleActionWidget.KEY_LABEL to app.getString(R.string.feature_warm)))
         else QuickControlsWidget().compose(app, id = id, size = DpSize(340.dp, 240.dp),
-            // This 200% fixture shows one Quick action per page: Cool first, then Warm.
-            state = preferencesOf(QuickControlsWidget.KEY_PAGE to "quick:1"))
-        descendants(rendered.apply(app, FrameLayout(app))).filterIsInstance<Button>()
-            .single { it.text.toString() == app.getString(R.string.feature_warm) }.performClick()
+            state = preferencesOf(QuickControlsWidget.KEY_PRESETS to "HEAT"))
+        requireNotNull(io.github.willzy12h.nocturne.widget.widgetControl(rendered.apply(app, FrameLayout(app)),
+            app.getString(if (single) R.string.feature_warm else R.string.mode_heat))).performClick()
         val intent = requireNotNull(shadowOf(app).nextStartedActivity)
         assertEquals(WidgetConfirmationActivity::class.java.name, intent.component!!.className)
         return Robolectric.buildActivity(WidgetConfirmationActivity::class.java, intent).setup()
@@ -398,7 +397,7 @@ class TemporaryNativeLayoutTest : PlatformGraphFixture() {
                 val label = app.getString(if (command == Command.RESUME) R.string.runtime_resume_title else R.string.runtime_end)
                 val notification = requireNotNull(shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(id))
                 val action = notification.actions.single { it.title.toString() == label }
-                assertTrue("Recovery must open the actual confirmation Activity", shadowOf(action.actionIntent).isActivityIntent)
+                assertTrue("Recovery must open the actual confirmation Activity", shadowOf(action.actionIntent).isActivity)
                 shadowOf(action.actionIntent).savedIntent
             }
             else -> error("Not a fallback case")

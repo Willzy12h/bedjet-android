@@ -87,7 +87,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
         ui.waitUntil { ui.graph.actions.status.value.confidence == Confidence.CONFIRMED }
         assertEquals(Confidence.CONFIRMED, ui.graph.repository.activeNight.value?.confidence)
         withAndWithoutFeedback {
-            ui.control(ui.s(R.string.tonight_end_night))
+            ui.control(ui.s(R.string.parity_end_night))
             ui.control(ui.s(R.string.runtime_command_stop_tracking))
             quickButtons()
         }
@@ -129,12 +129,12 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     @PrimarySeed(PrimaryScenario.IDLE)
-    @Test fun remoteModeTimerAndBoostControlsAreReachableAboveFeedback() {
+    @Test fun remoteModeAndTimerControlsAreReachableAboveFeedback() {
         val graph = ui.graph
         val warmPreset = graph.repository.settings.value.extendWarm
         val warmFeedback = ui.compose.activity.resources.getQuantityString(
             R.plurals.runtime_captured_action_duration, warmPreset.minutes, ui.s(R.string.mode_heat), warmPreset.minutes)
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.quick(ui.graph.repository.settings.value.extendWarm).performClick()
         ui.waitUntil { graph.link.status.value?.mode == Mode.HEAT && graph.actions.busy.value.runningLabel == null }
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isNotEmpty() }
         // Dismiss the command's real feedback so the first pass has no snackbar and the controlled one can follow.
@@ -142,15 +142,16 @@ class U06PrimaryLayoutTest(look: U06Look) {
             .performSemanticsAction(SemanticsActions.Dismiss) { assertTrue(it()) }
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isEmpty() }
         ui.tab(ui.s(R.string.tab_remote))
-        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_lights)).fetchSemanticsNodes().isNotEmpty() }
+        ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_run_for)).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("The Heat fixture must report its four-hour runtime ceiling", 240, graph.link.status.value?.maxRuntimeMinutes)
         withAndWithoutFeedback {
-            listOf(R.string.mode_cool, R.string.mode_heat, R.string.mode_gentle_heat,
+            listOf(R.string.mode_cool, R.string.mode_heat, R.string.mode_long_heat,
                 R.string.mode_turbo, R.string.mode_dry, R.string.mode_off).forEach { ui.control(ui.s(it)) }
             listOf(15, 30).forEach { ui.control(ui.s(R.string.minutes_short, it)) }
             listOf(1, 2, 4).forEach { ui.control(ui.s(R.string.duration_hours, it)) }
             ui.compose.onAllNodes(hasText(ui.s(R.string.duration_hours, 8)) and hasClickAction()).assertCountEquals(0)
-            ui.control(expectedBoostActionLabel(graph.repository.settings.value.boostMinutes))
+            // Boost lives on Tonight's Quick Presets only; Remote has no Boost of its own.
+            ui.compose.onNodeWithTag("quick-mode-BOOST").assertDoesNotExist()
         }
     }
 
@@ -158,7 +159,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
     @Test fun longOwnerAndQueueDescriptionStaysWholeAtTwoHundredPercent() {
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
         val label = ui.s(R.string.runtime_override_label)
-        val quick = ui.compose.onNodeWithText(ui.s(R.string.tonight_quick)).performScrollTo()
+        val quick = ui.compose.onNodeWithTag("quick-controls").performScrollTo()
         val before = quick.getUnclippedBoundsInRoot()
         ui.compose.runOnUiThread {
             ui.graph.scope.launch { ui.graph.actions.remote(label) { gate.await() } }
@@ -171,32 +172,33 @@ class U06PrimaryLayoutTest(look: U06Look) {
             val full = ui.s(R.string.busy_running, label) + " · " +
                 ui.compose.activity.resources.getQuantityString(R.plurals.busy_queued, 2, 2)
             // Actual owner label and queued count, complete text semantics and no visually ellipsised line.
-            ui.checkLayout(ui.compose.onNodeWithText(full), "Long owner and queue description")
+            ui.checkLayout(ui.compose.onNodeWithText(full), "Long owner and queue description", scroll = false)
         } finally { gate.complete(Unit) }
         ui.waitUntil { ui.graph.actions.busy.value.runningLabel == null }
     }
 
     @PrimarySeed(PrimaryScenario.SETUP)
-    @Test fun tonightSetupDemoChoiceStaysReachable() = checkDemoChoice(R.string.tab_tonight)
+    @Test fun tonightSetupOffersNoDemo() = checkNoDemoChoice(R.string.tab_tonight)
     @PrimarySeed(PrimaryScenario.SETUP)
-    @Test fun remoteSetupDemoChoiceStaysReachable() = checkDemoChoice(R.string.tab_remote)
+    @Test fun remoteSetupOffersNoDemo() = checkNoDemoChoice(R.string.tab_remote)
     @PrimarySeed(PrimaryScenario.SETUP)
-    @Test fun settingsSetupDemoChoiceStaysReachable() = checkDemoChoice(R.string.tab_settings)
+    @Test fun settingsSetupOffersNoDemo() = checkNoDemoChoice(R.string.tab_settings)
 
-    private fun checkDemoChoice(@StringRes tab: Int) {
+    private fun checkNoDemoChoice(@StringRes tab: Int) {
         ui.tab(ui.s(tab))
-        ui.control(ui.s(R.string.setup_use_demo))
-        ui.snackbar()
-        ui.control(ui.s(R.string.setup_use_demo)).performClick()
-        ui.waitUntil { ui.graph.repository.settings.value.demoMode }
+        if (tab == R.string.tab_settings) ui.compose.openSettingsPage("bedjet")
+        ui.compose.onAllNodesWithText("demo", substring = true, ignoreCase = true).assertCountEquals(0)
         assertNull(ui.graph.repository.settings.value.targetDevice)
     }
 
     @PrimarySeed(PrimaryScenario.BACKUPS)
     @Test fun settingsSlotAndBackupActionsHaveCompleteLabelsAndTargets() {
         ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("bedjet")
         withAndWithoutFeedback {
             (1..3).forEach { ui.control(ui.s(R.string.settings_slot, it)) }
+            ui.compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+            ui.compose.openSettingsPage("backups")
             ui.control(ui.s(R.string.settings_snapshot_now))
             ui.control(ui.s(R.string.settings_export_file))
             ui.control(ui.s(R.string.settings_restore_from_file))
@@ -204,17 +206,21 @@ class U06PrimaryLayoutTest(look: U06Look) {
             assertTrue("The manual snapshot must expose Restore", restores.fetchSemanticsNodes().isNotEmpty())
             restores.fetchSemanticsNodes().indices.forEach { ui.checkControl(restores[it], "${ui.s(R.string.settings_restore)} [$it]") }
             ui.control(ui.s(R.string.settings_delete))
+            ui.compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+            ui.compose.openSettingsPage("about")
             ui.control(ui.s(R.string.settings_diagnostics_export))
+            ui.compose.onNodeWithTag("settings-back").performScrollTo().performClick()
+            ui.compose.openSettingsPage("bedjet")
         }
     }
 
     private fun quickButtons() {
-        val labels = listOf(expectedBoostActionLabel(ui.graph.repository.settings.value.boostMinutes),
-            ui.s(R.string.feature_warm), ui.s(R.string.feature_cool), ui.s(R.string.feature_off))
-        labels.forEach { label ->
-            ui.checkControl(ui.compose.onNode(hasText(label) and hasClickAction() and
-                hasAnyAncestor(hasTestTag("quick-controls"))), label).assertHasClickAction()
+        ui.checkLayout(ui.compose.onNodeWithText(ui.s(R.string.gpt12_wake_no_alarm)), "Wake fallback reason")
+        val modes = listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, Mode.STANDBY)
+        modes.forEach { mode ->
+            ui.checkControl(ui.compose.onNodeWithTag("quick-mode-${mode.name}"), "Quick $mode").assertHasClickAction()
         }
+        ui.checkControl(ui.compose.onNodeWithTag("quick-mode-BOOST"), "Quick Boost").assertHasClickAction()
     }
 
     private fun withAndWithoutFeedback(check: () -> Unit) {

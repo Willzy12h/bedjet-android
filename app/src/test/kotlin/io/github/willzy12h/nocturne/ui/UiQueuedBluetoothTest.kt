@@ -78,12 +78,12 @@ class UiQueuedBluetoothTest {
         }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.repository.updateSettings {
-            it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", autoUpdateCheck = false)
+            it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF")
         }
         graph.actions.confirmMs = 20
         graph.actions.freshStatusMs = 20
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         model = AppViewModel(app)
         models.put("queued-radio", model)
         graph.scope.launch(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) {

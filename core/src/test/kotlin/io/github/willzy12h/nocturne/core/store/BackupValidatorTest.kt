@@ -21,7 +21,7 @@ class BackupValidatorTest {
         profiles = Presets.all,
         settings = Settings(),
         slotBackups = listOf(
-            SlotBackup("ble:AA:BB", 2, StoredProgram("old", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now),
+            SlotBackup("ble:AA:BB:CC:DD:EE:FF", 2, StoredProgram("old", listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now),
             SlotBackup("demo", 1, null, now),
         ),
         history = listOf(
@@ -65,6 +65,16 @@ class BackupValidatorTest {
         assertRejected(good.copy(profiles = listOf(summer.copy(start = listOf(Phase(Mode.COOL, 44, 4, 30))))), "fan")
         assertRejected(good.copy(profiles = listOf(summer.copy(middle = summer.middle.copy(fanEnd = 101)))), "fan")
         assertRejected(good.copy(settings = Settings(snoozeWarm = ActionPreset(Mode.HEAT, 66, 0, 10))), "fan")
+    }
+
+    @Test
+    fun quietMiddle() {
+        val quiet = io.github.willzy12h.nocturne.core.plan.QuietFan(settle = 50, settleMinutes = 30, asleep = 25, rise = 45, riseMinutes = 40)
+        val ok = summer.copy(middle = summer.middle.copy(quietFan = quiet))
+        assertEquals(emptyList<String>(), errors(good.copy(profiles = listOf(ok))))
+        assertRejected(good.copy(profiles = listOf(ok.copy(middle = ok.middle.copy(quietFan = quiet.copy(asleep = 3))))), "asleep fan")
+        assertRejected(good.copy(profiles = listOf(ok.copy(middle = ok.middle.copy(quietFan = quiet.copy(riseMinutes = 721))))), "rises")
+        assertRejected(good.copy(profiles = listOf(ok.copy(middle = ok.middle.copy(quietFan = quiet.copy(settleMinutes = -1))))), "settles")
     }
 
     @Test

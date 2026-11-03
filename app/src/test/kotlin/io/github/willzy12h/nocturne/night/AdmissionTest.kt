@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.content.Context
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.R
@@ -122,7 +123,7 @@ class AdmissionTest {
         assertTrue("the change is still waiting", graph.actions.retimePending)
         val again = graph.now().plusMinutes(10).toInstant().toEpochMilli()
         assertTrue("and it is tried again", org.robolectric.Shadows.shadowOf(alarms).scheduledAlarms.any {
-            org.robolectric.Shadows.shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY && it.triggerAtTime == again })
+            org.robolectric.Shadows.shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY && it.triggerAtMs == again })
     }
 
     @Test fun unrelatedQueueRefusalsDoNotMoveAPendingRetimeRetry() = runBlocking {
@@ -160,7 +161,7 @@ class AdmissionTest {
     }
 
     private fun retryTrigger(): Long = org.robolectric.Shadows.shadowOf(context.getSystemService(android.app.AlarmManager::class.java))
-        .scheduledAlarms.single { org.robolectric.Shadows.shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY }.triggerAtTime
+        .scheduledAlarms.single { org.robolectric.Shadows.shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY }.triggerAtMs
 
     @Test fun theUiWaitOutlastsTheServiceWhichOutlastsTheOwnerBudget() {
         assertTrue(BedJetService.SERVICE_MS > NightActions.OPERATION_MS)

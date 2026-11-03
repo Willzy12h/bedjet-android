@@ -85,7 +85,7 @@ internal fun rememberMotionAllowed(): Boolean {
 /** One short pulse when an active state becomes visible; the marker then stays still. */
 @Composable
 internal fun ActiveIndicator(color: Color, active: Boolean, modifier: Modifier = Modifier, sizeDp: Int = 10) {
-    if (!active) { Dot(color, sizeDp, modifier); return }
+    if (!active) { Dot(color, modifier, sizeDp); return }
     val motion = rememberMotionAllowed()
     val view = LocalView.current
     var visible by remember { mutableStateOf(false) }
@@ -98,11 +98,11 @@ internal fun ActiveIndicator(color: Color, active: Boolean, modifier: Modifier =
             scale.animateTo(1f, tween(600))
         }
     }
-    Dot(color, sizeDp, Modifier
+    Dot(color, Modifier
         .onGloballyPositioned { bounds ->
             val clipped = bounds.boundsInWindow()
             visible = view.isShown && clipped.width > 0f && clipped.height > 0f
         }
         .graphicsLayer { scaleX = scale.value; scaleY = scale.value }
-        .semantics { stateDescription = activeDescription }.then(modifier))
+        .semantics { stateDescription = activeDescription }.then(modifier), sizeDp)
 }

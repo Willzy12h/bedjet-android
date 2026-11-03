@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.text.TextLayoutResult
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.GraphLifecycle
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.plan.Middle
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Profile
@@ -79,10 +80,7 @@ class NightTimelineLayoutTest {
     private val graph get() = compose.activity.graph
     private val curve = hasContentDescription("Night plan from 22:30 to 06:45", substring = true)
 
-    @Test fun darkCurveClockLabelsStayWholeAtTwoHundredPercent() = assertTimes(ThemeMode.DARK, false)
-
-    @Test fun lightCurveClockLabelsStayWholeAtTwoHundredPercent() = assertTimes(ThemeMode.LIGHT, false)
-
+    // UX-04 retired the curve on Tonight; the timeline below is the only detail view, and keeps this check.
     @Test fun darkSimpleTimelineTimesStayWholeAtTwoHundredPercent() = assertTimes(ThemeMode.DARK, true)
 
     @Test fun lightSimpleTimelineTimesStayWholeAtTwoHundredPercent() = assertTimes(ThemeMode.LIGHT, true)
@@ -90,6 +88,10 @@ class NightTimelineLayoutTest {
     private fun assertTimes(theme: ThemeMode, simple: Boolean) {
         val graph = graph
         compose.runOnUiThread { runBlocking { graph.repository.updateSettings { it.copy(themeMode = theme, simpleView = simple) } } }
+        if (theme == ThemeMode.LIGHT) {
+            compose.onNodeWithText(compose.activity.getString(R.string.theme_switch_now)).performClick()
+        }
+        compose.openTonightDetail()
         compose.waitUntil(10_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             if (simple) compose.onAllNodesWithText("23:00", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
@@ -116,7 +118,7 @@ class NightTimelineLayoutTest {
             val layout = layouts.single()
             val label = "$theme simple=$simple $text"
             if (text == "22:30") assertEquals("$label must render the requested palette",
-                if (theme == ThemeMode.DARK) MidnightInkScheme.onSurfaceVariant else DaylightScheme.onSurfaceVariant,
+                if (theme == ThemeMode.DARK) MidnightInkScheme.onSurfaceVariant else io.github.willzy12h.nocturne.core.store.Palette.OVERCAST.tokens.materialScheme().onSurfaceVariant,
                 layout.layoutInput.style.color)
             val first = text.indexOf(clock)
             val last = first + clock.length - 1

@@ -11,6 +11,16 @@ class PresetsTest {
     private val start = ZonedDateTime.of(2026, 10, 21, 22, 30, 0, 0, ZoneId.of("Europe/London"))
 
     @Test
+    fun hotSleeperUsesQuietMiddleWithCompatibleEndpoints() {
+        val middle = Presets.hotSleeper.middle
+        assertEquals(io.github.willzy12h.nocturne.core.protocol.Mode.COOL, middle.mode)
+        assertEquals(FanShape.QUIET_MIDDLE, middle.fanShape)
+        assertEquals(50, middle.fanStart)
+        assertEquals(45, middle.fanEnd)
+        assertEquals(QuietFan(50, 30, 25, 45, 40), middle.quietFan)
+    }
+
+    @Test
     fun everyPresetFitsTheBedJetForShortNormalAndLongNights() {
         for (preset in Presets.all) {
             for (hours in listOf(1L, 8L, 13L)) {

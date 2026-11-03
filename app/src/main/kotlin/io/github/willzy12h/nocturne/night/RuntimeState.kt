@@ -50,7 +50,7 @@ import kotlinx.serialization.Serializable
 }
 
 /** The entry that requested work; transient command metadata, never part of the runtime journal or backups. */
-enum class CommandOrigin { APP, WIDGET, SHORTCUT, NOTIFICATION, REMINDER, ALARM, CHARGER, SETTINGS, PEER, UNSPECIFIED }
+enum class CommandOrigin { APP, WIDGET, SHORTCUT, NOTIFICATION, REMINDER, ALARM, CHARGER, SETTINGS, UNSPECIFIED }
 internal fun defaultCommandOrigin(command: NightActions.Command): CommandOrigin = when (command) {
     NightActions.Command.RETIME, NightActions.Command.RETRY_RETIME -> CommandOrigin.ALARM
     else -> CommandOrigin.APP
@@ -92,7 +92,7 @@ object ReplacementPolicy {
 @Serializable data class AlarmObservation(val id: String, val nightId: String, val deviceId: String, val observedAt: String)
 
 @Serializable data class PendingEnd(val identity: NightIdentity, val event: io.github.willzy12h.nocturne.core.store.HistoryEvent,
-    val isTestRun: Boolean = false)
+    val isTestRun: Boolean = false, val confirmedCompletionAt: String? = null)
 
 /** Submission target carried across the service handoff and checked under command ownership. */
 internal class SubmissionTarget(val deviceId: String?) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {

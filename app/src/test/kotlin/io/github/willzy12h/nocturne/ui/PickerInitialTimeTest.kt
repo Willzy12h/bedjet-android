@@ -111,7 +111,7 @@ class PickerInitialTimeTest {
         val now = graph.now()
         val wake = ZonedDateTime.parse("2026-10-23T06:30:00Z")
         save { updateSettings { it.setWakeOverride(wake, now.minusMinutes(1)) } }
-        compose.onNodeWithText(s(R.string.tonight_change_wake, "06:30")).performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-fixed-wake").performScrollTo().performClick()
 
         val (dialog, picker) = picker()
         assertTime(picker, 6, 30)
@@ -119,14 +119,15 @@ class PickerInitialTimeTest {
 
         waitUntil { graph.repository.settings.value.tonightOverride?.setAt == now.toString() }
         assertEquals(wake, ZonedDateTime.parse(graph.repository.settings.value.tonightOverride!!.wakeAt))
-        compose.onNodeWithText(s(R.string.tonight_change_wake, "06:30")).assertExists()
+        compose.onNodeWithTag("tonight-fixed-wake").assertExists()
     }
 
     @Test fun noOverrideOpensAtTheSelectedProfilesPlannedWake() {
         val other = profile.copy(id = "other-picker-profile", name = "Other picker profile",
             wakeSource = profile.wakeSource.copy(defaultWakeMinute = 8 * 60 + 20))
         save { saveProfile(other) }
-        compose.onNodeWithText(other.name).performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-change").performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-choose-${other.id}").performScrollTo().performClick()
         waitUntil { graph.repository.settings.value.tonightChoice?.profileId == other.id }
         compose.onNodeWithText(s(R.string.tonight_set_wake)).performScrollTo().performClick()
 
@@ -144,7 +145,7 @@ class PickerInitialTimeTest {
         waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED && graph.actions.busy.value.runningLabel == null }
         assertEquals("06:10", Format.clock(graph.repository.activeNight.value!!.wakeAt))
         save { saveProfile(profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = 8 * 60 + 20))) }
-        compose.onNodeWithText(s(R.string.tonight_set_wake)).performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-fixed-wake").performScrollTo().performClick()
 
         assertTime(picker().second, 6, 10)
     }
@@ -158,7 +159,7 @@ class PickerInitialTimeTest {
     }
 
     @Test fun profileBedtimePickerUsesTheCurrentFieldAndUnchangedAcceptancePreservesIt() {
-        compose.onNodeWithText(s(R.string.action_edit)).performScrollTo().performClick()
+        compose.openTonightProfileEditor()
         compose.onNode(hasText("23:05") and hasClickAction()).performScrollTo().performClick()
 
         val (dialog, picker) = picker()
@@ -173,7 +174,7 @@ class PickerInitialTimeTest {
     }
 
     @Test fun profileWakePickerUsesTheEditedFieldWhenReopenedAndPreservesItOnSave() {
-        compose.onNodeWithText(s(R.string.action_edit)).performScrollTo().performClick()
+        compose.openTonightProfileEditor()
         compose.onNode(hasTextExactly("06:10") and hasClickAction()).performScrollTo().performClick()
         val (firstDialog, firstPicker) = picker()
         assertTime(firstPicker, 6, 10)

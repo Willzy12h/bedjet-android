@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.core.night
 
 import io.github.willzy12h.nocturne.core.link.BedJetController
+import io.github.willzy12h.nocturne.core.link.SourcedStatus
 import io.github.willzy12h.nocturne.core.plan.AlarmPolicy
 import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.plan.Phase
@@ -130,6 +131,9 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         if (night.identity != expected) return Preparation.Stale(expected, night.identity)
         val profile = night.profile ?: liveProfile ?: return Preparation.Refused("The saved profile is unavailable.")
         if (night.wakeOrigin == WakeOrigin.OVERRIDE) return Preparation.Refused("Tonight's wake override is unchanged.", unchanged = true)
+        // Auto-start captures the starting wake; the saved profile still controls later alarm following.
+        if (night.wakeOrigin == WakeOrigin.AUTO_START && !profile.wakeSource.useAlarm)
+            return Preparation.Refused("AUTO_START_WAKE_UNCHANGED", unchanged = true)
         val start = ZonedDateTime.parse(night.startedAt)
         val accepted = profile.wakeSource.useAlarm && AlarmPolicy(settings).accept(alarm, alarmOrigin, start)
         val wake = if (accepted) alarm!! else WakeResolver.nextOccurrence(profile.wakeSource.defaultWakeMinute, start.plus(WakeResolver.MIN_NIGHT))
@@ -143,8 +147,14 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         newWake ?: ZonedDateTime.parse(night.wakeAt), if (newWake == null) night.wakeOrigin else WakeOrigin.OVERRIDE,
         ChangeKind.REAPPLY, now().plusMinutes(1))
 
+    /** A wake-only choice follows the existing retime policy; it does not restart the profile's settling. */
+    fun prepareWakeOverride(night: ActiveNight, profile: Profile, expected: NightIdentity,
+        wake: ZonedDateTime): Preparation = prepareRewrite(night, expected, profile, wake, WakeOrigin.OVERRIDE,
+        ChangeKind.REAPPLY, now().plusMinutes(1), reapplyProfile = false)
+
     private fun prepareRewrite(night: ActiveNight, expected: NightIdentity, profile: Profile, wake: ZonedDateTime,
-        origin: WakeOrigin, kind: ChangeKind, deadline: ZonedDateTime): Preparation {
+        origin: WakeOrigin, kind: ChangeKind, deadline: ZonedDateTime,
+        reapplyProfile: Boolean = kind == ChangeKind.REAPPLY): Preparation {
         val time = now()
         val request = PendingChange(UUID.randomUUID().toString(), kind, wake.toString(), time.toString(), deadline.toString(), expected)
         when (val check = Eligibility.check(night, time, request)) {
@@ -158,7 +168,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         return try {
             val original = night.temporary?.base?.plan() ?: night.activePlan(profile)
                 ?: return Preparation.Refused("The applied programme is unavailable.")
-            val base = if (kind == ChangeKind.REAPPLY) {
+            val base = if (reapplyProfile) {
                 var elapsed = Duration.between(ZonedDateTime.parse(night.startedAt), time).toMinutes().toInt()
                 val remaining = profile.start.mapNotNull { phase ->
                     val skipped = minOf(elapsed.coerceAtLeast(0), phase.minutes)
@@ -173,7 +183,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
                 ?: TemporaryProgramme.Composition(base, null)
             val plan = composed.plan
             val intended = night.copy(profile = profile, profileId = profile.id, wakeAt = wake.toString(),
-                wakeFromAlarm = origin == WakeOrigin.ALARM, wakeOrigin = origin, revision = revision,
+                wakeFromAlarm = origin == WakeOrigin.ALARM || (origin == WakeOrigin.AUTO_START && night.wakeFromAlarm),
+                wakeOrigin = origin, revision = revision,
                 wakeUpStart = plan.wakeUpStart.toString(), endsAt = plan.end.toString(), applied = AppliedProgram.from(plan, revision),
                 confidence = Confidence.CONFIRMED, pending = null, temporary = composed.temporary)
             Preparation.Ready(PreparedChange(plan, intended, night, request))
@@ -234,6 +245,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
      * Task 4 supplies repository callbacks; no callback is invoked for stale/expired requests. */
     suspend fun apply(change: PreparedChange, current: () -> ActiveNight?,
         commandVersion: () -> Long = { 0 }, publish: suspend (ActiveNight) -> Unit = {},
+        validate: () -> Unit = {}, onConfirmed: (SourcedStatus) -> Unit = {},
         beforeWrite: suspend () -> Unit = {}, afterWrite: suspend () -> Unit = {}): NightMutation {
         if (change.expectedCommand != null && change.expectedCommand != commandVersion()) return NightMutation.Stale(change.request.expected, current()?.identity)
         when (val check = Eligibility.check(current(), now(), change.request)) {
@@ -262,14 +274,17 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             checkOwnership()
             // Backing up/persisting may have consumed the remaining request lifetime.
             checkExecutionTime(change)
+            validate()
             writeMayHaveHappened = true
             controller.store(StoredProgram(change.intended.profile!!.name, change.plan.programSteps), change.intended.slot)
             checkOwnership()
             checkExecutionTime(change)
+            validate()
             controller.startProgram(change.intended.slot, onStartAttempt = { startMayHaveHappened = true },
-                beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change) }) {
+                beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change); validate() }, onConfirmed = onConfirmed) {
                 checkOwnership()
                 checkExecutionTime(change)
+                validate()
             }
             publish(change.intended)
             return NightMutation.Applied(change.plan, change.intended)

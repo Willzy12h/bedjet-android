@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ble
 
+import androidx.core.content.edit
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
@@ -34,6 +35,7 @@ class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, 
     private val prefs = context.getSharedPreferences("ble", Context.MODE_PRIVATE)
     private val names = DeviceNames(context, target)
     val verifiedNames: StateFlow<Pair<String, String?>?> get() = names.verified
+    val displayNames: StateFlow<Pair<String, String?>?> get() = names.displayed
     private val engine = GattLink(radio ?: AndroidRadio(context, ::hasPermissions), target,
         onName = names::display, onVerifiedName = names::verify,
         noTargetMessage = { context.getString(io.github.willzy12h.nocturne.R.string.ble_no_target) })
@@ -68,7 +70,7 @@ class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, 
 
     /** Forgets the remembered unit and its name. */
     fun forget() {
-        prefs.edit().remove(KEY_ADDRESS).remove(KEY_NAME).apply()
+        prefs.edit { remove(KEY_ADDRESS).remove(KEY_NAME) }
         names.forget()
     }
 
@@ -253,21 +255,27 @@ private object Gatt {
 /** Paired editor transactions and observable verification. No mutable target sampling in either callback. */
 internal class DeviceNames(context: Context, private val target: () -> String?) {
     private val prefs = context.getSharedPreferences("ble", Context.MODE_PRIVATE)
+    private val mutableDisplay = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString("nameDevice", null)?.let {
+        it to prefs.getString("name", null)
+    })
+    val displayed: StateFlow<Pair<String, String?>?> = mutableDisplay
     private val mutable = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString("verifiedNameDevice", null)?.let {
         it to prefs.getString("verifiedName", null)
     })
     val verified: StateFlow<Pair<String, String?>?> = mutable
     fun display(device: String, name: String) {
-        prefs.edit().putString("name", name).putString("nameDevice", device).apply()
+        prefs.edit { putString("name", name).putString("nameDevice", device) }
+        mutableDisplay.value = device to name
     }
     fun verify(device: String, name: String?) {
-        prefs.edit().putString("verifiedNameDevice", device).putString("verifiedName", name).apply()
+        prefs.edit { putString("verifiedNameDevice", device).putString("verifiedName", name) }
         mutable.value = device to name
     }
     fun displayName(): String? = if (prefs.getString("nameDevice", null) == target()) prefs.getString("name", null) else null
     fun verifiedName(device: String): String? = mutable.value?.takeIf { it.first == device }?.second
     fun forget() {
-        prefs.edit().remove("name").remove("nameDevice").remove("verifiedName").remove("verifiedNameDevice").apply()
+        prefs.edit { remove("name").remove("nameDevice").remove("verifiedName").remove("verifiedNameDevice") }
         mutable.value = null
+        mutableDisplay.value = null
     }
 }

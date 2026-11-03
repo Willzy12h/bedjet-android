@@ -75,7 +75,7 @@ class ServiceEntrySafetyTest {
         graph.actions.confirmMs = 1
         graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         context = ServiceStartContext(app)
     }
 
@@ -117,8 +117,8 @@ class ServiceEntrySafetyTest {
 
     @Test fun notificationActionUsesOrdinaryServiceDelivery() {
         val action = BedJetService.pendingIntent(app, NightActions.Command.OFF)
-        assertTrue(shadowOf(action).isServiceIntent)
-        assertFalse("A stale notification action must not create a promotion obligation", shadowOf(action).isForegroundServiceIntent)
+        assertTrue(shadowOf(action).isService)
+        assertFalse("A stale notification action must not create a promotion obligation", shadowOf(action).isForegroundService)
     }
 
     @Test fun cancelledMissingHandoffStopsWithoutAForegroundStartObligation() {

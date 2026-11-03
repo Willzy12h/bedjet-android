@@ -29,6 +29,7 @@ import java.time.*
 class ManualEndRequestTest {
     @get:Rule val graphs = GraphLifecycle()
     private val context: Context = RuntimeEnvironment.getApplication()
+    private val realTarget = "ble:AA:BB:CC:DD:EE:FF"
     private lateinit var graph: Graph
     private lateinit var demo: DemoBedJet
     private var swallow = false
@@ -46,7 +47,7 @@ class ManualEndRequestTest {
 
     @Before fun setup() = runBlocking {
         buildGraph(Clock.fixed(Instant.parse("2026-10-21T22:30:00Z"), ZoneOffset.UTC))
-        graph.repository.updateSettings { it.copy(demoMode = true) }
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = realTarget) }
     }
 
     private fun buildGraph(clock: Clock) {
@@ -88,7 +89,7 @@ class ManualEndRequestTest {
 
     private suspend fun standby(receivedAt: ZonedDateTime = graph.now(),
         receipt: NightActions.StatusReceipt = graph.actions.statusReceipt()) {
-        graph.actions.observeStatus(demo.status.value!!.copy(mode = Mode.STANDBY, extra = null), "demo", receivedAt,
+        graph.actions.observeStatus(demo.status.value!!.copy(mode = Mode.STANDBY, extra = null), realTarget, receivedAt,
             receipt = receipt)
     }
 
@@ -170,7 +171,7 @@ class ManualEndRequestTest {
         val oldStandby = link.sourcedStatus.first()!!
         val night = unresolved(NightActions.Command.OFF)
 
-        graph.actions.observeStatus(oldStandby.status, "demo")
+        graph.actions.observeStatus(oldStandby.status, realTarget)
 
         assertEquals("delivery does not give an old packet a new receipt", night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
@@ -184,9 +185,9 @@ class ManualEndRequestTest {
         bufferedReport = oldStandby
 
         repeat(2) {
-            graph.actions.observeStatus(link.latestSourcedStatus()!!.status, "demo")
+            graph.actions.observeStatus(link.latestSourcedStatus()!!.status, realTarget)
             assertEquals("a cached read cannot confirm Off", night.identity, graph.repository.activeNight.value?.identity)
-            graph.actions.observeStatus(link.sourcedStatus.first()!!.status, "demo")
+            graph.actions.observeStatus(link.sourcedStatus.first()!!.status, realTarget)
             assertEquals("a new collector cannot confirm Off from the same packet", night.identity, graph.repository.activeNight.value?.identity)
         }
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
@@ -212,7 +213,7 @@ class ManualEndRequestTest {
         val oldStandby = link.latestSourcedStatus()!!
         buildGraph(graph.clock)
 
-        graph.actions.observeStatus(oldStandby.status, "demo")
+        graph.actions.observeStatus(oldStandby.status, realTarget)
 
         assertEquals("the new runtime requires a newly received report", night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
@@ -331,7 +332,7 @@ class ManualEndRequestTest {
 
     @Test fun aRunningReportRetainsTheEndingRequest() = runBlocking {
         val night = unresolved(NightActions.Command.TURBO)
-        graph.actions.observeStatus(demo.status.value!!, "demo", graph.now().plusSeconds(1))
+        graph.actions.observeStatus(demo.status.value!!, realTarget, graph.now().plusSeconds(1))
         assertEquals(night.identity, graph.repository.activeNight.value?.identity)
         assertEquals(night.identity, graph.repository.runtime.value.endRequested)
         assertTrue(stopped(night).isEmpty())

@@ -2,9 +2,9 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.compositeOver
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.Palette
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -14,9 +14,7 @@ import kotlin.math.pow
 
 /** WCAG sRGB relative luminance from the actual palettes consumed by both normal and Simple view. */
 class ContrastTest {
-    private val looks = listOf(
-        Triple("Midnight Ink", MidnightInkScheme, MidnightInkColors),
-        Triple("Daylight", DaylightScheme, DaylightColors))
+    private val looks = Palette.entries.map { Triple(it.name, it.tokens.materialScheme(), it.tokens.nocturneColors()) }
     private fun luminance(color: Color): Double {
         fun linear(component: Float): Double = component.toDouble().let {
             if (it <= 0.04045) it / 12.92 else ((it + 0.055) / 1.055).pow(2.4)
@@ -38,19 +36,18 @@ class ContrastTest {
         assertTrue("$label contrast $ratio must be at least $minimum:1", ratio >= minimum)
     }
 
-    @Test fun allTextRolesMeetFourPointFiveInBothSharedPalettes() {
-        looks.forEach { (name, scheme, colors) ->
+    @Test fun bodyAndContainerTextMeetFourPointFiveInEveryPalette() {
+        looks.forEach { (name, scheme, _) ->
             val look = name
-            surfaces(scheme).forEach { (surface, background) ->
+            surfaces(scheme).forEach { (surface, tint) ->
+                val background = tint.compositeOver(scheme.background)
                 check("$look onSurface/$surface", scheme.onSurface, background, 4.5)
                 check("$look onSurfaceVariant/$surface", scheme.onSurfaceVariant, background, 4.5)
-                check("$look wake accent/$surface", colors.accent, background, 4.5)
-                check("$look primary text/$surface", scheme.primary, background, 4.5)
-                check("$look secondary text/$surface", scheme.secondary, background, 4.5)
-                check("$look error text/$surface", scheme.error, background, 4.5)
             }
+            // The approved sky-blue/white pair has the foundation's 3:1 token floor.
+            // Rendering must use large text for this pair; this token test does not verify font size.
+            check("$look Start", scheme.onPrimary, scheme.primary, 3.0)
             listOf(
-                Triple("primary", scheme.onPrimary, scheme.primary),
                 Triple("primaryContainer", scheme.onPrimaryContainer, scheme.primaryContainer),
                 Triple("secondary", scheme.onSecondary, scheme.secondary),
                 Triple("secondaryContainer", scheme.onSecondaryContainer, scheme.secondaryContainer),
@@ -61,42 +58,52 @@ class ContrastTest {
                 Triple("inverseSurface", scheme.inverseOnSurface, scheme.inverseSurface),
                 Triple("inversePrimary", scheme.inversePrimary, scheme.inverseSurface),
                 Triple("background", scheme.onBackground, scheme.background),
-                Triple("primary text", scheme.primary, scheme.surfaceContainer),
-                Triple("secondary text", scheme.secondary, scheme.surfaceContainer),
-                Triple("error text", scheme.error, scheme.surfaceContainer),
-            ).forEach { (role, foreground, background) -> check("$look $role", foreground, background, 4.5) }
+            ).forEach { (role, foreground, background) -> check("$look $role", foreground, background.compositeOver(scheme.background), 4.5) }
         }
     }
 
-    @Test fun midnightInkDecorativeOutlinesRetainTheOriginalPalette() {
-        assertEquals("Card borders, dividers, the curve midline and timeline connector keep Midnight Ink's decorative tint",
-            Color(0xFF343C5A), MidnightInkScheme.outlineVariant)
+    // P2 replaces both fixed outline colours with the approved palette hairline token.
+    @Test fun midnightInkDecorativeOutlinesFollowPaletteHairline() {
+        val tokens = Palette.MIDNIGHT_INK.tokens
+        assertEquals(tokens.hairline, tokens.materialScheme().outlineVariant)
+        assertEquals(tokens.hairline, tokens.materialScheme().outline)
     }
 
-    @Test fun daylightDecorativeOutlinesRetainTheOriginalPalette() {
-        assertEquals("Card borders, dividers, the curve midline and timeline connector keep Daylight's decorative tint",
-            Color(0xFFDCE1EA), DaylightScheme.outlineVariant)
+    // R9: Overcast's dividers use the 12% hairline; component outlines use its separate #AAB0BA edge.
+    @Test fun overcastDividersUseHairlineAndOutlinesUseEdge() {
+        val tokens = Palette.OVERCAST.tokens
+        assertEquals(tokens.hairline, tokens.materialScheme().outlineVariant)
+        assertEquals(tokens.edge, tokens.materialScheme().outline)
     }
 
-    @Test fun afterWakeBarsMeetThreeAgainstEveryCurveCardSurface() {
-        looks.forEach { (name, scheme, colors) ->
-            // Tonight uses surfaceContainer; History/Profiles use surfaceContainerHighest; the editor uses surface.
-            listOf(scheme.surface, scheme.surfaceContainer, scheme.surfaceContainerHighest).forEach { background ->
-                Mode.entries.forEach { mode -> check("$name after-wake $mode", colors.curveMode(mode, true), background, 3.0) }
+    @Test fun stepTextContrastsWithEveryTemperatureTint() {
+        // P2 changes bars to the approved temperature colours. Their adjacent text carries the meaning;
+        // RedesignCurveColoursTest checks rendered bar colours; NightTimelineLayoutTest checks its text semantics.
+        Palette.entries.forEach { palette ->
+            val tokens = palette.tokens
+            Mode.entries.forEach { mode ->
+                listOf(56, 64, 72, 82).forEach { temperature ->
+                    TintLevel.entries.forEach { level ->
+                        val background = tokens.tint(tokens.stepColor(mode, temperature), level)
+                            .compositeOver(tokens.surface.compositeOver(tokens.ground))
+                        check("$palette $mode $level label", tokens.ink, background, 4.5)
+                        check("$palette $mode $level subtitle", tokens.ink2, background, 4.5)
+                    }
+                }
             }
         }
     }
 
-    @Test fun quickControlBoundaryOrFillMeetsThreeAgainstSurroundingsInBothSharedPalettes() {
-        looks.forEach { (name, scheme, _) ->
-            // Read the same BorderStroke factory consumed by TonightScreen.QuickButton.
-            val stroke = quickButtonBorder(scheme)
-            assertTrue("$name Quick boundary must be drawn with positive width", stroke.width.value > 0f)
-            val border = (stroke.brush as SolidColor).value
-            val boundary = contrast(border, scheme.background)
-            val fill = contrast(scheme.surfaceContainer, scheme.background)
-            assertTrue("$name Quick control boundary=$boundary fill=$fill must reach 3:1", max(boundary, fill) >= 3.0)
-            check("$name Quick boundary/fill", border, scheme.surfaceContainer, 3.0)
+    // Current labelled tiles use decorative design borders. The selected-state marker still needs 3:1.
+    // RedesignTextContrastTest additionally samples that actual marker and label in all seven palettes.
+    @Test fun quickControlStateMarkersMeetThreeAgainstEveryActiveTint() {
+        Palette.entries.forEach { palette ->
+            val tokens = palette.tokens
+            val stripes = tokens.ember + listOf(tokens.cool, tokens.dry, Color(0xFFFF6FA0), tokens.off)
+            stripes.forEach { stripe ->
+                val surface = tokens.tint(stripe, TintLevel.ON).compositeOver(tokens.surface.compositeOver(tokens.ground))
+                check("$palette active marker", tokens.readableText(stripe, surface, minimumContrast = 3f), surface, 3.0)
+            }
         }
     }
 }

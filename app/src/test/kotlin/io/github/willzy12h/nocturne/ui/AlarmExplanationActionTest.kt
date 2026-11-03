@@ -6,8 +6,10 @@ import android.content.Intent
 import androidx.activity.compose.setContent
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
@@ -52,7 +54,7 @@ class AlarmExplanationActionTest {
                 it.copy(wakeSource = it.wakeSource.copy(useAlarm = !profileOnly, defaultWakeMinute = 7 * 60))
             }
             graph.repository.saveProfile(profile)
-            graph.repository.updateSettings { it.chooseTonight(profile.id, graph.now()).copy(acceptUnknownAlarmSource = false) }
+            graph.repository.updateSettings { it.chooseTonight(profile.id, graph.now()) }
             if (savedWake) {
                 val wake = graph.now().plusDays(1).withHour(7).withMinute(0)
                 val plan = PlanCompiler.compile(profile, graph.now(), wake)
@@ -78,10 +80,11 @@ class AlarmExplanationActionTest {
         ui.compose.waitForIdle()
     }
 
-    @Test fun unknownSourceOpensAlarmSettingsWithoutEditingAProfile() {
+    @Test fun unknownSourceOpensTheAlarmAppChoiceWithoutEditingAProfile() {
         show(unknown = true)
         ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").assertIsDisplayed().performClick()
-        assertEquals(1, sourceRequests)
+        ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
+        assertEquals(0, sourceRequests)
         assertEquals(emptyList<Profile>(), profileRequests)
     }
 
@@ -92,11 +95,21 @@ class AlarmExplanationActionTest {
         assertEquals(listOf(ui.model.tonightsProfile()), profileRequests)
     }
 
-    @Test fun changedAlarmOnASavedWakeOpensSourcesWithoutImplyingAProfileEditAppliesTonight() {
+    @Test fun changedAlarmOnASavedWakeOpensTheAlarmAppChoiceWithoutImplyingAProfileEditAppliesTonight() {
         show(savedWake = true)
         ui.compose.onNodeWithText("Saved alarm wake 07:00 · Next alarm 06:30 from Samsung Clock not applied").assertIsDisplayed().performClick()
-        assertEquals(1, sourceRequests)
+        ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
+        assertEquals(0, sourceRequests)
         assertEquals(emptyList<Profile>(), profileRequests)
         assertEquals("07:00", Format.clock(ui.graph.repository.activeNight.value!!.wakeAt))
+    }
+
+    @Test fun theAlarmAppChoiceOffersAFixedWakeTimeForTonightsProfile() {
+        show(unknown = true)
+        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").performClick()
+        val profile = ui.model.tonightsProfile()!!
+        ui.compose.onNodeWithText("Use a fixed wake time for ${profile.name}").performScrollTo().performClick()
+        assertEquals(listOf(profile), profileRequests)
+        ui.compose.onNodeWithTag("alarm-apps-dialog").assertDoesNotExist()
     }
 }

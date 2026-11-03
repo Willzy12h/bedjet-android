@@ -1,0 +1,365 @@
+package io.github.willzy12h.nocturne.ui
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.MutableState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
+import io.github.willzy12h.nocturne.R
+import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.plan.Block
+import io.github.willzy12h.nocturne.core.plan.Plan
+import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
+import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.QuickDefaults
+import io.github.willzy12h.nocturne.night.NightActions.Command
+import io.github.willzy12h.nocturne.night.boostDescription
+import java.time.Duration
+import java.time.ZonedDateTime
+
+/** The design's boost stripe (`--boost`); no palette token carries it. */
+internal val BoostColor = Color(0xFFFF6FA0)
+
+/** The design's `.lbl`: 10.5, bold, uppercase, ink3. */
+@Composable
+internal fun SectionLabel(text: String, modifier: Modifier = Modifier) = Text(text.uppercase(), modifier,
+    color = paletteTokens.ink2, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
+
+/** A text link in the accent colour (600, 11.5), with a 48 dp touch target. */
+@Composable
+internal fun AccentLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Int? = null,
+    enabled: Boolean = true, fontSize: TextUnit = 11.5.sp) {
+    Row(modifier.heightIn(min = 48.dp).widthIn(min = 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 4.dp)
+        .alpha(if (enabled) 1f else .4f),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        icon?.let { Icon(painterResource(it), null, Modifier.size(12.dp), tint = paletteTokens.accent) }
+        Text(text, color = if (paletteTokens.dark) paletteTokens.accent else paletteTokens.ink2, fontSize = fontSize, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** The design's status line: a dot and one short sentence, with Remote on the right. */
+@Composable
+internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (() -> Unit)? = null) {
+    val settings by model.settings.collectAsState()
+    val state by model.linkState.collectAsState()
+    val status by model.status.collectAsState()
+    val live by model.hasLiveStatus.collectAsState()
+    val bluetoothOff by model.bluetoothOff.collectAsState()
+    val released by model.graph.sessions.released.collectAsState()
+    val selectedName by model.selectedBedJetName.collectAsState()
+    val owner by model.commandBusy.collectAsState()
+    val tokens = paletteTokens
+    val connection = headerConnection(settings.demoMode, settings.targetDevice != null, released,
+        bluetoothOff, state, live && status != null)
+    val name = when {
+        settings.demoMode -> stringResource(R.string.status_demo_device)
+        settings.targetDevice == null -> stringResource(R.string.status_no_device)
+        else -> selectedName ?: DeviceId.address(settings.targetDevice!!) ?: stringResource(R.string.settings_bedjet)
+    }
+    val sending = owner.runningLabel != null
+    val connectionText = when {
+        connection == HeaderConnection.DEMO -> stringResource(R.string.parity_status_demo)
+        connection == HeaderConnection.BLUETOOTH_OFF -> stringResource(R.string.status_bluetooth_off)
+        runningName != null && connection == HeaderConnection.CONNECTED -> stringResource(R.string.parity_status_running, runningName)
+        else -> stringResource(R.string.parity_status_line, name, stringResource(when (connection) {
+            HeaderConnection.CONNECTED -> R.string.parity_status_connected
+            HeaderConnection.CONNECTING -> R.string.parity_status_connecting
+            else -> R.string.parity_status_offline
+        }))
+    }
+    val dot = when {
+        sending -> tokens.warn
+        else -> connectionSymbolColour(connection, tokens.dark)
+    }
+    val description = stringResource(R.string.uat_connection_description, name, stringResource(connection.text))
+    val text = if (sending) stringResource(R.string.parity_status_sending) else connectionText
+    val stackActions = LocalConfiguration.current.fontScale >= 1.5f
+    val actions: @Composable () -> Unit = {
+        if (settings.demoMode) AccentLink(stringResource(R.string.gpt12_exit_demo), model::exitDemo)
+        onRemote?.let { AccentLink(stringResource(R.string.parity_remote_link), it, Modifier.testTag("open-remote")) }
+    }
+    Column(Modifier.fillMaxWidth().testTag("status-header")) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Dot(dot, Modifier.testTag("status-symbol-${connection.name}"), sizeDp = 8)
+            Box(Modifier.weight(1f)) {
+                // Keep targets below this line still when Sending replaces a wrapped device/profile name.
+                if (sending) Text(connectionText, Modifier.alpha(0f).clearAndSetSemantics { },
+                    color = tokens.ink2, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                Text(text, Modifier.testTag("status-connection").semantics { contentDescription = "$description. $text" },
+                    color = tokens.ink2, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+            }
+            if (!stackActions) actions()
+        }
+        if (stackActions && (settings.demoMode || onRemote != null)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically) { actions() }
+        }
+    }
+}
+
+private class BarSegment(val minutes: Long, val colours: List<Color>)
+
+private fun barSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> {
+    val segments = mutableListOf<BarSegment>()
+    var middle = mutableListOf<Color>()
+    var middleMinutes = 0L
+    fun flush() {
+        if (middle.isNotEmpty()) segments += BarSegment(middleMinutes, middle.toList())
+        middle = mutableListOf(); middleMinutes = 0
+    }
+    plan.steps.forEach { step ->
+        val colour = tokens.stepColor(step.step.mode, step.step.temperature)
+        if (step.block == Block.MIDDLE) { middle += colour; middleMinutes += step.minutes }
+        else { flush(); segments += BarSegment(step.minutes.toLong(), listOf(colour)) }
+    }
+    flush()
+    return segments.filter { it.minutes > 0 }
+}
+
+/** The design's segmented night: 2 dp gaps, round outer ends, a gradient across the Middle ramp, and a Now marker. */
+@Composable
+internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp, minHeight: Dp = height) {
+    val tokens = paletteTokens
+    val segments = barSegments(plan, tokens)
+    val total = segments.sumOf { it.minutes }.coerceAtLeast(1)
+    val span = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1)
+    val nowFraction = now?.let { (Duration.between(plan.start, it).toMinutes().toFloat() / span).coerceIn(0f, 1f) }
+    Box(modifier.fillMaxWidth().heightIn(min = minHeight).testTag("night-bar"), contentAlignment = Alignment.Center) {
+    Canvas(Modifier.fillMaxWidth().height(height)) {
+        val gap = 2.dp.toPx()
+        val outer = CornerRadius(minOf(10.dp.toPx(), size.height / 2))
+        val inner = CornerRadius(minOf(3.dp.toPx(), size.height / 2))
+        val available = size.width - gap * (segments.size - 1).coerceAtLeast(0)
+        var x = 0f
+        segments.forEachIndexed { i, segment ->
+            val w = available * segment.minutes / total
+            val left = if (i == 0) outer else inner
+            val right = if (i == segments.lastIndex) outer else inner
+            val path = Path().apply {
+                addRoundRect(RoundRect(x, 0f, x + w, size.height, topLeftCornerRadius = left, topRightCornerRadius = right,
+                    bottomRightCornerRadius = right, bottomLeftCornerRadius = left))
+            }
+            val brush = if (segment.colours.size > 1) Brush.horizontalGradient(segment.colours, startX = x, endX = x + w)
+                else SolidColor(segment.colours.first())
+            drawPath(path, brush)
+            x += w + gap
+        }
+        nowFraction?.let {
+            val at = (size.width * it).coerceIn(1.5.dp.toPx(), size.width - 1.5.dp.toPx())
+            drawLine(if (tokens.dark) Color.White else tokens.ink, Offset(at, -2.dp.toPx()), Offset(at, size.height + 2.dp.toPx()), 3.dp.toPx(), StrokeCap.Round)
+        }
+    }
+    }
+}
+
+/** "Cool 20° → 24°": the Middle's mode and its first and last temperatures. */
+@Composable
+internal fun planSummary(plan: Plan, fahrenheit: Boolean): String? {
+    val steps = plan.steps.filter { it.block == Block.MIDDLE }.ifEmpty { plan.steps }
+    val first = steps.firstOrNull() ?: return null
+    val name = modeName(first.step.mode)
+    if (!first.step.mode.usesTemperature) return name
+    val from = tempText(first.step.temperature, fahrenheit)
+    val to = tempText(steps.last().step.temperature, fahrenheit)
+    return if (from == to) stringResource(R.string.parity_summary_single, name, from)
+        else stringResource(R.string.parity_summary_range, name, from, to)
+}
+
+internal fun modeIcon(mode: Mode): Int = when (mode) {
+    Mode.TURBO -> R.drawable.ic_nc_turbo
+    Mode.HEAT, Mode.EXTENDED_HEAT -> R.drawable.ic_nc_heat
+    Mode.COOL -> R.drawable.ic_nc_cool
+    Mode.DRY -> R.drawable.ic_nc_dry
+    else -> R.drawable.ic_nc_off
+}
+
+/** The preset the person tapped, shown as "Heat… / Sending" until the BedJet has taken the command. */
+internal class PresetSending(val key: String, val title: String, val color: Color)
+
+/** Each marker belongs to its submitted command, including time waiting in the existing owner's queue. */
+@Composable
+internal fun rememberPresetSending(): MutableState<PresetSending?> = remember { mutableStateOf(null) }
+
+private fun MutableState<PresetSending?>.submit(marker: PresetSending, action: (() -> Unit) -> Unit) {
+    value = marker
+    action { if (value === marker) value = null }
+}
+
+/** The design's `.tile .pd`: a small amber dot that pulses while a command is on its way. */
+@Composable
+private fun SendingDot(tag: String) {
+    val alpha = if (rememberMotionAllowed()) rememberInfiniteTransition(label = "pd").animateFloat(1f, .35f,
+        infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pd").value else 1f
+    Box(Modifier.testTag(tag).alpha(alpha)) { Dot(paletteTokens.warn, sizeDp = 7) }
+}
+
+/** One `.tile`: stripe, icon and name on one line, the detail below. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?, active: Boolean, enabled: Boolean,
+    description: String, tag: String, modifier: Modifier, sending: Boolean = false, onLongClick: (() -> Unit)? = null,
+    longClickLabel: String? = null, onClick: () -> Unit) {
+    StripeTile(stripe = stripe, title = if (sending) "$title…" else title,
+        subtitle = if (sending) stringResource(R.string.parity_sending) else detail ?: " ",
+        level = if (active || sending) TintLevel.ON else TintLevel.TILE, selectedBorder = if (active) stripe else null,
+        titleFontWeight = FontWeight.Bold,
+        icon = { Icon(painterResource(icon), null, Modifier.size(16.dp), tint = stripe) },
+        trailing = {
+            if (sending) SendingDot(tag.replace("quick-mode-", "quick-sending-"))
+            else if (active) ActiveIndicator(paletteTokens.readableText(stripe,
+                paletteTokens.tint(stripe, TintLevel.ON).compositeOver(paletteTokens.surface.compositeOver(paletteTokens.ground)),
+                minimumContrast = 3f), true, Modifier.testTag(tag.replace("quick-mode-", "quick-active-")), sizeDp = 7)
+        },
+        modifier = modifier.heightIn(min = 56.dp).alpha(if (enabled) 1f else .5f).testTag(tag)
+            .semantics { contentDescription = description }
+            .then(if (onLongClick == null) Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                // Editing stays possible while sending is not: a tap only sends when the tile is enabled.
+                else Modifier.combinedClickable(role = Role.Button, onLongClickLabel = longClickLabel,
+                    onClick = { if (enabled) onClick() }, onLongClick = onLongClick)
+                    .then(if (enabled) Modifier else Modifier.semantics { disabled() })))
+}
+
+/** The design's QUICK PRESETS: three columns of Turbo, Heat, Cool, Dry, Boost and Off. */
+@Composable
+internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit,
+    onEditPreset: (Mode) -> Unit = {}, onEditBoost: () -> Unit = {}) {
+    val settings by model.settings.collectAsState()
+    val live by model.hasLiveStatus.collectAsState()
+    val link by model.linkState.collectAsState()
+    val columns = if (LocalConfiguration.current.fontScale >= 1.5f) 2 else 3
+    val canControl = live && link == io.github.willzy12h.nocturne.core.link.LinkState.READY
+    val evidence = quickEvidence(model)
+    Column(Modifier.testTag("quick-controls"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            SectionLabel(stringResource(R.string.parity_quick_presets), Modifier.weight(1f))
+            AccentLink(stringResource(R.string.action_edit), onEdit, icon = R.drawable.ic_nc_edit)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY).chunked(columns).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f), onEditPreset, onEditBoost) }
+                }
+            }
+        }
+        if (QuickDefaults.modes.any { !QuickDefaults.valid(QuickDefaults.resolve(settings, it)) })
+            Text(stringResource(R.string.uat_quick_invalid), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+/** One preset; null is Boost. */
+@Composable
+private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?, evidence: DeviceStatus?, canControl: Boolean,
+    sending: MutableState<PresetSending?>, modifier: Modifier, onEditPreset: (Mode) -> Unit, onEditBoost: () -> Unit) {
+    val context = LocalContext.current
+    val settings by model.settings.collectAsState()
+    val tokens = paletteTokens
+    val status by model.status.collectAsState()
+    val link by model.linkState.collectAsState()
+    val night by model.activeNight.collectAsState()
+    val runtime by model.runtime.collectAsState()
+    val owner by model.commandBusy.collectAsState()
+    when (mode) {
+        null -> {
+            val profiles by model.profiles.collectAsState()
+            val limits = settings.resolveProfile(profiles, model.now())?.limits ?: io.github.willzy12h.nocturne.core.plan.ProfileLimits()
+            val startBoost = stringResource(R.string.guard_start_boost)
+            // Boost is Turbo for the unit's ten-minute limit, then Heat for the person's chosen minutes.
+            val heat = settings.boostMinutes - io.github.willzy12h.nocturne.core.protocol.Limits.TURBO_MINUTES
+            PresetTile(BoostColor, R.drawable.ic_nc_ramp, stringResource(R.string.shortcut_boost),
+                if (heat > 0) stringResource(R.string.boost_tile_detail, heat) else stringResource(R.string.boost_tile_turbo_only),
+                canControl && owner.runningLabel == null && owner.queuedCount == 0 && reportedQuickAction(
+                    status, link, settings, night, runtime.slotWrite, limits) == Command.BOOST, canControl,
+                boostDescription(context, settings.boostMinutes), "quick-mode-BOOST", modifier,
+                sending.value?.key == "BOOST", onLongClick = onEditBoost,
+                longClickLabel = stringResource(R.string.uat_quick_edit, stringResource(R.string.shortcut_boost))) {
+                val captured = model.quickAction(Command.BOOST)
+                val title = context.getString(R.string.shortcut_boost)
+                guard.confirm(startBoost, captured.temporary) {
+                    sending.submit(PresetSending("BOOST", title, BoostColor)) { finished -> model.runCaptured(captured.end, finished) }
+                }
+            }
+        }
+        Mode.STANDBY -> {
+            val label = stringResource(Format.modeNameRes(Mode.STANDBY))
+            PresetTile(tokens.off, R.drawable.ic_nc_off, label, null, evidence?.mode == Mode.STANDBY, canControl,
+                label, "quick-mode-${Mode.STANDBY.name}", modifier, sending.value?.key == Mode.STANDBY.name) {
+                guard.confirm(context.getString(R.string.guard_turn_off)) {
+                    sending.submit(PresetSending(Mode.STANDBY.name, label, tokens.off)) { finished -> model.run(Command.OFF, onFinished = finished) }
+                }
+            }
+        }
+        else -> {
+            val preset = QuickDefaults.resolve(settings, mode)
+            val valid = QuickDefaults.valid(preset)
+            val label = stringResource(Format.modeNameRes(mode))
+            val detail = preset.takeIf { valid }?.let {
+                val duration = durationText(it.minutes)
+                if (it.mode.usesTemperature) stringResource(R.string.quick_tile_detail, tempText(it.temperature, settings.fahrenheit), duration)
+                else duration
+            }
+            PresetTile(tokens.stepColor(mode, preset.temperature), modeIcon(mode), label, detail, quickMatches(evidence, preset),
+                canControl, if (valid) presetDetail(context, preset, settings.fahrenheit) else stringResource(R.string.uat_quick_invalid),
+                "quick-mode-${mode.name}", modifier, sending.value?.key == mode.name,
+                // UX-07: holding a tile opens its editor and never sends anything to the BedJet.
+                onLongClick = { onEditPreset(mode) }, longClickLabel = stringResource(R.string.uat_quick_edit, label)) {
+                val captured = captureModeQuick(model, preset)
+                val color = tokens.stepColor(mode, preset.temperature)
+                guard.confirm(context.getString(R.string.guard_switch_to, label), captured.temporary) {
+                    sending.submit(PresetSending(mode.name, label, color)) { finished -> model.runCaptured(captured.end, finished) }
+                }
+            }
+        }
+    }
+}

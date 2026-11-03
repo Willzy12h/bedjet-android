@@ -38,7 +38,7 @@ class UiFinalisationTest {
             try { base.evaluate() } finally { graph.clock = previous }
         }
     } }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(fixture).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(io.github.willzy12h.nocturne.GraphLifecycle()).around(fixture).around(compose)
     private val graph get() = compose.activity.graph
 
     private fun waitFor(text: String) = compose.waitUntil(10_000) {
@@ -48,15 +48,15 @@ class UiFinalisationTest {
 
     @Test fun newProfileDraftSurvivesRecreationAndOnlySaveAddsIt() {
         val originalIds = graph.repository.profiles.value.map { it.id }.toSet()
-        compose.onNodeWithText("Profiles").performClick()
-        compose.onNodeWithText("New profile").performClick()
-        compose.onNodeWithText("Summer Cool (summer)").performClick()
-        waitFor("Edit profile")
+        compose.navTab("Profiles")
+        compose.onNodeWithTag("profiles-new", useUnmergedTree = true).performClick()
+        compose.onNode(hasText("Summer Cool") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
+        compose.onNodeWithTag("editor-save").assertExists()
         assertEquals(originalIds, graph.repository.profiles.value.map { it.id }.toSet())
         compose.onNode(hasSetTextAction() and hasText("Summer Cool")).performTextReplacement("Recreated new profile")
         compose.waitForIdle()
         compose.activityRule.scenario.recreate()
-        waitFor("Edit profile")
+        compose.onNodeWithTag("editor-save").assertExists()
         compose.onNode(hasSetTextAction() and hasText("Recreated new profile")).assertExists()
         assertEquals(originalIds, graph.repository.profiles.value.map { it.id }.toSet())
         compose.onNodeWithText("Save").performClick()
@@ -67,6 +67,7 @@ class UiFinalisationTest {
     }
 
     @Test fun tonightOverrideIsLabelledAsAnOverrideInEveryLook() {
+        compose.openTonightDetail()
         for ((theme, simple) in listOf(ThemeMode.DARK to false, ThemeMode.LIGHT to false,
             ThemeMode.DARK to true, ThemeMode.LIGHT to true)) {
             // Resolve the graph and the time here: the repository runs this lambda off the main thread,
@@ -85,13 +86,15 @@ class UiFinalisationTest {
         }
     }
 
-    @Test fun offRemainsAboveTheVisibleSnackbar() {
-        compose.onNodeWithText("Off").performScrollTo().performClick()
+    @Test fun feedbackFloatsOverTheScreenWithoutMovingIt() {
+        compose.onNodeWithText("Off").performScrollTo()
+        val before = compose.onNodeWithText("Off").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithText("Off").performClick()
         waitFor("BedJet off.")
-        // Do not wait for the snackbar to disappear: this is the previously untested obstruction.
-        compose.onNodeWithText("Off").performScrollTo().assertIsDisplayed()
-        val off = compose.onNodeWithText("Off").fetchSemanticsNode().boundsInRoot
-        val notice = compose.onNodeWithText("BedJet off.").fetchSemanticsNode().boundsInRoot
-        assertTrue("Off must remain above visible feedback: off=$off notice=$notice", off.bottom <= notice.top)
+        // Do not wait for the bubble to disappear: the content must not shift while it shows.
+        compose.onNodeWithTag("feedback-bubble").assertIsDisplayed()
+        val during = compose.onNodeWithText("Off").fetchSemanticsNode().boundsInRoot
+        assertEquals("Feedback must overlay, not push the content: before=$before during=$during", before, during)
     }
+
 }

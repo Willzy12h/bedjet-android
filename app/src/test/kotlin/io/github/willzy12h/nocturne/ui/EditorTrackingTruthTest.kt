@@ -39,7 +39,8 @@ class EditorTrackingTruthTest {
     private fun openApplyDialog(): Profile {
         val original = ui.graph.repository.profile(ui.graph.repository.activeNight.value!!.profileId)!!
         ui.compose.onNode(hasText(ui.s(R.string.tab_profiles)) and hasClickAction()).performClick()
-        ui.compose.onAllNodes(hasText(ui.s(R.string.action_edit)) and hasClickAction())[0].performClick()
+        ui.compose.onNode(hasScrollToKeyAction()).performScrollToKey(original.id)
+        ui.compose.onNodeWithTag("profile-open-${original.id}").performScrollTo().performClick()
         val edited = original.copy(name = "Edited tracked profile")
         ui.compose.onNode(hasSetTextAction() and hasText(ui.s(R.string.editor_name)))
             .performTextReplacement(edited.name)

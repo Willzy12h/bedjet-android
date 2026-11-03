@@ -8,19 +8,24 @@ import kotlinx.coroutines.flow.combine
 
 class PlatformRuntime(private val graph: Graph) {
     val handover=PhoneHandover(graph)
+    val healthExport = HealthSleepExporter(graph)
     fun start() {
         PlatformNotifications.channel(graph.context)
         graph.scope.launch {
+            AutoStartSchedule.migrate(graph)
             combine(graph.repository.settingsPublication,graph.repository.profiles) {_,_->Unit}.collect {
                 ChargerJobs.sync(graph)
                 BedtimeReminders.sync(graph)
             }
         }
-        handover.watch()
+        graph.scope.launch {
+            combine(graph.repository.settingsPublication, graph.repository.history, graph.repository.activeNight) { _, _, _ -> Unit }
+                .collect { healthExport.sync(manual = false) }
+        }
     }
     suspend fun observe(status: io.github.willzy12h.nocturne.core.protocol.DeviceStatus,target:String?) {
         if (!graph.sessions.hasStatusDemand || target == null || graph.link.state.value != LinkState.READY) return
         val name=if (graph.repository.settings.value.demoMode) "BEDJET-DEMO" else graph.bleLink.deviceName
-        graph.repository.updateAutomation { it.copy(observed=DeviceObservation(target,name,status.mode.name,status.isRunning,graph.now().toString())) }
+        graph.repository.recordDeviceObservation(DeviceObservation(target,name,status.mode.name,status.isRunning,graph.now().toString()))
     }
 }

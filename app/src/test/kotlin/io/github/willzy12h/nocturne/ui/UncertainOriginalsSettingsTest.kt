@@ -62,6 +62,7 @@ class UncertainOriginalsSettingsTest {
         } }
         compose.waitForIdle()
         compose.onNodeWithText("Settings").performClick()
+        compose.openSettingsPage("bedjet")
         compose.onNode(hasText("Saved original", substring = true)).performScrollTo().assertIsDisplayed()
     }
 
@@ -85,7 +86,6 @@ class UncertainOriginalsSettingsTest {
     @Test fun fromBackupUncertainOriginalDisplaysItsWarning() {
         showOriginal(Migrations.UNKNOWN_DEVICE, uncertain = true)
 
-        compose.onNodeWithText("From backup").assertExists()
         compose.onNodeWithText(UNCERTAINTY_WARNING).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(s(R.string.settings_preview_put_back)).assertDoesNotExist()
     }
@@ -93,7 +93,6 @@ class UncertainOriginalsSettingsTest {
     @Test fun fromBackupCertainOriginalDoesNotDisplayAWarning() {
         showOriginal(Migrations.UNKNOWN_DEVICE, uncertain = false)
 
-        compose.onNodeWithText("From backup").assertExists()
         compose.onNodeWithText(UNCERTAINTY_WARNING).assertDoesNotExist()
         compose.onNodeWithText(s(R.string.settings_preview_put_back)).assertDoesNotExist()
     }

@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
+import io.github.willzy12h.nocturne.operationIntent
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
@@ -59,7 +60,8 @@ class TruthfulOutcomesTest {
         }, now = now) } }
         g.clock = clock
         context.graph.clock = clock
-        g.repository.updateSettings { it.copy(demoMode = true) }
+        // A simulated restart retains the fixture's persisted real/demo selection.
+        if (!::graph.isInitialized) g.repository.updateSettings { it.copy(demoMode = true) }
         return g
     }
     private suspend fun start(): ActiveNight {
@@ -80,11 +82,11 @@ class TruthfulOutcomesTest {
     private fun moveAlarm(hours: Long): ZonedDateTime {
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
         val at = graph.now().plusHours(hours).withSecond(0).withNano(0)
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), null), fire)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(at.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)), fire)
         return at
     }
     private fun retryScheduled() = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms
-        .any { shadowOf(it.operation).savedIntent.action == NightAlarms.ACTION_RETRY }
+        .any { shadowOf(it.operationIntent).savedIntent.action == NightAlarms.ACTION_RETRY }
     /** [NightActions.status] is derived on the main looper. */
     private fun status(): Confidence? { shadowOf(android.os.Looper.getMainLooper()).idle(); return graph.actions.status.value.confidence }
     private fun isSlotWriteOrStart(b: ByteArray) = b[0] == 0x40.toByte() || (b[0] == 0x01.toByte() && b[1].toInt() and 0xff in 0x80..0x85)
@@ -137,7 +139,7 @@ class TruthfulOutcomesTest {
         // An earlier alarm: the new wake-up starts well before the old one.
         val alarm = ZonedDateTime.parse("2026-10-22T04:45:00Z")
         val fire = PendingIntent.getBroadcast(context, 0, Intent("test"), PendingIntent.FLAG_IMMUTABLE)
-        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), null), fire)
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)), fire)
         assertEquals(OutcomeKind.LOCAL, graph.actions.submitAlarmChange().kind)
         val count = sent.size
         // The backup read is slow: by the final check before writing, the new wake-up has begun.
@@ -280,6 +282,7 @@ class TruthfulOutcomesTest {
     }
 
     @Test fun anUnknownBoostEndsWithItsNightAndIsNotReportedForTheNext() = runBlocking {
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val n = start(); advance(30)
         beforeSend = { if (it[0] == 0x01.toByte() && it[1].toInt() and 0xff in 0x80..0x82) throw IOException("GATT write lost") }
         assertEquals(OutcomeKind.UNKNOWN, graph.actions.execute(graph.actions.capture(NightActions.Command.BOOST)
@@ -308,6 +311,7 @@ class TruthfulOutcomesTest {
     // IR-23
 
     @Test fun anInterruptedFirstStartKeepsItsHistory() = runBlocking {
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         beforeSend = { if (it[0] == 0x40.toByte()) throw kotlinx.coroutines.CancellationException("process dies") }
         try { start(); fail("cancel expected") } catch (_: kotlinx.coroutines.CancellationException) {}
         beforeSend = {}

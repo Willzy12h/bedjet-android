@@ -41,7 +41,7 @@ class ImportedTemporaryDurationTest {
 
     @Test fun importedTurboWarmStartsWithAnExplicitTenMinuteTemporaryPreviewAndDoesNotBecomeBoost() {
         val original = ui.graph.repository.activeNight.value!!
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.quick(ui.graph.repository.settings.value.extendWarm).performClick()
         val inDialog = hasAnyAncestor(isDialog())
         ui.compose.onNode(hasText(ui.s(R.string.temporary_duration, "10 min")) and inDialog).assertExists()
         ui.compose.onNode(hasText(ui.s(R.string.temporary_confirm)) and hasClickAction() and inDialog)
@@ -63,7 +63,7 @@ class ImportedTemporaryDurationTest {
         val original = ui.graph.repository.activeNight.value
         val physical = ui.graph.link.status.value
         val generation = ui.graph.repository.runtime.value.generation
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.quick(ui.graph.repository.settings.value.extendWarm).performClick()
         val inDialog = hasAnyAncestor(isDialog())
         val selectedChoice = SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)
         fun button(id: Int) = ui.compose.onNode(hasText(ui.s(id)) and hasClickAction() and inDialog and !selectedChoice)
@@ -93,6 +93,7 @@ class ImportedTemporaryDurationTest {
         val original = ui.graph.repository.activeNight.value
         val generation = ui.graph.repository.runtime.value.generation
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("notifications")
         val unsupportedReason = "This saved action uses unsupported settings. Choose a mode below to repair it."
         // Collect both presentation observations before repairing the preset, so the valid Heat
         // repair and no-owner-work controls still execute when the unsupported presentation is RED.

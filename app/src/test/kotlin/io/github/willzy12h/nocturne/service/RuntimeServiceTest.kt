@@ -60,7 +60,7 @@ class RuntimeServiceTest {
             app.sendBroadcast(Intent(Intent.ACTION_TIME_CHANGED))
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(10))
             val manager = shadowOf(app.getSystemService(AlarmManager::class.java))
-            until { manager.scheduledAlarms.any { it.triggerAtTime == graph.clock.millis() + 60_000 } }
+            until { manager.scheduledAlarms.any { it.triggerAtMs == graph.clock.millis() + 60_000 } }
             assertNull(shadowOf(app.getSystemService(android.app.NotificationManager::class.java)).getNotification(3))
 
             release.complete(Unit); until { held.isCompleted }
@@ -68,7 +68,7 @@ class RuntimeServiceTest {
             app.registerReceiver(retry, IntentFilter(NightAlarms.ACTION_RECONCILE_RETRY), Context.RECEIVER_NOT_EXPORTED)
             try {
                 app.sendBroadcast(Intent(NightAlarms.ACTION_RECONCILE_RETRY))
-                until { manager.scheduledAlarms.none { it.triggerAtTime == graph.clock.millis() + 60_000 } }
+                until { manager.scheduledAlarms.none { it.triggerAtMs == graph.clock.millis() + 60_000 } }
             } finally { app.unregisterReceiver(retry) }
         } finally { release.complete(Unit); app.unregisterReceiver(receiver) }
     }
@@ -139,7 +139,7 @@ class RuntimeServiceTest {
     @Test fun cancelledUiDeliveryCannotExecuteLater() {
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         var invoked = false
         val callerContext = ServiceStartContext(app)
         val caller = graph.scope.launch { BedJetService.runOwned(callerContext) { invoked = true } }
@@ -156,7 +156,7 @@ class RuntimeServiceTest {
     @Test fun deferredUiPinRejectsTargetChangedBeforeDeliveryInsideCoordinator() {
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         var delivered: Intent? = null
         var result: CommandOutcome? = null
         graph.scope.launch { result = BedJetService.runOwned(app) { graph.actions.pin(graph.repository.profiles.value.first().id, 0) } }
@@ -171,7 +171,7 @@ class RuntimeServiceTest {
     @Test fun uiOperationWaitsForForegroundOwnershipAndServiceCancellationReachesUpload() {
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") } }
         shadowOf(app).grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         val reached = CompletableDeferred<Unit>()
         beforeSend = { if (it[0] == 0x40.toByte()) { reached.complete(Unit); awaitCancellation() } }
         var delivered: Intent? = null

@@ -28,9 +28,9 @@ class WidgetModeNameTest : io.github.willzy12h.nocturne.platform.PlatformGraphFi
         widgetMode(context, DeviceObservation("demo", "BEDJET-DEMO", mode, true, "2026-10-22T22:25:00Z"))
     }
 
-    @Test fun gentleHeatIsNamedInWords() {
+    @Test fun longHeatIsNamedInWords() {
         val text = caption("EXTENDED_HEAT")
-        assertTrue(text, text.startsWith("Last known Gentle heat"))
+        assertTrue(text, text.startsWith("Last known Long heat"))
         assertFalse(text, text.contains("EXTENDED_HEAT"))
     }
 

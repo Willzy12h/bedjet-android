@@ -16,6 +16,7 @@ class SettingsBoostCopyTest {
 
     @Test fun everyBoostLengthDescribesItsActualTurboAndHeatDurations() {
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("notifications")
         for (minutes in listOf(10, 15, 20, 25, 30)) {
             ui.compose.runOnUiThread { runBlocking {
                 ui.graph.repository.updateSettings { it.copy(boostMinutes = minutes) }

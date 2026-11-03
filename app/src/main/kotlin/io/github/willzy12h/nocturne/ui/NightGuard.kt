@@ -2,7 +2,7 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
 import androidx.compose.foundation.layout.Arrangement
@@ -61,23 +61,26 @@ fun rememberNightGuard(model: AppViewModel): NightGuard {
                 if (temporary == null) Text(if (resume) stringResource(R.string.guard_resume_body)
                     else stringResource(R.string.guard_running_waking, name, what))
                 else Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(useTemporary, { useTemporary = true }, label = { Text(stringResource(R.string.temporary_choice)) }, modifier = Modifier.fillMaxWidth())
-                    FilterChip(!useTemporary, { useTemporary = false }, label = { Text(stringResource(R.string.temporary_end_choice)) }, modifier = Modifier.fillMaxWidth())
+                    FilterChip(useTemporary, { useTemporary = true }, label = { Text(stringResource(R.string.temporary_choice)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneFilterChipColors())
+                    FilterChip(!useTemporary, { useTemporary = false }, label = { Text(stringResource(R.string.temporary_end_choice)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneFilterChipColors())
                     if (useTemporary) {
                         Text(stringResource(R.string.temporary_running, name))
                         temporaryDetails(context, request!!, preview!!, settings.fahrenheit).forEach { Text(it) }
                         Text(stringResource(R.string.temporary_duration, durationText(minutes)))
-                        Slider(minutes.toFloat().coerceIn(1f, temporary.maximumMinutes.toFloat()),
+                        if (temporary.maximumMinutes > 1) NocturneSlider(minutes.toFloat().coerceIn(1f, temporary.maximumMinutes.toFloat()),
                             { minutes = it.roundToInt() }, valueRange = 1f..temporary.maximumMinutes.toFloat(),
                             steps = temporary.maximumMinutes - 2,
-                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(minutes)))
+                            modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(minutes)), colors = amountSliderColors())
                         temporaryReturn(context, preview)?.let { Text(it) }
                         Text(stringResource(R.string.temporary_schedule))
+                        temporary.endPreset?.takeIf { temporary.canEnd && it.minutes > temporary.maximumMinutes }?.let {
+                            Text(stringResource(R.string.remote_temporary_shorter, durationText(temporary.maximumMinutes), durationText(it.minutes)))
+                        }
                     } else {
                         Text(stringResource(R.string.guard_running_waking, name, what))
                         requestedEndDetail(context, temporary, settings.fahrenheit)?.let { Text(it) }
                     }
-                    (endingRefusal ?: preview?.refusal)?.let { Text(it) }
+                    (if (useTemporary) preview?.refusal else endingRefusal)?.let { Text(it) }
                 }
             },
             confirmButton = { TextButton(onClick = {

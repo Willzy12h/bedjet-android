@@ -61,7 +61,7 @@ class CheckInSuggestionTest {
     }
 
     @Test fun tooHotOffersMoreFanAndOnlyAcceptingChangesTheProfile() {
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.onNodeWithText(s(R.string.checkin_button)).performScrollTo().performClick()
         compose.onNodeWithText(s(R.string.checkin_too_hot)).performClick()
         waitFor(s(R.string.checkin_fan_start_change, 50, 60))

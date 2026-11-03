@@ -45,7 +45,7 @@ class AccessibilitySemanticsTest {
             try { base.evaluate() } finally { graph.clock = previous }
         }
     } }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(fixture).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(io.github.willzy12h.nocturne.GraphLifecycle()).around(fixture).around(compose)
     private val graph get() = compose.activity.graph
     private fun s(id: Int, vararg args: Any) = compose.activity.getString(id, *args)
     private val density get() = compose.activity.resources.displayMetrics.density
@@ -56,10 +56,12 @@ class AccessibilitySemanticsTest {
 
     @Test fun editorSlidersSayWhatTheySetInWhichUnitAndTheirValue() {
         val profile = graph.repository.profiles.value.first()
-        compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodes(hasText("Edit"))[0].performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Edit profile").fetchSemanticsNodes().isNotEmpty() }
+        compose.navTab("Profiles")
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(profile.id)
+        compose.onNodeWithTag("profile-open-${profile.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("editor-save").assertExists()
         val middle = profile.middle
+        compose.onNodeWithTag("editor-middle-summary").performScrollTo().performClick()
         if (middle.mode.usesFan) {
             val fan = slider(s(R.string.slider_fan_start)).performScrollTo()
             assertEquals(s(R.string.a11y_percent, middle.fanStart), stateOf(fan))
@@ -70,18 +72,24 @@ class AccessibilitySemanticsTest {
         }
         val steps = slider(s(R.string.slider_steps)).performScrollTo()
         assertEquals(compose.activity.resources.getQuantityString(R.plurals.a11y_steps, middle.rampSteps, middle.rampSteps), stateOf(steps))
+        compose.onNode(hasText(s(R.string.uat_setup_done)) and hasClickAction() and
+            hasAnyAncestor(hasTestTag("editor-middle-sheet"))).performScrollTo().performClick()
         val fanLimits = compose.onNode(hasContentDescription(s(R.string.slider_fan_limits))).performScrollTo()
         assertEquals(s(R.string.a11y_range, s(R.string.a11y_percent, profile.limits.minFan), s(R.string.a11y_percent, profile.limits.maxFan)), stateOf(fanLimits))
     }
 
     @Test fun theBoostSliderSaysItsMinutes() {
         compose.onAllNodesWithText("Settings")[0].performClick()
-        val boost = slider(s(R.string.slider_boost)).performScrollTo()
-        assertEquals(compose.activity.resources.getQuantityString(R.plurals.a11y_minutes, 15, 15), stateOf(boost))
+        compose.openSettingsPage("notifications")
+        // Settings opens the one Boost editor, whose slider sets the Heat that follows Turbo's ten minutes.
+        compose.onNodeWithTag("settings-boost-row").performScrollTo().performClick()
+        val heat = slider(s(R.string.boost_editor_heat))
+        assertEquals(compose.activity.resources.getQuantityString(R.plurals.a11y_minutes, 5, 5), stateOf(heat))
     }
 
     @Test fun featureSwitchesAreOneToggleableRowAtLeast48dpTall() {
         compose.onAllNodesWithText("Settings")[0].performClick()
+        compose.openSettingsPage("night")
         val label = s(R.string.feature_reminders)
         val row = compose.onNode(hasContentDescription(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch))
         row.performScrollTo()

@@ -1,3 +1,5 @@
+import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.variant.HostTestBuilder
 import java.security.KeyStore
 import java.security.PrivateKey
 
@@ -8,7 +10,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// Keep release-only hardening in the build package while Claude owns the main manifest.
+// Keep release-only receiver hardening in the generated build overlay.
 // Android still delivers system broadcasts and widget updates to non-exported receivers.
 abstract class GenerateReleaseManifest : DefaultTask() {
     @get:OutputFile
@@ -41,14 +43,33 @@ abstract class GenerateReleaseManifest : DefaultTask() {
     }
 }
 
+// Feed the final application declarations to Robolectric, including variant security overlays.
+// A copy of the already-merged artifact avoids replaying source-only tools:node removal directives.
+abstract class CopyUnitTestManifest : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val applicationManifest: RegularFileProperty
+    @get:OutputFile
+    abstract val manifestFile: RegularFileProperty
+    @TaskAction fun copyManifest() {
+        manifestFile.get().asFile.apply {
+            parentFile.mkdirs()
+            // AGP supplies the test namespace. Classes in the merged artifact are already qualified.
+            writeText(applicationManifest.get().asFile.readText()
+                .replaceFirst(Regex("""\s+package="[^"]*""""), ""))
+        }
+    }
+}
+
 android {
     namespace = "io.github.willzy12h.nocturne"
     compileSdk = 36
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "io.github.willzy12h.nocturne"
         minSdk = 31
-        targetSdk = 35
+        targetSdk = 36
         // Release builds get these from the tag (see .github/workflows/build.yml).
         versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
         versionName = (findProperty("versionName") as String?) ?: "0.1.0"
@@ -104,12 +125,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     testOptions {
         unitTests.isIncludeAndroidResources = true
         // Robolectric downloads its Android image; Maven Central rate-limits busy machines, so use Google's mirror.
         unitTests.all {
             it.systemProperty("robolectric.dependency.repo.url", "https://maven-central.storage-download.googleapis.com/maven2")
+            // Respect Android's requested dialog/window size. Robolectric's compatibility default
+            // ignores it and loops when a text-field dialog is measured above 320 dp (#8460).
+            it.systemProperty("robolectric.windowManager.useRequestedSize", "true")
             it.systemProperty("nocturne.serializationFixtures", rootProject.file(".github/workflows/release-serialization-fixtures.json").absolutePath)
         }
     }
@@ -121,7 +144,17 @@ android {
     }
 }
 
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
+
 androidComponents {
+    onVariants { variant ->
+        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.let { unitTest ->
+            val manifest = tasks.register<CopyUnitTestManifest>("copy${variant.name.replaceFirstChar { it.uppercase() }}UnitTestManifest") {
+                applicationManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+            }
+            unitTest.sources.manifests.addGeneratedManifestFile(manifest, CopyUnitTestManifest::manifestFile)
+        }
+    }
     onVariants(selector().withBuildType("release")) { variant ->
         val overlay = tasks.register<GenerateReleaseManifest>("generateReleaseSecurityManifest")
         variant.sources.manifests.addGeneratedManifestFile(overlay, GenerateReleaseManifest::manifestFile)

@@ -17,7 +17,7 @@ class AlarmExplanationLayoutTest(private val look: U06Look) {
     @get:Rule val rules = ui.rules
 
     @Test fun sourceExplanationRemainsCompleteAndActionableAt320DpAnd200Percent() {
-        ui.checkControl(ui.compose.onNodeWithText("No alarm set — profile wake 07:00"), "Wake source explanation", scroll = false)
+        ui.checkControl(ui.compose.onNodeWithText("No alarm set — profile wake 07:00"), "Wake source explanation")
     }
 
     companion object {

@@ -18,6 +18,8 @@ class FakeRadio {
     /** How the next connections behave; the list is consumed in order, then [behaviour] applies. */
     val upcoming = ArrayDeque<Behaviour>()
     var behaviour = Behaviour()
+    /** Opt-in safe slot reply for controller start-boundary tests. */
+    var readableProgramme = false
     /** Thrown by the next connect or scan instead of starting it. */
     @Volatile var connectThrows: RuntimeException? = null
     @Volatile var scanThrows: RuntimeException? = null
@@ -104,7 +106,9 @@ class FakeRadio {
             writeThrows?.let { writeThrows = null; throw it }
             writes += data
             if (attr == Attr.COMMAND && data[0].toInt() == 0x41) lastQuery = data.copyOfRange(1, 3)
-            if (!holdWrites) post { sink.onWrite(attr, GATT_SUCCESS) }
+            val programmeQuery = readableProgramme && data.size >= 3 && data[0].toInt() == 0x41 &&
+                (data[1].toInt() and 0xff) in 7..18
+            if (!holdWrites || programmeQuery) post { sink.onWrite(attr, GATT_SUCCESS) }
             return true
         }
 
@@ -117,7 +121,12 @@ class FakeRadio {
                 Attr.NAME -> if (behaviour.answersNames) post { sink.onRead(attr,behaviour.nameBytes ?: byteArrayOf(),GATT_SUCCESS) }
                 Attr.REPLY -> if (behaviour.answersReplies) {
                     val echo = lastQuery ?: byteArrayOf(0, 0)
-                    post { sink.onRead(attr, echo + "BEDJET 3".toByteArray() + 0, GATT_SUCCESS) }
+                    val request = echo[0].toInt() and 0xff
+                    val payload = if (readableProgramme && request in 7..18) {
+                        // A ten-minute Cool step: these tests exercise start receipt ordering.
+                        byteArrayOf(1, 4, 5, 50, 0, 10)
+                    } else "BEDJET 3".toByteArray() + 0
+                    post { sink.onRead(attr, echo + payload, GATT_SUCCESS) }
                 }
                 Attr.STATUS -> if (!holdStatusReads) post { sink.onRead(attr, Status.remainder(programStep = 0), GATT_SUCCESS) }
                 else -> Unit

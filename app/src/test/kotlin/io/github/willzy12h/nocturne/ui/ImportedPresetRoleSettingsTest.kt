@@ -18,7 +18,7 @@ import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Saved timed actions and the Quick buttons which share Extend presets have distinct eligibility. */
+/** Saved timed actions and legacy shortcut/widget entries have distinct eligibility. */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -69,10 +69,11 @@ class ImportedPresetRoleSettingsTest(private val role: PresetRole) {
         fun roles(): List<Array<Any>> = PresetRole.entries.map { arrayOf(it) }
     }
 
-    @Test fun settingsDescribesTheSupportedTimedActionAndOnlyItsActualQuickRestriction() {
+    @Test fun settingsDescribesTheSupportedTimedActionAndOnlyItsLegacyEntryRestriction() {
         val generation = ui.graph.repository.runtime.value.generation
         val history = ui.graph.repository.history.value
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("notifications")
         val summary = ui.s(R.string.settings_preset_summary, ui.s(role.title), ui.s(R.string.mode_turbo), 100, 10)
         val failures = mutableListOf<String>()
         if (ui.compose.onAllNodesWithText(summary).fetchSemanticsNodes().isEmpty()) {
@@ -82,9 +83,9 @@ class ImportedPresetRoleSettingsTest(private val role: PresetRole) {
             failures += "The whole supported timed preset is incorrectly labelled unsupported"
         }
         if (role.quickName != null) {
-            val note = "This preset is unsupported by the ${ui.s(role.quickName)} Quick button. Choose a supported mode below to use that button."
+            val note = "The legacy ${ui.s(role.quickName)} shortcut or widget cannot use this preset. The mode buttons use Quick defaults."
             if (ui.compose.onAllNodesWithText(note).fetchSemanticsNodes().isEmpty()) {
-                failures += "The distinct Quick-button restriction is not explained"
+                failures += "The distinct legacy shortcut/widget restriction is not explained"
             } else ui.compose.onNodeWithText(note).performScrollTo().assertIsDisplayed()
         } else {
             if (ui.compose.onAllNodes(hasText("unsupported", substring = true, ignoreCase = true)).fetchSemanticsNodes().isNotEmpty()) {

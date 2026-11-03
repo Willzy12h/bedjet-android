@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 /** Moving connection release into Settings leaves Tonight's other recovery actions reachable. */
 @RunWith(RobolectricTestRunner::class)
@@ -23,12 +24,12 @@ class MoreReleasePlacementTest {
 
     private fun checkMore(tracked: Boolean) {
         ui.compose.runOnUiThread { runBlocking {
-            ui.graph.repository.updateSettings { it.copy(platform = it.platform.copy(lullHandover = true)) }
             if (tracked) assertEquals(OutcomeKind.CONFIRMED, ui.graph.actions.execute(
                 ui.graph.actions.capture(NightActions.Command.START_NIGHT)).kind)
         } }
-        ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).performScrollTo().performClick()
-        ui.compose.onNodeWithText(ui.s(R.string.feature_request)).assertIsDisplayed().assertHasClickAction()
+        if (tracked) ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).performScrollTo().performClick()
+        else ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).assertDoesNotExist()
+        ui.compose.onNodeWithText("Request BedJet from another phone").assertDoesNotExist()
         if (tracked) ui.compose.onNodeWithText(ui.s(R.string.recovery_recheck_alarm)).assertIsDisplayed().assertHasClickAction()
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).assertDoesNotExist()
         ui.compose.onNodeWithText(ui.s(R.string.feature_take_back)).assertDoesNotExist()
@@ -36,20 +37,21 @@ class MoreReleasePlacementTest {
         assertFalse("Opening More must not release the connection", ui.graph.sessions.released.value)
     }
 
-    @Test fun idleMoreKeepsTheRequestActionButNoLongerContainsRelease() = checkMore(tracked = false)
+    @Test fun idleHasNoPeerRequestOrReleaseMenu() = checkMore(tracked = false)
 
-    @Test fun trackedMoreKeepsRecheckAndRequestButNoLongerContainsRelease() = checkMore(tracked = true)
+    @Test fun trackedMoreKeepsRecheckButNoPeerRequestOrRelease() = checkMore(tracked = true)
 
     @Test fun idleWithoutHandoverDoesNotOfferAnEmptyMoreMenu() {
         assertNull(ui.graph.repository.activeNight.value)
-        assertFalse(ui.graph.repository.settings.value.platform.lullHandover)
         ui.compose.onNode(hasText(ui.s(R.string.recovery_more)) and hasClickAction()).assertDoesNotExist()
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().assertIsDisplayed()
     }
 
     @Test fun settingsStillReleasesAndTakesBackTheConnectionThroughTheOwner() {
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.feature_release)).performScrollTo().performClick()
         ui.waitUntil { ui.graph.sessions.released.value }
         ui.compose.onNodeWithText(ui.s(R.string.feature_take_back)).performScrollTo().assertIsDisplayed().performClick()
@@ -66,7 +68,7 @@ class MoreReleasePlacementTest {
             runBlocking {
                 ui.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target) }
             }
-            DeviceNames(ui.graph.context) { target }.display(target, rememberedName)
+            ReflectionHelpers.getField<DeviceNames>(ui.graph.bleLink, "names").display(target, rememberedName)
         }
         ui.waitUntil {
             !ui.model.settings.value.demoMode && ui.model.bedJetName() == rememberedName &&
@@ -74,6 +76,7 @@ class MoreReleasePlacementTest {
         }
         assertNull("A remembered selection is not a current device report", ui.graph.link.latestSourcedStatus())
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.settings_connected_unit, rememberedName))
             .performScrollTo().assertIsDisplayed().assertTextEquals("BedJet name: BEDJET-BEDROOM")
         ui.compose.onNodeWithText("Connected unit: BEDJET-BEDROOM").assertDoesNotExist()
@@ -97,6 +100,7 @@ class MoreReleasePlacementTest {
         assertNull("The selected target has no stored name", DeviceNames(ui.graph.context) { target }.displayName())
         assertNull("An unnamed selection is not a current device report", ui.graph.link.latestSourcedStatus())
         ui.compose.onNode(hasText(ui.s(R.string.tab_settings)) and hasClickAction()).performClick()
+        ui.compose.openSettingsPage("bedjet")
         ui.compose.onNodeWithText(ui.s(R.string.settings_connected_unit, ui.s(R.string.settings_none_yet)))
             .performScrollTo().assertIsDisplayed().assertTextEquals("BedJet name: none yet")
         ui.compose.onNodeWithText("Connected unit: none yet").assertDoesNotExist()

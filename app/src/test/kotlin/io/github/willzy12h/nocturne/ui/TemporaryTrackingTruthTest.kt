@@ -41,7 +41,7 @@ class TemporaryTrackingTruthTest {
     private fun checkChoice(becomeUnknownWhileOpen: Boolean = false) {
         val identity = ui.graph.repository.activeNight.value!!.identity
         val physical = ui.graph.link.status.value
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.quick(ui.graph.repository.settings.value.extendWarm).performClick()
         val inDialog = hasAnyAncestor(isDialog())
         val selectedChoice = SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)
         fun button(id: Int) = ui.compose.onNode(hasText(ui.s(id)) and hasClickAction() and inDialog and !selectedChoice)
@@ -86,7 +86,7 @@ class TemporaryTrackingTruthTest {
     @Test fun theTemporaryAlternativeNamesStopNightAndStillRequiresItsGuardedConfirmation() {
         val before = ui.graph.repository.activeNight.value
         val physical = ui.graph.link.status.value
-        ui.control(ui.s(R.string.feature_warm)).performClick()
+        ui.quick(ui.graph.repository.settings.value.extendWarm).performClick()
         val inDialog = hasAnyAncestor(isDialog())
         val selectedChoice = SemanticsMatcher.keyIsDefined(SemanticsProperties.Selected)
         val stopChoice = ui.compose.onNode(hasText(ui.s(R.string.temporary_end_choice)) and

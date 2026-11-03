@@ -46,13 +46,13 @@ class RecoveryAndFanUiTest {
 
     @Test fun stopNightKeepsItsConfirmationAndOnlyAcceptanceEndsTheProgramme() {
         val original = ui.graph.repository.activeNight.value!!.identity
-        ui.compose.onNode(hasText("Stop night") and hasClickAction()).performScrollTo().performClick()
+        ui.compose.onNodeWithTag("tonight-end-night").performScrollTo().performClick()
         val dialog = hasAnyAncestor(isDialog())
         ui.compose.onNode(hasText("Stop night?") and dialog).assertExists()
         ui.compose.onNode(hasText("Keep tonight") and hasClickAction() and dialog).performClick()
         assertEquals(original, ui.graph.repository.activeNight.value?.identity)
         assertEquals(Mode.HEAT, ui.graph.link.status.value?.mode)
-        ui.compose.onNode(hasText("Stop night") and hasClickAction()).performScrollTo().performClick()
+        ui.compose.onNodeWithTag("tonight-end-night").performScrollTo().performClick()
         ui.compose.onNode(hasText("Stop night") and hasClickAction() and dialog).performClick()
         ui.waitUntil { !ui.model.busy.value && ui.graph.repository.activeNight.value == null }
         assertEquals(Mode.STANDBY, ui.graph.link.status.value?.mode)
@@ -63,7 +63,7 @@ class RecoveryAndFanUiTest {
         val outcomes = CopyOnWriteArrayList<CommandOutcome>()
         ui.graph.scope.launch(start = CoroutineStart.UNDISPATCHED) { ui.model.messages.collect { messages += it } }
         ui.graph.scope.launch(start = CoroutineStart.UNDISPATCHED) { ui.graph.actions.outcomes.collect { outcomes += it } }
-        ui.compose.onNodeWithText("Remote").performClick()
+        ui.compose.openRemote()
         ui.waitUntil { ui.model.status.value?.mode == Mode.HEAT }
         ui.compose.onNode(hasContentDescription(ui.s(R.string.slider_fan))).performScrollTo()
             .performSemanticsAction(SemanticsActions.SetProgress) { it(65f) }

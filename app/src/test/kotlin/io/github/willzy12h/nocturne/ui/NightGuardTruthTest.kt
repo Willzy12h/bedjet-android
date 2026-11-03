@@ -67,7 +67,7 @@ class NightGuardTruthTest {
 
     @Test fun unknownStopDoesNotClaimARunningWake() {
         uncertainty(Confidence.UNKNOWN)
-        assertTruthfulGuard(R.string.tonight_end_night)
+        assertTruthfulGuard(R.string.parity_end_night)
     }
     @Test fun unknownQuickOffDoesNotClaimARunningWake() {
         uncertainty(Confidence.UNKNOWN)
@@ -75,7 +75,7 @@ class NightGuardTruthTest {
     }
     @Test fun pendingStopDoesNotClaimARunningWake() {
         uncertainty(Confidence.PENDING)
-        assertTruthfulGuard(R.string.tonight_end_night)
+        assertTruthfulGuard(R.string.parity_end_night)
     }
     @Test fun pendingQuickOffDoesNotClaimARunningWake() {
         uncertainty(Confidence.PENDING)
@@ -83,14 +83,14 @@ class NightGuardTruthTest {
     }
     @Test fun keptManualStopDoesNotClaimAnAlarmWake() {
         keepManual()
-        assertTruthfulGuard(R.string.tonight_end_night)
+        assertTruthfulGuard(R.string.parity_end_night)
     }
     @Test fun keptManualQuickOffDoesNotClaimAnAlarmWake() {
         keepManual()
         assertTruthfulGuard(R.string.feature_off)
     }
     @Test fun anOpenStopDialogDoesNotRetainAConfirmedClaimAfterUncertainty() {
-        assertTruthfulGuard(R.string.tonight_end_night, becomeUnknownWhileOpen = true)
+        assertTruthfulGuard(R.string.parity_end_night, becomeUnknownWhileOpen = true)
     }
     @Test fun anOpenQuickOffDialogDoesNotRetainAConfirmedClaimAfterUncertainty() {
         assertTruthfulGuard(R.string.feature_off, becomeUnknownWhileOpen = true)

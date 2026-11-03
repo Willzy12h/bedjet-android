@@ -1,11 +1,13 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import io.github.willzy12h.nocturne.ui.nocturneCheckboxColors
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
+import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -34,33 +36,36 @@ import java.time.format.DateTimeFormatter
     var identifiers by remember {mutableStateOf(false)}
     var status by remember {mutableStateOf<String?>(null)}
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {uri->
-        if(uri!=null) scope.launch {
+        if(uri!=null && !graph.repository.settings.value.demoMode) scope.launch {
             try {
+                if (graph.repository.settings.value.demoMode) return@launch
                 val csv=HistoryCsv.encode(graph.repository.history.value,settings.fahrenheit,identifiers)
-                withContext(Dispatchers.IO) {graph.context.contentResolver.openOutputStream(uri,"wt")?.use {it.write(csv.toByteArray(Charsets.UTF_8))}
-                    ?: error("No output stream")}
+                withContext(Dispatchers.IO) {
+                    if (graph.repository.settings.value.demoMode) throw kotlinx.coroutines.CancellationException("Demo session")
+                    io.github.willzy12h.nocturne.data.ExportDestination.open(graph.context, uri).use {it.write(csv.toByteArray(Charsets.UTF_8))}}
                 status=graph.context.getString(R.string.feature_export_done)
             } catch(e:kotlinx.coroutines.CancellationException){throw e
+            } catch(e:io.github.willzy12h.nocturne.data.UnsafeExportDestination){status=e.message
             } catch(_:Exception){status=graph.context.getString(R.string.feature_export_failed)}
         }
     }
     Column {
-        TextButton({identifiers=false;dialog=true}) {Text(stringResource(R.string.feature_csv))}
+        TextButton({identifiers=false;dialog=true}, enabled = !settings.demoMode) {Text(stringResource(R.string.feature_csv))}
         status?.let {Text(it)}
     }
-    if(dialog) AlertDialog(onDismissRequest={dialog=false},title={Text(stringResource(R.string.feature_csv))},text={
+    if(dialog && !settings.demoMode) AlertDialog(onDismissRequest={dialog=false},title={Text(stringResource(R.string.feature_csv))},text={
         Column {
             Text(stringResource(R.string.feature_csv_help))
-            Row(Modifier.toggleable(identifiers,role=Role.Checkbox,onValueChange={identifiers=it})) {Checkbox(identifiers,null);Text(stringResource(R.string.feature_identifiers))}
+            Row(Modifier.toggleable(identifiers,role=Role.Checkbox,onValueChange={identifiers=it})) {Checkbox(identifiers,null, colors = nocturneCheckboxColors());Text(stringResource(R.string.feature_identifiers))}
         }
     },confirmButton={TextButton({dialog=false;picker.launch("nocturne-history-${graph.now().toLocalDate()}.csv")}) {Text(stringResource(R.string.feature_save))}},
         dismissButton={TextButton({dialog=false}){Text(stringResource(R.string.feature_cancel))}})
 }
 
-@Composable fun HealthSleepOverlay(graph:Graph,record:NightRecord) {
-    if (record.isTestRun) return
+@Composable fun HealthSleepOverlay(graph:Graph,record:NightRecord,plan:io.github.willzy12h.nocturne.core.plan.Plan?=null,detailed:Boolean=false) {
+    if (record.isTestRun || io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(record.deviceId)) return
     val settings by graph.repository.settings.collectAsState()
-    if(!settings.platform.healthSleepOverlay)return
+    if(settings.demoMode || !settings.platform.healthSleepOverlay)return
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     var resume by remember {mutableIntStateOf(0)}
     var result by remember(record.id) {mutableStateOf<SleepOverlay?>(null)}
@@ -88,16 +93,8 @@ import java.time.format.DateTimeFormatter
         else if(value!=null) {
             val start=ZonedDateTime.parse(record.startedAt)
             val end=ZonedDateTime.parse(record.wakeAt)
-            val total=Duration.between(start,end).toMillis().coerceAtLeast(1).toFloat()
-            val colour=MaterialTheme.colorScheme.primary
-            Canvas(Modifier.fillMaxWidth().height(28.dp)) {
-                value.stages.forEach { stage->
-                    val x=Duration.between(start.toInstant(),stage.start).toMillis()/total*size.width
-                    val width=Duration.between(stage.start,stage.end).toMillis()/total*size.width
-                    drawRect(colour.copy(alpha=0.35f+(stage.stage.coerceIn(0,6)/6f)*0.65f),Offset(x,0f),Size(width, size.height))
-                }
-            }
-            value.stages.forEach {stage->
+            SleepStageChart(value.stages,start.toInstant(),end.toInstant(),plan)
+            if(detailed)value.stages.forEach {stage->
                 val label=stringResource(when(stage.stage) {1->R.string.feature_stage_awake;2->R.string.feature_stage_sleeping;3->R.string.feature_stage_out;4->R.string.feature_stage_light;5->R.string.feature_stage_deep;6->R.string.feature_stage_rem;else->R.string.feature_stage_unknown})
                 val format=DateTimeFormatter.ofPattern("HH:mm XXX")
                 Text(stringResource(R.string.feature_stage_line,stage.start.atZone(start.zone).format(format),stage.end.atZone(start.zone).format(format),label),style=MaterialTheme.typography.bodySmall)

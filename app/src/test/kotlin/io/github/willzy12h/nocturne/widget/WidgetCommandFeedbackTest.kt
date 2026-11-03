@@ -80,8 +80,9 @@ class WidgetCommandFeedbackTest : io.github.willzy12h.nocturne.platform.Platform
     }
 
     private suspend fun displayed(prefs: Preferences): List<String> {
-        fun text(view: View): List<String> = (if (view is TextView) listOf(view.text.toString(),
-            view.contentDescription?.toString()?.substringBefore(" — ")?.substringBefore(". ").orEmpty()) else emptyList()) +
+        // The status line joins the action and its outcome ("Cool · Unknown"); the spoken header names the outcome first.
+        fun parts(words: CharSequence?) = words?.split(" · ", " — ", ". ")?.map { it.trim() }.orEmpty()
+        fun text(view: View): List<String> = (if (view is TextView) parts(view.text) else emptyList()) + parts(view.contentDescription) +
             if (view is ViewGroup) (0 until view.childCount).flatMap { text(view.getChildAt(it)) } else emptyList()
         val views = QuickControlsWidget().compose(app, size = DpSize(200.dp, 128.dp), state = prefs)
         return text(views.apply(app, FrameLayout(app)))
@@ -270,6 +271,6 @@ class WidgetCommandFeedbackTest : io.github.willzy12h.nocturne.platform.Platform
         prefs[stringPreferencesKey("widget_feedback_target")] = "ble:another-bedjet"
         val text = displayed(prefs)
         assertFalse(text.toString(), text.contains("Confirmed"))
-        assertTrue(text.toString(), text.contains("Unknown"))
+        assertTrue("The selected BedJet's own report shows instead: $text", text.any { it.startsWith("Cool") })
     }
 }

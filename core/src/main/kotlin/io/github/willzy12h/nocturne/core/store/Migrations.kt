@@ -27,6 +27,7 @@ object Migrations {
         while (schema < BackupCodec.SCHEMA) {
             current = when (schema) {
                 1 -> oneToTwo(current)
+                2 -> twoToThree(current)
                 else -> error("No migration from schema $schema")
             }
             schema++
@@ -41,6 +42,9 @@ object Migrations {
     /** The app's own `history.json`, from any version. */
     fun decodeHistory(text: String): List<NightRecord> =
         BackupCodec.json.decodeFromJsonElement(ListSerializer(NightRecord.serializer()), mapRecords(BackupCodec.json.parseToJsonElement(text), ::nightRecordV2))
+
+    /** 2 → 3: only new fields, each with a default, so the records are unchanged. */
+    private fun twoToThree(obj: JsonObject): JsonObject = JsonObject(obj + ("schema" to JsonPrimitive(3)))
 
     /** 1 → 2: slot backups gain their device and empty marker, and are marked uncertain; nights gain their device. */
     private fun oneToTwo(obj: JsonObject): JsonObject = JsonObject(

@@ -114,8 +114,12 @@ object Codec {
 
     fun parseStatus(packet: ByteArray): DeviceStatus? {
         val b = packet.u()
-        if (b.size < 20) return null
+        if (!isStatusStart(packet)) return null
         val mode = Mode.fromCode(b[9]) ?: return null
+        // Recognisable framing is not semantic validity. Never publish these as fresh receipts.
+        if (b[5] > 59 || b[6] > 59 || b[12] > 59 || b[10] > 19 ||
+            b[13] > b[14] || b[14] > 86 || (mode.usesFan && b[8] > 86) ||
+            (b.size >= 30 && b[28] > Limits.STEPS_PER_PROGRAM)) return null
         val extra = if (b.size >= 30) {
             DeviceStatus.Extra(
                 ledEnabled = b[27] and 0x10 != 0,

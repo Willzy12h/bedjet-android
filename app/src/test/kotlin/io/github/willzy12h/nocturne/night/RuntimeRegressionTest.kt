@@ -52,7 +52,7 @@ class RuntimeRegressionTest {
         graph.clock = Clock.fixed(ZonedDateTime.parse(night.wakeUpStart).plusMinutes(1).toInstant(), ZoneOffset.UTC)
         NightAlarms.schedule(context, night)
         val alarms = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms
-        assertTrue(alarms.none { it.triggerAtTime < graph.clock.millis() })
+        assertTrue(alarms.none { it.triggerAtMs < graph.clock.millis() })
     }
     @Test fun oldFinishCannotEraseAReplacementNight() = runBlocking {
         graph.actions.perform(NightActions.Command.START_NIGHT)

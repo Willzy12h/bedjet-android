@@ -31,6 +31,14 @@ class GattLinkTest {
     @Volatile private var name: String? = null
     private val link = GattLink(fake.radio, { target }, TIMINGS, onName = { _, value -> name = value })
 
+    /** FakeRadio's readable slot: Cool, fan step 5, temperature 50, ten minutes. Receipt tests use the same
+     * valid first step before and after START, so only the receipt boundary can distinguish them. */
+    private fun programmeHead() = Status.head().also {
+        it[4] = 0; it[5] = 10; it[6] = 0
+        it[8] = 50; it[9] = 4; it[10] = 5
+    }
+    private fun programmeStatus() = programmeHead() + Status.remainder(programStep = 1)
+
     @After
     fun close() = link.shutdown()
 
@@ -324,15 +332,16 @@ class GattLinkTest {
     @Test
     fun anOldProgramStepDoesNotConfirmANewStartButAFreshOneDoes() = runBlocking {
         // The unit was already running a program when we connected.
-        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = programmeStatus())
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val start = async { runCatching { controller.startProgram(2) } }
         eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
         fake.drain()
         delay(50)
-        port.notify(Status.head())
+        port.notify(programmeHead())
         eventually { port.reads.contains(Attr.STATUS) }
         delay(100)
         assertFalse("A stale program step confirmed the start", start.isCompleted)
@@ -387,6 +396,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val result = runCatching { controller.startProgram(2) { throw IllegalStateException("too late") } }
         assertTrue("$result", result.exceptionOrNull() is IllegalStateException)
@@ -398,9 +408,10 @@ class GattLinkTest {
 
     @Test
     fun aFullStatusWhileTheStartIsBeingWrittenDoesNotConfirmIt() = runBlocking {
-        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = programmeStatus())
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         port.holdWrites = true
         val start = async { runCatching { controller.startProgram(2) } }
@@ -408,20 +419,21 @@ class GattLinkTest {
         port.ackWrite()
         eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
         // Sent before the unit acknowledged the start, so it may describe the unit from before it.
-        port.notify(Status.full(programStep = 1))
+        port.notify(programmeStatus())
         fake.drain()
         port.ackWrite()
         delay(1_800)
         assertFalse("A full status from before the unit took the start confirmed it", start.isCompleted)
-        port.notify(Status.full(programStep = 1))
+        port.notify(programmeStatus())
         withTimeout(4_000) { start.await() }.getOrThrow()
     }
 
     @Test
     fun aHeadAndRemainderReadBetweenPrepareAndStartDoNotConfirmIt() = runBlocking {
-        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = programmeStatus())
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         var reported = false
         val start = async {
@@ -430,7 +442,7 @@ class GattLinkTest {
                     if (!reported) {
                         reported = true
                         // A head-only report after the prepare; any remainder read it starts is answered with the old step.
-                        port.notify(Status.head())
+                        port.notify(programmeHead())
                         fake.drain()
                         Thread.sleep(100)
                         port.answerStatusRead(Status.remainder(programStep = 1))
@@ -445,7 +457,7 @@ class GattLinkTest {
         assertFalse("A remainder read from before the start confirmed it", start.isCompleted)
         // After the start, the next head asks for the remainder at once, and a fresh step confirms.
         val readsBefore = port.reads.count { it == Attr.STATUS }
-        port.notify(Status.head())
+        port.notify(programmeHead())
         eventually { port.reads.count { it == Attr.STATUS } > readsBefore }
         port.answerStatusRead(Status.remainder(programStep = 1))
         withTimeout(4_000) { start.await() }.getOrThrow()
@@ -453,25 +465,26 @@ class GattLinkTest {
 
     @Test
     fun aReportBetweenTheClockAndTheStartDoesNotConfirmIt() = runBlocking {
-        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = programmeStatus())
         link.connect()
         val port = fake.ports.single()
         port.holdWrites = true
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val start = async { runCatching { controller.startProgram(2) } }
         eventually { port.writes.any { it[0].toInt() == 0x08 } }
         // A head-only report while the clock is being set still carries the old program step.
-        port.notify(Status.head())
+        port.notify(programmeHead())
         fake.drain()
         port.ackWrite()
         eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
-        port.notify(Status.head())
+        port.notify(programmeHead())
         fake.drain()
         port.ackWrite()
         // Longer than the controller's refusal grace, so a confirmation would have finished the start by now.
         delay(1_800)
         assertFalse("A stale program step confirmed the start", start.isCompleted)
-        port.notify(Status.head())
+        port.notify(programmeHead())
         eventually { port.reads.contains(Attr.STATUS) }
         port.answerStatusRead(Status.remainder(programStep = 1))
         withTimeout(4_000) { start.await() }.getOrThrow()
@@ -479,14 +492,15 @@ class GattLinkTest {
 
     @Test
     fun aFullOldStatusBeforeTheStartWriteCannotConfirmIt() = runBlocking {
-        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = programmeStatus())
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val start = async {
             runCatching {
                 controller.startProgram(2) {
-                    port.notify(Status.full(programStep = 1))
+                    port.notify(programmeStatus())
                     fake.drain()
                 }
             }
@@ -494,20 +508,21 @@ class GattLinkTest {
         eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
         delay(1_800)
         assertFalse("The old full status confirmed the new start", start.isCompleted)
-        port.notify(Status.full(programStep = 1))
+        port.notify(programmeStatus())
         withTimeout(4_000) { start.await() }.getOrThrow()
     }
 
     @Test
     fun anOldRemainderCompletedBeforeTheStartWriteCannotConfirmIt() = runBlocking {
-        fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
+        fake.behaviour = FakeRadio.Behaviour(firstStatus = programmeStatus())
         link.connect()
         val port = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         val start = async {
             runCatching {
                 controller.startProgram(2) {
-                    port.notify(Status.head())
+                    port.notify(programmeHead())
                     fake.drain()
                     Thread.sleep(100)
                     // No remainder read starts while the start is pending; a stray old remainder changes nothing.
@@ -520,7 +535,7 @@ class GattLinkTest {
         eventually { port.writes.any { it.contentEquals(Codec.startProgram(2)) } }
         delay(1_800)
         assertFalse("The old remainder confirmed the new start", start.isCompleted)
-        port.notify(Status.full(programStep = 1))
+        port.notify(programmeStatus())
         withTimeout(4_000) { start.await() }.getOrThrow()
     }
 
@@ -529,6 +544,7 @@ class GattLinkTest {
         fake.behaviour = FakeRadio.Behaviour(firstStatus = Status.full(programStep = 1))
         link.connect()
         val first = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         var dropped = false
         val result = withTimeout(5_000) {
@@ -555,6 +571,7 @@ class GattLinkTest {
     fun aStartWithNoLiveSessionFailsRatherThanReconnecting() = runBlocking {
         link.connect()
         val first = fake.ports.single()
+        fake.readableProgramme = true
         val controller = BedJetController(link) { ZonedDateTime.now() }
         var dropped = false
         val result = withTimeout(5_000) {

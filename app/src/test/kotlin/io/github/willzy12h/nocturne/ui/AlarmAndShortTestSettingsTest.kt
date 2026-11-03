@@ -14,11 +14,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 class AlarmAndShortTestSettingsTest {
     private val ui = U06Fixture(U06Look.MIDNIGHT) { f, _ ->
@@ -28,23 +30,25 @@ class AlarmAndShortTestSettingsTest {
 
     @Test fun recheckReadsTheNewAndroidAlarmEveryTimeAndStatesSourceAndFallback() {
         ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("night")
         val app = RuntimeEnvironment.getApplication() as App
         val fire = PendingIntent.getBroadcast(app, 613, Intent("test.ux.alarm"), PendingIntent.FLAG_IMMUTABLE)
         shadowOf(fire).setCreatorPackage("com.sec.android.app.clockpackage")
         app.getSystemService(AlarmManager::class.java).setAlarmClock(
             AlarmManager.AlarmClockInfo(ui.graph.clock.millis() + 5 * 60_000, fire), fire)
-        ui.compose.onNodeWithText("Re-check alarm").performScrollTo().performClick()
+        ui.control("Re-check alarm").performClick()
         ui.waitUntil { ui.model.nextAlarm.value?.creator == "com.sec.android.app.clockpackage" }
         ui.compose.onNodeWithTag("alarm-check-result").assertTextContains("Samsung Clock", substring = true)
             .assertTextContains("too soon", substring = true).assertTextContains("Profile wake", substring = true)
         app.getSystemService(AlarmManager::class.java).cancel(fire)
-        ui.compose.onNodeWithText("Re-check alarm").performScrollTo().performClick()
+        ui.control("Re-check alarm").performClick()
         ui.waitUntil { ui.model.nextAlarm.value == null }
         ui.compose.onNodeWithTag("alarm-check-result").assertTextContains("No alarm set", substring = true)
     }
 
     @Test fun shortTestPreviewNamesTargetAndPhasesAndCancelDoesNotStart() {
         ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("night")
         ui.compose.onNodeWithText("Preview five-minute test").performScrollTo().performClick()
         ui.compose.onNodeWithText("Start five-minute test?").assertIsDisplayed()
         ui.compose.onNodeWithText("Demo BedJet · BedJet slot 3").assertExists()
@@ -57,6 +61,7 @@ class AlarmAndShortTestSettingsTest {
 
     @Test fun onlyThePositiveConfirmationStartsAMarkedTestThroughTheOwner() {
         ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("night")
         ui.compose.onNodeWithText("Preview five-minute test").performScrollTo().performClick()
         assertNull(ui.graph.repository.activeNight.value)
         ui.control("Start test", scroll = false).performClick()

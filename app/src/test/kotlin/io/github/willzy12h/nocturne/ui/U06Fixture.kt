@@ -16,9 +16,12 @@ import androidx.lifecycle.ViewModelProvider
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
+import io.github.willzy12h.nocturne.NativePngCapture
 import io.github.willzy12h.nocturne.core.store.ThemeMode
+import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.CommandOutcome
 import io.github.willzy12h.nocturne.night.OutcomeKind
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.rules.RuleChain
@@ -84,12 +87,19 @@ internal class U06Fixture(
         override fun evaluate() {
             method = description.methodName.substringBefore('[')
             val app = RuntimeEnvironment.getApplication() as App
-            val replacement = graphs.fresh { Graph(app).also { it.clock = fixedClock } }
+            // Layout tests must not resume Compose's test continuation on a real writer thread.
+            // Keep the real repository and durable operations, but schedule this fixture's writes
+            // on the Android main thread. Repository/runtime concurrency tests retain the real writer.
+            val replacement = graphs.fresh {
+                Graph(app, repositoryFactory = { scope, now ->
+                    Repository(app, scope, writer = Dispatchers.Main.immediate, now = now)
+                }).also { it.clock = fixedClock }
+            }
             ReflectionHelpers.setField(app, "graph", replacement)
             runBlocking {
                 replacement.repository.updateSettings { it.copy(
                     demoMode = true, themeMode = look.theme, simpleView = look.simple,
-                    fahrenheit = false, autoUpdateCheck = false,
+                    fahrenheit = false,
                 ) }
                 replacement.repository.setActiveNight(null)
             }
@@ -101,16 +111,31 @@ internal class U06Fixture(
 
     fun s(id: Int, vararg args: Any): String = RuntimeEnvironment.getApplication().getString(id, *args)
 
-    fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10_000) {
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10))
-        if (!compose.mainClock.autoAdvance) compose.mainClock.advanceTimeByFrame()
-        condition()
+    /**
+     * Waits a bounded number of frames, not a bounded wall-clock time. The first test in a fork pays Robolectric's
+     * cold start (native graphics, fonts, class loading) inside its first waits; under a loaded parallel gate that
+     * alone could exceed a 10-second wall-clock budget while the app was still progressing, so the old wait failed
+     * intermittently. A frame budget fails the same way on every machine; the wall-clock limit only catches a hang.
+     */
+    fun waitUntil(condition: () -> Boolean) {
+        var frames = 0
+        var met = false
+        compose.waitUntil(WAIT_WALL_MS) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10))
+            if (!compose.mainClock.autoAdvance) compose.mainClock.advanceTimeByFrame()
+            met = condition()
+            met || ++frames >= WAIT_FRAMES
+        }
+        assertTrue("Condition still not satisfied after $WAIT_FRAMES frames", met)
     }
 
     fun tab(label: String) {
-        compose.onNode(hasContentDescription(label) and hasClickAction()).performClick()
+        compose.navTab(label)
         layout()
     }
+
+    fun quick(preset: io.github.willzy12h.nocturne.core.store.ActionPreset): SemanticsNodeInteraction =
+        checkControl(compose.onNodeWithTag("quick-mode-${preset.mode.name}"), "Quick ${preset.mode}").assertHasClickAction()
 
     fun control(label: String, scroll: Boolean = true): SemanticsNodeInteraction =
         checkControl(compose.onNode(hasText(label) and hasClickAction()), label, scroll).assertHasClickAction()
@@ -123,6 +148,19 @@ internal class U06Fixture(
         val geometry = "touch=$touch, visible=${semantics.boundsInRoot}, size=${semantics.size}, position=${semantics.positionInRoot}"
         assertTrue("$label touch width ${touch.width / density} dp < 48 dp; $geometry", touch.width >= 48f * density - 1f)
         assertTrue("$label touch height ${touch.height / density} dp < 48 dp; $geometry", touch.height >= 48f * density - 1f)
+        // The approved feedback bubble overlays content. A control beneath it is reached by dismissing
+        // the bubble first, through the actual pointer route, rather than accidentally tapping the bubble.
+        val bubble = compose.onAllNodesWithTag("feedback-bubble").fetchSemanticsNodes().singleOrNull()
+        if (bubble != null && bubble.root === semantics.root &&
+            generateSequence(semantics) { it.parent }.none { it.id == bubble.id } &&
+            bubble.boundsInRoot.contains(semantics.boundsInRoot.center)) {
+            val dismiss = compose.onAllNodesWithTag("snackbar-dismiss").fetchSemanticsNodes().isNotEmpty()
+            if (dismiss) compose.onNodeWithTag("snackbar-dismiss").performClick()
+            else compose.onNode(hasClickAction() and hasAnyAncestor(hasTestTag("feedback-bubble")), useUnmergedTree = true).performClick()
+            waitUntil { compose.onAllNodesWithTag("feedback-bubble").fetchSemanticsNodes().isEmpty() }
+            feedback = null
+            checkLayout(node, label, scroll = false)
+        }
         return node
     }
 
@@ -168,7 +206,19 @@ internal class U06Fixture(
                 val surface = ancestors.take(liveRegion).firstOrNull {
                     it.config.getOrNull(SemanticsProperties.IsTraversalGroup) == true
                 } ?: error("Visible feedback must expose its opaque Material Surface")
-                assertTrue("$label is covered by visible snackbar: $visible / ${surface.boundsInRoot}", visible.bottom <= surface.boundsInRoot.top + 1f)
+                // The approved design floats feedback as a small bubble over the screen instead of moving it. A control
+                // beneath it stays reachable: the bubble is dismissible and never taller than a quarter of the window.
+                val closeButton = compose.onAllNodesWithTag("snackbar-dismiss", useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+                val tapToDismiss = compose.onAllNodesWithTag("feedback-bubble", useUnmergedTree = true)
+                    .fetchSemanticsNodes().any { bubble ->
+                        generateSequence(bubble) { it.parent }.any {
+                            it.config.contains(SemanticsActions.OnClick)
+                        } || bubble.children.any { it.config.contains(SemanticsActions.OnClick) }
+                    }
+                assertTrue("Visible feedback must be dismissible", closeButton || tapToDismiss)
+                assertTrue("$label: feedback bubble is too tall: ${surface.boundsInRoot}",
+                    surface.boundsInRoot.height <= root.height / 4f + 1f)
             }
         }
         assertTextFits(semantics, label)
@@ -244,6 +294,7 @@ internal class U06Fixture(
     /** Opt-in evidence is separate from assertions: these tests still run without SCREENSHOT_TAG. */
     fun capture(name: String) {
         val tag = System.getenv("SCREENSHOT_TAG")?.takeIf { it.isNotBlank() } ?: return
+        layout() // A click can schedule recomposition; draw the destination rather than the preceding screen.
         assertConfiguration()
         require(tag.matches(Regex("[A-Za-z0-9][A-Za-z0-9_-]*")))
         val safeName = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(90)
@@ -255,14 +306,20 @@ internal class U06Fixture(
         assertTrue("Native capture must include the Activity", views.any { it === compose.activity.window.decorView })
         views.forEachIndexed { index, view ->
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            compose.runOnUiThread { view.draw(Canvas(bitmap)) }
-            File(directory, "$stem-window$index.png").outputStream().use {
-                assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-            bitmap.recycle()
+            try {
+                compose.runOnUiThread { view.draw(Canvas(bitmap)) }
+                NativePngCapture.write(bitmap, File(directory, "$stem-window$index.png"))
+            } finally { bitmap.recycle() }
         }
         val config = compose.activity.resources.configuration
         val dimensions = views.joinToString(",") { "{\"widthPx\":${it.width},\"heightPx\":${it.height}}" }
         File(directory, "$stem.json").writeText("""{"renderer":"Robolectric native graphics","sdk":34,"widthDp":${config.screenWidthDp},"heightDp":${config.screenHeightDp},"fontScale":${config.fontScale},"density":${compose.density.density},"look":"$look","clock":"${graph.clock.instant()}","windows":[$dimensions]}""")
+    }
+
+    private companion object {
+        /** About ten seconds of app time at one frame plus 10 ms of looper time per check. */
+        const val WAIT_FRAMES = 400
+        /** Only a hung test reaches this; slow machines are covered by the frame budget. */
+        const val WAIT_WALL_MS = 180_000L
     }
 }

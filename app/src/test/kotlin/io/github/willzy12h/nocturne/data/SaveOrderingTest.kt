@@ -6,8 +6,12 @@ import android.content.Intent
 import android.os.Looper
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasScrollToKeyAction
+import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
@@ -72,7 +76,8 @@ class SaveOrderingTest {
         assertEquals(profile.name, demo.slots[night.slot]!!.name)
 
         compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodes(hasText("Edit"))[0].performClick()
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(profile.id)
+        compose.onNodeWithTag("profile-open-${profile.id}").performScrollTo().performClick()
         compose.onNode(hasSetTextAction() and hasText(profile.name)).performTextReplacement("Edited night")
         compose.onNodeWithText("Save").performClick()
         compose.onNodeWithText("Update tonight").performClick()
@@ -83,7 +88,7 @@ class SaveOrderingTest {
     }
 
     @Test
-    fun trustingAnAlarmAppUpdatesTheNextAlarmAtOnce() {
+    fun choosingAnAlarmAppUpdatesTheNextAlarmAtOnce() {
         val context = compose.activity.applicationContext
         // Created by this app, which isn't one of the allowed clock apps.
         val show = PendingIntent.getActivity(context, 0, Intent(), PendingIntent.FLAG_IMMUTABLE)
@@ -95,7 +100,7 @@ class SaveOrderingTest {
         val creator = model.nextAlarm.value!!.creator!!
         assertFalse(model.nextAlarm.value!!.counts)
 
-        compose.runOnUiThread { model.useAlarmsFrom(creator) }
+        compose.runOnUiThread { model.chooseAlarmApps(io.github.willzy12h.nocturne.core.store.AlarmApps.ONE_APP, creator) }
 
         idleUntil { creator in graph.repository.settings.value.alarmPackages }
         // Once saved, the next alarm shown follows the saved setting without another refresh.

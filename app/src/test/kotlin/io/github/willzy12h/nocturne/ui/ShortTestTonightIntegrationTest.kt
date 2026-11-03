@@ -28,7 +28,9 @@ class ShortTestTonightIntegrationTest {
     @Test fun aTestRunShowsItsNameAndFixedTimingWithAGuardedStop() {
         ui.compose.onNodeWithText("Five-minute BedJet test").assertExists()
         ui.compose.onNodeWithText(ui.s(R.string.tonight_set_wake)).assertDoesNotExist()
-        ui.compose.onNodeWithText("Stop night").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertHasNoClickAction()
+        ui.compose.onNodeWithText(ui.s(R.string.parity_change_wake)).assertDoesNotExist()
+        ui.compose.onNodeWithTag("tonight-end-night").performScrollTo().performClick()
         ui.compose.onNodeWithText("Stop night?").assertIsDisplayed()
         ui.compose.onNodeWithText("Keep tonight").performClick()
     }

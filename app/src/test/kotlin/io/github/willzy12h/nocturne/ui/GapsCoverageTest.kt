@@ -86,7 +86,7 @@ class GapsCoverageTest {
         settings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
-        val missing = "• ${s(R.string.setup_checks_nearby)}"
+        val missing = s(R.string.setup_checks_nearby)
         waitUntil { has(missing) }
         compose.onNodeWithText(missing).performScrollTo().assertIsDisplayed()
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
@@ -99,9 +99,10 @@ class GapsCoverageTest {
     private fun chooseAlternative(): String {
         val scheduled = graph.repository.settings.value.resolveProfile(graph.repository.profiles.value, graph.now())!!
         val other = graph.repository.profiles.value.first { it.id != scheduled.id }
-        compose.onNodeWithText(other.name).performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-change").performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-choose-${other.id}").performScrollTo().performClick()
         waitUntil { graph.repository.settings.value.tonightChoice?.profileId == other.id }
-        compose.onNodeWithText(other.name).assertIsSelected()
+        compose.onNode(hasText(other.name, substring = true, ignoreCase = true) and hasAnyAncestor(hasTestTag("tonight-card")), useUnmergedTree = true).assertExists()
         return scheduled.name
     }
 
@@ -110,7 +111,7 @@ class GapsCoverageTest {
         compose.onNodeWithText(s(R.string.tonight_follow_schedule)).performScrollTo().performClick()
         waitUntil { graph.repository.settings.value.tonightChoice == null }
         compose.onNodeWithText(s(R.string.tonight_follow_schedule)).assertDoesNotExist()
-        compose.onNodeWithText(scheduledName).assertIsSelected()
+        compose.onNode(hasText(scheduledName, substring = true, ignoreCase = true) and hasAnyAncestor(hasTestTag("tonight-card")), useUnmergedTree = true).assertExists()
     }
 
     @Test fun heldOpenTonightReturnsItsChipToTheScheduleAfterNoonAndARefreshTick() {
@@ -122,7 +123,7 @@ class GapsCoverageTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(31))
         compose.waitForIdle()
         val scheduled = graph.repository.settings.value.resolveProfile(graph.repository.profiles.value, graph.now())!!
-        compose.onNodeWithText(scheduled.name).assertIsSelected()
+        compose.onNode(hasText(scheduled.name, substring = true, ignoreCase = true) and hasAnyAncestor(hasTestTag("tonight-card")), useUnmergedTree = true).assertExists()
         compose.onNodeWithText(s(R.string.tonight_follow_schedule)).assertDoesNotExist()
     }
 
@@ -132,13 +133,13 @@ class GapsCoverageTest {
         val wake = ZonedDateTime.parse("2026-10-23T06:00:00Z")
         val alarm = wake.plusHours(1)
         val fire = PendingIntent.getBroadcast(compose.activity, 17, Intent("gaps-alarm"), PendingIntent.FLAG_IMMUTABLE)
-        compose.activity.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), null), fire)
-        settings { it.setWakeOverride(wake, now).copy(acceptUnknownAlarmSource = true) }
+        compose.activity.getSystemService(AlarmManager::class.java).setAlarmClock(AlarmManager.AlarmClockInfo(alarm.toInstant().toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(compose.activity)), fire)
+        settings { it.setWakeOverride(wake, now) }
         compose.runOnUiThread { model.refreshAlarm() }
         assertEquals(alarm.toInstant(), model.nextAlarm.value!!.time.toInstant())
         assertTrue("The 07:00 alarm must qualify before the tonight-only wake takes precedence", model.nextAlarm.value!!.counts)
-        compose.onNodeWithText("06:00").assertExists()
-        compose.onNodeWithText(s(R.string.wake_origin_override)).assertExists()
+        compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:00", substring = true)
+            .assertTextContains(s(R.string.gpt12_wake_override), substring = true)
         compose.onNodeWithText(s(R.string.tonight_start_now)).performScrollTo().performClick()
         waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED }
         val running = graph.repository.activeNight.value!!

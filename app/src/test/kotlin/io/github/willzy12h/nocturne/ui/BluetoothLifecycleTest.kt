@@ -29,10 +29,10 @@ class BluetoothLifecycleTest {
         val app = RuntimeEnvironment.getApplication() as App
         val graph = graphs.fresh { Graph(app) }
         ReflectionHelpers.setField(app, "graph", graph)
-        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", autoUpdateCheck = false) }
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
         val adapter = app.getSystemService(BluetoothManager::class.java).adapter
-        shadowOf(adapter).setEnabled(false)
+        shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
         val model = AppViewModel(app)
         val store = ViewModelStore().also { it.put("bluetooth", model) }
         fun receivers() = shadowOf(app).registeredReceivers.count { it.intentFilter.hasAction(BluetoothAdapter.ACTION_STATE_CHANGED) }
@@ -46,7 +46,7 @@ class BluetoothLifecycleTest {
             assertTrue("The real adapter is still off", model.bluetoothOff.value)
             model.onScreenHidden()
             assertEquals(0, receivers())
-            shadowOf(adapter).setEnabled(true)
+            shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
             model.onScreenVisible()
             assertFalse(model.bluetoothOff.value)
             assertEquals(1, receivers())

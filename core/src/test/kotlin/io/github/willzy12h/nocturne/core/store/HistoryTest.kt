@@ -14,9 +14,22 @@ class HistoryTest {
     )
 
     @Test
-    fun keepsSixtyDays() {
-        val kept = History.prune(listOf(night(1), night(59), night(61), night(200)), now)
-        assertEquals(listOf("n1", "n59"), kept.map { it.id })
+    fun keepsNinetyDaysByDefault() {
+        val kept = History.prune(listOf(night(1), night(59), night(89), night(91), night(200)), now)
+        assertEquals(listOf("n1", "n59", "n89"), kept.map { it.id })
+    }
+
+    @Test
+    fun keepsTheChosenPeriod() {
+        val all = listOf(night(1), night(6), night(8), night(29), night(31), night(364), night(366))
+        assertEquals(listOf("n1", "n6"), History.prune(all, now, 7).map { it.id })
+        assertEquals(listOf("n1", "n6", "n8", "n29"), History.prune(all, now, 30).map { it.id })
+        assertEquals(listOf("n1", "n6", "n8", "n29", "n31", "n364"), History.prune(all, now, 365).map { it.id })
+    }
+
+    @Test
+    fun anUnknownPeriodKeepsTheDefault() {
+        assertEquals(listOf("n1", "n89"), History.prune(listOf(night(1), night(89), night(91)), now, 0).map { it.id })
     }
 
     @Test

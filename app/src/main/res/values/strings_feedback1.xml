@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- First-install feedback, 30 October 2026. -->
+    <string name="setup_health_optional">Optional. Shows your sleep stages beside the BedJet’s steps. You can dismiss this and turn it on later in Settings.</string>
+    <string name="remote_now_label">BedJet now</string>
+    <string name="remote_not_running_choose">Choose a mode below to start</string>
+</resources>

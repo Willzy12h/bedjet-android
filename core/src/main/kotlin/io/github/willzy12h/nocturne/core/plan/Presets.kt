@@ -30,7 +30,8 @@ object Presets {
     val hotSleeper = Profile(
         id = "preset-hot-sleeper", name = "Hot Sleeper", season = Season.SUMMER,
         start = listOf(Phase(Mode.COOL, 44, 100, 45)),
-        middle = Middle(Mode.COOL, fanStart = 70, fanEnd = 40, tempStart = 44, tempEnd = 44, rampSteps = 3),
+        middle = Middle(Mode.COOL, fanStart = 50, fanEnd = 45, tempStart = 44, tempEnd = 44, rampSteps = 3,
+            quietFan = QuietFan(settle = 50, settleMinutes = 30, asleep = 25, rise = 45, riseMinutes = 40)),
         wake = listOf(Phase(Mode.COOL, 44, 30, 20)),
         afterWake = listOf(Phase(Mode.COOL, 44, 40, 30)),
     )

@@ -66,13 +66,16 @@ import java.time.ZonedDateTime
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = null, legend: Boolean = false,
-    end: PlanEnd? = null, phaseInteraction: Boolean = false, onEditPhase: ((PlannedStep) -> Unit)? = null) {
+    end: PlanEnd? = null, phaseInteraction: Boolean = false, onEditPhase: ((PlannedStep) -> Unit)? = null,
+    /** The editor's design: bottom-aligned rounded bars whose height follows temperature, no centre line. */
+    stepped: Boolean = false) {
     val total = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1).toFloat()
     val outline = MaterialTheme.colorScheme.outlineVariant
     val nowColor = MaterialTheme.colorScheme.onSurfaceVariant
     val wakeColor = nocturneColors.accent
     // Read once here: the Canvas draw block isn't composable.
     val colors = nocturneColors
+    val tokens = paletteTokens
     val fahrenheit = LocalTemperatureFahrenheit.current
     var selected by remember(plan, phaseInteraction) { mutableStateOf<Int?>(null) }
     val currentEdit by rememberUpdatedState(onEditPhase)
@@ -97,7 +100,7 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
             }
         }.joinToString("; "))
     Column(modifier) {
-        Canvas(Modifier.fillMaxWidth().height(110.dp).testTag("night-curve")
+        Canvas(Modifier.fillMaxWidth().height(if (stepped) 64.dp else 110.dp).testTag("night-curve")
             .then(if (!phaseInteraction) Modifier else Modifier.pointerInput(plan) {
                 fun phaseAt(x: Float): Int? {
                     val minute = (x / size.width.coerceAtLeast(1) * total).coerceIn(0f, total)
@@ -117,6 +120,19 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                     customActions = details.mapIndexed { index, detail -> CustomAccessibilityAction(detail) { selected = index; true } }
                 }
             }) {
+            if (stepped) {
+                for (step in plan.steps) {
+                    val x = Duration.between(plan.start, step.startsAt).toMinutes() / total * size.width
+                    val w = (step.minutes / total * size.width).coerceAtLeast(6.dp.toPx())
+                    val temp = if (step.step.mode == Mode.TURBO) 86 else step.step.temperature
+                    val share = if (step.step.mode.usesTemperature || step.step.mode == Mode.TURBO)
+                        .3f + .7f * ((temp - 40) / 46f).coerceIn(0f, 1f) else .25f
+                    val h = size.height * share
+                    drawRoundRect(tokens.stepColor(step.step.mode, step.step.temperature), Offset(x + 1.dp.toPx(), size.height - h),
+                        Size((w - 2.dp.toPx()).coerceAtLeast(2f), h), CornerRadius(6.dp.toPx()))
+                }
+                return@Canvas
+            }
             val mid = size.height / 2
             drawLine(outline, Offset(0f, mid), Offset(size.width, mid), 1.dp.toPx())
             for (step in plan.steps) {
@@ -125,8 +141,8 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
                 val level = level(step.step.mode, step.step.temperature, (step.step.fanStep + 1) * 5)
                 val h = (kotlin.math.abs(level) * (mid - 4)).coerceAtLeast(3f)
                 val top = if (level >= 0) mid - h else mid
-                val color = colors.curveMode(step.step.mode, step.block == Block.AFTER_WAKE)
-                drawRoundRect(color, Offset(x + 1, top), Size(w - 2, h), CornerRadius(4.dp.toPx()))
+                val color = tokens.stepColor(step.step.mode, step.step.temperature)
+                drawRoundRect(color, Offset(x + 1, top), Size(w - 2, h), CornerRadius(2.dp.toPx()))
             }
             val wakeX = Duration.between(plan.start, plan.wake).toMinutes() / total * size.width
             if (end == null) drawLine(wakeColor, Offset(wakeX, 0f), Offset(wakeX, size.height), 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
@@ -141,22 +157,22 @@ fun NightCurve(plan: Plan, modifier: Modifier = Modifier, now: ZonedDateTime? = 
         }
         now?.let(plan::stepAt)?.second?.let { step ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActiveIndicator(colors.mode(step.step.mode), true, Modifier.testTag("night-active-phase"))
+                ActiveIndicator(tokens.stepColor(step.step.mode, step.step.temperature), true, Modifier.testTag("night-active-phase"))
                 Text(stringResource(R.string.ux_current_phase, blockName(step.block)), style = MaterialTheme.typography.bodySmall)
             }
         }
-        Row(Modifier.fillMaxWidth()) {
+        if (!stepped) Row(Modifier.fillMaxWidth()) {
             val muted = MaterialTheme.colorScheme.onSurfaceVariant
             Text(Format.clock(plan.start), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f))
             Text(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: stringResource(R.string.curve_wake, Format.clock(plan.wake)), style = MaterialTheme.typography.labelSmall,
-                color = if (end == null) wakeColor else muted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                color = if (end == null && tokens.dark) wakeColor else muted, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text(Format.clock(plan.end), style = MaterialTheme.typography.labelSmall, color = muted, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
         if (legend) {
             FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 plan.steps.map { it.step.mode }.distinct().forEach { mode ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Dot(colors.mode(mode), 10)
+                        Dot(colors.mode(mode), sizeDp = 10)
                         Text(modeName(mode), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
                     }
                 }
@@ -177,7 +193,7 @@ private fun level(mode: Mode, temperature: Int, fanPercent: Int): Float = when (
 }
 
 @Composable
-fun Dot(color: Color, sizeDp: Int = 12, modifier: Modifier = Modifier) {
+fun Dot(color: Color, modifier: Modifier = Modifier, sizeDp: Int = 12) {
     Box(modifier.size(sizeDp.dp).background(color, CircleShape))
 }
 
@@ -191,6 +207,7 @@ data class TimelineEntry(
     val fanEnd: Int,
     val tempStart: Int,
     val tempEnd: Int,
+    val fanPath: List<Int> = listOf(fanStart, fanEnd).distinct(),
 ) {
     val endsAt: ZonedDateTime get() = startsAt.plusMinutes(minutes.toLong())
 
@@ -201,10 +218,12 @@ data class TimelineEntry(
     val title: String get() = title(null)
 
     /** "Cool, easing off": the mode, and which way the step is heading when it changes. */
-    fun title(words: Format.Words?): String {
+    fun title(words: Format.Words?, middle: io.github.willzy12h.nocturne.core.plan.Middle? = null): String {
         val trend = when {
             heats && tempEnd > tempStart -> words?.text(R.string.timeline_warming_up) ?: "warming up"
             heats && tempEnd < tempStart -> words?.text(R.string.timeline_easing_off) ?: "easing off"
+            middle?.fanShape == io.github.willzy12h.nocturne.core.plan.FanShape.QUIET_MIDDLE && block == Block.MIDDLE -> null
+            fanPath.zipWithNext().map { (a, b) -> b.compareTo(a) }.distinct().size > 1 -> null
             fanEnd < fanStart -> words?.text(R.string.timeline_easing_off) ?: "easing off"
             fanEnd > fanStart -> words?.text(R.string.timeline_building) ?: "building"
             else -> null
@@ -214,13 +233,27 @@ data class TimelineEntry(
     }
 
     /** "7 h · fan 75% → 40%", with the temperature first for modes that heat. English unless [words] is given. */
-    fun detail(fahrenheit: Boolean, words: Format.Words? = null): String {
+    fun detail(fahrenheit: Boolean, words: Format.Words? = null, middle: io.github.willzy12h.nocturne.core.plan.Middle? = null): String {
         val parts = mutableListOf(Format.duration(minutes, words))
         if (heats) {
             parts += if (tempStart == tempEnd) Format.temp(tempStart, fahrenheit, words)
                 else "${Format.temp(tempStart, fahrenheit, words)} → ${Format.temp(tempEnd, fahrenheit, words)}"
         }
-        if (mode != Mode.STANDBY && mode != Mode.WAIT) parts += if (fanStart == fanEnd) words?.text(R.string.timeline_fan, fanStart) ?: "fan $fanStart%"
+        val quiet = middle?.quietFan?.takeIf { block == Block.MIDDLE && middle.fanShape == io.github.willzy12h.nocturne.core.plan.FanShape.QUIET_MIDDLE }
+        val quietSpeeds = quiet?.let { listOf(it.settle, it.asleep, it.rise) }
+        val stageNames = if (quietSpeeds != null && quietSpeeds.distinct().size == 3 && fanPath.all { it in quietSpeeds }) {
+            fanPath.map { fan ->
+                when (fan) {
+                    quiet!!.settle -> words?.text(R.string.timeline_quiet_settle, fan) ?: "settle $fan%"
+                    quiet.asleep -> words?.text(R.string.timeline_quiet_asleep, fan) ?: "asleep $fan%"
+                    else -> words?.text(R.string.timeline_quiet_rise, fan) ?: "rise $fan%"
+                }
+            }.joinToString(" → ")
+        } else null
+        if (quiet != null && stageNames == null) parts += words?.text(R.string.fan_shape_quiet) ?: "Quiet middle"
+        if (mode != Mode.STANDBY && mode != Mode.WAIT) parts += if (stageNames != null) words?.text(R.string.timeline_fan_stages, stageNames) ?: "fan $stageNames"
+            else if (quiet != null || fanPath.zipWithNext().map { (a, b) -> b.compareTo(a) }.distinct().size > 1) words?.text(R.string.timeline_fan_stages, fanPath.joinToString(" → ") { "$it%" }) ?: "fan ${fanPath.joinToString(" → ") { "$it%" }}"
+            else if (fanStart == fanEnd) words?.text(R.string.timeline_fan, fanStart) ?: "fan $fanStart%"
             else words?.text(R.string.timeline_fan_range, fanStart, fanEnd) ?: "fan $fanStart% → $fanEnd%"
         return parts.joinToString(" · ")
     }
@@ -234,7 +267,8 @@ fun timelineEntries(plan: Plan): List<TimelineEntry> {
         val last = entries.lastOrNull()
         entries += if (last != null && last.block == planned.block && last.mode == planned.step.mode) {
             entries.removeAt(entries.lastIndex)
-            last.copy(minutes = last.minutes + planned.minutes, fanEnd = fan, tempEnd = planned.step.temperature)
+            last.copy(minutes = last.minutes + planned.minutes, fanEnd = fan, tempEnd = planned.step.temperature,
+                fanPath = if (last.fanPath.last() == fan) last.fanPath else last.fanPath + fan)
         } else {
             TimelineEntry(planned.block, planned.step.mode, planned.startsAt, planned.minutes, fan, fan, planned.step.temperature, planned.step.temperature)
         }
@@ -248,29 +282,29 @@ fun timelineEntries(plan: Plan): List<TimelineEntry> {
  */
 @Composable
 fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier: Modifier = Modifier,
-    now: ZonedDateTime? = null, end: PlanEnd? = null, onEditPhase: ((TimelineEntry) -> Unit)? = null) {
+    now: ZonedDateTime? = null, end: PlanEnd? = null, middle: io.github.willzy12h.nocturne.core.plan.Middle? = null, onEditPhase: ((TimelineEntry) -> Unit)? = null) {
     val entries = timelineEntries(plan)
     val (before, after) = entries.partition { it.block != Block.AFTER_WAKE }
     val colors = nocturneColors
+    val tokens = paletteTokens
     val words = rememberWords()
     Column(modifier) {
         before.forEach { entry ->
             val current = now != null && !now.isBefore(entry.startsAt) && now.isBefore(entry.endsAt)
             TimelineRow(
                 time = Format.clock(entry.startsAt),
-                dot = colors.mode(entry.mode),
-                title = if (entry.block == Block.TEMPORARY) stringResource(R.string.temporary_timeline_title, entry.title(words)) else entry.title(words),
-                detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words)) else entry.detail(fahrenheit, words),
+                dot = tokens.stepColor(entry.mode, entry.tempStart),
+                title = if (entry.block == Block.TEMPORARY) stringResource(R.string.temporary_timeline_title, entry.title(words, middle)) else entry.title(words, middle),
+                detail = if (current) stringResource(R.string.timeline_now, entry.detail(fahrenheit, words, middle)) else entry.detail(fahrenheit, words, middle),
                 titleColor = MaterialTheme.colorScheme.onSurface,
                 bold = current,
-                last = false,
                 active = current,
                 onEdit = onEditPhase?.let { edit -> { edit(entry) } },
             )
         }
         if (end != null) {
             TimelineRow(time = Format.clock(end.at), dot = colors.idle, title = end.label, detail = null,
-                titleColor = MaterialTheme.colorScheme.onSurface, bold = true, last = true)
+                titleColor = MaterialTheme.colorScheme.onSurface, bold = true)
             return@Column
         }
         TimelineRow(
@@ -281,9 +315,8 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
                 stringResource(R.string.timeline_then, rest.map { stringResource(R.string.timeline_after_item, modeName(it.mode).lowercase(), durationText(it.minutes)) }
                     .joinToString(", "))
             },
-            titleColor = colors.accent,
+            titleColor = if (tokens.dark) colors.accent else tokens.ink,
             bold = true,
-            last = true,
             active = now != null && after.any { !now.isBefore(it.startsAt) && now.isBefore(it.endsAt) },
             onEdit = after.firstOrNull()?.let { entry -> onEditPhase?.let { edit -> { edit(entry) } } },
         )
@@ -293,23 +326,16 @@ fun NightTimeline(plan: Plan, origin: WakeOrigin, fahrenheit: Boolean, modifier:
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 private fun TimelineRow(time: String, dot: Color, title: String, detail: String?, titleColor: Color, bold: Boolean,
-    last: Boolean, active: Boolean = false, onEdit: (() -> Unit)? = null) {
+    active: Boolean = false, onEdit: (() -> Unit)? = null) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val editLabel = stringResource(R.string.ux_edit_phase)
     // One node for TalkBack: "23:10, Cool, easing off, 7 h · fan 75% → 40%".
-    Row(Modifier.fillMaxWidth().heightIn(min = if (onEdit == null) 0.dp else 48.dp).height(IntrinsicSize.Min)
+    StripeTile(stripe = dot, title = title, subtitle = detail, titleColor = titleColor, level = TintLevel.STEP,
+        titleFontWeight = if (bold) FontWeight.SemiBold else null, modifier = Modifier.fillMaxWidth()
         .then(if (onEdit == null) Modifier else Modifier.combinedClickable(role = Role.Button,
             onClickLabel = editLabel, onLongClickLabel = editLabel, onClick = onEdit, onLongClick = onEdit))
-        .semantics(mergeDescendants = true) {}) {
-        Text(time, style = MaterialTheme.typography.labelLarge, color = muted, softWrap = false, maxLines = 1,
-            modifier = Modifier.widthIn(min = 52.dp).width(IntrinsicSize.Max).padding(top = 2.dp))
-        Column(Modifier.width(24.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-            ActiveIndicator(dot, active, Modifier.padding(top = 4.dp).then(if (active) Modifier.testTag("night-active-phase") else Modifier), sizeDp = 12)
-            if (!last) Box(Modifier.width(2.dp).weight(1f).background(MaterialTheme.colorScheme.outlineVariant))
-        }
-        Column(Modifier.weight(1f).padding(start = 8.dp, bottom = if (last) 0.dp else 16.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = titleColor, fontWeight = if (bold) FontWeight.SemiBold else null)
-            detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = muted) }
-        }
-    }
+        .semantics(mergeDescendants = true) {},
+        icon = { ActiveIndicator(dot, active, if (active) Modifier.testTag("night-active-phase") else Modifier, sizeDp = 12) },
+        trailing = { Text(time, style = MaterialTheme.typography.labelLarge, color = muted,
+            softWrap = false, maxLines = 1, modifier = Modifier.widthIn(min = 52.dp).width(IntrinsicSize.Max)) })
 }

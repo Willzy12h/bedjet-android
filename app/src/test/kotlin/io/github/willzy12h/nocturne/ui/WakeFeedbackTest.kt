@@ -48,7 +48,7 @@ class WakeFeedbackTest {
             try { base.evaluate() } finally { graph.clock = previous }
         }
     } }
-    @get:Rule val rules: TestRule = RuleChain.outerRule(fixture).around(compose)
+    @get:Rule val rules: TestRule = RuleChain.outerRule(io.github.willzy12h.nocturne.GraphLifecycle()).around(fixture).around(compose)
     private val graph get() = compose.activity.graph
     private fun s(id: Int, vararg args: Any) = compose.activity.getString(id, *args)
     private fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10_000) {
@@ -78,7 +78,7 @@ class WakeFeedbackTest {
     @Test fun theNoAlarmNoteDoesNotContradictATonightOnlyWake() {
         waitFor("Start night now")
         setOverride(graph.now().plusHours(8))
-        waitFor(s(R.string.wake_origin_override))
+        waitFor(s(R.string.gpt12_wake_override), substring = true)
         assertFalse(has("No alarm set, so the profile's wake time is used."))
     }
 
@@ -92,6 +92,7 @@ class WakeFeedbackTest {
         setOverride(graph.now().plusHours(8))
         startNight()
         assertEquals(WakeOrigin.OVERRIDE, graph.repository.activeNight.value!!.wakeOrigin)
+        compose.openTonightDetail()
         assertFalse("an unedited profile has no next-night note", has("start with the next night", substring = true))
         for ((theme, simple) in listOf(ThemeMode.DARK to false, ThemeMode.LIGHT to false, ThemeMode.DARK to true, ThemeMode.LIGHT to true)) {
             look(theme, simple)
@@ -111,8 +112,9 @@ class WakeFeedbackTest {
                 pending = PendingChange("r1", ChangeKind.RETIME, requested.toString(), graph.now().toString(), graph.now().plusMinutes(10).toString(), night.identity)))
         } }
         waitFor(s(R.string.wake_requested, Format.clock(requested)))
-        compose.onNodeWithText("Planned wake").assertExists()
-        compose.onNodeWithText(Format.clock(night.wakeAt)).assertExists()
+        compose.onNodeWithTag("tonight-fixed-wake")
+            .assert(hasAnyDescendant(hasText(s(R.string.gpt12_wake_profile_fallback), substring = true)))
+            .assert(hasAnyDescendant(hasText(Format.clock(night.wakeAt), substring = true)))
     }
 
     @Test fun anEditSavedForTheNextNightSaysSoOnTonight() {
@@ -131,10 +133,10 @@ class WakeFeedbackTest {
         startNight()
         val graph = graph
         val running = graph.repository.activeNight.value!!
-        compose.onNodeWithText("Profiles").performClick()
-        compose.onAllNodes(hasText("Edit"))[graph.repository.profiles.value.indexOfFirst { it.id == running.profileId }].performClick()
-        waitFor("Edit profile")
-        compose.onNode(hasSetTextAction()).performTextReplacement("Next night name")
+        compose.navTab("Profiles")
+        compose.onNodeWithTag("profile-open-${running.profileId}").performScrollTo().performClick()
+        compose.onNodeWithTag("editor-save").assertExists()
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextReplacement("Next night name")
         compose.onNodeWithText("Save").performClick()
         compose.onNodeWithText("Next night").performClick()
         waitFor(s(R.string.next_night_saved))
@@ -144,15 +146,15 @@ class WakeFeedbackTest {
 
     @Test fun discardingAnUnsavedNewProfileAddsNothing() {
         val before = graph.repository.profiles.value
-        compose.onNodeWithText("Profiles").performClick()
-        compose.onNodeWithText("New profile").performClick()
-        compose.onNodeWithText("Summer Cool (summer)").performClick()
-        waitFor("Edit profile")
-        compose.onNode(hasSetTextAction()).performTextReplacement("Never saved")
-        compose.onNodeWithContentDescription("Cancel").performClick()
+        compose.navTab("Profiles")
+        compose.onNodeWithTag("profiles-new", useUnmergedTree = true).performClick()
+        compose.onNode(hasText("Summer Cool") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
+        compose.onNodeWithTag("editor-save").assertExists()
+        compose.onNode(hasSetTextAction()).performScrollTo().performTextReplacement("Never saved")
+        compose.onNodeWithTag("editor-back").performClick()
         compose.onNodeWithText("Discard changes?").assertIsDisplayed()
         compose.onNodeWithText("Discard").performClick()
-        waitFor("New profile")
+        waitUntil { compose.onAllNodesWithTag("profiles-new", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(before, graph.repository.profiles.value)
         assertFalse(has("Never saved"))
     }

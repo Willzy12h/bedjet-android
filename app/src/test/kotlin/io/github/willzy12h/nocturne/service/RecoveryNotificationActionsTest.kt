@@ -43,7 +43,7 @@ class RecoveryNotificationActionsTest {
         ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
         graph.actions.confirmMs = 1
-        graph.repository.updateSettings { it.copy(demoMode = true, autoUpdateCheck = false, quietNightNotification = true) }
+        graph.repository.updateSettings { it.copy(demoMode = true, quietNightNotification = true) }
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         graph.actions.execute(graph.actions.capture(NightActions.Command.START_NIGHT))
         Unit
@@ -52,7 +52,7 @@ class RecoveryNotificationActionsTest {
     private fun action(id: Int, label: String): Intent {
         val notification = shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(id)!!
         val action = notification.actions.single { it.title.toString() == label }
-        assertTrue("$label must ask before changing a tracked night", shadowOf(action.actionIntent).isActivityIntent)
+        assertTrue("$label must ask before changing a tracked night", shadowOf(action.actionIntent).isActivity)
         return shadowOf(action.actionIntent).savedIntent
     }
 

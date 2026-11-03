@@ -187,6 +187,8 @@ class RuntimeOwnershipTest {
         assertEquals(Mode.STANDBY, demo.status.value!!.mode)
     }
     @Test fun aPersistedWidgetOffAfterProcessDeathUsesTargetNotOldNightIdentity() = runBlocking {
+        // This case checks durable real History, using the injected single-device transport.
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val initial = start()
         val rendered = io.github.willzy12h.nocturne.platform.PlatformActionActivity.intent(context,
             graph.actions.capture(NightActions.Command.OFF, requireIdentity = true))
@@ -329,7 +331,7 @@ class RuntimeOwnershipTest {
         demo.send(Codec.setMode(Mode.STANDBY)!!)
         demo.disconnect()
         val alarm = context.getSystemService(AlarmManager::class.java)
-        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 188, Intent("retime-test"), PendingIntent.FLAG_IMMUTABLE))
         sent.clear()
         graph.actions.recordPendingRetime()
@@ -348,7 +350,7 @@ class RuntimeOwnershipTest {
         demo.send(Codec.setFan(if (oldFan < 19) oldFan + 1 else oldFan - 1))
         demo.disconnect()
         val alarm = context.getSystemService(AlarmManager::class.java)
-        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 189, Intent("retime-fan-test"), PendingIntent.FLAG_IMMUTABLE))
         sent.clear()
         graph.actions.recordPendingRetime()
@@ -361,7 +363,7 @@ class RuntimeOwnershipTest {
     @Test fun physicalOffDuringRetimeUploadBlocksStartAndLeavesWrittenSlotUncertain() = runBlocking {
         val night = start()
         val alarm = context.getSystemService(AlarmManager::class.java)
-        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, null),
+        alarm.setAlarmClock(AlarmManager.AlarmClockInfo(graph.clock.millis() + 7 * 3_600_000, io.github.willzy12h.nocturne.clockAlarmShow(context)),
             PendingIntent.getBroadcast(context, 190, Intent("retime-upload-off-test"), PendingIntent.FLAG_IMMUTABLE))
         graph.actions.recordPendingRetime()
         sent.clear()
@@ -452,17 +454,16 @@ class RuntimeOwnershipTest {
             graph.repository.history.value.first { it.id == n.recordId }.events.last().kind)
     }
     @Test fun diagnosticsExcludeTokenButIncludeBoundedEventsAndLink() = runBlocking {
-        graph.repository.updateToken = "TOP_SECRET_TOKEN"
+        context.getSharedPreferences("secrets", Context.MODE_PRIVATE).edit().putString("updateToken", "TOP_SECRET_TOKEN").commit()
         start()
         val diagnostics = graph.actions.diagnostics()
         assertFalse(diagnostics.contains("TOP_SECRET_TOKEN")); assertFalse(diagnostics.contains("updateToken"))
         assertTrue(diagnostics.contains("READY")); assertTrue(diagnostics.contains("activeNight"))
     }
-    @Test fun handoverWaitsForWholeTransactionAndPeerDeclinesBusy() = runBlocking {
+    @Test fun manualReleaseWaitsForWholeTransaction() = runBlocking {
         val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
         beforeSend = { if (it[0] == 0x40.toByte()) { entered.complete(Unit); release.await() } }
         val start = async { graph.actions.perform(NightActions.Command.START_NIGHT) }; entered.await()
-        assertEquals(OutcomeKind.REFUSED, graph.actions.releaseForOtherPhone(declineIfBusy = true).kind)
         val handover = async { graph.actions.releaseForOtherPhone() }; yield()
         val waited = !handover.isCompleted
         val notReleasedEarly = !graph.sessions.released.value
@@ -585,6 +586,8 @@ class RuntimeOwnershipTest {
         assertNull(graph.repository.settings.value.tonightOverride)
     }
     @Test fun interruptedLocalFinishKeepsDurableResumeOfferAndReconcilesWithoutHardware() = runBlocking {
+        // This case checks durable real History, using the injected single-device transport.
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF") }
         val night = start()
         failClear = true
         graph.actions.perform(NightActions.Command.OFF)

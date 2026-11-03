@@ -52,13 +52,50 @@ class LinkSessions(
     val released: StateFlow<Boolean> = _released.asStateFlow()
     @Volatile private var releasedUntil: Long? = null
     private var releaseEnds: Job? = null
+    /** Demo is disposable; its connection controls must not change the real phone-release choice. */
+    private data class SavedRelease(val until: Long?)
+    private var realRelease: SavedRelease? = null
+    @Volatile private var demoTransition = false
 
-    suspend fun <T> withConnection(work: suspend (BedJetLink) -> T): T {
-        val link = acquire()
+    /** Keep screen reconnects out while repository publication and the release choice change together. */
+    internal suspend fun beginDemoTransition() = lock.withLock {
+        demoTransition = true
+        connects.forEach { it.cancel() }
+    }
+
+    @Synchronized internal fun finishDemoTransition(demo: Boolean) {
+        try {
+            if (demo) enterDemoSession() else exitDemoSession()
+        } finally { demoTransition = false }
+    }
+
+    /** Called after the repository switches to the simulator; do not reconnect the outgoing real link. */
+    private fun enterDemoSession() {
+        if (realRelease != null) return
+        realRelease = SavedRelease(releasedUntil)
+        releaseEnds?.cancel()
+        releaseEnds = null
+        releasedUntil = null
+        _released.value = false
+    }
+
+    /** Restore the absolute expiry, so time spent in demo cannot extend a real timed release. */
+    private fun exitDemoSession() {
+        val real = realRelease ?: return
+        realRelease = null
+        releaseEnds?.cancel()
+        releasedUntil = real.until?.takeIf { now() < it }
+        _released.value = releasedUntil != null
+        releaseEnds = releasedUntil?.takeUnless { it == Long.MAX_VALUE }?.let(::releaseTimer)
+    }
+
+    /** [releaseAfterMs] is how long the connection stays once nobody needs it; a background read lets go at once. */
+    suspend fun <T> withConnection(releaseAfterMs: Long = graceMs, work: suspend (BedJetLink) -> T): T {
+        val link = acquire(releaseAfterMs)
         try {
             return work(link)
         } finally {
-            releaseLater()
+            releaseLater(releaseAfterMs)
         }
     }
 
@@ -66,19 +103,19 @@ class LinkSessions(
      * Connects (if needed) and keeps the connection until a matching [releaseLater]. On failure or cancellation
      * nothing is held. While the BedJet is released for another phone, this throws [BedJetError.NotConnected].
      */
-    suspend fun acquire(): BedJetLink {
+    suspend fun acquire(releaseAfterMs: Long = graceMs): BedJetLink {
         val link = hold()
         try {
             if (isReleased()) throw BedJetError.NotConnected(RELEASED)
             connect(link)
         } catch (e: Throwable) {
-            releaseLater()
+            releaseLater(releaseAfterMs)
             throw e
         }
         return link
     }
 
-    fun releaseLater() {
+    fun releaseLater(releaseAfterMs: Long = graceMs) {
         scope.launch {
             lock.withLock {
                 holders = maxOf(0, holders - 1)
@@ -90,7 +127,7 @@ class LinkSessions(
                 connects.forEach { it.cancel() }
                 release?.cancel()
                 release = scope.launch {
-                    delay(graceMs)
+                    delay(releaseAfterMs)
                     lock.withLock { if (holders == 0) { held?.disconnect(); held = null } }
                 }
             }
@@ -107,7 +144,7 @@ class LinkSessions(
         if (hold) {
             scope.launch {
                 val link = hold()
-                if (!isReleased()) runCatching { connect(link) }
+                if (connectionAllowed()) runCatching { connect(link) }
             }
         } else {
             releaseLater()
@@ -124,16 +161,11 @@ class LinkSessions(
      * Lets go of the BedJet now so another phone can connect, and refuses [acquire] until [resumeAutoConnect] or,
      * when [untilMs] is given, until that time.
      */
-    fun suspendAutoConnect(untilMs: Long?): Job {
+    @Synchronized fun suspendAutoConnect(untilMs: Long?): Job {
         releasedUntil = untilMs ?: Long.MAX_VALUE
         _released.value = true
         releaseEnds?.cancel()
-        // Wall time can move backwards while the monotonic delay is waiting. Recheck until the deadline really passes.
-        releaseEnds = untilMs?.let { deadline ->
-            scope.launch {
-                while (isReleased()) delay((deadline - now()).coerceAtLeast(1).coerceAtMost(RELEASE_POLL_MS))
-            }
-        }
+        releaseEnds = untilMs?.let(::releaseTimer)
         return scope.launch {
             lock.withLock {
                 connects.forEach { it.cancel() }
@@ -142,7 +174,12 @@ class LinkSessions(
         }
     }
 
-    fun resumeAutoConnect() {
+    /** Wall time can move backwards while the monotonic delay waits. Recheck the original absolute deadline. */
+    private fun releaseTimer(deadline: Long): Job = scope.launch {
+        while (isReleased()) delay((deadline - now()).coerceAtLeast(1).coerceAtMost(RELEASE_POLL_MS))
+    }
+
+    @Synchronized fun resumeAutoConnect() {
         releaseEnds?.cancel()
         endRelease()
     }
@@ -155,12 +192,14 @@ class LinkSessions(
     }
 
     /** Whether the BedJet is released for another phone; a timed release that has run out ends here. */
-    private fun isReleased(): Boolean {
+    @Synchronized private fun isReleased(): Boolean {
         val until = releasedUntil ?: return false
         if (now() < until) return true
         endRelease()
         return false
     }
+
+    private fun connectionAllowed(): Boolean = !demoTransition && !isReleased()
 
     private suspend fun hold(): BedJetLink = lock.withLock {
         holders++
@@ -181,7 +220,7 @@ class LinkSessions(
      */
     private suspend fun connect(link: BedJetLink) = coroutineScope {
         val attempt = async(start = CoroutineStart.LAZY) { link.connect() }
-        val wanted = lock.withLock { (holders > 0).also { if (it) connects += attempt } }
+        val wanted = lock.withLock { (holders > 0 && connectionAllowed()).also { if (it) connects += attempt } }
         if (!wanted) {
             attempt.cancel()
             throw BedJetError.NotConnected()
@@ -196,7 +235,7 @@ class LinkSessions(
             withContext(NonCancellable) {
                 lock.withLock {
                     connects -= attempt
-                    if (holders == 0 || isReleased()) link.disconnect()
+                    if (holders == 0 || !connectionAllowed()) link.disconnect()
                 }
             }
         }

@@ -29,7 +29,7 @@ class OriginFeedbackTest : io.github.willzy12h.nocturne.platform.PlatformGraphFi
     private fun prepare()=runBlocking {
         app.graph.repository.updateSettings {it.copy(demoMode=false,targetDevice="ble:AA:BB:CC:DD:EE:FF")}
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setEnabled(true)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         BedJetService.lastResult=null
     }
     private fun noDuplicate() {

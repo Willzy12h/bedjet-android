@@ -83,7 +83,7 @@ class HistoryRevisionsTest {
     @Test fun anOpenedCardListsRevisionsAndNamesEventKinds() {
         val graph = graph
         compose.runOnUiThread { runBlocking { graph.repository.addRecord(record) } }
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.waitUntil(5_000) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50)); compose.onAllNodesWithText("Mine", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Mine", substring = true).performClick()
         compose.onNodeWithText(s(R.string.history_revision, 1, "07:00", compose.activity.resources.getQuantityString(R.plurals.history_steps, 2, 2))).assertExists()
@@ -93,7 +93,7 @@ class HistoryRevisionsTest {
     }
     private fun openNight(night: NightRecord) {
         compose.runOnUiThread { runBlocking { graph.repository.addRecord(night) } }
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             compose.onAllNodesWithText(night.profileName, substring = true).fetchSemanticsNodes().isNotEmpty()
@@ -128,18 +128,22 @@ class HistoryRevisionsTest {
     }
 
     @Test fun eachHistoryCardHasItsHealthOverlayBelowItsOwnCurve() {
-        val second = record.copy(id = "n2", profileName = "Second night", startedAt = "2026-10-21T22:30Z")
+        val target = "ble:AA:BB:CC:DD:EE:01"
+        val first = record.copy(deviceId = target)
+        val second = first.copy(id = "n2", profileName = "Second night", startedAt = "2026-10-21T22:30Z")
         compose.runOnUiThread { runBlocking {
-            graph.repository.updateSettings { it.copy(platform = it.platform.copy(healthSleepOverlay = true)) }
-            graph.repository.addRecord(record)
+            graph.sessions.suspendAutoConnect(untilMs = null)
+            graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target,
+                platform = it.platform.copy(healthSleepOverlay = true)) }
+            graph.repository.addRecord(first)
             graph.repository.addRecord(second)
         } }
-        compose.onNodeWithText("History").performClick()
+        compose.navTab("History")
         compose.waitUntil(5_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             compose.onAllNodesWithText(record.profileName, substring = true).fetchSemanticsNodes().isNotEmpty()
         }
-        listOf(record, second).forEach { night ->
+        listOf(first, second).forEach { night ->
             compose.onNode(hasScrollAction()).performScrollToNode(hasText(night.profileName, substring = true))
             val card = hasClickAction() and hasAnyDescendant(hasText(night.profileName, substring = true))
             val overlay = compose.onNode(hasText(s(R.string.feature_health_source)) and hasAnyAncestor(card), useUnmergedTree = true)

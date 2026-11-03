@@ -86,10 +86,9 @@ class StopTrackingCaptureTest {
         shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.POST_NOTIFICATIONS)
         val adapter = app.getSystemService(BluetoothManager::class.java).adapter
-        shadowOf(adapter).setEnabled(true)
+        shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         graph.repository.updateSettings {
-            it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", themeMode = ThemeMode.DARK,
-                autoUpdateCheck = false)
+            it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF", themeMode = ThemeMode.DARK,)
         }
         val started = graph.actions.execute(graph.actions.capture(Command.START_NIGHT))
         assertEquals(started.message, OutcomeKind.CONFIRMED, started.kind)
@@ -100,7 +99,7 @@ class StopTrackingCaptureTest {
             it.copy(resumeOffer = ResumeOffer(previous, previous.applied.steps, graph.now().toString(),
                 graph.now().plusMinutes(15).toString(), it.generation))
         }
-        shadowOf(adapter).setEnabled(false)
+        shadowOf(adapter).setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
         model = AppViewModel(app)
         models.put("stop-tracking-capture", model)
         graph.scope.launch(start = CoroutineStart.UNDISPATCHED) { graph.actions.outcomes.collect { outcomes += it } }

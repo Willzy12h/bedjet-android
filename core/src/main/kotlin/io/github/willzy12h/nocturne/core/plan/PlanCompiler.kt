@@ -34,7 +34,7 @@ object PlanCompiler {
 
         val blocks = buildList {
             startPhases.forEach { add(Block.START to it) }
-            ramp(profile.middle, middleMinutes).forEach { add(Block.MIDDLE to it) }
+            ramp(profile.middle, middleMinutes, profile.limits, profile.turboChain).forEach { add(Block.MIDDLE to it) }
             wakePhases.forEach { add(Block.WAKE to it) }
             profile.afterWake.forEach { add(Block.AFTER_WAKE to it) }
         }
@@ -74,17 +74,103 @@ object PlanCompiler {
      */
     fun replan(profile: Profile, plan: Plan, now: ZonedDateTime, newWake: ZonedDateTime): Plan? {
         if (!now.isBefore(plan.wakeUpStart)) return null
-        val remainingStart = plan.steps.filter { it.block == Block.START }.mapNotNull { s ->
-            if (!s.endsAt.isAfter(now) || (s.step.mode == Mode.TURBO && !s.startsAt.isAfter(now))) null
-            else Phase(s.step.mode, s.step.temperature, (s.step.fanStep + 1) * 5,
+        // What is left of Start carries on, a running Turbo included: it keeps only the minutes it had left, so it
+        // never runs longer than first planned.
+        val remainingStart = plan.steps.filter { it.block == Block.START && it.endsAt.isAfter(now) }.map { s ->
+            Phase(s.step.mode, s.step.temperature, fanPercentOf(s.step),
                 Duration.between(if (s.startsAt.isAfter(now)) s.startsAt else now, s.endsAt).toMinutes().toInt())
-        }
-        return compile(profile.copy(start = remainingStart), now, newWake)
+        }.filter { it.minutes > 0 }
+        return compile(profile.copy(start = remainingStart, middle = continuedMiddle(profile, plan, now)), now, newWake)
     }
+
+    /**
+     * The Middle as it goes on from [now]: a Middle under way keeps its current temperature and fan, finishes what is
+     * left of a Quiet settle, and ramps on to the same end values over the ramp steps it has left, rather than
+     * starting the ramp again.
+     */
+    private fun continuedMiddle(profile: Profile, plan: Plan, now: ZonedDateTime): Middle {
+        val middle = profile.middle
+        val steps = plan.steps.filter { it.block == Block.MIDDLE }
+        val running = steps.lastOrNull { !it.startsAt.isAfter(now) } ?: return middle
+        val quiet = middle.quietFan?.let { it.copy(settleMinutes = remainingSettle(steps, it, now, profile.limits)) }
+        // A Turbo Middle's own Turbo-then-Heat split is not a ramp step, so it is not continued from a step.
+        if (middle.mode == Mode.TURBO) return middle.copy(quietFan = quiet)
+        // A ramp step is a run of steps at one temperature (and, outside Quiet, one fan speed). Splits for the
+        // unit's longest step repeat the same values, so they are part of the same run.
+        val runs = steps.indices.count { i ->
+            i == 0 || steps[i].step.temperature != steps[i - 1].step.temperature ||
+                (quiet == null && steps[i].step.fanStep != steps[i - 1].step.fanStep)
+        }
+        val begun = steps.indices.count { i ->
+            !steps[i].startsAt.isAfter(now) && (i == 0 || steps[i].step.temperature != steps[i - 1].step.temperature ||
+                (quiet == null && steps[i].step.fanStep != steps[i - 1].step.fanStep))
+        }
+        val temperature = if (middle.tempStart == middle.tempEnd) middle.tempStart else running.step.temperature
+        val fan = when {
+            quiet != null || middle.fanStart == middle.fanEnd -> middle.fanStart
+            // Already at the end speed: say so exactly, so a rounded speed does not read as a fan change still to come.
+            running.step.fanStep == fanStepFor(middle.fanEnd, profile.limits) -> middle.fanEnd
+            else -> fanPercentOf(running.step)
+        }
+        return middle.copy(tempStart = temperature, fanStart = fan, rampSteps = (runs - begun + 1).coerceIn(1, 8), quietFan = quiet)
+    }
+
+    /** Minutes left of a Quiet settle that is running at [now]; none once it has finished. */
+    private fun remainingSettle(steps: List<PlannedStep>, quiet: QuietFan, now: ZonedDateTime, limits: ProfileLimits): Int {
+        val settleStep = fanStepFor(quiet.settle, limits)
+        if (settleStep == fanStepFor(quiet.asleep, limits) || steps.firstOrNull()?.step?.fanStep != settleStep) return 0
+        val settleEnd = steps.takeWhile { it.step.fanStep == settleStep }.last().endsAt
+        return Duration.between(now, settleEnd).toMinutes().toInt().coerceAtLeast(0)
+    }
+
+    private fun fanPercentOf(step: ProgramStep): Int = (step.fanStep + 1) * 5
 
     // Phase shaping
 
-    private fun ramp(middle: Middle, minutes: Int): List<Phase> {
+    /** Temperature steps cut again at independent fan boundaries, including Ease when temperature stays. */
+    private fun ramp(middle: Middle, minutes: Int, limits: ProfileLimits, turboChain: TurboChain): List<Phase> {
+        val temperatures = temperatureSteps(middle, minutes)
+        if (temperatures.isEmpty()) return temperatures
+        val fans = middle.quietFan?.let { quiet ->
+            val rise = minOf(quiet.riseMinutes, minutes)
+            val settle = minOf(quiet.settleMinutes, minutes - rise)
+            listOf(settle to quiet.settle, minutes - settle - rise to quiet.asleep, rise to quiet.rise).filter { it.first > 0 }
+        } ?: run {
+            // Existing multi-step Ease already carries both endpoints. Stay needs fan-only boundaries;
+            // increasing the temperature count would also activate its unused temperature endpoint.
+            if (temperatures.size > 1 || !middle.mode.usesFan || middle.fanStart == middle.fanEnd) return temperatures
+            if (minutes < 2) throw PlanException(
+                "This Middle needs at least two minutes to use both fan speeds. Choose Steady or allow more time before wake-up.")
+            val first = minutes / 2
+            listOf(first to middle.fanStart, minutes - first to middle.fanEnd)
+        }
+        val out = mutableListOf<Phase>()
+        var t = 0
+        var f = 0
+        var tLeft = temperatures.firstOrNull()?.minutes ?: 0
+        var fLeft = fans.firstOrNull()?.first ?: 0
+        while (t < temperatures.size && f < fans.size) {
+            val take = minOf(tLeft, fLeft)
+            val phase = temperatures[t].copy(fanPercent = fans[f].second, minutes = take)
+            if (phase.mode == Mode.TURBO && turboChain == TurboChain.TURBO_THEN_HEAT) {
+                // A fan boundary must not restart this temperature phase's ten-minute Turbo allowance.
+                val elapsed = temperatures[t].minutes - tLeft
+                val turboMinutes = (Limits.TURBO_MINUTES - elapsed).coerceIn(0, take)
+                if (turboMinutes > 0) out += phase.copy(minutes = turboMinutes)
+                if (take > turboMinutes) out += phase.copy(mode = Mode.HEAT, temperature = limits.maxTemp,
+                    minutes = take - turboMinutes)
+            } else {
+                out += phase
+            }
+            tLeft -= take
+            fLeft -= take
+            if (tLeft == 0 && ++t < temperatures.size) tLeft = temperatures[t].minutes
+            if (fLeft == 0 && ++f < fans.size) fLeft = fans[f].first
+        }
+        return out
+    }
+
+    private fun temperatureSteps(middle: Middle, minutes: Int): List<Phase> {
         if (minutes <= 0) return emptyList()
         val count = middle.rampSteps.coerceIn(1, 8).coerceAtMost(minutes)
         return (0 until count).map { i ->

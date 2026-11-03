@@ -16,6 +16,24 @@
       "tempEnd": 46,
       "rampSteps": 4
     },
+    "quietFan": {
+      "settle": 35,
+      "settleMinutes": 20,
+      "asleep": 15,
+      "rise": 25,
+      "riseMinutes": 30
+    },
+    "quietMiddle": {
+      "mode": "COOL",
+      "fanStart": 35,
+      "fanEnd": 25,
+      "tempStart": 44,
+      "tempEnd": 46,
+      "rampSteps": 4,
+      "quietFan": {
+        "$ref": "quietFan"
+      }
+    },
     "limits": {
       "minFan": 10,
       "maxFan": 85,
@@ -36,7 +54,7 @@
         }
       ],
       "middle": {
-        "$ref": "middle"
+        "$ref": "quietMiddle"
       },
       "wake": [
         {
@@ -92,13 +110,25 @@
       "fanPercent": 35,
       "minutes": 17
     },
+    "autoStart": {
+      "enabled": true,
+      "mode": "BEFORE_WAKE",
+      "fixedMinute": 1335,
+      "minutesBeforeWake": 510,
+      "profileId": "release-profile",
+      "deviceId": "ble:AA:BB:CC:DD:EE:FF",
+      "onlyIfCharging": true
+    },
     "platform": {
       "bedtimeReminder": true,
       "reminderMinutes": 45,
       "chargerAutoStart": true,
       "chargerDevice": "ble:AA:BB:CC:DD:EE:FF",
       "healthSleepOverlay": true,
-      "lullHandover": true
+      "healthSleepExport": true,
+      "autoStart": {
+        "$ref": "autoStart"
+      }
     },
     "settings": {
       "workingSlot": 1,
@@ -131,27 +161,61 @@
       "fahrenheit": true,
       "demoMode": true,
       "targetDevice": "ble:AA:BB:CC:DD:EE:FF",
+      "rememberedBedJets": [
+        "ble:AA:BB:CC:DD:EE:FF",
+        "ble:11:22:33:44:55:66"
+      ],
+      "demoTargetMigrated": true,
       "setupFanCheckedDevice": "ble:AA:BB:CC:DD:EE:FF",
-      "updateRepo": "example/release-check",
-      "autoUpdateCheck": true,
       "alarmPackages": [
         "clock.example.one",
         "clock.example.two"
       ],
       "themeMode": "SCHEDULED",
+      "nightPalette": "FOREST",
+      "dayPalette": "PLUM",
       "scheduledDarkMinute": 1260,
       "scheduledLightMinute": 465,
-      "simpleView": true,
+      "simpleView": false,
       "quietNightNotification": true,
+      "cooldownOfferAnswered": true,
       "platform": {
         "$ref": "platform"
       },
       "quickControlsCollapsed": true,
+      "collapsedTonightSections": [
+        "wake",
+        "connection"
+      ],
       "tonightSectionOrder": [
         "connection",
         "night",
         "wake"
-      ]
+      ],
+      "quickDefaults": [
+        {
+          "$ref": "action"
+        }
+      ],
+      "setupChecklistCompleted": true,
+      "setupDismissedOptional": [
+        "health",
+        "widget"
+      ],
+      "alarmApps": "ONE_APP",
+      "alarmAppsChosen": true,
+      "sleepSectionOrder": [
+        "nights",
+        "trend",
+        "stages",
+        "figures",
+        "compare",
+        "noticed",
+        "timeline",
+        "history"
+      ],
+      "sleepRangeDays": 30,
+      "historyKeepDays": 365
     },
     "slotBackup": {
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
@@ -230,7 +294,11 @@
           "$ref": "applied"
         }
       ],
-      "isTestRun": true
+      "isTestRun": true,
+      "bedJetRunConfirmed": true,
+      "confirmedCompletionAt": "2026-10-24T07:12Z",
+      "healthExportVersion": 4294967298,
+      "healthExportedVersion": 4294967297
     },
     "activeBase": {
       "recordId": "release-night",
@@ -283,7 +351,7 @@
       "commandVersion": 9
     },
     "backup": {
-      "schema": 2,
+      "schema": 3,
       "createdAt": "2026-10-23T22:30Z",
       "profiles": [
         {
@@ -356,7 +424,8 @@
       "event": {
         "$ref": "event"
       },
-      "isTestRun": true
+      "isTestRun": true,
+      "confirmedCompletionAt": "2026-10-24T07:12Z"
     },
     "delivery": {
       "id": "release-delivery",
@@ -496,7 +565,8 @@
       "selection": {
         "$ref": "editorPhase"
       }
-    }
+    },
+    "encodedSharedProfile": "{\"schema\":3,\"createdAt\":\"2026-10-23T22:30Z\",\"profiles\":[{\"id\":\"release-shared-profile\",\"name\":\"Saved \\\"profile\\\" · 夜\",\"start\":[],\"middle\":{\"mode\":\"COOL\",\"fanStart\":35,\"fanEnd\":25,\"tempStart\":44,\"tempEnd\":46,\"rampSteps\":4},\"wake\":[]}],\"settings\":{},\"slotBackups\":[],\"history\":[]}"
   },
   "models": {
     "io.github.willzy12h.nocturne.core.night.ActiveNight": [
@@ -551,7 +621,8 @@
     "io.github.willzy12h.nocturne.core.night.WakeOrigin": [
       "ALARM",
       "PROFILE_DEFAULT",
-      "OVERRIDE"
+      "OVERRIDE",
+      "AUTO_START"
     ],
     "io.github.willzy12h.nocturne.core.plan.Block": [
       "START",
@@ -563,6 +634,9 @@
     "io.github.willzy12h.nocturne.core.plan.Middle": [
       {
         "$ref": "middle"
+      },
+      {
+        "$ref": "quietMiddle"
       }
     ],
     "io.github.willzy12h.nocturne.core.plan.Phase": [
@@ -580,6 +654,11 @@
         "$ref": "limits"
       },
       {}
+    ],
+    "io.github.willzy12h.nocturne.core.plan.QuietFan": [
+      {
+        "$ref": "quietFan"
+      }
     ],
     "io.github.willzy12h.nocturne.core.plan.Season": [
       "NONE",
@@ -631,9 +710,42 @@
         "$ref": "action"
       }
     ],
+    "io.github.willzy12h.nocturne.core.store.AlarmApps": [
+      "CLOCK_APPS",
+      "ONE_APP",
+      "NONE"
+    ],
+    "io.github.willzy12h.nocturne.core.store.AutoStartMode": [
+      "FIXED",
+      "BEFORE_WAKE"
+    ],
+    "io.github.willzy12h.nocturne.core.store.AutoStartSettings": [
+      {
+        "$ref": "autoStart"
+      },
+      {}
+    ],
     "io.github.willzy12h.nocturne.core.store.BackupBundle": [
       {
         "$ref": "backup"
+      },
+      {
+        "schema": 2,
+        "createdAt": "2026-10-23T22:30Z",
+        "profiles": [
+          {
+            "id": "release-legacy-profile",
+            "name": "Before palette settings",
+            "start": [],
+            "middle": {
+              "$ref": "middle"
+            },
+            "wake": []
+          }
+        ],
+        "settings": {},
+        "slotBackups": [],
+        "history": []
       }
     ],
     "io.github.willzy12h.nocturne.core.store.EventKind": [
@@ -682,6 +794,15 @@
       "WAKE_UP",
       "PROBLEM",
       "UPDATE"
+    ],
+    "io.github.willzy12h.nocturne.core.store.Palette": [
+      "MIDNIGHT_INK",
+      "FOREST",
+      "GRAPHITE",
+      "PLUM",
+      "AUTUMN_RUST",
+      "WINTER_STORM",
+      "OVERCAST"
     ],
     "io.github.willzy12h.nocturne.core.store.PlatformSettings": [
       {
@@ -736,6 +857,28 @@
       "EXTEND_WARM",
       "EXTEND_COOL",
       "OFF"
+    ],
+    "io.github.willzy12h.nocturne.data.ProfileShareRequest": [
+      {
+        "encodedProfile": {
+          "$ref": "encodedSharedProfile"
+        },
+        "sessionRevision": 4294967298,
+        "repositoryNonce": "12345678-1234-4234-9234-123456789abc"
+      },
+      {
+        "encodedProfile": {
+          "$ref": "encodedSharedProfile"
+        },
+        "sessionRevision": 2
+      },
+      {
+        "encodedProfile": {
+          "$ref": "encodedSharedProfile"
+        },
+        "sessionRevision": 0,
+        "repositoryNonce": null
+      }
     ],
     "io.github.willzy12h.nocturne.data.Repository$JournalWrite": [
       {

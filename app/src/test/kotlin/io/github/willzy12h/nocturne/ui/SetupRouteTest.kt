@@ -49,17 +49,13 @@ class SetupRouteTest {
         condition()
     }
 
-    @Test fun tonightOffersTheDemoAsASeparateChoice() {
-        val graph = graph
-        compose.onNodeWithText(s(R.string.setup_use_demo)).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(s(R.string.setup_use_demo_help)).assertExists()
-        compose.onNodeWithText(s(R.string.setup_use_demo)).performClick()
-        waitUntil { graph.repository.settings.value.demoMode }
-        assertNull("the demo never becomes the real target", graph.repository.settings.value.targetDevice)
+    @Test fun tonightOffersNoDemo() {
+        compose.onAllNodesWithText("demo", substring = true, ignoreCase = true).assertCountEquals(0)
+        assertNull(graph.repository.settings.value.targetDevice)
     }
 
     @Test fun remoteRoutesToChoosingABedJet() {
-        compose.onNodeWithText("Remote").performClick()
+        compose.openRemote()
         compose.onNodeWithText(s(R.string.setup_choose_title)).assertIsDisplayed()
         compose.onNodeWithText(s(R.string.setup_find)).assertIsDisplayed()
         assertTrue(compose.onAllNodesWithText("Connect to your BedJet to use the remote.").fetchSemanticsNodes().isEmpty())
@@ -67,6 +63,7 @@ class SetupRouteTest {
 
     @Test fun settingsPhoneSetupHasSamsungBatteryGuidance() {
         compose.onAllNodesWithText("Settings")[0].performClick()
+        compose.openSettingsPage("permissions")
         compose.onNodeWithText(s(R.string.setup_samsung_title)).performScrollTo().performClick()
         compose.onNodeWithText(s(R.string.setup_samsung_help)).assertExists()
     }

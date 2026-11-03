@@ -14,6 +14,7 @@ import io.github.willzy12h.nocturne.ble.BluetoothAvailability
 import io.github.willzy12h.nocturne.ble.BluetoothAdmission
 import io.github.willzy12h.nocturne.ble.BluetoothCommandException
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.data.OperationAdmission
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.BackupCodec
@@ -37,19 +38,25 @@ class BedJetService : Service() {
         val waiting = admissionId?.let { admissions.remove(it) }
         waiting?.expiry?.cancel()
         var radio = handoff?.radio ?: waiting?.radio
+        var commandAdmission = waiting?.command
         val request = intent?.let(::request)
         val notifyFailures = handoff?.notifyFailures ?: intent?.getBooleanExtra(EXTRA_NOTIFY_FAILURES, true) ?: true
         val origin = handoff?.origin ?: request?.origin ?: CommandOrigin.APP
-        if (request == null && handoff == null) { radio?.close(); if (pending == 0) stopSelf(startId); return START_NOT_STICKY }
+        if (request == null && handoff == null) { radio?.close(); commandAdmission?.close(); if (pending == 0) stopSelf(startId); return START_NOT_STICKY }
         // An already-ended night has no retry to execute or radio problem to report.
         if (handoff == null && request?.command == NightActions.Command.RETRY_RETIME &&
             graph.repository.activeNight.value == null && !graph.actions.retimePending) {
             radio?.close()
+            commandAdmission?.close()
             if (pending == 0) stopSelf(startId)
             return START_NOT_STICKY
         }
         val deferBluetoothCheck = handoff?.deferBluetoothCheck ?: isRetime(request?.command)
         try {
+            // Direct notification intents have no in-process waiting token. Acquire before launching their
+            // coroutine; handoffs also retain a separate caller token until service cleanup has taken over.
+            if (commandAdmission == null) commandAdmission = graph.repository.operationAdmission.tryCommand()
+                ?: error(getString(R.string.import_command_blocked))
             check(admissionId == null || waiting != null) { getString(R.string.bluetooth_request_expired) }
             if (!permitted(this, request?.command ?: NightActions.Command.START_NIGHT)) throw SecurityException(getString(R.string.runtime_connect_permission))
             if (!deferBluetoothCheck && request?.command != NightActions.Command.STOP_TRACKING) BluetoothAvailability.requireEnabled(this)
@@ -63,6 +70,7 @@ class BedJetService : Service() {
             startForeground(Notifications.WORKING_ID, Notifications.working(this), type)
         } catch (e: RuntimeException) {
             radio?.close()
+            commandAdmission?.close()
             handoff?.result?.completeExceptionally(e)
             failure(this, e, notifyFailures, origin); if (pending == 0) stopSelf(startId); return START_NOT_STICKY
         }
@@ -121,6 +129,8 @@ class BedJetService : Service() {
             } catch (e: Exception) { handoff?.result?.completeExceptionally(e); failure(this@BedJetService, e, notifyFailures, origin)
             } finally { radio?.close(); pending--; if (pending == 0) stopSelf() }
         }
+        // Completion also releases a coroutine cancelled before its body could run.
+        operation.invokeOnCompletion { commandAdmission?.close() }
         handoff?.operation = operation
         if (handoff != null) operation.invokeOnCompletion { cause ->
             if (cause != null) handoff.result.cancel(CancellationException("Service operation ended", cause))
@@ -137,6 +147,18 @@ class BedJetService : Service() {
         const val SERVICE_MS = NightActions.OPERATION_MS + 10_000L
         /** The UI waits longer still: foreground promotion, the service bound and a margin. */
         const val RUN_OWNED_MS = SERVICE_MS + 15_000L
+        /** JobScheduler supplies the lifetime. This preserves service admission and budgets without an FGS exemption. */
+        suspend fun <T> runJobOwned(graph: io.github.willzy12h.nocturne.Graph, work: suspend () -> T): T {
+            val admission = graph.repository.operationAdmission.tryCommand()
+                ?: error(graph.context.getString(R.string.import_command_blocked))
+            try {
+                check(!graph.repository.settings.value.demoMode) { graph.context.getString(R.string.platform_demo_unavailable) }
+                val target = graph.repository.settings.value.deviceId()
+                return withContext(SubmissionTarget(target) + CommandOriginContext(CommandOrigin.CHARGER)) {
+                    withTimeout(SERVICE_MS) { work() }
+                }
+            } finally { admission.close() }
+        }
         private class Handoff(val target: String?, val notifyFailures: Boolean, val origin: CommandOrigin,
             val feedback: CommandFeedback?, val deferBluetoothCheck: Boolean, val work: suspend () -> Any?) {
             val result = CompletableDeferred<Any?>()
@@ -144,7 +166,7 @@ class BedJetService : Service() {
             var radio: BluetoothAdmission? = null
         }
         private val handoffs = java.util.concurrent.ConcurrentHashMap<String, Handoff>()
-        private class WaitingAdmission(val radio: BluetoothAdmission) { var expiry: Job? = null }
+        private class WaitingAdmission(val radio: BluetoothAdmission?, val command: OperationAdmission.Lease) { var expiry: Job? = null }
         private val admissions = java.util.concurrent.ConcurrentHashMap<String, WaitingAdmission>()
         /** In-process UI delivery only: no persistent closures or replay. Job/local callers stay separate.
          * Capture confirmed request identity before entering; the target is captured here before suspension
@@ -154,6 +176,9 @@ class BedJetService : Service() {
         @Suppress("UNCHECKED_CAST")
         suspend fun <T> runOwned(context: Context, notifyFailures: Boolean = true, hardware: Boolean = true,
             deferBluetoothCheck: Boolean = false, work: suspend () -> T): T {
+            val commandAdmission = context.graph.repository.operationAdmission.tryCommand()
+                ?: error(context.getString(R.string.import_command_blocked))
+            try {
             val origin = entryOrigin(context, currentCoroutineContext()[CommandOriginContext]?.origin ?: CommandOrigin.APP)
             val submitted = currentCoroutineContext()[SubmissionTarget]
             val target = if (submitted != null) submitted.deviceId else context.graph.repository.settings.value.deviceId()
@@ -180,6 +205,7 @@ class BedJetService : Service() {
                 handoff.result.cancel()
                 handoff.operation?.cancel()
             }
+            } finally { commandAdmission.close() }
         }
 
         const val EXTRA_COMMAND = "command"
@@ -227,31 +253,35 @@ class BedJetService : Service() {
         fun start(context: Context, captured: CommandRequest, notifyFailures: Boolean = true): Boolean {
             var token: String? = null
             var waiting: WaitingAdmission? = null
+            var command: OperationAdmission.Lease? = null
             try {
+                command = context.graph.repository.operationAdmission.tryCommand()
+                    ?: error(context.getString(R.string.import_command_blocked))
                 if (!permitted(context, captured.command)) throw SecurityException(context.getString(R.string.runtime_connect_permission))
                 if (!isRetime(captured.command) && captured.command != NightActions.Command.STOP_TRACKING)
                     BluetoothAvailability.requireEnabled(context)
                 val request = captured.copy(origin = entryOrigin(context, captured.origin))
                 val delivery = intent(context, request).putExtra(EXTRA_NOTIFY_FAILURES, notifyFailures)
-                if (!context.graph.repository.settings.value.demoMode && captured.command != NightActions.Command.STOP_TRACKING) {
-                    val id = java.util.UUID.randomUUID().toString()
-                    val pending = WaitingAdmission(BluetoothAdmission(context))
-                    token = id; waiting = pending
-                    if (!isRetime(captured.command)) pending.radio.check()
-                    admissions[id] = pending
-                    // A start that Android never delivers must not leave a receiver in an idle process.
-                    pending.expiry = context.graph.scope.launch {
-                        try { delay(RUN_OWNED_MS) }
-                        finally { if (admissions.remove(id, pending)) pending.radio.close() }
-                    }
-                    delivery.putExtra(EXTRA_ADMISSION, id)
+                val radio = if (!context.graph.repository.settings.value.demoMode && captured.command != NightActions.Command.STOP_TRACKING)
+                    BluetoothAdmission(context) else null
+                val id = java.util.UUID.randomUUID().toString()
+                val pending = WaitingAdmission(radio, command)
+                token = id; waiting = pending
+                if (!isRetime(captured.command)) pending.radio?.check()
+                admissions[id] = pending
+                // Every queued command counts, including local tracking. Delivery that never arrives expires.
+                pending.expiry = context.graph.scope.launch {
+                    try { delay(RUN_OWNED_MS) }
+                    finally { if (admissions.remove(id, pending)) { pending.radio?.close(); pending.command.close() } }
                 }
+                delivery.putExtra(EXTRA_ADMISSION, id)
                 deliver(context, delivery)
                 return true
             } catch (e: RuntimeException) {
                 token?.let { admissions.remove(it) }
                 waiting?.expiry?.cancel()
                 waiting?.radio?.close()
+                command?.close()
                 failure(context, e, notifyFailures, entryOrigin(context, captured.origin))
                 return false
             }

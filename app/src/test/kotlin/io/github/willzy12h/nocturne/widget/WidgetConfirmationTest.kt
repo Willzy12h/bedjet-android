@@ -88,13 +88,16 @@ class WidgetConfirmationTest : io.github.willzy12h.nocturne.platform.PlatformGra
 
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
-    private suspend fun confirmation(command: Command, single: Boolean = false): Intent {
-        val page = when (command) {
-            Command.OFF, Command.STOP_TRACKING -> "device:0"
-            Command.COOL, Command.WARM -> "quick:0"
-            else -> "night:0"
-        }
-        val label = widgetActions(app).first { it.command == command && it.profileId == null }.label
+    /** Saves [preset] both as the legacy Warm action and as the Controls preset for its mode. */
+    private suspend fun review(preset: ActionPreset) = graph.repository.updateSettings {
+        it.copy(extendWarm = preset, quickDefaults = it.quickDefaults.filterNot { saved -> saved.mode == preset.mode } + preset) }
+
+    private suspend fun confirmation(command: Command, requestedSingle: Boolean = false, preset: String? = null): Intent {
+        // Controls has no Stop tracking; an older single-action placement still does.
+        val key = preset ?: quickPresetKey(command)
+        val single = requestedSingle || key == null
+        val label = if (single) widgetActions(app).first { it.command == command && it.profileId == null }.label
+            else widgetPreset(app, key!!)!!.label
         if (single) {
             val info = AppWidgetProviderInfo().apply { provider = ComponentName(app, SingleActionReceiver::class.java) }
             shadowOf(AppWidgetManager.getInstance(app)).addBoundWidget(75, info)
@@ -103,8 +106,8 @@ class WidgetConfirmationTest : io.github.willzy12h.nocturne.platform.PlatformGra
         val remote = if (single) SingleActionWidget().compose(app, id = id, size = DpSize(340.dp, 240.dp),
             state = preferencesOf(SingleActionWidget.KEY_COMMAND to command.name, SingleActionWidget.KEY_LABEL to label))
             else QuickControlsWidget().compose(app, id = id, size = DpSize(340.dp, 240.dp),
-                state = preferencesOf(QuickControlsWidget.KEY_PAGE to page))
-        val button = descendants(remote.apply(app, FrameLayout(app))).filterIsInstance<Button>().firstOrNull { it.text.toString() == label }
+                state = preferencesOf(QuickControlsWidget.KEY_PRESETS to key!!))
+        val button = widgetControl(remote.apply(app, FrameLayout(app)), label)
         assertNotNull("The rendered widget must expose $label", button)
         button!!.performClick()
         val intent = shadowOf(app).nextStartedActivity
@@ -178,10 +181,10 @@ class WidgetConfirmationTest : io.github.willzy12h.nocturne.platform.PlatformGra
     }
 
     @Test fun aChangedPresetGetsADistinctRenderedConfirmationIntent() = runBlocking {
-        graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.DRY, 60, 25, 15)) }
-        val first = confirmation(Command.WARM)
-        graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.COOL, 44, 40, 30)) }
-        val second = confirmation(Command.WARM)
+        review(ActionPreset(Mode.DRY, 60, 25, 15))
+        val first = confirmation(Command.WARM, preset = "DRY")
+        review(ActionPreset(Mode.DRY, 56, 40, 30))
+        val second = confirmation(Command.WARM, preset = "DRY")
         assertNotEquals("PendingIntent equality must not replace an earlier reviewed preset", first.data, second.data)
         assertEquals(0, writes)
         assertEquals(original.identity, graph.repository.activeNight.value?.identity)
@@ -189,16 +192,16 @@ class WidgetConfirmationTest : io.github.willzy12h.nocturne.platform.PlatformGra
 
     private suspend fun capturedTemporaryPreservesWake(single: Boolean) {
         val reviewed = ActionPreset(Mode.DRY, 60, 25, 15)
-        graph.repository.updateSettings { it.copy(extendWarm = reviewed) }
-        val rendered = confirmation(Command.WARM, single)
+        review(reviewed)
+        val rendered = confirmation(Command.WARM, single, preset = "DRY".takeUnless { single })
         // The PendingIntent must retain the preset seen when rendered, even before the overlay opens.
-        graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.COOL, 44, 40, 30)) }
+        review(ActionPreset(Mode.DRY, 56, 40, 30))
         val activity = open(rendered)
         try {
             val dialog = ShadowAlertDialog.getLatestAlertDialog()
             assertTemporaryChoices(dialog)
             assertEquals(15, dialog.window!!.decorView.findViewWithTag<SeekBar>("temporary-duration").progress)
-            graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.HEAT, 70, 50, 20)) }
+            review(ActionPreset(Mode.DRY, 52, 50, 20))
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
             waitForFeedback("CONFIRMED")
             val current = requireNotNull(graph.repository.activeNight.value)
@@ -226,9 +229,9 @@ class WidgetConfirmationTest : io.github.willzy12h.nocturne.platform.PlatformGra
     }
 
     @Test fun widgetEndUsesTheRenderedPresetAfterSettingsChange() = runBlocking {
-        graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.DRY, 60, 25, 15)) }
-        val rendered = confirmation(Command.WARM)
-        graph.repository.updateSettings { it.copy(extendWarm = ActionPreset(Mode.COOL, 44, 40, 30)) }
+        review(ActionPreset(Mode.DRY, 60, 25, 15))
+        val rendered = confirmation(Command.WARM, preset = "DRY")
+        review(ActionPreset(Mode.DRY, 56, 40, 30))
         val activity = open(rendered)
         try {
             val dialog = ShadowAlertDialog.getLatestAlertDialog()

@@ -19,7 +19,11 @@ import io.github.willzy12h.nocturne.ui.MainActivity
 class NightTileService : TileService() {
     override fun onStartListening() {
         super.onStartListening()
-        val night=graph.repository.activeNight.value
+        // A failed local save cannot hide a known contradiction for this exact night and target.
+        val night=graph.repository.activeNight.value?.let { saved ->
+            if (saved.confidence == Confidence.CONFIRMED && graph.actions.hasProgrammeUncertainty(saved))
+                saved.copy(confidence = Confidence.UNKNOWN) else saved
+        }
         // Only the chosen BedJet's own report can show it idle; one from another unit leaves it unknown.
         val target=graph.repository.settings.value.deviceId()
         val knownIdle=graph.link.state.value == LinkState.READY && graph.link.latestStatusFrom(target)?.isRunning == false

@@ -22,6 +22,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -47,8 +48,9 @@ class AlarmExplanationTest(private val scenario: Scenario) {
     enum class Scenario(val expected: String, val expectedWake: String = "07:00") {
         SAMSUNG("Next alarm 06:30 · Samsung Clock — used", "06:30"),
         NULL_DENIED("Alarm 06:30 ignored: source unknown — tap to change"),
-        NULL_ALLOWED("Next alarm 06:30 · Unknown app — used", "06:30"),
-        APP_DENIED("Alarm 06:30 ignored: app not allowed — tap to change"),
+        /** "From any app" was retired in 0.3.0-acceptance.3: asking for it no longer lets an unnamed alarm through. */
+        NULL_ALLOWED("Alarm 06:30 ignored: source unknown — tap to change"),
+        APP_DENIED("Alarm 06:30 ignored: from unapproved.clock, not your alarm app — tap to change"),
         TOO_SOON("Alarm 23:00 ignored: too soon — normal nights need at least 1 hour — tap to change"),
         TOO_LATE("Alarm 16:31 ignored: too late — beyond tonight’s 18 hours — tap to change"),
         MINIMUM_BOUNDARY("Next alarm 23:30 · Samsung Clock — used", "23:30"),
@@ -155,7 +157,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         if (scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED)) {
             val next = AlarmSource.describe(ui.compose.activity, ui.graph.repository.settings.value)!!
             assertEquals(null, next.creator)
-            assertEquals(scenario == Scenario.NULL_ALLOWED, next.counts)
+            assertFalse(next.counts)
         }
         ui.compose.onNodeWithText(scenario.expected).assertExists().assertHasClickAction()
         val diagnostic = AlarmSource.diagnostics(ui.compose.activity, ui.graph.repository.settings.value,
@@ -164,7 +166,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         assertEquals("Exported evidence must give the same explanation as Tonight", scenario.expected,
             diagnostic.getValue("explanation").jsonPrimitive.content)
         assertEquals(when (scenario) {
-            Scenario.NULL_DENIED -> "UNKNOWN_SOURCE"
+            Scenario.NULL_DENIED, Scenario.NULL_ALLOWED -> "UNKNOWN_SOURCE"
             Scenario.APP_DENIED -> "SOURCE_NOT_ALLOWED"
             Scenario.TOO_SOON, Scenario.TOO_LATE -> "OUTSIDE_WINDOW"
             Scenario.NO_ALARM -> "NO_ALARM"

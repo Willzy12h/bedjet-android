@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Choosing which app's alarms set the wake-up (0.3.0-acceptance.3). -->
+    <string name="alarm_apps_title">Wake-up alarms</string>
+    <string name="alarm_apps_question">Which alarms should set your wake-up time?</string>
+    <string name="alarm_apps_any">Any clock app</string>
+    <string name="alarm_apps_any_found">Recommended. Found on this phone: %1$s</string>
+    <string name="alarm_apps_any_none_found">Recommended. Uses Google Clock or Samsung Clock.</string>
+    <string name="alarm_apps_only">Only %1$s</string>
+    <!-- Two clock apps with the same name, told apart by package: "Clock (com.example.clock)". -->
+    <string name="alarm_app_with_package">%1$s (%2$s)</string>
+    <string name="alarm_apps_none">No alarms</string>
+    <string name="alarm_apps_none_help">Every profile uses its own wake time.</string>
+    <string name="alarm_apps_never">Alarms from calendars, reminders and other apps are never used.</string>
+    <string name="alarm_apps_next_used">Next alarm on this phone: %1$s from %2$s. Used.</string>
+    <string name="alarm_apps_next_unused">Next alarm on this phone: %1$s from %2$s. Not used.</string>
+    <string name="alarm_apps_fixed">Use a fixed wake time for %1$s</string>
+    <string name="alarm_apps_tonight">Change tonight’s wake time</string>
+    <string name="alarm_apps_done">Done</string>
+    <!-- Settings row and Tonight. -->
+    <string name="alarm_apps_row">Alarms from</string>
+    <string name="alarm_apps_row_any">Any clock app</string>
+    <string name="alarm_apps_row_only">Only %1$s</string>
+    <string name="alarm_apps_row_none">No alarms: profile wake times</string>
+    <string name="alarm_apps_change">Change</string>
+    <string name="alarm_source_alarms_off">Profile wake %1$s · alarms off</string>
+    <string name="alarm_source_reason_alarms_off">alarms are off</string>
+    <string name="alarm_source_reason_other_app">from %1$s, not your alarm app</string>
+    <!-- Setup. -->
+    <string name="setup_alarm_title">Choose your alarm app</string>
+    <string name="setup_alarm_body">Nocturne can wake you with your alarm. Choose which alarms it follows.</string>
+    <string name="setup_alarm_choose">Choose</string>
+    <string name="setup_alarm_value">Alarms: %1$s</string>
+</resources>
