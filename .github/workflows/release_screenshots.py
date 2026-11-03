@@ -28,10 +28,10 @@ SETTINGS_SCREENS = (
 GAP_LOOKS = LOOKS[:4] + tuple(f"compact-{look}" for look in LOOKS[:4])
 GAP_SCREENS = (
     "00-profile-menu", "01-slot-pin", "02-wake-expiry", "03-wake-picker", "04-resume",
-    "05-checkin-dialog", "06-checkin-suggestion", "07-setup-demo", "07-setup-title",
+    "05-checkin-dialog", "06-checkin-suggestion", "07-setup-title",
     "07-setup-chooser", "08-unreadable-banner",
 )
-# Explicit producer contract: 170 primary scenes and 42 separately drawn windows.
+# Explicit producer contract: 162 primary scenes and 42 separately drawn windows.
 # This must be reviewed when ScreenshotCapture changes, never inferred from candidate files.
 FULL_SIZE_WINDOWS = {
     f"{look}-{screen}-window1.png": f"{look}-{screen}.png"
@@ -68,7 +68,7 @@ def validate_metadata(path, size):
     gap = path.name.startswith("gaps-")
     look = path.name.removeprefix("gaps-").removeprefix("compact-")
     combined = path.name.startswith(("combined-320dp-200pct-", "gaps-compact-"))
-    setup = gap and path.stem.endswith(("07-setup-demo", "07-setup-title", "07-setup-chooser", "08-unreadable-banner"))
+    setup = gap and path.stem.endswith(("07-setup-title", "07-setup-chooser", "08-unreadable-banner"))
     # The picker explicitly captures its native decor view; all other primary views are the Activity.
     dialog = gap and path.stem.endswith("03-wake-picker")
     theme = "LIGHT" if look.startswith(("light-", "simple-light-")) else "DARK"

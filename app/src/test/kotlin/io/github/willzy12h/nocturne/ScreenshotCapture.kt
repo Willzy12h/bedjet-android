@@ -247,6 +247,10 @@ class ScreenshotCapture {
                 "2026-10-21T22:30Z", "2026-10-22T07:00Z", false,
                 events = listOf(HistoryEvent("2026-10-22T07:30Z", EventKind.ENDED, "Night ended"))))
         }
+        // At large text the earlier "Stopped tracking" message can still cover the Sleep row in Settings.
+        compose.onAllNodesWithTag("snackbar-dismiss").fetchSemanticsNodes().forEach { _ ->
+            compose.onAllNodesWithTag("snackbar-dismiss")[0].performClick(); settle()
+        }
         compose.navTab("History")
         // At 320 dp / 200% text the older card is not composed until the lazy list scrolls.
         // Scroll its container first; keep the same button/dialog assertions and all captures.
@@ -527,7 +531,8 @@ class ScreenshotCapture {
     }
 
     private fun shot(name: String, windowView: android.view.View? = null) {
-        val dir = File("build/screenshots/$tag").apply { mkdirs() }
+        // The redesign tour is for review and the README, not the release inventory, so it gets its own folder.
+        val dir = File("build/screenshots/$tag" + if (name.startsWith("tour-")) "/tour" else "").apply { mkdirs() }
         val config = compose.activity.resources.configuration
         assertEquals("Capture must use the pinned Graph.clock instant", captureInstant, graph.clock.instant())
         assertEquals("Capture must use the pinned Graph.clock zone", captureZone, graph.clock.zone)

@@ -51,7 +51,7 @@ REDESIGN_NAMES = {
                   "05d-settings-backups", "05e-settings-notifications", "05f-settings-about")
 } | {
     f"gaps-{look}-{scene}.png" for look in GAP_LOOK_FIXTURES
-    for scene in ("00-profile-menu", "07-setup-demo", "07-setup-title")
+    for scene in ("00-profile-menu", "07-setup-title")
 }
 WINDOW_NAMES = {
     f"{look}-{scene}-window1.png" for look in CURRENT_LOOKS
@@ -73,14 +73,14 @@ class ScreenshotEvidenceTest(unittest.TestCase):
         self.assertIn("features-01-manual-connection-release.png", expected)
         self.assertNotIn("features-01-idle-handover.png", expected)
 
-    def test_complete_current_inventory_accepts_212_captures_and_184_unbaselined_views(self):
+    def test_complete_current_inventory_accepts_204_captures_and_176_unbaselined_views(self):
         self.assertEqual(64, len(GAP_NAMES))
         self.assertEqual(GAP_NAMES, {path.name for path in (REPOSITORY / "docs/screenshots/gaps").glob("*.png")})
-        self.assertEqual(212, len(CURRENT_NAMES))
+        self.assertEqual(204, len(CURRENT_NAMES))
         self.assertEqual(CURRENT_NAMES, screenshots.EXPECTED)
-        self.assertEqual(212, len(screenshots.EXPECTED))
+        self.assertEqual(204, len(screenshots.EXPECTED))
         self.assertEqual(28, len(screenshots.EXPECTED_BASELINE))
-        self.assertEqual(184, len(screenshots.EXPECTED - screenshots.EXPECTED_BASELINE))
+        self.assertEqual(176, len(screenshots.EXPECTED - screenshots.EXPECTED_BASELINE))
         self.assertEqual([], screenshots.validate_inventory(CURRENT_NAMES, screenshots.EXPECTED_BASELINE))
 
     def test_inventory_accepts_the_independently_archived_producer_names(self):
@@ -89,7 +89,7 @@ class ScreenshotEvidenceTest(unittest.TestCase):
         with manifest.open() as stream:
             recorded = {row["file"] for row in csv.DictReader(stream)
                         if not row["file"].startswith(("p8-", "u06/"))}
-        self.assertEqual(212, len(recorded))
+        self.assertEqual(204, len(recorded))
         self.assertEqual(CURRENT_NAMES, recorded)
         self.assertEqual([], screenshots.validate_inventory(recorded, screenshots.EXPECTED_BASELINE))
 
@@ -255,7 +255,7 @@ class ScreenshotEvidenceTest(unittest.TestCase):
                                     self.validate_fixture({**data, "simpleView": False}, (1233, 2673), name)))
 
     def test_new_setup_views_require_real_mode_after_leaving_demo(self):
-        for scene in ("07-setup-demo", "07-setup-title"):
+        for scene in ("07-setup-title",):
             name = f"gaps-compact-light-{scene}.json"
             data = self.metadata(theme="LIGHT", demoMode=False)
             with self.subTest(name=name):
