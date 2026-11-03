@@ -157,7 +157,7 @@ private class Control(val action: WidgetAction, val request: CommandRequest, val
     val running: Boolean, val sending: Boolean, val description: String, val brief: String = action.label,
     /** A profile button for the night that is running now: ringed, with a green dot. */
     val current: Boolean = false,
-    /** Not connected: greyed, and a tap only reconnects ([WidgetReconnectCallback]); it sends nothing. */
+    /** Not connected: greyed. A tap reconnects ([WidgetReconnectCallback]) and sends its action only once the BedJet answers. */
     val asleep: Boolean = false,
     /** The small moon that marks every button while the widget is not connected, Off included. */
     val moon: Boolean = false)
@@ -218,11 +218,13 @@ private fun control(context: Context, action: WidgetAction, kind: String, id: Gl
     val words = Format.Words { res, args -> context.getString(res, *args) }
     val request = widgetRequest(context, action)
     val preset = request.actionPreset ?: action.preset
-    // Asleep, a grey button only reconnects; Off keeps its own path, which connects first and then turns it off.
+    // Asleep, a grey button connects first and then runs; Off keeps its own path, which does the same for Off.
     val asleep = link != WidgetLinkState.AWAKE && !stopsBedJet(action.command)
     val click = when {
         settings.deviceId() == null && !settings.demoMode -> actionStartActivity(Intent(context, MainActivity::class.java))
-        asleep -> actionRunCallback<WidgetReconnectCallback>()
+        // Asleep, the tap waits for the connection and then runs; one needing confirmation only reconnects.
+        asleep -> if (widgetNeedsConfirmation(request, active)) actionRunCallback<WidgetReconnectCallback>()
+            else actionRunCallback<WidgetReconnectCallback>(widgetParameters(request, kind))
         widgetNeedsConfirmation(request, active) -> actionStartActivity(WidgetConfirmationActivity.intent(context, request, id, kind))
         else -> actionRunCallback<WidgetActionCallback>(widgetParameters(request, kind))
     }

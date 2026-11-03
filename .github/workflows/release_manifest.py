@@ -72,7 +72,7 @@ POLICY = {(kind, qualify(name)): (exported, permission, reason)
 REVIEWED_PERMISSIONS = {"android.permission." + name for name in (
     "BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "POST_NOTIFICATIONS",
     "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_CONNECTED_DEVICE", "SCHEDULE_EXACT_ALARM",
-    "USE_EXACT_ALARM", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "RECEIVE_BOOT_COMPLETED",
+    "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "RECEIVE_BOOT_COMPLETED",
     "health.READ_SLEEP", "health.WRITE_SLEEP", "WAKE_LOCK", "ACCESS_NETWORK_STATE",
 )} | {PACKAGE + ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"}
 
@@ -99,8 +99,9 @@ def audit(path):
     if declarations != {PACKAGE + ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION": "signature"}:
         issues.append("Declared permission inventory/protection levels changed")
     exact_alarm = next((node for node in root.findall("uses-permission") if node.get(A + "name") == "android.permission.SCHEDULE_EXACT_ALARM"), None)
-    if exact_alarm is None or exact_alarm.get(A + "maxSdkVersion") != "32":
-        issues.append("SCHEDULE_EXACT_ALARM must remain limited to API 32")
+    # The person grants exact alarms in Settings on every version; USE_EXACT_ALARM is reserved for alarm-clock apps.
+    if exact_alarm is None or exact_alarm.get(A + "maxSdkVersion") is not None:
+        issues.append("SCHEDULE_EXACT_ALARM must apply on every API level")
 
     components = []
     seen = set()

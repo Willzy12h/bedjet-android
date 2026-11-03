@@ -111,10 +111,22 @@ internal class U06Fixture(
 
     fun s(id: Int, vararg args: Any): String = RuntimeEnvironment.getApplication().getString(id, *args)
 
-    fun waitUntil(condition: () -> Boolean) = compose.waitUntil(10_000) {
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10))
-        if (!compose.mainClock.autoAdvance) compose.mainClock.advanceTimeByFrame()
-        condition()
+    /**
+     * Waits a bounded number of frames, not a bounded wall-clock time. The first test in a fork pays Robolectric's
+     * cold start (native graphics, fonts, class loading) inside its first waits; under a loaded parallel gate that
+     * alone could exceed a 10-second wall-clock budget while the app was still progressing, so the old wait failed
+     * intermittently. A frame budget fails the same way on every machine; the wall-clock limit only catches a hang.
+     */
+    fun waitUntil(condition: () -> Boolean) {
+        var frames = 0
+        var met = false
+        compose.waitUntil(WAIT_WALL_MS) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(10))
+            if (!compose.mainClock.autoAdvance) compose.mainClock.advanceTimeByFrame()
+            met = condition()
+            met || ++frames >= WAIT_FRAMES
+        }
+        assertTrue("Condition still not satisfied after $WAIT_FRAMES frames", met)
     }
 
     fun tab(label: String) {
@@ -302,5 +314,12 @@ internal class U06Fixture(
         val config = compose.activity.resources.configuration
         val dimensions = views.joinToString(",") { "{\"widthPx\":${it.width},\"heightPx\":${it.height}}" }
         File(directory, "$stem.json").writeText("""{"renderer":"Robolectric native graphics","sdk":34,"widthDp":${config.screenWidthDp},"heightDp":${config.screenHeightDp},"fontScale":${config.fontScale},"density":${compose.density.density},"look":"$look","clock":"${graph.clock.instant()}","windows":[$dimensions]}""")
+    }
+
+    private companion object {
+        /** About ten seconds of app time at one frame plus 10 ms of looper time per check. */
+        const val WAIT_FRAMES = 400
+        /** Only a hung test reaches this; slow machines are covered by the frame budget. */
+        const val WAIT_WALL_MS = 180_000L
     }
 }

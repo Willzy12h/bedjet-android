@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The widget's asleep look: not connected to the BedJet. A grey button only reconnects. -->
+    <!-- The widget's asleep look: not connected to the BedJet. A grey button connects first, then runs. -->
     <string name="widget_asleep_title">Not connected</string>
     <string name="widget_asleep_short">Asleep</string>
     <string name="widget_connecting_title">Connecting…</string>
@@ -18,7 +18,7 @@
     <string name="widget_reconnect_card_body">Also wakes when you open Nocturne</string>
     <string name="widget_reconnect_card_short">Or open Nocturne</string>
     <string name="widget_connecting_card_body">Buttons light up when it answers</string>
-    <string name="widget_asleep_control_description">%1$s: not connected. Tap to reconnect.</string>
+    <string name="widget_asleep_control_description">%1$s: not connected. A tap connects first, then runs it.</string>
     <string name="widget_asleep_off_description">%1$s: reconnects, then turns the BedJet off.</string>
 
     <!-- Android 16 and later: the BedJet coming into range wakes the widget. -->

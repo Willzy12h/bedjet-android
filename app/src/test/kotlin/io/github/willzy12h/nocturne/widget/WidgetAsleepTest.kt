@@ -61,6 +61,30 @@ class WidgetAsleepTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixt
         assertTrue(widgetDescription(widgetControl(root, "Cool")!!).contains("not connected"))
     }
 
+    private fun lastParameters() = shadowOf(RuntimeEnvironment.getApplication()).broadcastIntents.lastOrNull {
+        it.component?.className == "androidx.glance.appwidget.action.ActionCallbackBroadcastReceiver"
+    }?.getBundleExtra("ActionCallbackBroadcastReceiver:parameters")
+
+    @Test fun aGreyPresetTapCarriesItsActionToRunOnceConnected() = runBlocking {
+        val root = rendered("COOL,HEAT")
+        widgetControl(root, "Cool")!!.performClick()
+        assertEquals(WidgetReconnectCallback::class.java.name, lastCallback())
+        val parameters = lastParameters()
+        assertNotNull("A grey preset must keep its action for after the connection", parameters)
+        assertEquals("COOL", parameters!!.getString(WidgetActionCallback.COMMAND.name))
+        assertEquals("ble:AA:BB:CC:DD:EE:FF", parameters.getString(WidgetActionCallback.TARGET.name))
+        assertTrue(widgetDescription(widgetControl(root, "Cool")!!).contains("connects first, then runs it"))
+    }
+
+    @Test fun aGreyHeaderTapOnlyReconnects() = runBlocking {
+        WidgetLink.markRead(context, readAt)
+        WidgetLink.recordMiss(context, readAt + 60_000)
+        val root = rendered("COOL")
+        widgetControls(root).first { widgetDescription(it).startsWith("Not connected") }.performClick()
+        assertEquals(WidgetReconnectCallback::class.java.name, lastCallback())
+        assertNull(lastParameters()?.getString(WidgetActionCallback.COMMAND.name))
+    }
+
     @Test fun offKeepsItsOwnPathWhileAsleep() = runBlocking {
         val root = rendered("COOL")
         widgetControl(root, "Off")!!.performClick()

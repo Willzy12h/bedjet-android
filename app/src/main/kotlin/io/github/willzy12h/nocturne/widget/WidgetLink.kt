@@ -10,6 +10,7 @@ import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.updateAll
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.graph
+import io.github.willzy12h.nocturne.night.CommandRequest
 import io.github.willzy12h.nocturne.night.WidgetRead
 import io.github.willzy12h.nocturne.service.BedJetService
 import kotlinx.coroutines.CancellationException
@@ -192,18 +193,37 @@ object WidgetLink {
  * A grey widget button: one short try to reach the BedJet, through the command owner. It sends nothing; once the
  * BedJet answers the buttons light up and the next tap sends as normal.
  */
+/**
+ * A grey tap. A header or Reconnect tap carries no action and only reconnects. A grey preset or Start carries its
+ * captured request: once the BedJet answers, that request goes to the command owner as an awake tap would, so a tap
+ * made before the connection is not lost. If the BedJet is not reached, nothing is sent.
+ */
 class WidgetReconnectCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val app = context.applicationContext
-        WidgetReconnect.start(app)
+        val then = widgetRequest(parameters)?.let {
+            WidgetReconnect.Deferred(glanceId, parameters[WidgetActionCallback.KIND] ?: WidgetActionCallback.QUICK, it)
+        }
+        WidgetReconnect.start(app, then)
     }
 }
 
 object WidgetReconnect {
     private val running = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    fun start(context: Context) {
-        if (WidgetLink.state(context) == WidgetLinkState.AWAKE || !running.compareAndSet(false, true)) return
+    /** A tapped action waiting for the connection; see [WidgetReconnectCallback]. */
+    class Deferred(val id: GlanceId, val kind: String, val request: CommandRequest)
+    /** The latest grey tap's action. A newer tap replaces it; it is sent at most once. */
+    private val deferred = java.util.concurrent.atomic.AtomicReference<Deferred?>(null)
+
+    fun start(context: Context, then: Deferred? = null) {
+        if (WidgetLink.state(context) == WidgetLinkState.AWAKE) {
+            // The widget woke between drawing the grey button and this tap: send it as an awake tap.
+            then?.let { context.graph.scope.launch { send(context, it) } }
+            return
+        }
+        if (then != null) deferred.set(then)
+        if (!running.compareAndSet(false, true)) return
         WidgetLink.beginConnecting(context, System.currentTimeMillis())
         context.graph.scope.launch {
             try {
@@ -213,7 +233,11 @@ object WidgetReconnect {
                 } catch (e: CancellationException) { throw e
                 } catch (_: Exception) { WidgetRead.NOT_REACHED }
                 apply(context, read, System.currentTimeMillis())
+                // Only a widget that woke sends the waiting tap; a missed BedJet drops it unsent.
+                val waiting = deferred.getAndSet(null)
+                if (waiting != null && WidgetLink.state(context) == WidgetLinkState.AWAKE) send(context, waiting)
             } finally {
+                deferred.set(null)
                 running.set(false)
                 WidgetLink.stopConnecting(context)
                 WidgetRefresh.sync(context)
@@ -238,6 +262,17 @@ object WidgetReconnect {
         val at = graph.statusReadAt.value ?: return false
         val age = java.time.Duration.between(at, graph.now()).toMillis()
         return age in 0..FRESH_READ_MS
+    }
+
+    /**
+     * Hands a waiting tap to the same delivery as an awake tap. A request that now needs the night's confirmation is
+     * not sent from here: the widget is awake, and the next tap opens the confirmation.
+     */
+    internal suspend fun send(context: Context, waiting: Deferred) {
+        if (widgetNeedsConfirmation(waiting.request, context.graph.repository.activeNight.value)) return
+        try { WidgetDelivery.submit(context, waiting.id, waiting.kind, waiting.request) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { }
     }
 
     suspend fun redraw(context: Context) {
