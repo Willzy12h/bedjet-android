@@ -63,7 +63,8 @@ Updates opens the Releases page; the app never checks or downloads anything by i
 | Companion device presence | Optional. Lets Android tell Nocturne when your BedJet comes back into range, so the widget wakes up. |
 | Health Connect (sleep, read and write) | Optional and off by default. Read: show sleep stages on the Sleep page. Write: record completed BedJet programmes. |
 
-There is no internet permission.
+Android libraries add two more: keep the processor awake briefly for background work (wake lock) and read whether
+the phone has a network (network state). There is no internet permission.
 
 ## Privacy
 
