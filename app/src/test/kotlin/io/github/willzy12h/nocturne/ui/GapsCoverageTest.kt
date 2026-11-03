@@ -147,12 +147,15 @@ class GapsCoverageTest {
         assertEquals(WakeOrigin.OVERRIDE, running.wakeOrigin)
     }
 
-    @Test fun refusedPreviewExplainsWhyAndDisablesStart() {
+    @Test fun outOfRangeWakeExplainsWhyAndOffersToChooseAWake() {
         val now = graph.now()
-        settings { it.setWakeOverride(now.plusMinutes(30), now) }
-        val reason = s(R.string.night_duration_outside_window)
+        val wake = now.plusMinutes(30)
+        settings { it.setWakeOverride(wake, now) }
+        val reason = compose.activity.getString(R.string.tonight_wake_out_of_range, wake.format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm")))
         compose.onNodeWithText(reason).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(s(R.string.tonight_start_now)).assertIsNotEnabled()
+        // Start stays available: it asks for a wake that fits, and nothing starts until one is chosen.
+        compose.onNodeWithText(s(R.string.tonight_start_now)).assertDoesNotExist()
+        compose.onNodeWithText(s(R.string.tonight_choose_wake_and_start)).performScrollTo().assertIsEnabled()
         assertNull(graph.repository.activeNight.value)
     }
 }

@@ -40,6 +40,16 @@ class AlarmWindowExplanationTest {
         assertTrue(text, text.contains("too soon"))
         assertTrue(text, text.contains("1 hour"))
     }
+    @Test fun onlyAnAlarmFromANonClockAppIsIgnoredWithoutComment() {
+        fun from(creator: String) = AlarmExplanation.resolve(Settings(), Presets.springAutumn, now,
+            AlarmSource.NextAlarm(now.plusHours(8), creator, true)).copy(reason = AlarmReason.SOURCE_NOT_ALLOWED)
+        val otherClock = ClockApps.App("com.example.clock", "Example Clock")
+        assertTrue(from("com.android.providers.calendar").isStrayAlarm(listOf(otherClock)))
+        assertFalse(from("com.example.clock").isStrayAlarm(listOf(otherClock)))
+        assertFalse(from("com.sec.android.app.clockpackage").isStrayAlarm(emptyList()))
+        assertFalse(from("com.google.android.deskclock").isStrayAlarm(emptyList()))
+        assertFalse(from("com.android.providers.calendar").copy(reason = AlarmReason.ELIGIBLE).isStrayAlarm(emptyList()))
+    }
     @Test fun tooLateExplainsTheNewEighteenHourMaximum() {
         val text = AlarmExplanation.resolve(Settings(), Presets.springAutumn, now,
             AlarmSource.NextAlarm(now.plusHours(18).plusMinutes(1), null, true))

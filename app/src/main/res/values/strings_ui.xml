@@ -176,6 +176,9 @@
     <string name="tonight_end_night">Stop night</string>
     <string name="tonight_start_now">Start night now</string>
     <string name="tonight_set_wake">Set tonight-only wake</string>
+    <string name="tonight_choose_wake_and_start">Choose wake time and start</string>
+    <!-- %1$s is a day and time, for example "Tue 07:00". -->
+    <string name="tonight_wake_out_of_range">Wake-up would be %1$s, which doesn’t fit a 1–18 hour night. Choose a wake time for this night and it starts straight away.</string>
     <string name="tonight_clear_wake">Clear wake override</string>
     <string name="tonight_follow_schedule">Tonight only · Follow schedule</string>
     <!-- The connection chip: mode, room and air temperatures. -->

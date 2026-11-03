@@ -92,6 +92,7 @@ import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.night.AlarmExplanation
 import io.github.willzy12h.nocturne.night.AlarmSettingsTarget
+import io.github.willzy12h.nocturne.night.isStrayAlarm
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import kotlinx.coroutines.delay
 import java.time.ZonedDateTime
@@ -131,17 +132,22 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val wakeOverride = settings.resolveWakeOverride(now)
     val confirmed = night != null && night.confidence == Confidence.CONFIRMED && nightStatus.confidence == Confidence.CONFIRMED
     val overridable = night == null || (confirmed && !night.trackingManual && !night.isTestRun)
-    val pickWake: () -> Unit = {
+    // [then] runs after the chosen wake is saved, so "choose a wake and start" is one step for the user.
+    val pickWakeThen: (then: (() -> Unit)?) -> Unit = { then ->
         if (overridable) {
             val current = model.now()
             val initial = settings.resolveWakeOverride(current)?.wakeAt?.let(ZonedDateTime::parse) ?: plannedWake ?: current
             val expectedNight = night?.identity
             val themed = android.view.ContextThemeWrapper(context, if (pickerTokens.dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
             TimePickerDialog(themed, { _, hour, minute ->
-                model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()), expectedNight)
+                model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()), expectedNight,
+                    onFinished = then ?: {})
             }, initial.hour, initial.minute, true).apply { show(); styleNativeDialog(this, pickerTokens) }
         }
     }
+    val pickWake: () -> Unit = { pickWakeThen(null) }
+    // A night that would be too long (usually a daytime start) can still start now once it has a wake time that fits.
+    val needsWake = night == null && plan == null && preview?.durationProblem != null && overridable
     val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, night, runtime, nightStatus, previewWake = preview?.wake)
     var choosingAlarmApps by remember { mutableStateOf(false) }
     if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false }) {
@@ -258,11 +264,22 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 if (showDetail) PlanCard(p, settings, night?.wakeOrigin ?: preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT,
                     now = now.takeIf { night != null && confirmed }, end = end, middle = night?.profile?.middle ?: profile?.middle,
                     onEditPhase = if (profile == null) null else editPhase)
-            } ?: if (night == null) Text(preview?.refusalReason.orEmpty(), color = MaterialTheme.colorScheme.onSurface) else Unit
+            } ?: if (night == null) Text(if (needsWake) stringResource(R.string.tonight_wake_out_of_range,
+                    preview!!.wake.time.format(DateTimeFormatter.ofPattern("EEE HH:mm"))) else preview?.refusalReason.orEmpty(),
+                color = MaterialTheme.colorScheme.onSurface) else Unit
             if (night == null) profile?.let { selected ->
                 val later = plan?.start?.isAfter(now.plusMinutes(1)) == true
-                BigButton(if (later) stringResource(R.string.tonight_start_at, Format.clock(plan!!.start)) else stringResource(R.string.tonight_start_now),
-                    enabled = !busy && plan != null, onClick = { model.run(Command.START_NIGHT, selected.id) })
+                BigButton(when {
+                        needsWake -> stringResource(R.string.tonight_choose_wake_and_start)
+                        later -> stringResource(R.string.tonight_start_at, Format.clock(plan!!.start))
+                        else -> stringResource(R.string.tonight_start_now)
+                    },
+                    enabled = !busy && (plan != null || needsWake), onClick = {
+                        if (needsWake) pickWakeThen {
+                            // Only start when the chosen wake gives a night that fits; otherwise the card explains again.
+                            if (model.startPreview(selected).plan != null) model.run(Command.START_NIGHT, selected.id)
+                        } else model.run(Command.START_NIGHT, selected.id)
+                    })
             } else {
                 plan?.steps?.getOrNull((current?.first ?: -1) + 1)?.takeIf { confirmed }?.let { next ->
                     val stripe = tokens.stepColor(next.step.mode, next.step.temperature)
@@ -289,19 +306,26 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     }
                 }
             }
+            // The wake links sit with tonight's plan, so the presets below stay in view.
+            val setWake = wakeOverride == null && night == null && overridable && !needsWake
+            val clearWake = wakeOverride != null && overridable
+            val followSchedule = settings.resolveTonightChoice(now) != null
+            if (setWake || clearWake || followSchedule) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (setWake) TextButton(onClick = pickWake) { Text(stringResource(R.string.tonight_set_wake)) }
+                if (clearWake) TextButton(onClick = { model.setTonightWake(null) }) {
+                    Text(stringResource(R.string.tonight_clear_wake))
+                }
+                if (followSchedule) TextButton(onClick = { model.updateSettings { it.followSchedule() } }) {
+                    Text(stringResource(R.string.tonight_follow_schedule))
+                }
+            }
         }
 
-        // Long fallback explanations must remain readable without consuming the controls' viewport.
-        headline.reason?.let { Note(stringResource(it)) }
-        AlarmExplanationLine(explanation, openExplanation)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (wakeOverride == null && night == null && overridable) TextButton(onClick = pickWake) { Text(stringResource(R.string.tonight_set_wake)) }
-            if (wakeOverride != null && overridable) TextButton(onClick = { model.setTonightWake(null) }) {
-                Text(stringResource(R.string.tonight_clear_wake))
-            }
-            if (settings.resolveTonightChoice(now) != null) TextButton(onClick = { model.updateSettings { it.followSchedule() } }) {
-                Text(stringResource(R.string.tonight_follow_schedule))
-            }
+        // One line explains the wake; an alarm from a calendar or reminder app is simply ignored, without comment.
+        val clockApps by model.clockApps.collectAsState()
+        if (!explanation.isStrayAlarm(clockApps)) {
+            headline.reason?.let { Note(stringResource(it)) }
+            AlarmExplanationLine(explanation, openExplanation)
         }
         wakeOverride?.let { override ->
             runCatching { ZonedDateTime.parse(override.expiresAt) }.getOrNull()?.let { lapses ->
