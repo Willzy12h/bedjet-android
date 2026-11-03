@@ -85,7 +85,7 @@ class ScreenshotEvidenceTest(unittest.TestCase):
 
     def test_inventory_accepts_the_independently_archived_producer_names(self):
         import csv
-        manifest = REPOSITORY / "docs/redesign/evidence/remediation/visual/capture-manifest.csv"
+        manifest = REPOSITORY / ".github/workflows/fixtures/capture-manifest.csv"
         with manifest.open() as stream:
             recorded = {row["file"] for row in csv.DictReader(stream)
                         if not row["file"].startswith(("p8-", "u06/"))}

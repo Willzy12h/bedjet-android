@@ -15,7 +15,7 @@ import io.github.willzy12h.nocturne.core.plan.HeatScale
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.Palette
 
-// Redesign foundation (docs/redesign). Tokens are copied from the approved design's CSS so the two stay comparable:
+// Design foundation. Tokens are copied from the approved design's CSS so the two stay comparable:
 // ground = --phbg, glow = --phglow, surface = --glass, surface2 = --glass2, accent = --fav, sheet = --sheetbg.
 
 /** One palette's colours. Mode colours are shared by the dark palettes; Overcast has its own, deeper set. */

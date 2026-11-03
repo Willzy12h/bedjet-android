@@ -9,7 +9,6 @@ import org.junit.jupiter.params.provider.CsvSource
 /**
  * Literal BedJet 3 bytes independently checked against Lull's public Codec.swift at f98821a6f53cbe80c00fc1ba11396a9433b322f0.
  * ESPHome's bedjet_codec.h independently documents byte 27: 0x10 means lights enabled, 0x01 means beeps muted.
- * Sources and verification results are recorded in docs/review/fixes2-ui-protocol-evidence.md.
  */
 class LightsAndBeepsProtocolTest {
     @Test fun lightsOnSendsTheLedEnableButton() {

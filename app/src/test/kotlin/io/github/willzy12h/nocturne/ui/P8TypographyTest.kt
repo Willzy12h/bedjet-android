@@ -26,8 +26,8 @@ class P8TypographyTest {
     @get:Rule val rules = ui.rules
 
     @Test fun packagedFontLicencesPreserveTheCompleteUpstreamNotices() {
-        val expected = java.io.File("../docs/redesign/fonts/FIGTREE-OFL.txt").readText() + "\n\n" +
-            java.io.File("../docs/redesign/fonts/BRICOLAGE-OFL.txt").readText()
+        val expected = java.io.File("../docs/licences/FIGTREE-OFL.txt").readText() + "\n\n" +
+            java.io.File("../docs/licences/BRICOLAGE-OFL.txt").readText()
         assertEquals(expected, org.robolectric.RuntimeEnvironment.getApplication().getString(R.string.font_licences_text))
     }
 
