@@ -201,7 +201,21 @@
       "setupDismissedOptional": [
         "health",
         "widget"
-      ]
+      ],
+      "alarmApps": "ONE_APP",
+      "alarmAppsChosen": true,
+      "sleepSectionOrder": [
+        "nights",
+        "trend",
+        "stages",
+        "figures",
+        "compare",
+        "noticed",
+        "timeline",
+        "history"
+      ],
+      "sleepRangeDays": 30,
+      "historyKeepDays": 365
     },
     "slotBackup": {
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
@@ -695,6 +709,11 @@
       {
         "$ref": "action"
       }
+    ],
+    "io.github.willzy12h.nocturne.core.store.AlarmApps": [
+      "CLOCK_APPS",
+      "ONE_APP",
+      "NONE"
     ],
     "io.github.willzy12h.nocturne.core.store.AutoStartMode": [
       "FIXED",
