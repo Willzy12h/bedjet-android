@@ -27,6 +27,9 @@ POLICY_ROWS = [
     ("activity", ".widget.WidgetConfirmationActivity", False, None, "Private direct widget PendingIntent opens only the translucent confirmation; captured target/night are checked again by the command owner."),
     ("service", ".platform.ChargerJobService", True, "android.permission.BIND_JOB_SERVICE", "System JobScheduler must bind; platform bind permission excludes ordinary callers."),
     ("service", ".platform.NightTileService", True, "android.permission.BIND_QUICK_SETTINGS_TILE", "System Quick Settings must bind; platform tile bind permission excludes ordinary callers."),
+    ("activity", ".widget.QuickControlsConfigActivity", True, None, "Widget host opens visible configuration; an ID that is not one of this app's controls widgets exits before any preference changes."),
+    ("service", ".widget.WidgetRefreshService", True, "android.permission.BIND_JOB_SERVICE", "System JobScheduler must bind for the background widget read; platform bind permission excludes ordinary callers."),
+    ("service", ".widget.WidgetPresenceService", True, "android.permission.BIND_COMPANION_DEVICE_SERVICE", "Android companion presence must bind; platform bind permission excludes ordinary callers and an event only requests a widget reconnect."),
     ("service", ".service.BedJetService", False, None, "Internal owner of hardware operations; external apps cannot start or bind it directly."),
     ("receiver", ".platform.PlatformClockReceiver", False, None, "System boot/package/clock events remain deliverable; no ordinary external sender is needed."),
     ("receiver", ".platform.AutomationCancelReceiver", False, None, "Immutable in-app notification PendingIntents only."),
@@ -72,7 +75,7 @@ POLICY = {(kind, qualify(name)): (exported, permission, reason)
 REVIEWED_PERMISSIONS = {"android.permission." + name for name in (
     "BLUETOOTH_SCAN", "BLUETOOTH_CONNECT", "POST_NOTIFICATIONS",
     "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_CONNECTED_DEVICE", "SCHEDULE_EXACT_ALARM",
-    "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "RECEIVE_BOOT_COMPLETED",
+    "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "RECEIVE_BOOT_COMPLETED", "REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE",
     "health.READ_SLEEP", "health.WRITE_SLEEP", "WAKE_LOCK", "ACCESS_NETWORK_STATE",
 )} | {PACKAGE + ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"}
 

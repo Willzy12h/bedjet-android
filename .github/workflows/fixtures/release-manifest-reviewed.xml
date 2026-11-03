@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -33,6 +34,9 @@
         <activity android:name=".ui.ShortcutActivity" android:exported="true" />
         <activity android:name=".widget.SingleActionConfigActivity" android:exported="true" />
         <activity android:name=".widget.WidgetConfirmationActivity" android:exported="false" />
+        <activity android:name=".widget.QuickControlsConfigActivity" android:exported="true" />
+        <service android:name=".widget.WidgetRefreshService" android:exported="true" android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service android:name=".widget.WidgetPresenceService" android:exported="true" android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE" />
         <service android:name=".platform.ChargerJobService" android:exported="true" android:permission="android.permission.BIND_JOB_SERVICE" />
         <service android:name=".platform.NightTileService" android:exported="true" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE" />
         <service android:name=".service.BedJetService" android:exported="false" />
