@@ -135,7 +135,6 @@
     <string name="settings_no_alarm">No alarm is set on this phone.</string>
     <string name="settings_next_alarm">Next alarm %1$s from %2$s.</string>
     <string name="settings_next_alarm_unused">Next alarm %1$s from %2$s — not used.</string>
-    <string name="settings_use_alarms_from">Use alarms from %1$s</string>
     <string name="settings_used_from">Used from: %1$s</string>
     <string name="settings_phone_setup">Phone setup</string>
     <string name="settings_backups">Backups and snapshots</string>

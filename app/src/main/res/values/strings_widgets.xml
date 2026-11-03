@@ -44,11 +44,8 @@
     <string name="widget_mode_temperature">%1$s %2$s</string>
     <string name="widget_demo">Demo</string>
     <string name="widget_header_description">%1$s. %2$s. Opens Nocturne.</string>
-    <string name="widget_plan_description">%1$s is running. %2$s. %3$s.</string>
-    <string name="widget_running">Running · %1$s</string>
     <string name="widget_tile_sending">Sending…</string>
     <string name="widget_controls_config">Choose the presets for Controls</string>
-    <string name="widget_controls_config_help">Ticked presets show in this order. Off is always there. Bigger widgets show more.</string>
     <string name="widget_controls_save">Save</string>
     <string name="widget_move_up">Move %1$s up</string>
     <string name="widget_move_down">Move %1$s down</string>

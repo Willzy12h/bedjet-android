@@ -1,5 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_unknown_alarm_sources">Next known alarm, from any app</string>
-    <string name="settings_unknown_alarm_sources_help">Uses the phone’s next alarm even when its clock app does not say which app it is. Some clock apps never do. The alarm must still fall within tonight’s 1–18 hour window.</string>
 </resources>
