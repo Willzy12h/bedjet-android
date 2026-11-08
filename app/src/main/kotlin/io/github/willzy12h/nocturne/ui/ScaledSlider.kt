@@ -52,6 +52,8 @@ internal fun ScaledSlider(
     tag: String,
     onValueChangeFinished: () -> Unit,
     colors: SliderColors = amountSliderColors(),
+    /** Labels the ends must have room for besides today's, so a different end label never resizes the bar. */
+    edgeLabels: List<String> = emptyList(),
 ) {
     val style = MaterialTheme.typography.labelMedium
     if (!value.isFinite() || !range.start.isFinite() || !range.endInclusive.isFinite() ||
@@ -70,7 +72,8 @@ internal fun ScaledSlider(
     val measurer = rememberTextMeasurer()
     val widths = ticks.map { measurer.measure(AnnotatedString(it.second), style).size.width }
     val thumbRadius = with(density) { (SLIDER_THUMB / 2).toPx() }
-    val edge = maxOf(thumbRadius, (maxOf(widths.first(), widths.last()) + 1) / 2f)
+    val reserved = edgeLabels.maxOfOrNull { measurer.measure(AnnotatedString(it), style).size.width } ?: 0
+    val edge = maxOf(thumbRadius, (maxOf(widths.first(), widths.last(), reserved) + 1) / 2f)
     val inset = with(density) { (edge - thumbRadius).toDp() }
     Column(Modifier.fillMaxWidth()) {
         NocturneSlider(value, onValueChange, modifier = modifier.fillMaxWidth().padding(horizontal = inset),

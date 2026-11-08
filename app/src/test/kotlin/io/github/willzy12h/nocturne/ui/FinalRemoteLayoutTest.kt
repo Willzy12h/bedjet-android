@@ -77,7 +77,8 @@ class FinalRemoteLayoutTest {
     @Test fun temperatureScaleUsesTheReportedModeLimitsAndFitsAtTwoHundredPercent() {
         ui.tab("Remote")
         val status = ui.graph.link.status.value!!
-        val values = listOf(status.minTemperature, (status.minTemperature + status.maxTemperature) / 2, status.maxTemperature)
+        val scale = status.mode.temperatureRange
+        val values = listOf(scale.first, (scale.first + scale.last) / 2, scale.last)
         values.forEachIndexed { index, value ->
             val tick = ui.compose.onNodeWithTag("temperature-tick-$index")
             tick.assertTextEquals(Format.temp(value, false, Format.Words { id, args -> ui.s(id, *args) }))

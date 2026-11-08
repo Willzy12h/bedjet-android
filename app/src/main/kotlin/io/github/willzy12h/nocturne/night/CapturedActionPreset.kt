@@ -14,7 +14,7 @@ internal fun validCapturedPreset(command: NightActions.Command, preset: ActionPr
         NightActions.Command.TEMPORARY -> preset.minutes in 1..(if (preset.mode == Mode.TURBO) 30 else 120)
         NightActions.Command.TURBO -> preset.mode == Mode.TURBO && preset.minutes in 1..10
         NightActions.Command.BOOST -> preset.mode == Mode.TURBO && preset.minutes in 1..30
-        NightActions.Command.WARM, NightActions.Command.COOL -> preset.mode != Mode.TURBO && preset.minutes in 1..120
+        NightActions.Command.WARM, NightActions.Command.COOL -> preset.mode != Mode.TURBO && preset.minutes in 1..Limits.MAX_STEP_MINUTES
         else -> false
     }
 }

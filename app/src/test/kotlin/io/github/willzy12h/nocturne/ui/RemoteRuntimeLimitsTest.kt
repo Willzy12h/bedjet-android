@@ -101,13 +101,14 @@ class RemoteRuntimeLimitsTest {
         ui.compose.onNodeWithText("Minutes").performTextReplacement(minutes)
     }
 
-    @Test fun heatCustomRejectsZeroAndBeyondTheReportedMaximum() {
+    @Test fun heatCustomRejectsZeroAndSetsBeyondTheReportedMaximumToIt() {
         openRemote()
         custom("0", "0")
         ui.compose.onNodeWithText("Set duration").assertIsNotEnabled()
         ui.compose.onNodeWithText("Hours").performTextReplacement("4")
         ui.compose.onNodeWithText("Minutes").performTextReplacement("1")
-        ui.compose.onNodeWithText("Set duration").assertIsNotEnabled()
+        ui.compose.onNodeWithText("Set duration").assertIsEnabled()
+        ui.compose.onNodeWithText("so it’s set to that", substring = true).assertExists()
         ui.compose.onNodeWithText("Minutes").performTextReplacement("0")
         ui.compose.onNodeWithText("Set duration").assertIsEnabled()
         ui.compose.onNodeWithText("Minutes").performTextReplacement("60")
@@ -117,10 +118,11 @@ class RemoteRuntimeLimitsTest {
     @Test fun turboCustomCannotExceedTenMinutes() {
         openRemote()
         custom("0", "11")
-        ui.compose.onNodeWithText("Set duration").assertIsNotEnabled()
+        ui.compose.onNodeWithText("so it’s set to that", substring = true).assertExists()
         ui.compose.onNodeWithText("Minutes").performTextReplacement("10")
         ui.compose.onNodeWithText("Set duration").assertIsEnabled()
-        ui.compose.onNodeWithText("Hours").performTextReplacement("1")
+        ui.compose.onNodeWithText("so it’s set to that", substring = true).assertDoesNotExist()
+        ui.compose.onNodeWithText("Minutes").performTextReplacement("60")
         ui.compose.onNodeWithText("Set duration").assertIsNotEnabled()
     }
 

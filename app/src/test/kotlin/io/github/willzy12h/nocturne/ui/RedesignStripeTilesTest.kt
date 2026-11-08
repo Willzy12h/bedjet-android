@@ -85,7 +85,8 @@ class RedesignStripeTilesTest {
     @Test fun presetSubtitleIsCompleteAndWrapsOnNarrowTile() {
         showPresets(120)
         val preset = QuickDefaults.resolve(ui.graph.repository.settings.value, Mode.HEAT)
-        val subtitle = ui.compose.activity.resources.getQuantityString(R.plurals.uat_quick_summary, preset.minutes, Format.temp(preset.temperature, false, Format.Words { id, args -> ui.s(id, *args) }), preset.fanPercent, preset.minutes)
+        val words = Format.Words { id, args -> ui.s(id, *args) }
+        val subtitle = ui.compose.activity.getString(R.string.quick_summary, Format.temp(preset.temperature, false, words), preset.fanPercent, Format.duration(preset.minutes, words))
         val node = ui.compose.onNodeWithText(subtitle, useUnmergedTree = true).performScrollTo().assertExists()
         val layouts = mutableListOf<TextLayoutResult>()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }

@@ -44,9 +44,9 @@ internal fun captureDuration(graph: Graph, status: DeviceStatus, minutes: Int): 
  */
 internal fun spokenMaximum(maximumMinutes: Int): Int = if (maximumMinutes % 60 == 59) maximumMinutes + 1 else maximumMinutes
 
-/** The minutes to send for what was entered, or null when it is outside 1 minute to the spoken limit. */
+/** The minutes to send for what was entered: anything longer than the limit becomes the limit; null for nothing. */
 internal fun enteredMinutes(total: Int?, maximumMinutes: Int): Int? =
-    total?.takeIf { it in 1..spokenMaximum(maximumMinutes) }?.coerceAtMost(maximumMinutes)
+    total?.takeIf { it >= 1 && maximumMinutes >= 1 }?.coerceAtMost(maximumMinutes)
 
 @Composable
 internal fun CustomRunDuration(captured: CapturedDuration, onDismiss: () -> Unit, onConfirm: (CapturedDuration) -> Unit) {
@@ -68,6 +68,7 @@ internal fun CustomRunDuration(captured: CapturedDuration, onDismiss: () -> Unit
                 OutlinedTextField(minutes, { minutes = it.take(3) }, label = { Text(stringResource(R.string.remote_custom_minutes)) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = nocturneTextFieldColors())
                 if (!valid) Text(stringResource(R.string.remote_custom_invalid))
+                else durationLimitNote(requireNotNull(captured.request.actionPreset).mode, total, captured.maximumMinutes)?.let { Text(it) }
             }
         },
         confirmButton = { TextButton(onClick = { if (valid) onConfirm(captured.forMinutes(chosen!!)) }, enabled = valid) {

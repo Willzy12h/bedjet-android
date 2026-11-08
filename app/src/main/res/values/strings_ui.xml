@@ -203,7 +203,6 @@
     <string name="remote_title">Remote</string>
     <string name="remote_connect">Connect to your BedJet to use the remote.</string>
     <string name="remote_air_room">Air %1$s · room %2$s</string>
-    <string name="remote_running">Target %1$s · fan %2$d%% · %3$s left</string>
     <string name="remote_program_step">Running step %1$d of a night</string>
     <string name="remote_temperature_set">Temperature set</string>
     <string name="remote_fan_set">Fan set</string>

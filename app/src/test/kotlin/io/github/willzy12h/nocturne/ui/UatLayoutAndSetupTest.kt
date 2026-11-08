@@ -225,15 +225,17 @@ class UatLayoutAndSetupTest {
         for (mode in QuickDefaults.modes) {
             val preset = QuickDefaults.resolve(model.settings.value, mode)
             val captured = captureModeQuick(model, preset)
+            // A temporary change still resumes the night within two hours; ending tonight keeps the full run.
+            val temporary = preset.copy(minutes = preset.minutes.coerceAtMost(120))
             assertEquals(preset, captured.end.actionPreset)
-            assertEquals(preset, captured.temporary.preset)
+            assertEquals(temporary, captured.temporary.preset)
             assertTrue(captured.end.requireIdentity)
             assertTrue(captured.end.replacementConfirmed)
             assertFalse(captured.temporary.request.replacementConfirmed)
             assertEquals(io.github.willzy12h.nocturne.night.NightActions.Command.TEMPORARY, captured.temporary.request.command)
             runBlocking { model.graph.repository.updateSettings { QuickDefaults.withPreset(it, preset.copy(minutes = 1)) } }
             assertEquals(preset, captured.end.actionPreset)
-            assertEquals(preset, captured.temporary.preset)
+            assertEquals(temporary, captured.temporary.preset)
         }
     }
 
