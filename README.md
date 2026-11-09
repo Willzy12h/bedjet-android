@@ -17,6 +17,10 @@ Bluetooth only. No account, no cloud, no internet permission. Not affiliated wit
 </p>
 <p align="center"><sub>Rendered against the simulated BedJet used by the tests.</sub></p>
 
+**[Try the interactive demo →](https://willzy12h.github.io/bedjet-android/demo/)** An HTML version of the app you can
+tap through in a browser, with a pretend BedJet and a clock you can run through the night. It isn't the app itself and
+may lag behind the latest build.
+
 **[See every screen →](https://github.com/Willzy12h/bedjet-android/blob/gallery/README.md)** Every tab, page, sheet,
 menu and widget in the Midnight Ink palette. It is re-rendered automatically after each change to `main`.
 
@@ -108,6 +112,7 @@ You need JDK 17 or newer (CI uses 21) and the Android SDK (API 36).
 | `app/` | Android: Bluetooth link, foreground service, alarms and notifications, Compose screens, Glance widgets |
 | `.github/workflows/` | CI: build, tests, release-manifest audit and screenshot checks |
 | `docs/screenshots/` | Reference screenshots the CI screenshot check compares against |
+| `docs/demo/` | The interactive HTML demo, served by GitHub Pages (see [docs/demo/README.md](docs/demo/README.md)) |
 
 ### Signing your own build
 
