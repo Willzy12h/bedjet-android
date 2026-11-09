@@ -539,27 +539,36 @@ class ScreenshotCapture {
             "permissions" to "Permissions", "backups" to "Backups", "notifications" to "Notifications",
             "sleep" to "Sleep and history", "health" to "Health Connect", "about" to "About")
         for ((id, caption) in pages) {
-            if (compose.onAllNodesWithTag("settings-page-$id").fetchSemanticsNodes().isEmpty()) continue
+            // Return to the Settings home and bring the row into view; the home list composes lazily.
+            repeat(3) {
+                if (compose.onAllNodesWithTag("settings-page-bedjet").fetchSemanticsNodes().isEmpty() &&
+                    compose.onAllNodesWithTag("settings-back").fetchSemanticsNodes().isNotEmpty()) { top(); compose.backSettingsPage(); settle() }
+            }
+            top()
+            runCatching { compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasTestTag("settings-page-$id")) }
+            settle()
+            check(compose.onAllNodesWithTag("settings-page-$id").fetchSemanticsNodes().isNotEmpty()) { "Settings page $id is not reachable" }
             compose.openSettingsPage(id); settle(); top()
             page("Settings", caption)
-            compose.backSettingsPage(); settle()
+            top(); compose.backSettingsPage(); settle()
         }
 
         save {
             val profile = Presets.summerCool.copy(id = "gallery-checkin", name = "Summer comfort")
             graph.repository.saveProfile(profile)
             graph.repository.addRecord(NightRecord("gallery-checkin-night", profile.id, profile.name,
-                "2026-10-21T22:30Z", "2026-10-22T07:00Z", false,
-                events = listOf(HistoryEvent("2026-10-22T07:30Z", EventKind.ENDED, "Night ended"))))
+                "2026-10-21T23:45Z", "2026-10-22T08:00Z", false,
+                events = listOf(HistoryEvent("2026-10-22T08:05Z", EventKind.ENDED, "Night ended"))))
         }
+        // The newest night is the one waiting for a check-in; older demo nights already have answers.
         compose.navTab("History")
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(s(R.string.checkin_button)))
         compose.onAllNodesWithText(s(R.string.checkin_button))[0].performScrollTo().performClick(); settle()
         one("Sleep", "Morning check-in")
-        compose.onAllNodesWithText(s(R.string.checkin_too_hot))[0].performClick()
+        compose.onNode(hasText(s(R.string.checkin_too_hot)) and hasAnyAncestor(isDialog())).performClick()
         compose.waitUntil(15_000) { settle(100); compose.onAllNodesWithText(s(R.string.checkin_change_title)).fetchSemanticsNodes().isNotEmpty() }
         one("Sleep", "A suggested change after a check-in")
-        compose.onAllNodesWithText(s(R.string.checkin_keep))[0].performClick(); settle()
+        compose.onNode(hasText(s(R.string.checkin_keep)) and hasAnyAncestor(isDialog())).performClick(); settle()
 
         compose.navTab("Settings")
         compose.navTab("Tonight"); top()
@@ -688,7 +697,27 @@ class ScreenshotCapture {
         val views = windowView?.let(::listOf) ?: android.view.inspector.WindowInspector.getGlobalWindowViews()
             .filter { it.isShown && it.width > 0 && it.height > 0 }
         assertTrue("Capture must include a visible window", views.isNotEmpty())
-        views.forEachIndexed { index, view ->
+        if (name.startsWith("gallery-") && windowView == null && views.size > 1) {
+            // The gallery shows a dialog, sheet or menu where it sits, over the dimmed screen behind it.
+            val base = views.first()
+            val bitmap = Bitmap.createBitmap(base.width, base.height, Bitmap.Config.ARGB_8888)
+            try {
+                compose.runOnUiThread {
+                    val canvas = Canvas(bitmap)
+                    base.draw(canvas)
+                    canvas.drawColor(0x99000000.toInt())
+                    val origin = IntArray(2).also(base::getLocationOnScreen)
+                    views.drop(1).forEach { window ->
+                        val at = IntArray(2).also(window::getLocationOnScreen)
+                        canvas.save()
+                        canvas.translate((at[0] - origin[0]).toFloat(), (at[1] - origin[1]).toFloat())
+                        window.draw(canvas)
+                        canvas.restore()
+                    }
+                }
+                NativePngCapture.write(bitmap, File(dir, "$name.png"))
+            } finally { bitmap.recycle() }
+        } else views.forEachIndexed { index, view ->
             assertTrue("Capture window must be laid out", view.width > 0 && view.height > 0)
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             try {
