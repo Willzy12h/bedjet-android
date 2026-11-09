@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import io.github.willzy12h.nocturne.core.protocol.Limits
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
@@ -184,7 +185,7 @@ class UatLayoutAndSetupTest {
             if (mode != null && mode != Mode.STANDBY) {
                 val preset = QuickDefaults.resolve(settings, mode)
                 val words = Format.Words { id, args -> app.getString(id, *args) }
-                val duration = Format.duration(preset.minutes, words)
+                val duration = Format.duration(if (preset.minutes == Limits.MAX_STEP_MINUTES) spokenMaximum(preset.minutes) else preset.minutes, words)
                 val subtitle = if (mode.usesTemperature) app.getString(R.string.quick_tile_detail,
                     Format.temp(preset.temperature, false, words), duration) else duration
                 checkText(subtitle)
