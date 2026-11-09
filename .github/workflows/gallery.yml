@@ -1,0 +1,90 @@
+name: Screen gallery
+
+# Re-renders every screen in the Midnight Ink palette after changes reach main and publishes
+# them as the `gallery` branch, whose README is linked from the project README.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "core/**"
+      - ".github/workflows/gallery.yml"
+      - ".github/workflows/screen_gallery.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nocturne-gallery
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  gallery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        env:
+          ANDROID_SDK_ROOT: ${{ runner.temp }}/nocturne-android-sdk
+        with:
+          cmdline-tools-version: "15859902"
+          accept-android-sdk-licenses: false
+          packages: ''
+          log-accepted-android-sdk-licenses: false
+
+      - name: Android SDK packages
+        run: |
+          mkdir -p "$RUNNER_TEMP/gallery-evidence"
+          python3 -B .github/workflows/android_sdk_profile.py install \
+            --output "$RUNNER_TEMP/gallery-evidence/android-sdk-install.json"
+
+      - name: Render screens
+        env:
+          SCREENSHOT_TAG: gallery
+        run: |
+          ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+            :app:testDebugUnitTest --tests '*ScreenshotCapture.gallery' --tests '*WidgetCaptureTest*'
+
+      - name: Build gallery page
+        run: |
+          python3 -B .github/workflows/screen_gallery.py --capture app/build/screenshots/gallery \
+            --output "$RUNNER_TEMP/gallery" --commit "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"
+
+      - name: Publish gallery branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The gallery branch is generated output: one orphan commit, replaced on every run.
+          cd "$RUNNER_TEMP/gallery"
+          git init -q -b gallery
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Screen gallery for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:gallery
+          echo "Published https://github.com/${GITHUB_REPOSITORY}/blob/gallery/README.md" >> "$GITHUB_STEP_SUMMARY"

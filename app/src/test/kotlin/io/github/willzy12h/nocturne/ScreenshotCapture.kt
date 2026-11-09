@@ -439,6 +439,148 @@ class ScreenshotCapture {
         }
     }
 
+    /**
+     * Every tab, page, sheet and dialog in the Midnight Ink palette, for the public screen gallery. Runs only with
+     * SCREENSHOT_TAG=gallery: `SCREENSHOT_TAG=gallery ./gradlew :app:testDebugUnitTest --tests '*ScreenshotCapture.gallery'`.
+     * Long pages are captured in screen-sized parts. Each shot is listed, in order, in gallery/captions.tsv.
+     */
+    @Test fun gallery() {
+        assumeTrue("the gallery renders only for SCREENSHOT_TAG=gallery", tag == "gallery")
+        var count = 0
+        val captions = File("build/screenshots/$tag/gallery").apply { mkdirs() }.resolve("captions.tsv")
+        captions.writeText("")
+        fun s(id: Int) = compose.activity.getString(id)
+        fun named(section: String, caption: String): String {
+            count++
+            val name = "gallery-%02d".format(count)
+            captions.appendText("$name\t$section\t$caption\n")
+            return name
+        }
+        fun one(section: String, caption: String, windowView: android.view.View? = null) =
+            shot(named(section, caption), windowView)
+        /** A page and, when it scrolls, the rest of it a screen at a time. */
+        fun page(section: String, caption: String) {
+            one(section, caption)
+            val vertical = androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange
+            val scroller = compose.onAllNodes(SemanticsMatcher.keyIsDefined(vertical))
+                .fetchSemanticsNodes().maxByOrNull { it.boundsInRoot.height } ?: return
+            val step = scroller.boundsInRoot.height * 0.85f
+            for (part in 2..6) {
+                val before = compose.onAllNodes(SemanticsMatcher.keyIsDefined(vertical)).fetchSemanticsNodes()
+                    .firstOrNull { it.id == scroller.id }?.config?.get(vertical)?.value?.invoke() ?: return
+                compose.onAllNodes(SemanticsMatcher("scroller ${scroller.id}") { it.id == scroller.id })[0]
+                    .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(0f, step) }
+                settle()
+                val after = compose.onAllNodes(SemanticsMatcher.keyIsDefined(vertical)).fetchSemanticsNodes()
+                    .firstOrNull { it.id == scroller.id }?.config?.get(vertical)?.value?.invoke() ?: return
+                if (after <= before + 1f) return
+                one(section, "$caption (continued)")
+            }
+        }
+        fun save(block: suspend () -> Unit) { compose.runOnUiThread { runBlocking { block() } }; settle() }
+        fun connectDemo() {
+            if (graph.link.status.value == null) compose.runOnUiThread { graph.sessions.reconnect() }
+            compose.waitUntil(15_000) { settle(250); graph.link.status.value != null }
+        }
+        fun top() = compose.onAllNodes(hasScrollAction()).fetchSemanticsNodes().forEach { node ->
+            runCatching { compose.onAllNodes(SemanticsMatcher("scroller ${node.id}") { it.id == node.id })[0]
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(0f, -100_000f) } }
+        }.also { settle() }
+
+        save {
+            graph.repository.updateSettings { it.copy(demoMode = true, themeMode = ThemeMode.DARK, simpleView = false,
+                nightPalette = Palette.MIDNIGHT_INK) }
+            graph.repository.setActiveNight(null)
+        }
+        connectDemo()
+        seedHistory()
+
+        compose.navTab("Tonight"); top()
+        page("Tonight", "Tonight, before bed")
+        compose.onNodeWithTag("quick-mode-BOOST", useUnmergedTree = true).performScrollTo().performTouchInput { longClick() }
+        settle()
+        one("Tonight", "Editing a quick start (long-press a tile)")
+        compose.onAllNodesWithText(s(R.string.feature_cancel))[0].performClick(); settle()
+
+        compose.navTab("Remote")
+        compose.waitUntil(15_000) { settle(250); compose.onAllNodesWithTag("remote-mode-COOL").fetchSemanticsNodes().isNotEmpty() }
+        if (graph.link.status.value?.isRunning == true) {
+            compose.onNodeWithTag("remote-mode-STANDBY").performScrollTo().performClick(); settle(1_500)
+        }
+        top()
+        page("Remote", "Remote, BedJet off")
+        compose.onNodeWithTag("remote-mode-COOL").performScrollTo().performClick(); settle(1_500)
+        top()
+        page("Remote", "Remote, cooling")
+        compose.onNodeWithTag("remote-mode-STANDBY").performScrollTo().performClick(); settle(1_500)
+
+        compose.navTab("Profiles"); top()
+        page("Profiles", "Profiles")
+        val profileId = graph.repository.profiles.value.first().id
+        compose.onNode(hasScrollToKeyAction()).performScrollToKey(profileId)
+        compose.onNodeWithTag("profile-more-$profileId", useUnmergedTree = true).performScrollTo().performClick(); settle()
+        one("Profiles", "A profile's menu")
+        compose.activity.onBackPressedDispatcher.let { d -> compose.runOnUiThread { d.onBackPressed() } }; settle()
+        if (compose.onAllNodesWithTag("profile-more-$profileId", useUnmergedTree = true).fetchSemanticsNodes().isEmpty()) compose.navTab("Profiles")
+        compose.onAllNodes(hasTestTagPrefix("profile-open-"), useUnmergedTree = true)[0].performScrollTo().performClick(); settle()
+        page("Profiles", "Editing a profile")
+        top()
+        compose.onNodeWithTag("editor-phase-START-0").performScrollTo().performClick(); settle()
+        one("Profiles", "Editing one step")
+        compose.onNodeWithTag("step-done").performClick(); settle()
+        compose.onNodeWithTag("editor-add-START").performScrollTo().performClick(); settle()
+        one("Profiles", "Adding a step")
+        compose.onAllNodesWithText(s(R.string.feature_cancel))[0].performClick(); settle()
+        compose.onNodeWithTag("editor-back").performClick(); settle()
+
+        compose.navTab("Settings"); top()
+        page("Settings", "Settings")
+        val pages = listOf("bedjet" to "Your BedJet", "night" to "Night and wake", "appearance" to "Appearance",
+            "permissions" to "Permissions", "backups" to "Backups", "notifications" to "Notifications",
+            "sleep" to "Sleep and history", "health" to "Health Connect", "about" to "About")
+        for ((id, caption) in pages) {
+            if (compose.onAllNodesWithTag("settings-page-$id").fetchSemanticsNodes().isEmpty()) continue
+            compose.openSettingsPage(id); settle(); top()
+            page("Settings", caption)
+            compose.backSettingsPage(); settle()
+        }
+
+        save {
+            val profile = Presets.summerCool.copy(id = "gallery-checkin", name = "Summer comfort")
+            graph.repository.saveProfile(profile)
+            graph.repository.addRecord(NightRecord("gallery-checkin-night", profile.id, profile.name,
+                "2026-10-21T22:30Z", "2026-10-22T07:00Z", false,
+                events = listOf(HistoryEvent("2026-10-22T07:30Z", EventKind.ENDED, "Night ended"))))
+        }
+        compose.navTab("History")
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(s(R.string.checkin_button)))
+        compose.onAllNodesWithText(s(R.string.checkin_button))[0].performScrollTo().performClick(); settle()
+        one("Sleep", "Morning check-in")
+        compose.onAllNodesWithText(s(R.string.checkin_too_hot))[0].performClick()
+        compose.waitUntil(15_000) { settle(100); compose.onAllNodesWithText(s(R.string.checkin_change_title)).fetchSemanticsNodes().isNotEmpty() }
+        one("Sleep", "A suggested change after a check-in")
+        compose.onAllNodesWithText(s(R.string.checkin_keep))[0].performClick(); settle()
+
+        compose.navTab("Settings")
+        compose.navTab("Tonight"); top()
+        compose.onAllNodesWithText(s(R.string.tonight_start_now))[0].performScrollTo().performClick()
+        compose.waitUntil(15_000) {
+            settle(250)
+            graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED &&
+                graph.actions.status.value.confidence == Confidence.CONFIRMED && graph.actions.busy.value.runningLabel == null
+        }
+        settle(6_000) // let the confirmation message bar time out
+        top()
+        page("Tonight", "Tonight, while a night runs")
+        save { graph.actions.execute(graph.actions.capture(NightActions.Command.STOP_TRACKING)) }
+        compose.mainClock.advanceTimeBy(6_000); settle()
+
+        save { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = null) } }
+        compose.navTab("Tonight"); top()
+        page("First run", "Choosing a BedJet")
+        assertTrue("The gallery must capture every page", count >= 20)
+    }
+
     private fun acceptLight(theme: ThemeMode) {
         if (theme == ThemeMode.LIGHT) {
             val switch = compose.activity.getString(R.string.theme_switch_now)
@@ -532,7 +674,11 @@ class ScreenshotCapture {
 
     private fun shot(name: String, windowView: android.view.View? = null) {
         // The redesign tour is for review and the README, not the release inventory, so it gets its own folder.
-        val dir = File("build/screenshots/$tag" + if (name.startsWith("tour-")) "/tour" else "").apply { mkdirs() }
+        val dir = File("build/screenshots/$tag" + when {
+            name.startsWith("tour-") -> "/tour"
+            name.startsWith("gallery-") -> "/gallery"
+            else -> ""
+        }).apply { mkdirs() }
         val config = compose.activity.resources.configuration
         assertEquals("Capture must use the pinned Graph.clock instant", captureInstant, graph.clock.instant())
         assertEquals("Capture must use the pinned Graph.clock zone", captureZone, graph.clock.zone)
