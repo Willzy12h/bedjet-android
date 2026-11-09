@@ -17,6 +17,9 @@ Bluetooth only. No account, no cloud, no internet permission. Not affiliated wit
 </p>
 <p align="center"><sub>Rendered against the simulated BedJet used by the tests.</sub></p>
 
+**[See every screen →](https://github.com/Willzy12h/bedjet-android/blob/gallery/README.md)** Every tab, page, sheet,
+menu and widget in the Midnight Ink palette. It is re-rendered automatically after each change to `main`.
+
 ## Download
 
 1. On your phone, open [Releases](https://github.com/Willzy12h/bedjet-android/releases), pick the newest one at the
