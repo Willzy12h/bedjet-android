@@ -12,7 +12,7 @@ permissions:
 
 # Keep the version-history check and publication of different tags in one queue.
 concurrency:
-  group: ${{ startsWith(github.ref, 'refs/tags/v') && 'nocturne-production-release' || format('nocturne-build-{0}', github.run_id) }}
+  group: ${{ (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && 'nocturne-production-release' || format('nocturne-build-{0}', github.run_id) }}
   cancel-in-progress: false
 
 env:
@@ -31,6 +31,8 @@ jobs:
     outputs:
       version-name: ${{ steps.version.outputs.name }}
       version-code: ${{ steps.version.outputs.code }}
+      release: ${{ steps.version.outputs.release }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -57,8 +59,29 @@ jobs:
         id: version
         env:
           RELEASE_VERSION_CODE: ${{ vars.NOCTURNE_RELEASE_VERSION_CODE }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          RELEASE=false
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            # A merge into main publishes release.properties' version once, if its tag doesn't exist yet.
+            FILE_NAME="$(sed -n 's/^versionName=//p' release.properties)"
+            FILE_CODE="$(sed -n 's/^versionCode=//p' release.properties)"
+            if ! [[ "$FILE_NAME" =~ ^[0-9][A-Za-z0-9.+_-]*$ ]] || ! [[ "$FILE_CODE" =~ ^[1-9][0-9]{0,9}$ ]] || (( FILE_CODE > 2100000000 )); then
+              echo "::error::release.properties needs a valid versionName and versionCode"
+              exit 1
+            fi
+            TAGS="$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$FILE_NAME" --jq '.[].ref')"
+            if grep -qx "refs/tags/v$FILE_NAME" <<< "$TAGS"; then
+              echo "v$FILE_NAME is already tagged; this push builds without releasing."
+            else
+              RELEASE=true
+            fi
+          fi
+          if [[ "$RELEASE" == true ]]; then
+            VERSION_NAME="$FILE_NAME"
+            VERSION_CODE="$FILE_CODE"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            RELEASE=true
             if ! [[ "$RELEASE_VERSION_CODE" =~ ^[1-9][0-9]{0,9}$ ]] || (( RELEASE_VERSION_CODE > 2100000000 )); then
               echo "::error::Set NOCTURNE_RELEASE_VERSION_CODE to a valid explicit Android versionCode"
               exit 1
@@ -75,7 +98,9 @@ jobs:
             VERSION_CODE="$((20261027 + GITHUB_RUN_NUMBER))"
           fi
           printf 'VERSION_NAME=%s\nVERSION_CODE=%s\n' "$VERSION_NAME" "$VERSION_CODE" >> "$GITHUB_ENV"
-          printf 'name=%s\ncode=%s\n' "$VERSION_NAME" "$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          PRERELEASE=false
+          if [[ "$VERSION_NAME" == *-* ]]; then PRERELEASE=true; fi
+          printf 'name=%s\ncode=%s\nrelease=%s\nprerelease=%s\n' "$VERSION_NAME" "$VERSION_CODE" "$RELEASE" "$PRERELEASE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -283,7 +308,7 @@ jobs:
           retention-days: 30
 
       - name: Transfer unsigned production input
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.version.outputs.release == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nocturne-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
@@ -295,7 +320,7 @@ jobs:
   production:
     needs: build
     environment: production
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && needs.build.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -427,12 +452,26 @@ jobs:
 
   # Only this job can write to the repository; it can download only the production package.
   release:
-    needs: production
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, production]
+    if: github.event_name == 'push' && needs.build.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      VERSION_NAME: ${{ needs.build.outputs.version-name }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+          sparse-checkout: docs/releases
+
+      - name: Release notes
+        id: notes
+        run: |
+          NOTES="docs/releases/$VERSION_NAME.md"
+          if [ -f "$NOTES" ]; then echo "file=$NOTES" >> "$GITHUB_OUTPUT"; fi
+
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nocturne-production-${{ github.run_id }}-${{ github.run_attempt }}
@@ -441,9 +480,14 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          tag_name: v${{ needs.build.outputs.version-name }}
+          target_commitish: ${{ env.SOURCE_SHA }}
+          name: Nocturne ${{ needs.build.outputs.version-name }}
+          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
+          body_path: ${{ steps.notes.outputs.file }}
           files: |
             dist/nocturne-*.apk
             dist/release-metadata.json
             dist/SHA256SUMS.txt
           fail_on_unmatched_files: true
-          generate_release_notes: true
+          generate_release_notes: ${{ steps.notes.outputs.file == '' }}

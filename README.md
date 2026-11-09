@@ -115,10 +115,14 @@ fails the build rather than falling back to a debug key.
 A build you sign yourself has a different key from the published APK, so Android won't install it over the
 published one: export a backup in Settings, uninstall, install yours and import the backup.
 
-CI can also publish signed releases from a `v*` tag. It needs the repository secrets `NOCTURNE_KEYSTORE_BASE64`,
-`NOCTURNE_KEYSTORE_PASSWORD`, `NOCTURNE_KEY_ALIAS` and `NOCTURNE_KEY_PASSWORD`, and the variables
-`NOCTURNE_RELEASE_CERT_SHA256` (the expected signer) and `NOCTURNE_RELEASE_VERSION_CODE` (which must be higher than
-any published release).
+Releases are published by CI. When a change merges into `main` and `release.properties` names a version that has no
+`v<versionName>` tag yet, CI builds and tests it, signs it, creates the tag and publishes the release with
+`nocturne-<versionName>.apk`, using `docs/releases/<versionName>.md` as the notes. A version with a hyphen, such as
+`1.2.0-beta.1`, is published as a pre-release. To release, raise `versionName` and `versionCode` (which must be higher
+than every published release) in a pull request. Signing needs the repository secrets `NOCTURNE_KEYSTORE_BASE64`,
+`NOCTURNE_KEYSTORE_PASSWORD`, `NOCTURNE_KEY_ALIAS` and `NOCTURNE_KEY_PASSWORD`, and the variable
+`NOCTURNE_RELEASE_CERT_SHA256` (the expected signer). Pushing a `v*` tag by hand still works too, with the variable
+`NOCTURNE_RELEASE_VERSION_CODE` as its versionCode.
 
 ## Contributing and forks
 
