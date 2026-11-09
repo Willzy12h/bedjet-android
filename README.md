@@ -2,6 +2,8 @@
 
 **A free, open-source Android app for the BedJet 3 that plans each night around your alarm.**
 
+[![Download the latest APK](https://img.shields.io/github/v/release/Willzy12h/bedjet-android?include_prereleases&label=download%20APK)](https://github.com/Willzy12h/bedjet-android/releases)
+
 Set up a night profile once. Every evening Nocturne fits it to when you go to bed and when your Samsung or Google
 Clock alarm goes off, writes it to the BedJet, and lets the BedJet run it on its own. Your phone can go to sleep too.
 
@@ -17,8 +19,8 @@ Bluetooth only. No account, no cloud, no internet permission. Not affiliated wit
 
 ## Download
 
-1. On your phone, open the [latest release](https://github.com/Willzy12h/bedjet-android/releases/latest) and
-   download `nocturne-<version>.apk`.
+1. On your phone, open [Releases](https://github.com/Willzy12h/bedjet-android/releases), pick the newest one at the
+   top and download `nocturne-<version>.apk` from its Assets.
 2. Open the file. Android asks you to allow "Install unknown apps" for your browser or file manager the first time.
 3. Open Nocturne. The **Tonight** screen lists anything still to set up: Bluetooth, notifications, alarms and
    reminders, your alarm app and battery use.

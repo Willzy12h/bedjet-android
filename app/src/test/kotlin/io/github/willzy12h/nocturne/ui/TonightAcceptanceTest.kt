@@ -113,6 +113,12 @@ class TonightAcceptanceTest {
         ui.waitUntil { ui.graph.link.status.value?.mode == io.github.willzy12h.nocturne.core.protocol.Mode.HEAT }
     }
 
+    @Test fun theCoolTileShowsItsLongestRunAsTwelveHours() {
+        val twelve = Format.duration(12 * 60, Format.Words { id, args -> ui.s(id, *args) })
+        ui.compose.onNodeWithTag("quick-mode-COOL").performScrollTo()
+            .assert(hasText(twelve, substring = true, ignoreCase = false) or hasAnyDescendant(hasText(twelve, substring = true)))
+    }
+
     private fun restartWithLegacyCollapse(section: String) {
         ui.compose.runOnUiThread { runBlocking {
             ui.graph.repository.updateSettings {
