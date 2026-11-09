@@ -34,6 +34,9 @@ import io.github.willzy12h.nocturne.core.store.ActionPreset
 import io.github.willzy12h.nocturne.core.store.QuickDefaults
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.night.NightActions.Command
+import io.github.willzy12h.nocturne.core.protocol.Limits
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import kotlin.math.roundToInt
 
 internal fun quickModeLabel(context: Context, preset: ActionPreset, fahrenheit: Boolean): String {
@@ -89,8 +92,8 @@ internal fun QuickDefaultsSection(model: AppViewModel, settings: Settings) {
         val preset = QuickDefaults.resolve(settings, mode)
         StripeTile(stripe = paletteTokens.stepColor(preset.mode, preset.temperature),
             title = quickModeLabel(context, preset, settings.fahrenheit),
-            subtitle = pluralStringResource(R.plurals.uat_quick_summary, preset.minutes, tempText(preset.temperature, settings.fahrenheit),
-                preset.fanPercent, preset.minutes), modifier = Modifier.fillMaxWidth().testTag("quick-default-${mode.name}")) {
+            subtitle = stringResource(R.string.quick_summary, tempText(preset.temperature, settings.fahrenheit),
+                preset.fanPercent, runLengthText(preset.minutes)), modifier = Modifier.fillMaxWidth().testTag("quick-default-${mode.name}")) {
                 if (!QuickDefaults.valid(preset)) Text(stringResource(R.string.uat_quick_invalid),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                 TextButton(onClick = { editing = preset }) {
@@ -162,13 +165,20 @@ internal fun QuickPresetEditor(model: AppViewModel, settings: Settings, original
     val context = LocalContext.current
     run {
         var draft by remember(original) { mutableStateOf(original) }
-        val valid = QuickDefaults.valid(draft)
+        // The time as typed; what is saved is never longer than these settings allow.
+        val shownMinutes = spokenMaximum(original.minutes.coerceAtLeast(1)).takeIf { original.minutes == Limits.MAX_STEP_MINUTES } ?: original.minutes
+        var hoursText by remember(original) { mutableStateOf((shownMinutes / 60).toString()) }
+        var minutesText by remember(original) { mutableStateOf((shownMinutes % 60).toString()) }
+        val typed = typedMinutes(hoursText, minutesText)
+        val maximum = QuickDefaults.maximumMinutes(draft).coerceAtLeast(1)
+        val saved = typed?.let { draft.copy(minutes = it.coerceAtMost(maximum)) }
+        val valid = saved != null && QuickDefaults.valid(saved)
         AlertDialog(onDismissRequest = onClose,
             title = { Text(stringResource(R.string.uat_quick_edit, stringResource(Format.modeNameRes(draft.mode)))) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(presetDetail(context, draft, settings.fahrenheit))
-                    if (!valid) Text(stringResource(R.string.uat_quick_invalid), color = MaterialTheme.colorScheme.onSurface)
+                    Text(presetDetail(context, saved ?: draft, settings.fahrenheit))
+                    if (!valid && typed != null) Text(stringResource(R.string.uat_quick_invalid), color = MaterialTheme.colorScheme.onSurface)
                     if (draft.mode.usesTemperature) {
                         val range = draft.mode.temperatureRange
                         Text(stringResource(R.string.slider_temp))
@@ -183,17 +193,51 @@ internal fun QuickPresetEditor(model: AppViewModel, settings: Settings, original
                         range = 5f..100f, steps = 18, enabled = true,
                         modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(draft.fanPercent)),
                         ticks = fanTicks(), tag = "quick-fan", onValueChangeFinished = {}, colors = fanSliderColors(draft.mode))
-                    val maximum = QuickDefaults.maximumMinutes(draft).coerceAtLeast(1)
                     Text(stringResource(R.string.slider_minutes))
-                    if (maximum > 1) ScaledSlider(draft.minutes.coerceIn(1, maximum).toFloat(), { draft = draft.copy(minutes = it.roundToInt()) },
-                        range = 1f..maximum.toFloat(), steps = maximum - 2, enabled = true,
-                        modifier = Modifier.sliderSemantics(stringResource(R.string.slider_minutes), spokenMinutes(draft.minutes)),
-                        ticks = minuteTicks(1, maximum), tag = "quick-minutes", onValueChangeFinished = {}, colors = amountSliderColors())
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(hoursText, { hoursText = it.filter(Char::isDigit).take(3) },
+                            label = { Text(stringResource(R.string.remote_custom_hours)) }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = nocturneTextFieldColors(),
+                            modifier = Modifier.weight(1f).testTag("quick-hours"))
+                        OutlinedTextField(minutesText, { minutesText = it.filter(Char::isDigit).take(2) },
+                            label = { Text(stringResource(R.string.remote_custom_minutes)) }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), colors = nocturneTextFieldColors(),
+                            modifier = Modifier.weight(1f).testTag("quick-minutes"))
+                    }
+                    durationLimitNote(draft.mode, typed, maximum)?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("quick-duration-note"))
+                    }
                 }
             },
             confirmButton = { TextButton(onClick = {
-                if (QuickDefaults.valid(draft)) { model.updateSettings { QuickDefaults.withPreset(it, draft) }; onClose() }
+                if (saved != null && QuickDefaults.valid(saved)) { model.updateSettings { QuickDefaults.withPreset(it, saved) }; onClose() }
             }, enabled = valid) { Text(stringResource(R.string.uat_quick_save)) } },
             dismissButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.uat_quick_cancel)) } })
     }
+}
+
+/** Hours and minutes as typed, or null when either is not a number or the minutes are not 0 to 59. */
+internal fun typedMinutes(hours: String, minutes: String): Int? {
+    val h = hours.ifEmpty { "0" }.toIntOrNull() ?: return null
+    val m = minutes.ifEmpty { "0" }.toIntOrNull() ?: return null
+    return (h * 60 + m).takeIf { m in 0..59 && it >= 1 }
+}
+
+/** A run length, with the BedJet's 11 h 59 min shown as its 12-hour maximum. */
+@Composable
+internal fun runLengthText(minutes: Int): String =
+    if (minutes == Limits.MAX_STEP_MINUTES) stringResource(R.string.duration_maximum, durationText(spokenMaximum(minutes)))
+    else durationText(minutes)
+
+/**
+ * Why the time saved is shorter than the time typed: past the BedJet's longest run for this mode, or a hot
+ * Heat setting that the BedJet runs for less time. Null when the typed time is used as it is.
+ */
+@Composable
+internal fun durationLimitNote(mode: Mode, typed: Int?, maximum: Int): String? = when {
+    typed != null && typed > spokenMaximum(maximum) ->
+        stringResource(R.string.duration_set_to_maximum, stringResource(Format.modeNameRes(mode)), durationText(spokenMaximum(maximum)))
+    mode == Mode.HEAT && maximum < Limits.MAX_STEP_MINUTES ->
+        stringResource(R.string.duration_heat_shorter, durationText(maximum))
+    else -> null
 }

@@ -112,6 +112,15 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             val app = RuntimeEnvironment.getApplication() as App
             val pending = PendingIntent.getBroadcast(app, 81, Intent("test.alarm.explanation"), PendingIntent.FLAG_IMMUTABLE)
             shadowOf(pending).setCreatorPackage(if (scenario == Scenario.APP_DENIED) "unapproved.clock" else SAMSUNG_PACKAGE)
+            // The denied app is a clock app (it answers Set alarm), so Tonight explains why its alarm is ignored rather
+            // than treating it like a calendar's.
+            if (scenario == Scenario.APP_DENIED) shadowOf(app.packageManager).addResolveInfoForIntent(
+                Intent(android.provider.AlarmClock.ACTION_SET_ALARM), android.content.pm.ResolveInfo().apply {
+                    activityInfo = android.content.pm.ActivityInfo().apply {
+                        packageName = "unapproved.clock"; name = "unapproved.clock.Alarms"
+                        applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = "unapproved.clock" }
+                    }
+                })
             val time = when (scenario) {
                 Scenario.TOO_SOON -> "2026-10-22T23:00:00Z"
                 Scenario.TOO_LATE -> "2026-10-23T16:31:00Z"

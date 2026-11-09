@@ -31,6 +31,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -66,6 +67,13 @@ import io.github.willzy12h.nocturne.night.manualRuntimeMaximum
 import kotlin.math.roundToInt
 
 /** The Remote's modes, in the widget's order; Off is always last and always present. */
+/** The bar's scale while the running mode has no temperature: Cool's lowest to Heat's highest. */
+private val REMOTE_IDLE_SCALE = Mode.COOL.temperatureRange.first..Mode.HEAT.temperatureRange.last
+/** Every end label a mode's scale can show, so the bar reserves the same room for each. */
+private val REMOTE_EDGE_TEMPERATURES = (Mode.entries.filter { it.usesTemperature }.flatMap { listOf(it.temperatureRange.first, it.temperatureRange.last) } +
+    listOf(REMOTE_IDLE_SCALE.first, REMOTE_IDLE_SCALE.last)).distinct()
+private val UNTIL_TIME = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+
 private val REMOTE_MODES = listOf(Mode.TURBO, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY, Mode.STANDBY)
 
 /** A mode's own colour, as on the widgets: Ember by the mode's hottest setting, Cool, Dry or Off. */
@@ -154,7 +162,15 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         // Temperature: always shown; disabled with a reason when the running mode has none.
         run {
             val usable = s.isRunning && s.mode.usesTemperature
-            var temp by remember(s.targetTemperature) { mutableFloatStateOf(s.targetTemperature.toFloat()) }
+            // The scale is the mode's own and stays put. The BedJet's live limits can move with the room every
+            // second (Dry's lowest flips between 24.5 and 25 °C), so they only bound what is sent, never the bar.
+            val scale = if (s.mode.usesTemperature) s.mode.temperatureRange else REMOTE_IDLE_SCALE
+            val allowed = maxOf(s.minTemperature, scale.first)..minOf(s.maxTemperature, scale.last)
+            var dragging by remember { mutableStateOf(false) }
+            var temp by remember { mutableFloatStateOf(s.targetTemperature.toFloat()) }
+            // A report arriving mid-drag must not pull the thumb from under the finger.
+            LaunchedEffect(s.targetTemperature) { if (!dragging) temp = s.targetTemperature.toFloat() }
+            var limitedTo by remember(s.mode) { mutableStateOf<Int?>(null) }
             val shown = temp.roundToInt()
             val colour by animateColorAsState(if (usable) tokens.stepColor(s.mode, shown) else tokens.ink3,
                 if (motion) tween(150) else snap(), label = "remote-temperature-colour")
@@ -163,17 +179,26 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                 note = when {
                     !s.isRunning -> notRunning
                     !s.mode.usesTemperature -> stringResource(R.string.remote_temperature_unused, modeName(s.mode))
+                    limitedTo != null -> stringResource(R.string.remote_temperature_limited, tempText(allowed.first, f),
+                        tempText(allowed.last, f), modeName(s.mode), tempText(limitedTo!!, f))
                     else -> null
                 }) {
                 ScaledSlider(
-                    temp, { temp = it }, range = s.minTemperature.toFloat()..s.maxTemperature.toFloat(),
+                    temp.coerceIn(scale.first.toFloat(), scale.last.toFloat()), { dragging = true; temp = it; limitedTo = null },
+                    range = scale.first.toFloat()..scale.last.toFloat(),
                     enabled = canControl && usable,
                     modifier = Modifier.sliderSemantics(stringResource(R.string.slider_temp), spokenTemp(shown, f)),
                     // Continuous while dragging, so the thumb glides; the value sent is rounded on release.
                     steps = 0,
-                    ticks = listOf(s.minTemperature, (s.minTemperature + s.maxTemperature) / 2, s.maxTemperature)
+                    ticks = listOf(scale.first, (scale.first + scale.last) / 2, scale.last)
                         .map { it.toFloat() to tempText(it, f) }, tag = "temperature",
-                    onValueChangeFinished = { val t = temp.roundToInt(); temp = t.toFloat()
+                    // Every mode's end labels get the same room, so changing mode never resizes the bar.
+                    edgeLabels = REMOTE_EDGE_TEMPERATURES.map { tempText(it, f) },
+                    onValueChangeFinished = { dragging = false
+                        val wanted = temp.roundToInt()
+                        val t = if (allowed.isEmpty()) wanted else wanted.coerceIn(allowed)
+                        limitedTo = t.takeIf { it != wanted }
+                        temp = t.toFloat()
                         model.remote(temperatureSet, affectsProgramme = true, confirms = { it.targetTemperature == t }) { it.setTemperature(t) } },
                     colors = sliderColors(colour),
                 )
@@ -182,7 +207,9 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         // Fan: the same, in the mode's colour; 5% is the lowest running speed.
         run {
             val usable = s.isRunning && s.mode.usesFan
-            var fan by remember(s.fanStep) { mutableFloatStateOf(s.fanPercent.toFloat()) }
+            var fanDragging by remember { mutableStateOf(false) }
+            var fan by remember { mutableFloatStateOf(s.fanPercent.toFloat()) }
+            LaunchedEffect(s.fanStep) { if (!fanDragging) fan = s.fanPercent.toFloat() }
             val shown = ((fan / 5).roundToInt() * 5).coerceIn(5, 100)
             val colour by animateColorAsState(if (usable) tokens.modeColor(s.mode) else tokens.ink3,
                 if (motion) tween(150) else snap(), label = "remote-fan-colour")
@@ -190,12 +217,13 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             RemoteSection(stringResource(R.string.slider_fan), if (usable) stringResource(R.string.remote_percent_tick, shown) else "—", colour,
                 note = if (!s.isRunning) notRunning else stringResource(R.string.remote_fan_minimum)) {
                 ScaledSlider(
-                    fan, { fan = it.coerceAtLeast(5f) }, range = 0f..100f, steps = 0,
+                    fan, { fanDragging = true; fan = it.coerceAtLeast(5f) }, range = 0f..100f, steps = 0,
                     enabled = canControl && usable,
                     modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(shown)),
                     ticks = listOf(0, 50, 100).map { it.toFloat() to stringResource(R.string.remote_percent_tick, it) }, tag = "fan",
                     // Read the slider's latest value here, not this composition's rounded copy, which is a frame behind.
-                    onValueChangeFinished = { val percent = ((fan / 5).roundToInt() * 5).coerceIn(5, 100); val step = percent / 5 - 1
+                    onValueChangeFinished = { fanDragging = false
+                        val percent = ((fan / 5).roundToInt() * 5).coerceIn(5, 100); val step = percent / 5 - 1
                         fan = percent.toFloat()
                         model.remote(fanSet, affectsProgramme = true, confirms = { it.fanStep == step }, announceConfirmation = false) { it.setFan(step) } },
                     colors = sliderColors(colour),
@@ -213,6 +241,10 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                     timerChoices.forEach { minutes ->
                         AssistChip({ runDuration(captureDuration(model.graph, s, minutes)) }, enabled = canControl, label = { Text(durationText(minutes)) })
                     }
+                    if (maximumMinutes > 0 && maximumMinutes !in timerChoices) AssistChip(
+                        { runDuration(captureDuration(model.graph, s, maximumMinutes)) }, enabled = canControl,
+                        label = { Text(stringResource(R.string.remote_run_max, durationText(spokenMaximum(maximumMinutes)))) },
+                        modifier = Modifier.testTag("remote-run-max"))
                     AssistChip({ customDuration = captureDuration(model.graph, s,
                         ((s.remainingSeconds + 59) / 60).coerceIn(1, maximumMinutes)) }, enabled = canControl && maximumMinutes > 0,
                         label = { Text(stringResource(R.string.remote_custom)) })
@@ -237,6 +269,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
 private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturne.core.protocol.DeviceStatus, canControl: Boolean,
     accent: Color, f: Boolean) {
     val tokens = paletteTokens
+    val now = model.now()
     val local by model.busy.collectAsState()
     val owner by model.commandBusy.collectAsState()
     val sending = if (local || owner.runningLabel != null || owner.queuedCount > 0) {
@@ -255,7 +288,8 @@ private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturn
                     color = tokens.ink2, fontSize = 14.sp)
             }
         }
-        Text(if (s.isRunning) stringResource(R.string.remote_running, tempText(s.targetTemperature, f), s.fanPercent, durationText(s.remainingSeconds / 60))
+        Text(if (s.isRunning) stringResource(R.string.remote_running_until, tempText(s.targetTemperature, f), s.fanPercent,
+                durationText(s.remainingSeconds / 60), now.plusSeconds(s.remainingSeconds.toLong()).format(UNTIL_TIME))
             else stringResource(R.string.remote_not_running_choose), color = tokens.ink2, fontSize = 14.sp)
         // The reserved line: progress, then "Last reported", then a night's step; never a banner that pushes controls down.
         val line = sending ?: if (!canControl) stringResource(R.string.remote_last_reported)

@@ -122,6 +122,22 @@ class PickerInitialTimeTest {
         compose.onNodeWithTag("tonight-fixed-wake").assertExists()
     }
 
+    @Test fun outOfRangeWakeStartsTheNightOnceAFittingWakeIsChosen() {
+        val now = graph.now()
+        save { updateSettings { it.setWakeOverride(now.plusMinutes(20), now) } }
+        assertNull(graph.repository.activeNight.value)
+        compose.onNodeWithText(s(R.string.tonight_choose_wake_and_start)).performScrollTo().performClick()
+
+        val (dialog, picker) = picker()
+        compose.runOnUiThread { picker.hour = 6; picker.minute = 10 }
+        accept(dialog)
+
+        waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED && graph.actions.busy.value.runningLabel == null }
+        val night = graph.repository.activeNight.value!!
+        assertEquals(ZonedDateTime.parse("2026-10-23T06:10:00Z").toInstant(), ZonedDateTime.parse(night.wakeAt).toInstant())
+        assertEquals(io.github.willzy12h.nocturne.core.night.WakeOrigin.OVERRIDE, night.wakeOrigin)
+    }
+
     @Test fun noOverrideOpensAtTheSelectedProfilesPlannedWake() {
         val other = profile.copy(id = "other-picker-profile", name = "Other picker profile",
             wakeSource = profile.wakeSource.copy(defaultWakeMinute = 8 * 60 + 20))

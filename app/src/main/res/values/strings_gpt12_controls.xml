@@ -12,8 +12,8 @@
     <string name="remote_custom_hours">Hours</string>
     <string name="remote_custom_minutes">Minutes</string>
     <string name="remote_custom_set">Set duration</string>
-    <string name="remote_custom_bounds">Choose 1 minute to %1$s. Minutes must be between 0 and 59.</string>
-    <string name="remote_custom_invalid">Enter a duration within the shown limit.</string>
+    <string name="remote_custom_bounds">Up to %1$s. A longer time is set to the longest allowed.</string>
+    <string name="remote_custom_invalid">Enter hours and minutes (0 to 59).</string>
     <string name="remote_custom_changed">The BedJet mode or its limits changed. Check the Remote screen and choose the duration again.</string>
     <string name="remote_custom_temperature">The current temperature cannot be kept when ending this programme. Change the temperature in Remote before setting a duration.</string>
     <string name="remote_custom_action">run for %1$s</string>

@@ -94,6 +94,14 @@ data class AlarmExplanation(
     }
 }
 
+/** An alarm set by a calendar or reminder app (not a clock app) that was not chosen in Settings: Tonight ignores it
+ * silently. An alarm from a clock app that isn't chosen still gets its line, so a new clock app is easy to add. */
+fun AlarmExplanation.isStrayAlarm(clockApps: List<ClockApps.App>): Boolean {
+    val creator = alarm?.identifiedCreator ?: return false
+    return reason == AlarmReason.SOURCE_NOT_ALLOWED && creator !in samsungClockPackages &&
+        creator != "com.google.android.deskclock" && clockApps.none { it.packageName == creator }
+}
+
 private fun String.parseTime(): ZonedDateTime? = runCatching { ZonedDateTime.parse(this) }.getOrNull()
 private fun ZonedDateTime?.clock(): String = this?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"
 

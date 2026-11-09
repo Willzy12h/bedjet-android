@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="quick_summary">%1$s · Fan %2$d%% · %3$s</string>
+    <!-- The BedJet's 11 h 59 min longest run, shown as its 12-hour maximum. -->
+    <string name="duration_maximum">%1$s (max)</string>
+    <string name="duration_set_to_maximum">%1$s can run for up to %2$s, so it’s set to that.</string>
+    <string name="duration_heat_shorter">Hotter settings and stronger fans run for less time: up to %1$s at these settings.</string>
+    <string name="remote_run_max">Max (%1$s)</string>
+    <string name="remote_running_until">Target %1$s · fan %2$d%% · %3$s left, until %4$s</string>
+    <string name="remote_temperature_limited">The BedJet allows %1$s to %2$s in %3$s right now, so %4$s was set.</string>
+</resources>

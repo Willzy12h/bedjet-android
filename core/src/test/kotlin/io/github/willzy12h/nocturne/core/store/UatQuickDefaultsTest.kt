@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.core.store
 
+import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -62,6 +63,21 @@ class UatQuickDefaultsTest {
         val edited = QuickDefaults.withPreset(old, QuickDefaults.builtIn(Mode.HEAT).copy(temperature = 62))
         assertEquals(70, edited.extendWarm.temperature)
         assertEquals(62, QuickDefaults.resolve(edited, Mode.HEAT).temperature)
-        assertEquals(old.extendCool, QuickDefaults.resolve(edited, Mode.COOL))
+        assertEquals(QuickDefaults.builtIn(Mode.COOL), QuickDefaults.resolve(edited, Mode.COOL))
+    }
+    @Test fun coolRunsForTheBedJetsLongestTimeUntilCustomised() {
+        assertEquals(Limits.MAX_STEP_MINUTES, QuickDefaults.resolve(Settings(), Mode.COOL).minutes)
+        assertTrue(QuickDefaults.valid(QuickDefaults.resolve(Settings(), Mode.COOL)))
+        val customised = ActionPreset(Mode.COOL, 44, 40, 45)
+        assertEquals(customised, QuickDefaults.resolve(Settings(extendCool = customised), Mode.COOL))
+    }
+    @Test fun aLongerTimeThanAllowedBecomesTheLongestAllowed() {
+        assertEquals(Limits.MAX_STEP_MINUTES, QuickDefaults.clampMinutes(QuickDefaults.builtIn(Mode.COOL).copy(minutes = 20 * 60)).minutes)
+        assertEquals(Limits.MAX_STEP_MINUTES, QuickDefaults.maximumMinutes(QuickDefaults.builtIn(Mode.DRY)))
+        assertEquals(10, QuickDefaults.clampMinutes(QuickDefaults.builtIn(Mode.TURBO).copy(minutes = 60)).minutes)
+        val hot = QuickDefaults.builtIn(Mode.HEAT).copy(temperature = 80, fanPercent = 100, minutes = 600)
+        val clamped = QuickDefaults.clampMinutes(hot)
+        assertTrue(clamped.minutes < 600)
+        assertTrue(QuickDefaults.valid(clamped))
     }
 }

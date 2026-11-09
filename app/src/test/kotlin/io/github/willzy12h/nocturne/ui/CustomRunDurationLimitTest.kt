@@ -17,8 +17,10 @@ class CustomRunDurationLimitTest {
         assertEquals(1, enteredMinutes(1, 719))
     }
 
-    @Test fun beyondTheLimitOrNothingIsRefused() {
-        assertNull(enteredMinutes(721, 719))
+    @Test fun beyondTheLimitBecomesTheLimitAndNothingIsRefused() {
+        assertEquals(719, enteredMinutes(721, 719))
+        assertEquals(719, enteredMinutes(20 * 60, 719))
+        assertEquals(240, enteredMinutes(16 * 60, 240))
         assertNull(enteredMinutes(0, 719))
         assertNull(enteredMinutes(null, 719))
     }
