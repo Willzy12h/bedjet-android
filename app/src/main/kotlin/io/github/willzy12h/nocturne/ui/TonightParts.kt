@@ -61,6 +61,7 @@ import io.github.willzy12h.nocturne.core.plan.Block
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.protocol.Limits
 import io.github.willzy12h.nocturne.core.store.QuickDefaults
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import io.github.willzy12h.nocturne.night.boostDescription
@@ -345,7 +346,8 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
             val valid = QuickDefaults.valid(preset)
             val label = stringResource(Format.modeNameRes(mode))
             val detail = preset.takeIf { valid }?.let {
-                val duration = durationText(it.minutes)
+                // The BedJet's longest run, 11 h 59 min, reads as 12 h so it fits the tile.
+                val duration = durationText(if (it.minutes == Limits.MAX_STEP_MINUTES) spokenMaximum(it.minutes) else it.minutes)
                 if (it.mode.usesTemperature) stringResource(R.string.quick_tile_detail, tempText(it.temperature, settings.fahrenheit), duration)
                 else duration
             }
