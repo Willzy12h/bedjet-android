@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.getOrNull
 import io.github.willzy12h.nocturne.ui.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.core.plan.Presets
@@ -725,6 +726,7 @@ class ScreenshotCapture {
                 NativePngCapture.write(bitmap, File(dir, if (index == 0) "$name.png" else "$name-window$index.png"))
             } finally { bitmap.recycle() }
         }
+        if (name.startsWith("gallery-")) writeTapTargets(File(dir, "$name.nodes.json"), views.first())
         val view = views.first()
         File(dir, "$name.json").writeText("""
             {"renderer":"Robolectric native graphics","sdk":34,"tag":"$tag",
@@ -736,5 +738,42 @@ class ScreenshotCapture {
              "theme":"${graph.repository.settings.value.themeMode}",
              "simpleView":${graph.repository.settings.value.simpleView},"demoMode":${graph.repository.settings.value.demoMode}}
         """.trimIndent() + "\n")
+    }
+
+    /** Records every tappable element's box (as % of the screen) and label, so the interactive tour taps where the app does. */
+    private fun writeTapTargets(file: File, base: android.view.View) {
+        val origin = IntArray(2).also(base::getLocationOnScreen)
+        val width = base.width.toFloat()
+        val height = base.height.toFloat()
+        val roots = compose.onAllNodes(isRoot()).fetchSemanticsNodes()
+        // A dialog, sheet or menu blocks the screen behind it, so only its own buttons are live.
+        val live = if (roots.size > 1) roots.drop(1) else roots
+        val out = mutableListOf<String>()
+        fun quote(text: String) = "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ") + "\""
+        fun walk(node: androidx.compose.ui.semantics.SemanticsNode) {
+            val config = node.config
+            if (androidx.compose.ui.semantics.SemanticsActions.OnClick in config) {
+                val offset = node.positionOnScreen - node.positionInWindow
+                val box = node.boundsInWindow.translate(offset)
+                val left = maxOf(box.left - origin[0], 0f)
+                val top = maxOf(box.top - origin[1], 0f)
+                val right = minOf(box.right - origin[0], width)
+                val bottom = minOf(box.bottom - origin[1], height)
+                if (right - left >= 4f && bottom - top >= 4f) {
+                    val text = config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)
+                        ?.joinToString(" ") { it.text }.orEmpty()
+                    val description = config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)
+                        ?.joinToString(" ").orEmpty()
+                    val tag = config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag).orEmpty()
+                    out += "{\"x\":%.2f,\"y\":%.2f,\"w\":%.2f,\"h\":%.2f,\"text\":%s,\"description\":%s,\"tag\":%s}".format(
+                        java.util.Locale.ROOT, left / width * 100, top / height * 100,
+                        (right - left) / width * 100, (bottom - top) / height * 100,
+                        quote(text), quote(description), quote(tag))
+                }
+            }
+            node.children.forEach(::walk)
+        }
+        live.forEach(::walk)
+        file.writeText(out.joinToString(",\n", "[\n", "\n]\n"))
     }
 }
