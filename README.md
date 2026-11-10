@@ -3,6 +3,7 @@
 **A free, open-source Android app for the BedJet 3 that plans each night around your alarm.**
 
 [![Download the latest APK](https://img.shields.io/github/v/release/Willzy12h/bedjet-android?include_prereleases&label=download%20APK)](https://github.com/Willzy12h/bedjet-android/releases)
+[![Try the interactive demo](https://img.shields.io/badge/try%20it-interactive%20demo-5b5bd6)](https://willzy12h.github.io/bedjet-android/demo/)
 
 Set up a night profile once. Every evening Nocturne fits it to when you go to bed and when your Samsung or Google
 Clock alarm goes off, writes it to the BedJet, and lets the BedJet run it on its own. Your phone can go to sleep too.
@@ -49,14 +50,25 @@ Updates opens the Releases page; the app never checks or downloads anything by i
   time a slot is overwritten, what was in it is saved so you can put it back.
 - **Waits for the BedJet.** Commands connect first and only count as done when the BedJet reports back. If it
   can't be reached, nothing is sent and the app tells you so.
-- **Remote** for mode, temperature, fan and run time, plus **Boost** (Turbo, then Heat).
+- **Remote** for mode, temperature, fan and run time, with a **Max** option for the longest run the mode allows,
+  plus **Boost** (Turbo, then Heat).
+- **Morning check-in.** Tell it the night was too hot, just right or too cold, and it offers to adjust that
+  profile's *Middle* for future nights: 1 °C cooler or warmer, or for a Cool or Dry *Middle*, 10% more or less fan.
+  Nothing changes unless you accept.
 - **Wake-up notification** with up to three buttons you choose: snooze or extend warm or cool, or Off.
 - **Widgets**: a controls widget that grows from one button to a full list, and a single-button widget. When the
   BedJet is out of range the widget goes grey; a tap reconnects and then runs what you tapped (an action that
   needs your confirmation only reconnects, so you can tap it again once it is green).
-- **Shortcuts** for Start tonight, Turbo, Boost and Off, usable from Samsung Modes & Routines and Bixby.
-- **Auto-start** at a fixed time or a set time before your alarm, optionally only while charging.
-- **Sleep page** showing your BedJet nights, with Health Connect sleep stages alongside if you turn that on.
+- **Shortcuts** for Start tonight, Turbo, Boost and Off, usable from Samsung Modes & Routines and Bixby, and a
+  **Quick Settings tile** that shows tonight's status and opens the app.
+- **Auto-start** at a fixed time or a set time before your alarm, optionally only while charging, and a
+  **bedtime reminder**.
+- **Keep a profile on the BedJet.** Write a profile to a spare programme slot as a fixed programme the BedJet
+  keeps. What was in the slot is saved first so you can restore it.
+- **Sleep page** showing your BedJet nights over 7 days, 30 days or 3 months, with Health Connect sleep stages
+  alongside if you turn that on. You choose how long nights are kept (7 days to 1 year); they are stored only on the phone.
+- **Palettes and themes**: seven colour palettes, separate night and day palettes on a schedule, and Light, Dark or
+  System theme.
 - **Backups**: automatic and manual snapshots, and export/import to a file you choose.
 
 ## Permissions
