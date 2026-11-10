@@ -148,8 +148,8 @@ const wakeAt = (segs) => { const w = segs.filter((s) => s.phase === 'wakeUp'); r
 
 /* ---------------- Sleep history ---------------- */
 function makeStages(r, bed, wake) {
-  const out = []; let t = bed + 8 + Math.floor(r() * 18); let wakes = 0;
-  out.push({ s: 'awake', a: bed, b: t });
+  const out = []; let t = Math.min(wake, bed + 8 + Math.floor(r() * 18)); let wakes = 0;
+  if (t > bed) out.push({ s: 'awake', a: bed, b: t });
   let cycle = 0;
   while (t < wake - 20) {
     const deep = cycle < 2 ? 25 + r() * 25 : 5 + r() * 12;
@@ -161,7 +161,7 @@ function makeStages(r, bed, wake) {
     if (r() < .35 && t < wake - 40) { const b = t + 4 + r() * 8; out.push({ s: 'awake', a: t, b }); t = b; wakes++; }
     cycle++;
   }
-  out.push({ s: 'awake', a: t, b: wake });
+  if (wake > t) out.push({ s: 'awake', a: t, b: wake });
   const asleep = sum(out.filter((x) => x.s !== 'awake'), (x) => x.b - x.a);
   return { stages: out, asleep, wakes };
 }
@@ -288,10 +288,12 @@ function tick(k) {
 }
 
 /* ---------------- BedJet simulation ---------------- */
+let sendEpoch = 0; // Reset bumps this so a send still in flight is dropped.
 function send(label, apply, quiet = false) {
   if (S.outOfRange) { toast("Can't reach the BedJet. Nothing was sent."); return false; }
   S.link = 'sending'; render();
-  setTimeout(() => { apply(); S.link = 'ok'; render(); if (!quiet) toast(label); }, 420);
+  const epoch = sendEpoch;
+  setTimeout(() => { if (epoch !== sendEpoch) return; apply(); S.link = 'ok'; render(); if (!quiet) toast(label); }, 420);
   return true;
 }
 function runPreset(pr) {
@@ -399,9 +401,9 @@ function stopNight() { if (S.night) { S.night = null; } }
 function finishNight(early = false) {
   const n = S.night; if (!n) return;
   const segs = nightSegs();
-  const wake = early ? S.clock : (wakeAt(segs) ?? n.wake);
+  const wake = Math.max(n.bed, early ? S.clock : (wakeAt(segs) ?? n.wake));
   const r = rng(Math.round(n.bed * 7 + wake));
-  const st = makeStages(r, n.bed, Math.max(n.bed + 60, wake));
+  const st = makeStages(r, n.bed, wake);
   S.nights.unshift({ id: `n${Date.now()}`, date: dateLabel(0), bed: n.bed, wake, ...st, feel: null, profile: n.profile.name, segs, fresh: true });
   S.sleepSel = 0;
   S.night = null;
@@ -497,7 +499,7 @@ function tonightIdle() {
   </div>
   <div class="card" style="margin-top:14px">
     <div class="row between"><span class="kicker">Tonight · ${esc(p.name)}</span><button class="btn ghost" data-a="openOverlay" data-v="pickProfile">Change</button></div>
-    <div style="margin-top:8px">${planBar(segs, { labels: [[segs[0].a, 'Bed', hhmm(bed)], (() => { const mm = segs.filter((s) => s.phase === 'middle'); return mm.length ? [(mm[0].a + mm[mm.length - 1].b) / 2, stepName(mm[0]), 'through the night'] : [segs[0].a, '', '']; })(), [wakeAt(segs) ?? w.at, 'Wake', hhmm(w.at)]] })}</div>
+    <div style="margin-top:8px">${planBar(segs, { labels: [[segs.length ? segs[0].a : bed, 'Bed', hhmm(bed)], (() => { const mm = segs.filter((s) => s.phase === 'middle'); return mm.length ? [(mm[0].a + mm[mm.length - 1].b) / 2, stepName(mm[0]), 'through the night'] : [segs.length ? segs[0].a : bed, '', '']; })(), [wakeAt(segs) ?? w.at, 'Wake', hhmm(w.at)]] })}</div>
     <div class="small faint" style="margin-top:2px">${esc(w.src)} · ${esc(alarmLine)}</div>
     <button class="btn primary block" style="margin-top:14px" data-a="startNight">Start night now</button>
     <button class="btn tonal block" style="margin-top:8px" data-a="openOverlay" data-v="wake">${S.tonightWake != null ? `Tonight-only wake ${hhmm(S.tonightWake)} · change` : 'Set tonight-only wake'}</button>
@@ -533,12 +535,14 @@ function feelPill(f) {
   return { right: '<span class="pill good">Just right</span>', hot: '<span class="pill bad">Too hot</span>', cold: '<span class="pill" style="color:var(--cool2)">Too cold</span>' }[f];
 }
 function stageBar(n) {
-  const total = n.wake - n.bed;
+  const total = Math.max(1, n.wake - n.bed);
   return `<div class="stagebar" role="img" aria-label="Sleep stages">${n.stages.map((s) => `<i class="stage-${s.s}" style="flex:${(s.b - s.a) / total} 1 0"></i>`).join('')}</div>`;
 }
 
 function nightView() {
   const n = S.night, segs = nightSegs();
+  if (!segs.length) return `<div class="night-hero"><span class="state small muted">Night running · ${esc(n.profile.name)}</span><div class="step">Nothing planned</div><div class="muted">This profile has no steps, so the BedJet stays off.</div></div>
+  <div class="btn-row"><button class="btn danger" data-a="openOverlay" data-v="endNight">End night</button></div>`;
   const cur = segAt(segs, S.clock) || segs[0];
   const idx = segs.indexOf(cur);
   const next = segs[idx + 1];
@@ -597,7 +601,7 @@ PAGES.sleep = () => {
     <span class="grow"><span class="t">${esc(n.date)}</span><br><span class="s">${dur(n.asleep, true)} asleep · ${hhmm(n.bed)} → ${hhmm(n.wake)}</span></span>${feelPill(n.feel) || (n.wakes > 2 ? '<span class="pill warn">1 issue</span>' : '')}</button>`).join('')}</div>`;
 };
 function sleepDay(n) {
-  const total = n.wake - n.bed;
+  const total = Math.max(1, n.wake - n.bed);
   const lane = (k) => n.stages.filter((s) => s.s === k).map((s) => `<i class="stage-${k}" style="left:${((s.a - n.bed) / total) * 100}%;width:${((s.b - s.a) / total) * 100}%"></i>`).join('');
   const bj = n.segs.filter((s) => s.a < n.wake).map((s) => `<i style="left:${clamp((s.a - n.bed) / total, 0, 1) * 100}%;width:${clamp((Math.min(s.b, n.wake) - Math.max(s.a, n.bed)) / total, 0, 1) * 100}%;background:${modeColor(s.mode, s.temp)}"></i>`).join('');
   const st = (k) => sum(n.stages.filter((s) => s.s === k), (s) => s.b - s.a);
@@ -652,7 +656,7 @@ PAGES.remote_home = () => {
   </div>
   <div class="h-sec">Run for</div>
   <div class="chips">${[[15, '15 min'], [30, '30 min'], [60, '1 h'], [120, '2 h'], [240, '4 h'], [480, '8 h'], [720, 'Max (12 h)']].map(([v, l]) => `<button class="chip${rm.runFor === v ? ' on' : ''}" data-a="runFor" data-v="${v}" ${rm.mode === 'turbo' && v > 10 ? 'disabled style="opacity:.4"' : ''}>${l}</button>`).join('')}
-    <button class="chip${![15, 30, 60, 120, 240, 480, 720].includes(rm.runFor) ? ' on' : ''}" data-a="openOverlay" data-v="customRun">${![15, 30, 60, 120, 240, 480, 720].includes(rm.runFor) ? dur(rm.runFor) : 'Custom…'}</button></div>
+    <button class="chip${![15, 30, 60, 120, 240, 480, 720].includes(rm.runFor) ? ' on' : ''}" data-a="openOverlay" data-v="customRun" ${rm.mode === 'turbo' ? 'disabled style="opacity:.4"' : ''}>${![15, 30, 60, 120, 240, 480, 720].includes(rm.runFor) ? dur(rm.runFor) : 'Custom…'}</button></div>
   <button class="tile big" style="--c:var(--heat3);width:100%;margin-top:16px" data-a="preset" data-v="boost"><div class="t">Boost</div><div class="s">Turbo for 10 min, then Heat for ${S.boost.heatMin} min</div></button>`;
 };
 
@@ -696,7 +700,7 @@ PAGES.editor = (pg) => {
   const m = p.middle;
   return `${topbar('Profiles', `<button class="btn primary" style="min-height:38px" data-a="saveProfile">Save</button>`)}
   <h1 class="h-page" style="margin-top:2px">${esc(p.name || 'New profile')}</h1>
-  <div class="card">${planBar(segs, { labels: [[segs[0].a, 'Bed', hhmm(p.bed)], [wakeAt(segs) ?? nightAbs(p.wake), 'Wake', hhmm(p.wake)], [planEnd(segs), 'Off', hhmm(planEnd(segs))]] })}${legend(segs)}</div>
+  <div class="card">${planBar(segs, { labels: [[segs.length ? segs[0].a : nightAbs(p.bed), 'Bed', hhmm(p.bed)], [wakeAt(segs) ?? nightAbs(p.wake), 'Wake', hhmm(p.wake)], [planEnd(segs), 'Off', hhmm(planEnd(segs))]] })}${legend(segs)}</div>
   <div class="h-sec">Timing</div>
   <div class="card">
     <div class="row between"><span>Usual bedtime</span><div class="row" style="gap:6px"><button class="chip" aria-label="Earlier bedtime" data-a="pTime" data-v="bed:-15">−</button><b style="width:52px;text-align:center">${hhmm(p.bed)}</b><button class="chip" aria-label="Later bedtime" data-a="pTime" data-v="bed:15">+</button></div></div>
@@ -1047,7 +1051,7 @@ function renderClock() {
     r.value = S.clock; r.style.setProperty('--pct', `${((S.clock - CLOCK_MIN) / (CLOCK_MAX - CLOCK_MIN)) * 100}%`);
   }
   // Mark the night on the time bar.
-  if (S.night) {
+  if (S.night && nightSegs().length) {
     const segs = nightSegs(); const a = ((segs[0].a - CLOCK_MIN) / (CLOCK_MAX - CLOCK_MIN)) * 100, b = ((planEnd(segs) - CLOCK_MIN) / (CLOCK_MAX - CLOCK_MIN)) * 100;
     r.style.setProperty('--fill', 'var(--accent)');
     r.title = `Night ${hhmm(segs[0].a)}–${hhmm(planEnd(segs))}`;
@@ -1149,7 +1153,7 @@ const A = {
   wakeSet: (v) => { S.tonightWake = Number(v); render(); },
   wakeClear: () => { S.tonightWake = null; if (S.night) rewriteNight('Back to your alarm or profile. Plan on the BedJet rewritten.'); back(); },
   wakeDone: () => { back(); if (S.night) rewriteNight(`Wake ${hhmm(wakeFor(S.night.profile).at)}. Plan on the BedJet rewritten.`); else if (S.tonightWake != null) toast(`Tonight only: wake at ${hhmm(S.tonightWake)}`); },
-  endNight: () => { back(); setTimeout(() => send('Night ended. BedJet off.', () => finishNight(true), true), 60); },
+  endNight: () => { back(); const epoch = sendEpoch; setTimeout(() => { if (epoch === sendEpoch) send('Night ended. BedJet off.', () => finishNight(true), true); }, 60); },
   feel: (v) => {
     S.nights[0].feel = v;
     if (v === 'right') { back(); toast('Morning check-in saved.'); tick('checkin'); return; }
@@ -1207,7 +1211,9 @@ const A = {
   },
   runFor: (v) => {
     S.remote.runFor = Number(v);
-    if (S.bedjet.mode !== 'off' && !S.night) send(`Runs until ${hhmm(S.clock + Number(v))}`, () => { S.bedjet.endsAt = S.clock + Number(v); }); else render();
+    // Turbo always stops after 10 minutes, whatever run time is chosen.
+    const d = S.bedjet.mode === 'turbo' ? Math.min(10, Number(v)) : Number(v);
+    if (S.bedjet.mode !== 'off' && !S.night) send(`Runs until ${hhmm(S.clock + d)}`, () => { S.bedjet.endsAt = S.clock + d; }); else render();
   },
   customRun: (v) => { S.remote.runFor = clamp(S.remote.runFor + Number(v), 15, 720); render(); },
   customRunDone: () => { back(); A.runFor(S.remote.runFor); },
@@ -1384,7 +1390,7 @@ function wire() {
 const PANEL = {
   showHome: () => { if (!R.home) nav((n) => { n.home = true; n.overlay = null; }, 'fade'); closePanel(); },
   reset: () => {
-    setPlaying(false); S = freshState(); tried = new Set(); storage.set('nocturne-demo-tried', []);
+    setPlaying(false); sendEpoch++; S = freshState(); tried = new Set(); storage.set('nocturne-demo-tried', []);
     applyTheme.key = null; lastPageKey = ''; S.toast = null; S.notif = null; renderNotif(); renderTry();
     nav((n) => Object.assign(n, ROOT()), 'fade'); toast('Demo reset'); closePanel();
   },
