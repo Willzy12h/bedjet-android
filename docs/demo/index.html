@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en-GB" data-build="1.1.0-beta.2" data-commit="dbf2ac6" data-generated="10 November 2026, 07:39 UTC">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nocturne demo</title>
+<meta name="description" content="An interactive HTML version of the Nocturne app for the BedJet 3, with a pretend BedJet and a demo clock. Not the app itself.">
+<meta name="theme-color" content="#0B0D18">
+<link rel="stylesheet" href="demo.css">
+<script src="demo.js" defer></script>
+</head>
+<body>
+<div class="stage">
+  <aside class="panel" aria-label="About this demo">
+    <span class="tag">Interactive demo</span>
+    <h1>Nocturne</h1>
+    <p>Plans each night on a BedJet 3 around your alarm. Tap around it as you would on a phone.</p>
+    <div class="notice">
+      <b>This is an HTML version of the app, not the app itself.</b> It shows the main features with a pretend BedJet,
+      so it isn't one-for-one and nothing connects to a real device. Newer builds of the app may look or work differently.
+      <div class="stamp" id="stamp"></div>
+    </div>
+    <p style="margin-bottom:6px"><b style="color:var(--page-ink)">Things to try</b> <span id="try-count" class="stamp"></span></p>
+    <ul class="try" id="try"></ul>
+    <p class="small">Use <b style="color:var(--page-ink)">Demo time</b> at the bottom of the phone to play or scrub through the night.
+      The browser's back and forward buttons work too.</p>
+    <div class="links">
+      <button data-a="showHome">Home screen and widgets</button>
+      <button data-a="reset">Reset the demo</button>
+      <a href="https://github.com/Willzy12h/bedjet-android/releases" target="_blank" rel="noopener">Download the APK</a>
+      <a href="https://github.com/Willzy12h/bedjet-android/blob/gallery/README.md" target="_blank" rel="noopener">See every screen</a>
+      <a href="https://github.com/Willzy12h/bedjet-android#readme" target="_blank" rel="noopener">Project page</a>
+      <button class="close-panel" data-a="closePanel">Close</button>
+    </div>
+  </aside>
+  <div class="device">
+    <div class="screen" aria-label="Nocturne app demo"></div>
+    <button class="info-pill" data-a="openPanel" aria-label="About this demo"
+      style="position:absolute;top:calc(env(safe-area-inset-top) + 4px);left:50%;transform:translateX(-50%);z-index:70;font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;background:rgba(180,140,255,.22);color:#F1F3F9;border:1px solid rgba(255,255,255,.12)">Demo · info</button>
+  </div>
+</div>
+<div class="panel-scrim" data-a="closePanel"></div>
+<noscript><p style="padding:20px">The demo needs JavaScript.</p></noscript>
+</body>
+</html>
