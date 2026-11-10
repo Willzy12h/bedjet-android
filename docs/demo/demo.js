@@ -295,7 +295,7 @@ function send(label, apply, quiet = false) {
   return true;
 }
 function runPreset(pr) {
-  if (pr.id === 'off') return send('BedJet off', () => { S.bedjet = { ...S.bedjet, mode: 'off', endsAt: null, then: null }; stopNight(); });
+  if (pr.id === 'off') return send('BedJet off', () => { S.bedjet = { ...S.bedjet, mode: 'off', endsAt: null, then: null, queue: null }; stopNight(); });
   if (pr.id === 'boost') {
     return send(`Boost: Turbo, then Heat for ${S.boost.heatMin} min`, () => {
       stopNight();
@@ -337,8 +337,9 @@ function simulateMinute() {
     if (ws && !S.night.notified && S.clock >= ws.a) { S.night.notified = true; wakeNotification(); }
     if (S.clock >= planEnd(segs)) finishNight();
   } else if (bj.endsAt != null && S.clock >= bj.endsAt) {
-    if (bj.then) { const t = bj.then; S.bedjet = { mode: t.mode, temp: t.temp, fan: t.fan, endsAt: S.clock + t.dur, then: null }; }
-    else S.bedjet = { ...bj, mode: 'off', endsAt: null };
+    if (bj.queue && bj.queue.length) { const [nx, ...more] = bj.queue; S.bedjet = { ...nx, then: null, queue: more }; }
+    else if (bj.then) { const t = bj.then; S.bedjet = { mode: t.mode, temp: t.temp, fan: t.fan, endsAt: S.clock + t.dur, then: null }; }
+    else S.bedjet = { ...bj, mode: 'off', endsAt: null, queue: null };
   }
   // Air from the BedJet drifts toward what it is doing.
   const m = S.bedjet.mode;
@@ -392,20 +393,19 @@ function startNight(auto = false) {
 function rewriteNight(msg) {
   if (!S.night) return;
   const w = wakeFor(S.night.profile);
-  S.night.wake = w.at; S.night.src = w.src;
-  send(msg, () => simulateMinute());
+  send(msg, () => { if (!S.night) return; S.night.wake = w.at; S.night.src = w.src; simulateMinute(); });
 }
 function stopNight() { if (S.night) { S.night = null; } }
 function finishNight(early = false) {
   const n = S.night; if (!n) return;
   const segs = nightSegs();
-  const wake = early ? S.clock : (wakeAt(segs) || S.clock);
+  const wake = early ? S.clock : (wakeAt(segs) ?? n.wake);
   const r = rng(Math.round(n.bed * 7 + wake));
   const st = makeStages(r, n.bed, Math.max(n.bed + 60, wake));
   S.nights.unshift({ id: `n${Date.now()}`, date: dateLabel(0), bed: n.bed, wake, ...st, feel: null, profile: n.profile.name, segs, fresh: true });
   S.sleepSel = 0;
   S.night = null;
-  S.bedjet = { ...S.bedjet, mode: 'off', endsAt: null, then: null };
+  S.bedjet = { ...S.bedjet, mode: 'off', endsAt: null, then: null, queue: null };
   S.playing = false;
   S.notif = null; renderNotif();
   tick('timelapse');
@@ -497,7 +497,7 @@ function tonightIdle() {
   </div>
   <div class="card" style="margin-top:14px">
     <div class="row between"><span class="kicker">Tonight · ${esc(p.name)}</span><button class="btn ghost" data-a="openOverlay" data-v="pickProfile">Change</button></div>
-    <div style="margin-top:8px">${planBar(segs, { labels: [[segs[0].a, 'Bed', hhmm(bed)], (() => { const mm = segs.filter((s) => s.phase === 'middle'); return mm.length ? [(mm[0].a + mm[mm.length - 1].b) / 2, stepName(mm[0]), 'through the night'] : [segs[0].a, '', '']; })(), [wakeAt(segs) || bed, 'Wake', hhmm(w.at)]] })}</div>
+    <div style="margin-top:8px">${planBar(segs, { labels: [[segs[0].a, 'Bed', hhmm(bed)], (() => { const mm = segs.filter((s) => s.phase === 'middle'); return mm.length ? [(mm[0].a + mm[mm.length - 1].b) / 2, stepName(mm[0]), 'through the night'] : [segs[0].a, '', '']; })(), [wakeAt(segs) ?? w.at, 'Wake', hhmm(w.at)]] })}</div>
     <div class="small faint" style="margin-top:2px">${esc(w.src)} · ${esc(alarmLine)}</div>
     <button class="btn primary block" style="margin-top:14px" data-a="startNight">Start night now</button>
     <button class="btn tonal block" style="margin-top:8px" data-a="openOverlay" data-v="wake">${S.tonightWake != null ? `Tonight-only wake ${hhmm(S.tonightWake)} · change` : 'Set tonight-only wake'}</button>
@@ -542,7 +542,7 @@ function nightView() {
   const cur = segAt(segs, S.clock) || segs[0];
   const idx = segs.indexOf(cur);
   const next = segs[idx + 1];
-  const wake = wakeAt(segs), end = planEnd(segs);
+  const wake = wakeAt(segs) ?? n.wake, end = planEnd(segs);
   const leftToWake = wake - S.clock;
   const phaseName = { start: 'Start', middle: 'Through the night', wakeUp: 'Wake-up', after: 'After waking', extra: 'Extra time', snooze: 'Snooze' }[cur.phase];
   return `
@@ -696,7 +696,7 @@ PAGES.editor = (pg) => {
   const m = p.middle;
   return `${topbar('Profiles', `<button class="btn primary" style="min-height:38px" data-a="saveProfile">Save</button>`)}
   <h1 class="h-page" style="margin-top:2px">${esc(p.name || 'New profile')}</h1>
-  <div class="card">${planBar(segs, { labels: [[segs[0].a, 'Bed', hhmm(p.bed)], [wakeAt(segs) || segs[0].a, 'Wake', hhmm(p.wake)], [planEnd(segs), 'Off', hhmm(planEnd(segs))]] })}${legend(segs)}</div>
+  <div class="card">${planBar(segs, { labels: [[segs[0].a, 'Bed', hhmm(p.bed)], [wakeAt(segs) ?? nightAbs(p.wake), 'Wake', hhmm(p.wake)], [planEnd(segs), 'Off', hhmm(planEnd(segs))]] })}${legend(segs)}</div>
   <div class="h-sec">Timing</div>
   <div class="card">
     <div class="row between"><span>Usual bedtime</span><div class="row" style="gap:6px"><button class="chip" aria-label="Earlier bedtime" data-a="pTime" data-v="bed:-15">−</button><b style="width:52px;text-align:center">${hhmm(p.bed)}</b><button class="chip" aria-label="Later bedtime" data-a="pTime" data-v="bed:15">+</button></div></div>
@@ -1171,7 +1171,7 @@ const A = {
     if (k === 'off') return send('Night ended. BedJet off.', () => finishNight(true), true);
     const add = { snoozeWarm: step('heat', 32, 30, 10), snoozeCool: step('cool', 22, 30, 10), warm30: step('heat', 32, 30, 30), cool30: step('cool', 22, 40, 30) }[k];
     if (k.startsWith('snooze')) { send(`Snoozed: ${stepName(add)} until ${hhmm(Math.round(S.clock) + 10)}`, () => { const a = Math.round(S.clock); n.snooze = { ...add, a, b: a + 10 }; n.wake = Math.max(n.wake, a) + 10; simulateMinute(); }); }
-    else { n.extras.push(add); send(`${WAKE_BUTTONS[k]} added after the plan`, () => simulateMinute()); }
+    else { send(`${WAKE_BUTTONS[k]} added after the plan`, () => { n.extras.push(add); simulateMinute(); }); }
   },
   menu: (v, el) => {
     const sr = els.screen.getBoundingClientRect(), r = el.getBoundingClientRect(), sc = sr.width / els.screen.offsetWidth;
@@ -1189,10 +1189,17 @@ const A = {
     const i = segs.indexOf(cur); const nx = segs[i + 1]; if (!nx) return toast('This is the last step');
     advanceTo(nx.a + .01); toast(`Skipped to ${stepName(nx)}`);
   },
-  stopTracking: () => { stopNight(); render(); toast('Stopped tracking. The BedJet keeps running what it has.'); },
+  stopTracking: () => {
+    const rest = nightSegs().filter((x) => x.b > S.clock);
+    stopNight();
+    if (rest.length) {
+      const run = (x) => ({ mode: x.mode === 'wait' ? 'off' : x.mode, temp: x.temp ?? S.bedjet.temp, fan: x.fan ?? S.bedjet.fan, endsAt: x.b });
+      S.bedjet = { ...S.bedjet, ...run(rest[0]), then: null, queue: rest.slice(1).map(run) };
+    }
+    render(); toast('Stopped tracking. The BedJet keeps running what it has.'); },
   remoteMode: (m) => {
     const rm = S.remote; rm.mode = m === 'off' ? rm.mode : m;
-    if (m === 'off') return send('BedJet off', () => { S.bedjet = { ...S.bedjet, mode: 'off', endsAt: null, then: null }; stopNight(); });
+    if (m === 'off') return send('BedJet off', () => { S.bedjet = { ...S.bedjet, mode: 'off', endsAt: null, then: null, queue: null }; stopNight(); });
     const md = MODES[m]; rm.temp = m === 'turbo' ? 43 : clamp(rm.temp, md.min, md.max);
     const d = m === 'turbo' ? 10 : rm.runFor;
     tick('remote');
@@ -1264,7 +1271,7 @@ const A = {
   addStep: () => {
     const o = R.overlay; if (o.pick == null) return;
     const c = [['turbo', 43, 100, 10], ['heat', 32, 40, 30], ['ext', 30, 30, 60], ['cool', 22, 40, 30], ['dry', 28, 40, 30], ['wait', null, 0, 30]][o.pick];
-    const arr = draft().p[o.phase]; arr.push(step(...c)); touch(); tick('editstep');
+    const arr = draft().p[o.phase]; arr.push(step(...c)); clampToLimits(draft().p); touch(); tick('editstep');
     swapOverlay({ k: 'step', phase: o.phase, i: arr.length - 1 });
   },
   settingsPage: (k) => { if (k === 'sleep') tick('sleep'); push({ p: k }); },
