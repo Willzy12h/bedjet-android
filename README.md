@@ -52,8 +52,9 @@ Updates opens the Releases page; the app never checks or downloads anything by i
   can't be reached, nothing is sent and the app tells you so.
 - **Remote** for mode, temperature, fan and run time, with a **Max** option for the longest run the mode allows,
   plus **Boost** (Turbo, then Heat).
-- **Morning check-in.** Tell it the night was too hot, just right or too cold, and it offers to lower or raise that
-  profile's *Middle* by 1 °C for future nights. Nothing changes unless you accept.
+- **Morning check-in.** Tell it the night was too hot, just right or too cold, and it offers to adjust that
+  profile's *Middle* for future nights: 1 °C cooler or warmer, or for a Cool or Dry *Middle*, 10% more or less fan.
+  Nothing changes unless you accept.
 - **Wake-up notification** with up to three buttons you choose: snooze or extend warm or cool, or Off.
 - **Widgets**: a controls widget that grows from one button to a full list, and a single-button widget. When the
   BedJet is out of range the widget goes grey; a tap reconnects and then runs what you tapped (an action that
