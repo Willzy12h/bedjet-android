@@ -256,6 +256,11 @@ function goIndex(i) {
   const prevKey = overlayKey();
   const prevPage = JSON.stringify([R.tab, curPage(), R.home]);
   NAV.i = i; R = clone(target);
+  const pg = curPage();
+  if (pg && pg.p === 'editor' && !S.drafts[pg.id]) {
+    const saved = S.profiles.find((p) => p.id === pg.id);
+    if (saved) S.drafts[pg.id] = { p: clone(saved), dirty: false };
+  }
   const samePage = prevPage === JSON.stringify([R.tab, curPage(), R.home]);
   render(samePage ? null : dir, prevKey !== overlayKey());
 }
@@ -303,7 +308,24 @@ function runPreset(pr) {
   });
 }
 function segAt(segs, t) { return segs.find((s) => t >= s.a && t < s.b) || null; }
-function nightSegs() { const n = S.night; return n ? compile(n.profile, n.bed, n.wake, n.extras) : []; }
+function nightSegs() {
+  const n = S.night; if (!n) return [];
+  let segs = compile(n.profile, n.bed, n.wake, n.extras);
+  const z = n.snooze;
+  if (z) {
+    // A snooze runs its own step over whatever the plan had for those minutes.
+    segs = segs.flatMap((s) => {
+      if (s.b <= z.a || s.a >= z.b) return [s];
+      const out = [];
+      if (s.a < z.a) out.push({ ...s, b: z.a });
+      if (s.b > z.b) out.push({ ...s, a: z.b });
+      return out;
+    });
+    segs.push({ ...z, phase: 'snooze', i: 0 });
+    segs.sort((x, y) => x.a - y.a);
+  }
+  return segs;
+}
 
 function simulateMinute() {
   const bj = S.bedjet;
@@ -363,6 +385,7 @@ function startNight(auto = false) {
     tick('start');
   };
   if (S.outOfRange) { toast("Can't reach the BedJet. Nothing was sent."); return; }
+  if (auto) { go(); toast('Auto-start: tonight is on the BedJet'); return; }
   send(auto ? 'Auto-start: tonight is on the BedJet' : `Tonight is on the BedJet in slot ${S.settings.slot}`, go);
   if (!auto) setTimeout(() => { if (S.night && !S.playing) toast('Press ▶ on Demo time to run the night'); }, 3100);
 }
@@ -521,7 +544,7 @@ function nightView() {
   const next = segs[idx + 1];
   const wake = wakeAt(segs), end = planEnd(segs);
   const leftToWake = wake - S.clock;
-  const phaseName = { start: 'Start', middle: 'Through the night', wakeUp: 'Wake-up', after: 'After waking', extra: 'Extra time' }[cur.phase];
+  const phaseName = { start: 'Start', middle: 'Through the night', wakeUp: 'Wake-up', after: 'After waking', extra: 'Extra time', snooze: 'Snooze' }[cur.phase];
   return `
   <div class="night-hero">
     <span class="state small muted" style="display:inline-flex;gap:8px;align-items:center"><span class="dot live"></span>Night running · ${esc(n.profile.name)}</span>
@@ -1147,7 +1170,7 @@ const A = {
     const n = S.night;
     if (k === 'off') return send('Night ended. BedJet off.', () => finishNight(true), true);
     const add = { snoozeWarm: step('heat', 32, 30, 10), snoozeCool: step('cool', 22, 30, 10), warm30: step('heat', 32, 30, 30), cool30: step('cool', 22, 40, 30) }[k];
-    if (k.startsWith('snooze')) { n.wake += 10; send(`Snoozed: ${stepName(add)} until ${hhmm(n.wake)}`, () => simulateMinute()); }
+    if (k.startsWith('snooze')) { send(`Snoozed: ${stepName(add)} until ${hhmm(Math.round(S.clock) + 10)}`, () => { const a = Math.round(S.clock); n.snooze = { ...add, a, b: a + 10 }; n.wake = Math.max(n.wake, a) + 10; simulateMinute(); }); }
     else { n.extras.push(add); send(`${WAKE_BUTTONS[k]} added after the plan`, () => simulateMinute()); }
   },
   menu: (v, el) => {
