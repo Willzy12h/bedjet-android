@@ -417,16 +417,13 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         }
 
         if (page == "about") Group(stringResource(R.string.settings_updates)) {
-            // Nocturne has no internet permission, so the check happens in the browser: the latest release page shows
-            // its version and APK beside the one installed here.
+            // Nocturne has no internet permission, so the check happens in the browser. The Releases list, not
+            // releases/latest, because betas are pre-releases and GitHub's "latest" skips them.
             Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodyMedium)
             installedOn(context)?.let { Text(stringResource(R.string.settings_updated_on, it), style = MaterialTheme.typography.bodySmall) }
             Text(stringResource(R.string.settings_update_check_help), style = MaterialTheme.typography.bodySmall)
-            Button(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android/releases/latest") }) {
+            Button(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android/releases") }) {
                 Text(stringResource(R.string.settings_update_check))
-            }
-            TextButton(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android/releases") }) {
-                Text(stringResource(R.string.settings_github_releases))
             }
         }
 

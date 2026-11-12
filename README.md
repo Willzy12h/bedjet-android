@@ -36,8 +36,8 @@ menu and widget in the Midnight Ink palette. It is re-rendered automatically aft
 Requires Android 12 or newer and a BedJet 3. Earlier BedJet models use a different protocol and are not supported.
 
 Updates install over the top as long as they are signed with the same key as the version you have. Settings →
-About → **Check for a newer build** shows your installed version and opens the latest release in your browser, so you
-can compare and download it; the app never checks or downloads anything by itself.
+About → **Check for a newer build** shows your installed version and opens the Releases page in your browser, newest
+first, so you can compare and download it; the app never checks or downloads anything by itself.
 
 ## What it does
 
