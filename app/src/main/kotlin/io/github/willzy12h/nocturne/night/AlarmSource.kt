@@ -25,8 +25,11 @@ object AlarmSource {
         val creator = show?.creatorPackage
         val uid = show?.creatorUid
         val counts = io.github.willzy12h.nocturne.core.plan.AlarmPolicy(settings).acceptsSource(creator)
+        val identified = identifyAlarmCreator(context, creator, uid)
+        // Remembered for the alarm-app list, which can then offer an app such as a white-noise app by name.
+        SeenAlarmApps.record(context, identified)
         return NextAlarm(Instant.ofEpochMilli(info.triggerTime).atZone(ZoneId.systemDefault()), creator, counts,
-            identifyAlarmCreator(context, creator, uid), uid)
+            identified, uid)
     }
 
     fun next(context: Context, settings: Settings): ZonedDateTime? = describe(context, settings)?.takeIf { it.counts }?.time
@@ -48,7 +51,7 @@ object AlarmSource {
             put("identifiedCreatorPackage", JsonPrimitive(explanation.alarm?.identifiedCreator))
             put("sourceAccepted", explanation.sourceAccepted?.let(::JsonPrimitive) ?: JsonNull)
             put("nightStart", JsonPrimitive(explanation.nightStart.toString()))
-            put("windowStart", JsonPrimitive(explanation.nightStart.plus(WakeResolver.MIN_NIGHT).toString()))
+            put("windowStart", JsonPrimitive(explanation.earliestAlarm.toString()))
             put("windowEnd", JsonPrimitive(explanation.nightStart.plus(WakeResolver.MAX_NIGHT).toString()))
             put("requestedWakeAt", JsonPrimitive(explanation.requestedWakeAt?.toString()))
             put("matchesSavedWake", JsonPrimitive(explanation.matchesSavedWake))

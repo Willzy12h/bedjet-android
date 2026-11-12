@@ -98,7 +98,7 @@ object AutoStartSchedule {
         val offset = config.minutesBeforeWake.toLong()
         val accepted = alarm?.takeIf {
             val plannedStart = it.time.minusMinutes(offset)
-            AlarmPolicy(saved).accept(it.time, it.creator, plannedStart) && !plannedStart.isAfter(after.plusHours(24))
+            AlarmPolicy(saved).accept(it.time, it.creator, plannedStart, profile.bedtimeMinute) && !plannedStart.isAfter(after.plusHours(24))
         }?.time
         val preferred = override ?: accepted
         val start = preferred?.minusMinutes(offset)

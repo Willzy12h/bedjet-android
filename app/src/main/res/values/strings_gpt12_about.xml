@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_github_releases">Check GitHub for a new APK</string>
+    <string name="settings_github_releases">All releases on GitHub</string>
+    <string name="settings_update_check">Check for a newer build</string>
+    <string name="settings_update_check_help">Opens the latest release in your browser. If its version is newer than the one installed, download the APK there and open it to update. Nocturne itself never goes online.</string>
+    <string name="settings_updated_on">Installed or updated on %1$s</string>
     <string name="settings_about_description">Nocturne controls BedJet 3 nights over Bluetooth.</string>
     <string name="settings_about_unaffiliated">Not affiliated with BedJet LLC</string>
     <string name="settings_protocol_attribution">BedJet protocol work by the Lull project (github.com/rkanjani/lull, MIT)</string>

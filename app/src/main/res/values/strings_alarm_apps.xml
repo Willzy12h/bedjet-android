@@ -6,12 +6,21 @@
     <string name="alarm_apps_any">Any clock app</string>
     <string name="alarm_apps_any_found">Recommended. Found on this phone: %1$s</string>
     <string name="alarm_apps_any_none_found">Recommended. Uses Google Clock or Samsung Clock.</string>
-    <string name="alarm_apps_only">Only %1$s</string>
     <!-- Two clock apps with the same name, told apart by package: "Clock (com.example.clock)". -->
     <string name="alarm_app_with_package">%1$s (%2$s)</string>
     <string name="alarm_apps_none">No alarms</string>
     <string name="alarm_apps_none_help">Every profile uses its own wake time.</string>
-    <string name="alarm_apps_never">Alarms from calendars, reminders and other apps are never used.</string>
+    <string name="alarm_apps_never">Alarms from apps you haven’t ticked, such as calendars and reminders, are never used.</string>
+    <string name="alarm_apps_ticked">Only the apps I tick</string>
+    <string name="alarm_apps_ticked_help">Choose exactly which apps below can set your wake-up.</string>
+    <string name="alarm_apps_clock_header">Clock apps</string>
+    <string name="alarm_apps_other_header">Other apps that set alarms</string>
+    <string name="alarm_apps_other_help">Tick a white-noise, sleep or other alarm app to use its alarms too.</string>
+    <string name="alarm_apps_other_none">None seen yet. Set an alarm in the app, then open this list again, or show more apps.</string>
+    <string name="alarm_apps_other_none_at_all">No other apps that set alarms were found.</string>
+    <string name="alarm_apps_show_more">Show more apps</string>
+    <string name="alarm_apps_set_next">Set your next alarm (%1$s)</string>
+    <string name="alarm_apps_seen">Has set an alarm on this phone</string>
     <string name="alarm_apps_next_used">Next alarm on this phone: %1$s from %2$s. Used.</string>
     <string name="alarm_apps_next_unused">Next alarm on this phone: %1$s from %2$s. Not used.</string>
     <string name="alarm_apps_fixed">Use a fixed wake time for %1$s</string>
@@ -21,11 +30,13 @@
     <string name="alarm_apps_row">Alarms from</string>
     <string name="alarm_apps_row_any">Any clock app</string>
     <string name="alarm_apps_row_only">Only %1$s</string>
+    <string name="alarm_apps_row_any_plus">Clock apps and %1$s</string>
+    <string name="alarm_apps_row_nothing">No apps ticked: profile wake times</string>
     <string name="alarm_apps_row_none">No alarms: profile wake times</string>
     <string name="alarm_apps_change">Change</string>
     <string name="alarm_source_alarms_off">Profile wake %1$s · alarms off</string>
     <string name="alarm_source_reason_alarms_off">alarms are off</string>
-    <string name="alarm_source_reason_other_app">from %1$s, not your alarm app</string>
+    <string name="alarm_source_reason_other_app">from %1$s, not one of your alarm apps</string>
     <!-- Setup. -->
     <string name="setup_alarm_title">Choose your alarm app</string>
     <string name="setup_alarm_body">Nocturne can wake you with your alarm. Choose which alarms it follows.</string>

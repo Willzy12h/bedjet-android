@@ -36,7 +36,8 @@ menu and widget in the Midnight Ink palette. It is re-rendered automatically aft
 Requires Android 12 or newer and a BedJet 3. Earlier BedJet models use a different protocol and are not supported.
 
 Updates install over the top as long as they are signed with the same key as the version you have. Settings →
-Updates opens the Releases page; the app never checks or downloads anything by itself.
+About → **Check for a newer build** shows your installed version and opens the latest release in your browser, so you
+can compare and download it; the app never checks or downloads anything by itself.
 
 ## What it does
 
@@ -44,8 +45,9 @@ Updates opens the Releases page; the app never checks or downloads anything by i
   *Middle* stretches or shrinks to fill the night. *Wake-up* ends exactly at your alarm. *After wake* is optional,
   for example keep warm for 30 minutes. Every profile has fan and temperature limits that the whole night stays
   inside. Seasonal presets are included to start from.
-- **Follows your alarm.** Nocturne reads the next alarm from the clock app you choose. If you move the alarm during
-  the night, the plan on the BedJet is rewritten. With no alarm it uses the profile's own wake time.
+- **Follows your alarm.** Nocturne reads the next alarm from the apps you choose: your clock apps by default, plus
+  any other app you tick, such as a white-noise or sleep app. Calendar and reminder alarms are ignored. If you move
+  the alarm during the night, the plan on the BedJet is rewritten. With no alarm it uses the profile's own wake time.
 - **Runs on the BedJet itself.** Tonight's plan goes into one BedJet programme slot (slot 3 by default). The first
   time a slot is overwritten, what was in it is saved so you can put it back.
 - **Waits for the BedJet.** Commands connect first and only count as done when the BedJet reports back. If it

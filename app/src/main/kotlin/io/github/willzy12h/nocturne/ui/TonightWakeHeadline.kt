@@ -23,7 +23,8 @@ internal fun tonightWakeHeadline(settings: Settings, profile: Profile?, now: Zon
 
     val start = night?.startedAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() } ?: now
     val policy = AlarmPolicy(settings)
-    if (alarm != null && alarm.time.isAfter(now) && policy.accept(alarm.time, alarm.creator, start))
+    val bedtime = (night?.profile ?: profile)?.bedtimeMinute
+    if (alarm != null && alarm.time.isAfter(now) && policy.accept(alarm.time, alarm.creator, start, bedtime))
         return TonightWakeHeadline(alarm.time, R.string.gpt12_wake_next_alarm)
 
     val fallback = (night?.profile ?: profile)?.let {
@@ -32,7 +33,7 @@ internal fun tonightWakeHeadline(settings: Settings, profile: Profile?, now: Zon
     val reason = when {
         alarm == null || !alarm.time.isAfter(now) -> R.string.gpt12_wake_no_alarm
         !policy.acceptsSource(alarm.creator) -> R.string.gpt12_wake_unaccepted_alarm
-        alarm.time.isBefore(start.plus(WakeResolver.MIN_NIGHT)) -> R.string.gpt12_wake_too_soon
+        alarm.time.isBefore(WakeResolver.earliestAlarm(start, bedtime)) -> R.string.gpt12_wake_too_soon
         else -> R.string.gpt12_wake_too_late
     }
     return TonightWakeHeadline(fallback, R.string.gpt12_wake_profile_fallback, reason)
