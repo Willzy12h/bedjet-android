@@ -15,12 +15,13 @@
     <string name="alarm_apps_ticked_help">Choose exactly which apps below can set your wake-up.</string>
     <string name="alarm_apps_clock_header">Clock apps</string>
     <string name="alarm_apps_other_header">Other apps that set alarms</string>
-    <string name="alarm_apps_other_help">Tick a white-noise, sleep or other alarm app to use its alarms too.</string>
+    <string name="alarm_apps_other_help">Tick a white-noise, sleep or other alarm app to use its alarms too. Only alarms Android shows on your lock screen can be followed; some apps keep theirs private.</string>
     <string name="alarm_apps_other_none">None seen yet. Set an alarm in the app, then open this list again, or show more apps.</string>
     <string name="alarm_apps_other_none_at_all">No other apps that set alarms were found.</string>
     <string name="alarm_apps_show_more">Show more apps</string>
     <string name="alarm_apps_set_next">Set your next alarm (%1$s)</string>
     <string name="alarm_apps_seen">Has set an alarm on this phone</string>
+    <string name="alarm_apps_requests_only">Asks to set alarms. Nocturne can only use its alarms if they show on your lock screen.</string>
     <string name="alarm_apps_next_used">Next alarm on this phone: %1$s from %2$s. Used.</string>
     <string name="alarm_apps_next_unused">Next alarm on this phone: %1$s from %2$s. Not used.</string>
     <string name="alarm_apps_fixed">Use a fixed wake time for %1$s</string>

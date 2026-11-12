@@ -117,6 +117,8 @@ fun AlarmAppsChoices(settings: Settings, apps: List<ClockApps.App>, next: AlarmS
     fun hint(app: ClockApps.App): String? = when {
         next != null && app.packageName == next.identifiedCreator -> context.getString(R.string.alarm_apps_set_next, Format.clock(next.time))
         app.seen -> context.getString(R.string.alarm_apps_seen)
+        // Found only because it asks to set alarms: it may keep them private, where Android never shows them.
+        !app.clock -> context.getString(R.string.alarm_apps_requests_only)
         else -> null
     }
     SectionLabel(stringResource(R.string.alarm_apps_clock_header))
