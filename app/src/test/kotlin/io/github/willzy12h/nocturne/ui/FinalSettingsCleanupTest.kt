@@ -36,10 +36,12 @@ class FinalSettingsCleanupTest {
     @Test fun updatesOpenTheFixedGitHubReleasesPageInTheBrowser() {
         settings()
         ui.compose.openSettingsPage("about")
-        ui.control("Check GitHub for a new APK").performClick()
-        val intent = shadowOf(ui.compose.activity).nextStartedActivity
-        assertEquals(Intent.ACTION_VIEW, intent.action)
-        assertEquals("https://github.com/Willzy12h/bedjet-android/releases", intent.dataString)
+        ui.control("Check for a newer build").performClick()
+        val latest = shadowOf(ui.compose.activity).nextStartedActivity
+        assertEquals(Intent.ACTION_VIEW, latest.action)
+        assertEquals("https://github.com/Willzy12h/bedjet-android/releases/latest", latest.dataString)
+        ui.control("All releases on GitHub").performClick()
+        assertEquals("https://github.com/Willzy12h/bedjet-android/releases", shadowOf(ui.compose.activity).nextStartedActivity.dataString)
     }
 
     @Test fun aboutKeepsAttributionVersionAndProjectHelpReadableAtTwoHundredPercent() {

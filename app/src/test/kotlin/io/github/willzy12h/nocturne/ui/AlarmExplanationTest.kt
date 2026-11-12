@@ -50,10 +50,10 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         NULL_DENIED("Alarm 06:30 ignored: source unknown — tap to change"),
         /** "From any app" was retired in 0.3.0-acceptance.3: asking for it no longer lets an unnamed alarm through. */
         NULL_ALLOWED("Alarm 06:30 ignored: source unknown — tap to change"),
-        APP_DENIED("Alarm 06:30 ignored: from unapproved.clock, not your alarm app — tap to change"),
-        TOO_SOON("Alarm 23:00 ignored: too soon — normal nights need at least 1 hour — tap to change"),
+        APP_DENIED("Alarm 06:30 ignored: from unapproved.clock, not one of your alarm apps — tap to change"),
+        TOO_SOON("Alarm 23:00 ignored: too early — under 3 hours after bedtime — tap to change"),
         TOO_LATE("Alarm 16:31 ignored: too late — beyond tonight’s 18 hours — tap to change"),
-        MINIMUM_BOUNDARY("Next alarm 23:30 · Samsung Clock — used", "23:30"),
+        MINIMUM_BOUNDARY("Next alarm 01:30 · Samsung Clock — used", "01:30"),
         MAXIMUM_BOUNDARY("Next alarm 16:30 · Samsung Clock — used", "16:30"),
         NO_ALARM("No alarm set — profile wake 07:00"),
         PROFILE_ONLY("Alarm 06:30 ignored: alarms off for this profile — tap to change"),
@@ -124,7 +124,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             val time = when (scenario) {
                 Scenario.TOO_SOON -> "2026-10-22T23:00:00Z"
                 Scenario.TOO_LATE -> "2026-10-23T16:31:00Z"
-                Scenario.MINIMUM_BOUNDARY -> "2026-10-22T23:30:00Z"
+                Scenario.MINIMUM_BOUNDARY -> "2026-10-23T01:30:00Z"
                 Scenario.MAXIMUM_BOUNDARY -> "2026-10-23T16:30:00Z"
                 else -> "2026-10-23T06:30:00Z"
             }

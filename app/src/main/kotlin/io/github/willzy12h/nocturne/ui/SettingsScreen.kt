@@ -449,7 +449,6 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         if (page == "about") Group(stringResource(R.string.settings_about)) {
             Text(stringResource(R.string.settings_about_description), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.settings_about_unaffiliated), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { openSourceCode(context) }) {
                 Text(stringResource(R.string.settings_source_code))
             }

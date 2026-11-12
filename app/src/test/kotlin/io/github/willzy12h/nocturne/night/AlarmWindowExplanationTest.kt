@@ -37,8 +37,8 @@ class AlarmWindowExplanationTest {
             AlarmSource.NextAlarm(now.plusMinutes(5), "com.sec.android.app.clockpackage", true))
         val text = explanation.description(RuntimeEnvironment.getApplication())
         assertEquals(AlarmReason.OUTSIDE_WINDOW, explanation.reason)
-        assertTrue(text, text.contains("too soon"))
-        assertTrue(text, text.contains("1 hour"))
+        assertTrue(text, text.contains("too early"))
+        assertTrue(text, text.contains("3 hours"))
     }
     @Test fun onlyAnAlarmFromANonClockAppIsIgnoredWithoutComment() {
         fun from(creator: String) = AlarmExplanation.resolve(Settings(), Presets.springAutumn, now,
@@ -86,7 +86,7 @@ class AlarmWindowExplanationTest {
             val result = model.alarmCheck.value.orEmpty()
             assertNotEquals("Last check must update while the hardware owner is still occupied", previous, result)
             assertTrue(result, result.contains("Samsung Clock"))
-            assertTrue(result, result.contains("too soon"))
+            assertTrue(result, result.contains("too early"))
             assertFalse("The earlier owner remains occupied during the assertion", release.isCompleted)
         } finally {
             models.clear()
