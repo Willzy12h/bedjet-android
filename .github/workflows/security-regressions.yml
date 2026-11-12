@@ -1,6 +1,11 @@
 name: Security regressions
 on:
   pull_request:
+    # Docs-only changes (README, demo, policy text, images) cannot affect the app, so they skip the Android gate.
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE"
 permissions:
   contents: read
 jobs:
