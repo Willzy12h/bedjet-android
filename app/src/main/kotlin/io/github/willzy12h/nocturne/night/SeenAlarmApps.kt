@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.night
 
 import android.content.Context
+import androidx.core.content.edit
 
 /**
  * The apps Android has named as setting the phone's next alarm, remembered on this phone only so the alarm-app list
@@ -23,7 +24,7 @@ object SeenAlarmApps {
         val current = all(context)
         if (current.firstOrNull() == creator) return
         val updated = remember(current, creator)
-        runCatching { prefs(context).edit().putString(KEY, updated.joinToString("\n")).apply() }
+        runCatching { prefs(context).edit { putString(KEY, updated.joinToString("\n")) } }
     }
 
     internal fun remember(current: List<String>, creator: String): List<String> =
