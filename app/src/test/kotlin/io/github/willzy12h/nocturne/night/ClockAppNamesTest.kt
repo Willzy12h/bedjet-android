@@ -43,4 +43,12 @@ class ClockAppNamesTest {
         assertEquals(setOf("Clock (com.example.clock)", "Clock (org.other.clock)", "Alarmy"),
             ClockApps.installed(context).map { it.label }.toSet())
     }
+
+    @Test fun aTickedAppStaysListedBeforeItHasBeenSeenSettingAnAlarm() {
+        // Ticked from "Show more apps"; after a restart the short list must still show it, or it could not be unticked.
+        val others = ClockApps.otherAlarmApps(context, emptyList(), nextAlarmCreator = null, includeAll = false,
+            ticked = setOf("com.example.sleep", "com.google.android.deskclock"))
+        assertEquals(listOf("com.example.sleep"), others.map { it.packageName })
+        assertEquals(false, others.single().seen)
+    }
 }

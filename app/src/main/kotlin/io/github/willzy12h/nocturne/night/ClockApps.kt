@@ -56,9 +56,11 @@ object ClockApps {
      * Apps that aren't clock apps but may set alarms: those Android has named as setting the phone's next alarm
      * ([seen], newest knowledge from [SeenAlarmApps]) and, when [includeAll], every launchable app that asks for
      * permission to set alarms. Android never lists which apps have alarms set, so this is the closest it allows.
+     * An app the person has [ticked] is always listed, seen or not, so its tick stays in view and can be removed.
      * Slow on a phone with many apps: call it off the main thread.
      */
-    fun otherAlarmApps(context: Context, clockApps: List<App>, nextAlarmCreator: String?, includeAll: Boolean): List<App> {
+    fun otherAlarmApps(context: Context, clockApps: List<App>, nextAlarmCreator: String?, includeAll: Boolean,
+        ticked: Set<String> = emptySet()): List<App> {
         val pm = context.packageManager
         val clock = clockApps.map { it.packageName }.toSet() + builtIn + samsungClockPackages
         val seen = SeenAlarmApps.all(context) + listOfNotNull(nextAlarmCreator)
@@ -69,7 +71,7 @@ object ClockApps {
                 info.requestedPermissions.orEmpty().any { it in alarmPermissions }
             }.getOrDefault(false)
         }
-        return merge(clock, seen, requesting, nextAlarmCreator, context.packageName) {
+        return merge(clock, seen, requesting + ticked, nextAlarmCreator, context.packageName) {
             runCatching { alarmSourceName(context, it) }.getOrDefault(it)
         }.let { apps -> distinguished(apps) { name, pkg -> context.getString(R.string.alarm_app_with_package, name, pkg) } }
     }

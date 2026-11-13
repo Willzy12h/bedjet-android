@@ -632,7 +632,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val context: android.app.Application = getApplication()
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val creator = nextAlarm.value?.identifiedCreator
-            _otherAlarmApps.value = ClockApps.otherAlarmApps(context, _clockApps.value, creator, all)
+            _otherAlarmApps.value = ClockApps.otherAlarmApps(context, _clockApps.value, creator, all,
+                ticked = settings.value.alarmPackages)
         }
     }
 
