@@ -154,7 +154,9 @@ jobs:
       - name: Required test, debug and lint gate
         id: gate
         run: |
-          ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+          # Each app test class runs in its own JVM, three at a time (app/build.gradle.kts), so one class's leftover
+          # background work cannot stall the classes after it.
+          ./gradlew --no-daemon --max-workers=4 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
             :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug \
             -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE" \
             2>&1 | tee "$RUNNER_TEMP/nocturne-release/evidence/required-gate.log"

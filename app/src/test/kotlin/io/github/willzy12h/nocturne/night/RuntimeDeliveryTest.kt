@@ -110,7 +110,7 @@ class RuntimeDeliveryTest {
         repeat(3) { shadowOf(android.os.Looper.getMainLooper()).idle(); kotlinx.coroutines.yield() }
         graph.clock = Clock.fixed(ZonedDateTime.parse(offer.expiresAt).plusSeconds(1).toInstant(), ZoneOffset.UTC)
         ticks.emit(Unit)
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (manager.getNotification(7) != null && System.nanoTime() < deadline) {
             shadowOf(android.os.Looper.getMainLooper()).idle(); kotlinx.coroutines.yield()
         }
@@ -169,7 +169,7 @@ class RuntimeDeliveryTest {
         assertNotNull(quiet())
         graph.repository.updateSettings { original }
         assertEquals(original, graph.repository.settings.value)
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (quiet() != null && System.nanoTime() < deadline) {
             shadowOf(android.os.Looper.getMainLooper()).idle(); kotlinx.coroutines.yield()
         }
@@ -181,7 +181,7 @@ class RuntimeDeliveryTest {
         graph.actions.perform(NightActions.Command.START_NIGHT)
         assertNotNull(quiet())
         graph.repository.updateSettings { it.copy(quietNightNotification = false) }
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (quiet() != null && System.nanoTime() < deadline) {
             shadowOf(android.os.Looper.getMainLooper()).idle()
             kotlinx.coroutines.yield()

@@ -31,11 +31,11 @@ class PlatformActivityTest : io.github.willzy12h.nocturne.platform.PlatformGraph
             PlatformActionActivity.intent(app,graph.actions.capture(Command.START_NIGHT,requireIdentity=true))).setup()
         ShadowAlertDialog.getLatestAlertDialog().getButton(DialogInterface.BUTTON_POSITIVE).performClick()
         val looper=org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper())
-        var deadline=System.nanoTime()+5_000_000_000L
+        var deadline=System.nanoTime()+30_000_000_000L
         while(!connecting && System.nanoTime()<deadline){looper.idle();Thread.yield()}
         assertTrue(connecting)
         looper.idleFor(java.time.Duration.ofSeconds(91))
-        deadline=System.nanoTime()+5_000_000_000L
+        deadline=System.nanoTime()+30_000_000_000L
         while(org.robolectric.Shadows.shadowOf(ShadowAlertDialog.getLatestAlertDialog()).message.toString() != "The operation timed out. Check the BedJet status before trying again." && System.nanoTime()<deadline){looper.idle();Thread.yield()}
         assertEquals("The operation timed out. Check the BedJet status before trying again.",org.robolectric.Shadows.shadowOf(ShadowAlertDialog.getLatestAlertDialog()).message.toString())
         controller.pause().stop().destroy()

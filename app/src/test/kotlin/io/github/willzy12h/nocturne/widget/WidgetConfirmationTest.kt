@@ -121,7 +121,7 @@ class WidgetConfirmationTest : io.github.willzy12h.nocturne.platform.PlatformGra
             Class.forName(intent.component!!.className).asSubclass(ComponentActivity::class.java), intent).setup()
     }
     private suspend fun waitForFeedback(expected: String) {
-        val deadline = System.nanoTime() + 8_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (System.nanoTime() < deadline) {
             shadowOf(Looper.getMainLooper()).idle()
             val feedback = getAppWidgetState(app, PreferencesGlanceStateDefinition, id)

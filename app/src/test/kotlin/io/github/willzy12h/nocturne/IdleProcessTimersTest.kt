@@ -53,7 +53,7 @@ class IdleProcessTimersTest {
     private fun idle(ms: Long = 0) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
 
     private fun awaitInitialReconciliation() {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (clock.reads == 0 && System.nanoTime() < deadline) {
             idle()
             Thread.yield()

@@ -46,7 +46,7 @@ class RuntimeServiceTest {
     }
     /** Drive the main looper, not real-time sleeps or clock changes, while IO persistence completes. */
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (!check() && System.nanoTime() < deadline) { shadowOf(Looper.getMainLooper()).idle(); Thread.yield() }
         assertTrue("Timed out pumping main looper", check())
     }

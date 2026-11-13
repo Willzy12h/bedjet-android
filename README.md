@@ -117,8 +117,8 @@ You need JDK 17 or newer (CI uses 21) and the Android SDK (API 36).
 ./gradlew :app:assembleDebug         # app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`gradle/verification.init.gradle` reproduces the test isolation CI uses:
-`./gradlew --init-script gradle/verification.init.gradle :app:testDebugUnitTest`.
+The app tests run in three JVMs at a time, each replaced after ten test classes (see `app/build.gradle.kts`); CI
+runs them the same way.
 
 | Path | What it is |
 | --- | --- |

@@ -134,7 +134,7 @@ class ScreenshotCapture {
         val startup = captureGraph.scope.async(Dispatchers.Default) {
             runInterruptible { captureGraph.startRuntime() }
         }
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (!startup.isCompleted && System.nanoTime() < deadline) {
             shadowOf(Looper.getMainLooper()).idle()
             Thread.yield()

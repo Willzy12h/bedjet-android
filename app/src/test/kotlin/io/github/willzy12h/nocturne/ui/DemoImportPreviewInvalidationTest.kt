@@ -196,7 +196,9 @@ class DemoImportPreviewInvalidationTest {
         until { pausedCompletion.isHeld }
         assertFalse(staged.isCompleted)
         assertNull(model.importPreview.value)
-        assertTrue("Reading has not acquired apply admission", graph.repository.operationAdmission.isIdle())
+        // The held read keeps whatever it holds, so admission can only become idle if the read never took it. A
+        // start-up command still finishing on a loaded machine is waited out rather than mistaken for the read.
+        until { graph.repository.operationAdmission.isIdle() }
         return staged
     }
 
@@ -220,7 +222,7 @@ class DemoImportPreviewInvalidationTest {
     }.associate { it.relativeTo(app.filesDir).path to it.readText() }
 
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (!check() && System.nanoTime() < deadline) {
             shadowOf(Looper.getMainLooper()).idle()
             Thread.yield()

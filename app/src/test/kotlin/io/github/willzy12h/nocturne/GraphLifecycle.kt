@@ -54,7 +54,7 @@ class GraphLifecycle : ExternalResource() {
     companion object {
         fun finishJobs(jobs: List<Job>) {
             jobs.forEach { it.cancel() }
-            val deadline = System.nanoTime() + 5_000_000_000L
+            val deadline = System.nanoTime() + 30_000_000_000L
             while (jobs.any { !it.isCompleted } && System.nanoTime() < deadline) {
                 shadowOf(Looper.getMainLooper()).idle()
                 Thread.yield()

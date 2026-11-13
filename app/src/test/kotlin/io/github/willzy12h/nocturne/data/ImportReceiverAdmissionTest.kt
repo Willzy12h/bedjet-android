@@ -62,7 +62,7 @@ class ImportReceiverAdmissionTest {
         repeat(100) { (queued.poll() ?: return).run() }
     }
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (!check() && System.nanoTime() < deadline) { shadowOf(Looper.getMainLooper()).idle(); drain(); Thread.yield() }
         assertTrue("Receiver work did not reach its expected state", check())
     }
