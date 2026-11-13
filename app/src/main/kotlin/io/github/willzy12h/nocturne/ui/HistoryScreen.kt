@@ -82,7 +82,6 @@ import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.data.MiddleSuggestion
 import io.github.willzy12h.nocturne.ui.features.HealthSleepOverlay
-import io.github.willzy12h.nocturne.ui.features.HealthExportMarker
 import io.github.willzy12h.nocturne.ui.features.HistoryExportButton
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -295,7 +294,6 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                         }
                     }
                     HealthSleepOverlay(model.graph, night, historyPlan(night), open)
-                    HealthExportMarker(model.graph, night)
                     if (completed && !checkedIn && activeNight?.recordId != night.id) {
                         AccentLink(stringResource(R.string.checkin_button), { checkingIn = true }, fontSize = 14.sp)
                     }

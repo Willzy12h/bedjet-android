@@ -107,7 +107,6 @@ import kotlinx.coroutines.launch
             }
         }
         Text(stringResource(R.string.feature_health_privacy),style=MaterialTheme.typography.bodySmall)
-        HealthExportSettingsSection(graph)
         }
         message?.let {Text(it,color=MaterialTheme.colorScheme.onSurface)}
     }
@@ -153,7 +152,7 @@ import kotlinx.coroutines.launch
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("health-explainer")) {
         Text(stringResource(R.string.health_explainer_title), style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.semantics { heading() })
-        listOf(R.string.health_explainer_read, R.string.health_explainer_write, R.string.health_explainer_never).forEach {
+        listOf(R.string.health_explainer_read, R.string.health_explainer_never).forEach {
             Text(stringResource(it), style = MaterialTheme.typography.bodySmall)
         }
     }

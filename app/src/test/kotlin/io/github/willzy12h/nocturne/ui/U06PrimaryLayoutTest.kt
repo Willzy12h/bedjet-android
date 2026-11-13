@@ -215,7 +215,7 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     private fun quickButtons() {
-        ui.checkLayout(ui.compose.onNodeWithText(ui.s(R.string.gpt12_wake_no_alarm)), "Wake fallback reason")
+        ui.checkLayout(ui.compose.onNodeWithText("No alarm set", substring = true), "Wake fallback reason")
         val modes = listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, Mode.STANDBY)
         modes.forEach { mode ->
             ui.checkControl(ui.compose.onNodeWithTag("quick-mode-${mode.name}"), "Quick $mode").assertHasClickAction()

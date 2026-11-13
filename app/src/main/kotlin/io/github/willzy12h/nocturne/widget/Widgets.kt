@@ -182,9 +182,9 @@ internal fun widgetLink(context: Context): WidgetLinkState = runCatching { Widge
 internal fun widgetClock(context: Context, atMs: Long): String {
     val now = context.graph.now()
     val local = java.time.Instant.ofEpochMilli(atMs).atZone(now.zone)
-    val clock = local.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    val clock = io.github.willzy12h.nocturne.ui.Format.clock(local)
     return if (local.toLocalDate() == now.toLocalDate()) clock
-        else context.getString(R.string.widget_read_day_time, local.format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.UK)), clock)
+        else context.getString(R.string.widget_read_day_time, io.github.willzy12h.nocturne.ui.Format.shortDay(local), clock)
 }
 
 private fun stripeOf(tokens: PaletteTokens, action: WidgetAction, request: CommandRequest): Color =
@@ -391,10 +391,10 @@ internal fun widgetReadAge(context: Context, long: Boolean): String? {
     val at = context.graph.statusReadAt.value ?: return null
     val now = context.graph.now()
     val local = at.withZoneSameInstant(now.zone)
-    val clock = local.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    val clock = io.github.willzy12h.nocturne.ui.Format.clock(local)
     val shown = if (local.toLocalDate() == now.toLocalDate()) clock
         else context.getString(R.string.widget_read_day_time,
-            local.format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.UK)), clock)
+            io.github.willzy12h.nocturne.ui.Format.shortDay(local), clock)
     return if (long) context.getString(R.string.widget_read_at, shown) else shown
 }
 
@@ -410,7 +410,7 @@ private fun nightSummary(context: Context, active: ActiveNight?, runtime: io.git
     }
     val planned = runCatching { io.github.willzy12h.nocturne.platform.AutoStartSchedule.next(graph) }.getOrNull()
     val profile = planned?.profile ?: graph.repository.tonightsProfile() ?: return null
-    val time = planned?.let { context.getString(R.string.widget_night_starts, it.startAt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))) }
+    val time = planned?.let { context.getString(R.string.widget_night_starts, io.github.willzy12h.nocturne.ui.Format.clock(it.startAt)) }
         ?: context.getString(R.string.widget_night_tonight)
     return NightSummary(profile.name, false, time)
 }

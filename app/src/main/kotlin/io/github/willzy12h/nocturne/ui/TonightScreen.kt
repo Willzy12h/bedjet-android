@@ -142,7 +142,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             TimePickerDialog(themed, { _, hour, minute ->
                 model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()), expectedNight,
                     onFinished = then ?: {})
-            }, initial.hour, initial.minute, true).apply { show(); styleNativeDialog(this, pickerTokens) }
+            }, initial.hour, initial.minute, Format.twentyFourHour).apply { show(); styleNativeDialog(this, pickerTokens) }
         }
     }
     val pickWake: () -> Unit = { pickWakeThen(null) }
@@ -265,7 +265,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     now = now.takeIf { night != null && confirmed }, end = end, middle = night?.profile?.middle ?: profile?.middle,
                     onEditPhase = if (profile == null) null else editPhase)
             } ?: if (night == null) Text(if (needsWake) stringResource(R.string.tonight_wake_out_of_range,
-                    preview!!.wake.time.format(DateTimeFormatter.ofPattern("EEE HH:mm"))) else preview?.refusalReason.orEmpty(),
+                    Format.dayClock(preview!!.wake.time)) else preview?.refusalReason.orEmpty(),
                 color = MaterialTheme.colorScheme.onSurface) else Unit
             if (night == null) profile?.let { selected ->
                 val later = plan?.start?.isAfter(now.plusMinutes(1)) == true
@@ -285,7 +285,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     val stripe = tokens.stepColor(next.step.mode, next.step.temperature)
                     StripeTile(stripe = stripe, title = stringResource(R.string.parity_next, modeName(next.step.mode),
                             if (next.step.mode.usesTemperature) tempText(next.step.temperature, settings.fahrenheit) else "",
-                            Format.clock(next.startsAt)).trimEnd(), subtitle = wakeOriginLabel(night.wakeOrigin, WakeLabelStyle.HEADLINE),
+                            Format.clock(next.startsAt)).trimEnd(), subtitle = null,
                         titleFontWeight = FontWeight.Bold, level = TintLevel.ON, modifier = Modifier.fillMaxWidth().testTag("tonight-next"),
                         icon = { Box(Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(stripe.copy(alpha = .22f)),
                             contentAlignment = Alignment.Center) {
@@ -326,7 +326,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         val clockApps by model.clockApps.collectAsState()
         val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
         if (!explanation.isStrayAlarm(clockApps, calendarApps)) {
-            headline.reason?.let { Note(stringResource(it)) }
             AlarmExplanationLine(explanation, openExplanation)
         }
         wakeOverride?.let { override ->
@@ -348,7 +347,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         runtime.unresolvedSlotWrite?.takeIf { DeviceId.same(it.deviceId, settings.deviceId()) }?.let {
             SlotWriteNotice(it, onChecked = model::acknowledgeSlotWrite)
         }
-        SetupChecks()
         // Last night stays apart from tonight's controls, below them.
         LastNightCard(model, onOpenSleep)
         // UX-01: once a BedJet is chosen the picker lives in Settings; it returns here if the target is removed.

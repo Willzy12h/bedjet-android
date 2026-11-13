@@ -76,9 +76,10 @@ class HealthRunProvenanceTest : PlatformGraphFixture() {
         assertNull(json(graph.repository.history.value.single())["confirmedCompletionAt"]?.jsonPrimitive?.contentOrNull)
     }
 
-    @Test fun healthWritePermissionIsDeclaredForTheExplicitPermissionRequest() {
+    @Test fun healthWritePermissionIsNoLongerRequested() {
         @Suppress("DEPRECATION")
         val permissions = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
-        assertTrue("Writing must use the explicit Health Connect write permission", "android.permission.health.WRITE_SLEEP" in permissions)
+        assertFalse("Nocturne only reads sleep from Health Connect", "android.permission.health.WRITE_SLEEP" in permissions)
+        assertTrue("android.permission.health.READ_SLEEP" in permissions)
     }
 }

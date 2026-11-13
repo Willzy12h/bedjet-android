@@ -2216,7 +2216,7 @@ class NightActions(private val graph: Graph) {
     private fun refused(id: Int) = CommandOutcome(OutcomeKind.REFUSED, text(id))
     private fun stale(id: Int = R.string.runtime_stale) = CommandOutcome(OutcomeKind.STALE, text(id))
     private fun label(command: Command) = commandLabel(context, command)
-    private fun clock(iso: String) = ZonedDateTime.parse(iso).format(DateTimeFormatter.ofPattern("HH:mm"))
+    private fun clock(iso: String) = io.github.willzy12h.nocturne.ui.Format.clock(ZonedDateTime.parse(iso))
     companion object {
         const val OPERATION_MS = 90_000L
         /** A background widget read's whole budget: one connection attempt and its first report, no retries. */

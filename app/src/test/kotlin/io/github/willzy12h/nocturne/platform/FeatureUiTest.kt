@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.assertIsOff
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
@@ -29,6 +30,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReference
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[34])
 class FeatureUiTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixture() {
     @get:Rule val compose=createComposeRule()
-    @Test fun settingsExplainsAutoStartTimingAndOptionalHealthExport() {
+    @Test fun settingsExplainsAutoStartTimingAndNeverOffersAHealthConnectWrite() {
         val graph=(RuntimeEnvironment.getApplication() as Context).graph
         org.robolectric.shadows.ShadowAlarmManager.setCanScheduleExactAlarms(false)
         compose.setContent { MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -55,8 +57,8 @@ class FeatureUiTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixture
         compose.onNodeWithText("Skip if a night is already running", substring=true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription("Only if the phone is charging").performScrollTo().assertIsDisplayed().assertIsOff()
         compose.onNodeWithText("15-minute window", substring=true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithContentDescription("Export BedJet programmes").performScrollTo().assertIsDisplayed().assertIsOff()
-        compose.onNodeWithText("not verified sleep", substring=true).performScrollTo().assertIsDisplayed()
+        assertTrue(compose.onAllNodesWithContentDescription("Export BedJet programmes").fetchSemanticsNodes().isEmpty())
+        compose.onNodeWithText("writes nothing to Health Connect", substring=true).performScrollTo().assertIsDisplayed()
     }
     @Test fun historyExportRequiresExplicitDeviceIdentifierChoice() {
         val graph=(RuntimeEnvironment.getApplication() as Context).graph

@@ -104,7 +104,8 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false) {
                     style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = model::runSetupFanCheck) { Text(stringResource(if (checked) R.string.setup_fan_repeat else R.string.setup_fan_run)) }
             }
-            if (!compact) {
+            // Samsung has its own sleeping-apps lists on top of Android's battery setting; other phones do not.
+            if (!compact && android.os.Build.MANUFACTURER.equals("samsung", ignoreCase = true)) {
                 var samsung by rememberSaveable { mutableStateOf(false) }
                 TextButton(onClick = { samsung = !samsung }) { Text(stringResource(R.string.setup_samsung_title)) }
                 if (samsung) Text(stringResource(R.string.setup_samsung_help), style = MaterialTheme.typography.bodySmall)

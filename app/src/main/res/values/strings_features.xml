@@ -37,9 +37,8 @@
     <string name="feature_health_privacy">Missing records or stages don\'t mean you were awake. Health Connect may not share records from more than 30 days before you first allowed access.</string>
     <!-- UX-06: the short explainer at the top of Settings, Health Connect. -->
     <string name="health_explainer_title">What Nocturne does with Health Connect</string>
-    <string name="health_explainer_read">Reads, if you turn on the overlay: your sleep stages from other apps, shown behind History. They are read when you open History and are not saved, backed up or exported.</string>
-    <string name="health_explainer_write">Writes, if you turn on export: completed nights the BedJet confirmed, as “BedJet programme ran”. That is programme time, not measured sleep.</string>
-    <string name="health_explainer_never">Never: Health Connect does not control your BedJet. Both are off by default, and you can revoke access in Health Connect at any time.</string>
+    <string name="health_explainer_read">Reads, if you turn on the overlay: your sleep stages from other apps, shown beside your BedJet nights on the Sleep page. They are read when you open that page and are never saved, backed up or exported.</string>
+    <string name="health_explainer_never">Never: Nocturne writes nothing to Health Connect, and Health Connect does not control your BedJet. The overlay is off by default, and you can revoke access in Health Connect at any time.</string>
     <string name="feature_health_source">Sleep stages from Health Connect</string>
     <string name="feature_health_absent">Health Connect is unavailable. Install or update Health Connect to use the overlay.</string>
     <string name="feature_health_permission">Sleep permission is missing or has been revoked.</string>
@@ -84,10 +83,10 @@
     <string name="feature_working">Working on your BedJet…</string>
     <string name="feature_operation_timeout">The operation timed out. Check the BedJet status before trying again.</string>
     <!-- Where tonight's wake time comes from, in every look. -->
-    <string name="wake_origin_alarm_headline">From your alarm</string>
+    <string name="wake_origin_alarm_headline">Your alarm</string>
     <string name="wake_origin_alarm">Your alarm</string>
     <string name="wake_origin_override">Tonight-only wake time</string>
-    <string name="wake_origin_override_compact">Wake tonight only</string>
-    <string name="wake_origin_profile">Profile\'s wake time</string>
+    <string name="wake_origin_override_compact">Tonight only</string>
+    <string name="wake_origin_profile">Profile wake time</string>
     <string name="wake_time">Wake time</string>
 </resources>

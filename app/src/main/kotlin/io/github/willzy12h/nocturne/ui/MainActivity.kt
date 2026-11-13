@@ -129,6 +129,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        Format.followPhoneClock(this)
         model.onScreenVisible()
     }
 

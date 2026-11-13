@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import io.github.willzy12h.nocturne.ui.Format
 import io.github.willzy12h.nocturne.ui.nocturneCheckboxColors
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -96,8 +97,7 @@ import java.time.format.DateTimeFormatter
             SleepStageChart(value.stages,start.toInstant(),end.toInstant(),plan)
             if(detailed)value.stages.forEach {stage->
                 val label=stringResource(when(stage.stage) {1->R.string.feature_stage_awake;2->R.string.feature_stage_sleeping;3->R.string.feature_stage_out;4->R.string.feature_stage_light;5->R.string.feature_stage_deep;6->R.string.feature_stage_rem;else->R.string.feature_stage_unknown})
-                val format=DateTimeFormatter.ofPattern("HH:mm XXX")
-                Text(stringResource(R.string.feature_stage_line,stage.start.atZone(start.zone).format(format),stage.end.atZone(start.zone).format(format),label),style=MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.feature_stage_line,Format.clockWithOffset(stage.start.atZone(start.zone)),Format.clockWithOffset(stage.end.atZone(start.zone)),label),style=MaterialTheme.typography.bodySmall)
             }
         }
     }

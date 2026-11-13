@@ -17,6 +17,8 @@ class PlatformClockReceiver:BroadcastReceiver() {
                 Intent.ACTION_TIMEZONE_CHANGED,Intent.ACTION_TIME_CHANGED,
                 android.app.AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED,
                 android.app.AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED))return
+        // A change between the 12- and 24-hour clock arrives as a time change; the widgets below redraw with it.
+        io.github.willzy12h.nocturne.ui.Format.followPhoneClock(context)
         val pending=goAsync()
         context.graph.scope.launch {
             try {withTimeout(8_000) {

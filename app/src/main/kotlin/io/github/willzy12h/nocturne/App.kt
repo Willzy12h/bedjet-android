@@ -30,6 +30,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        io.github.willzy12h.nocturne.ui.Format.followPhoneClock(this)
         graph = Graph(this)
         Notifications.createChannels(this)
         graph.startRuntime()

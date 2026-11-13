@@ -67,10 +67,13 @@ class ReleaseManifestTest(unittest.TestCase):
                 finally:
                     self.root.remove(node)
 
-    def test_health_write_permission_is_required_by_the_reviewed_inventory(self):
-        node = next(node for node in self.root if node.get(A + "name") == "android.permission.health.WRITE_SLEEP")
-        self.root.remove(node)
-        self.assertRejected("missing=['android.permission.health.WRITE_SLEEP']")
+    def test_health_write_permission_is_no_longer_accepted(self):
+        # Nocturne only reads sleep from Health Connect; a build that asks to write it again must be reviewed.
+        node = ET.SubElement(self.root, "uses-permission", {A + "name": "android.permission.health.WRITE_SLEEP"})
+        try:
+            self.assertRejected("added=['android.permission.health.WRITE_SLEEP']")
+        finally:
+            self.root.remove(node)
 
     def test_new_unreviewed_permission_or_component_still_fails(self):
         node = ET.SubElement(self.root, "uses-permission", {A + "name": "android.permission.CAMERA"})

@@ -111,7 +111,7 @@ class BedJetService : Service() {
                         else if (current != null) {
                             // Only obsolete journal cleanup may have timed out, or another owner may have published
                             // this programme. Report current confirmation without attributing it to the timed-out request.
-                            val wake = ZonedDateTime.parse(current.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
+                            val wake = io.github.willzy12h.nocturne.ui.Format.clock(ZonedDateTime.parse(current.wakeAt))
                             lastResult = getString(R.string.runtime_retime_timeout_current_confirmed)
                             Notifications.showInfo(this@BedJetService, getString(R.string.runtime_retime_timeout_current_wake, wake), lastResult.orEmpty())
                         } else {

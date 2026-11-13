@@ -685,7 +685,7 @@ fun TimeRow(label: String, minuteOfDay: Int, onChange: (Int) -> Unit) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         TextButton(onClick = {
             val themed = android.view.ContextThemeWrapper(context, if (tokens.dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
-            TimePickerDialog(themed, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, true).apply {
+            TimePickerDialog(themed, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, Format.twentyFourHour).apply {
                 show(); styleNativeDialog(this, tokens)
             }
         }) { Text(Format.clockOfDay(minuteOfDay)) }

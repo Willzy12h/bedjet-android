@@ -1,11 +1,7 @@
 <resources>
-    <string name="gpt12_wake_next_alarm">Next phone alarm</string>
-    <string name="gpt12_wake_profile_fallback">Profile fallback</string>
-    <string name="gpt12_wake_override">Tonight-only wake</string>
-    <string name="gpt12_wake_no_alarm">No phone alarm available</string>
-    <string name="gpt12_wake_unaccepted_alarm">Phone alarm source not accepted</string>
-    <string name="gpt12_wake_too_soon">Next alarm is less than 3 hours after bedtime</string>
-    <string name="gpt12_wake_too_late">Next alarm is beyond the 18-hour night window</string>
+    <string name="gpt12_wake_next_alarm">Your alarm</string>
+    <string name="gpt12_wake_profile_fallback">Profile wake time</string>
+    <string name="gpt12_wake_override">Tonight-only wake time</string>
     <string name="gpt12_demo_banner">Demo — no BedJet connected</string>
     <string name="gpt12_exit_demo">Exit demo</string>
     <string name="gpt12_demo_pair_help">Exit demo to scan for or choose a real BedJet.</string>

@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.combine
 
 class PlatformRuntime(private val graph: Graph) {
     val handover=PhoneHandover(graph)
-    val healthExport = HealthSleepExporter(graph)
     fun start() {
         PlatformNotifications.channel(graph.context)
         graph.scope.launch {
@@ -17,10 +16,6 @@ class PlatformRuntime(private val graph: Graph) {
                 ChargerJobs.sync(graph)
                 BedtimeReminders.sync(graph)
             }
-        }
-        graph.scope.launch {
-            combine(graph.repository.settingsPublication, graph.repository.history, graph.repository.activeNight) { _, _, _ -> Unit }
-                .collect { healthExport.sync(manual = false) }
         }
     }
     suspend fun observe(status: io.github.willzy12h.nocturne.core.protocol.DeviceStatus,target:String?) {

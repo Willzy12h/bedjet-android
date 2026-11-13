@@ -528,7 +528,7 @@ private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
         else -> "${stringResource(paletteName(settings.nightPalette))} / ${stringResource(paletteName(settings.dayPalette))}"
     }
     val allowed = checks.count { it.ok }
-    val health = settings.platform.healthSleepOverlay || settings.platform.healthSleepExport
+    val health = settings.platform.healthSleepOverlay
     val green = if (tokens.dark) Color(0xFF4CD889) else Color(0xFF1F9D57)
     val groups = listOf(
         listOf(SettingsDestination("bedjet", name?.let { stringResource(R.string.parity_settings_bedjet_named, it) } ?: stringResource(R.string.settings_nav_bedjet),
@@ -617,7 +617,7 @@ private fun ClockRow(icon: Int, tint: Color, label: String, minuteOfDay: Int, on
         Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(50)).background(tokens.ink)
             .clickable(role = Role.Button, onClickLabel = label) {
                 val themed = android.view.ContextThemeWrapper(context, if (tokens.dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
-                TimePickerDialog(themed, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, true).apply {
+                TimePickerDialog(themed, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, Format.twentyFourHour).apply {
                     show(); styleNativeDialog(this, tokens)
                 }
             }.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {

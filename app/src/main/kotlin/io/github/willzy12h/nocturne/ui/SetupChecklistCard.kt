@@ -75,6 +75,16 @@ internal fun setupItemTitle(item: SetupItem): Int = when (item) {
     SetupItem.WIDGET -> R.string.uat_setup_widget
 }
 
+/** One line on what the item is for, the same words as Settings › Permissions. */
+internal fun setupItemWhy(item: SetupItem): Int? = when (item) {
+    SetupItem.BLUETOOTH -> R.string.setup_checks_nearby_why
+    SetupItem.NOTIFICATIONS -> R.string.setup_checks_notifications_why
+    SetupItem.EXACT_ALARMS -> R.string.setup_checks_alarms_why
+    SetupItem.BATTERY -> R.string.setup_checks_battery_why
+    SetupItem.HEALTH -> R.string.setup_health_optional
+    SetupItem.PAIR, SetupItem.WIDGET -> null
+}
+
 /** Re-samples OS authority on every resume. Persisted completion never overrides revoked permissions. */
 @Composable
 internal fun SetupChecklistCard(model: AppViewModel) {
@@ -99,8 +109,7 @@ internal fun SetupChecklistCard(model: AppViewModel) {
     LaunchedEffect(refresh, settings.demoMode) {
         healthGranted = if (!settings.demoMode && HealthConnectAccess.platformSupported) try {
             val granted = HealthConnectAccess.client(context).permissionController.getGrantedPermissions()
-            HealthPermission.getReadPermission(SleepSessionRecord::class) in granted ||
-                HealthPermission.getWritePermission(SleepSessionRecord::class) in granted
+            HealthPermission.getReadPermission(SleepSessionRecord::class) in granted
         } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { false } else false
     }
     val snapshot = remember(refresh, settings.targetDevice, settings.demoMode, bluetoothOff, healthGranted) {
@@ -181,7 +190,7 @@ internal fun SetupChecklistCard(model: AppViewModel) {
                 StripeTile(
                     stripe = paletteTokens.cool,
                     title = title,
-                    subtitle = if (item == SetupItem.HEALTH) stringResource(R.string.setup_health_optional) else null,
+                    subtitle = setupItemWhy(item)?.let { stringResource(it) },
                     modifier = Modifier.fillMaxWidth().testTag("setup-${item.key}"),
                     trailing = {
                         OutlinedButton(onClick = { fix(item) }, modifier = Modifier.heightIn(min = 48.dp)) {

@@ -17,7 +17,6 @@
     <!-- Android 16+: the BedJet coming into range wakes an asleep widget (WidgetPresenceService). -->
     <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
-    <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
 
     <!-- Finds the clock apps on the phone, so alarms are taken only from a clock app the person chooses. -->
     <queries>

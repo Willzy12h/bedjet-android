@@ -72,7 +72,6 @@ private val REMOTE_IDLE_SCALE = Mode.COOL.temperatureRange.first..Mode.HEAT.temp
 /** Every end label a mode's scale can show, so the bar reserves the same room for each. */
 private val REMOTE_EDGE_TEMPERATURES = (Mode.entries.filter { it.usesTemperature }.flatMap { listOf(it.temperatureRange.first, it.temperatureRange.last) } +
     listOf(REMOTE_IDLE_SCALE.first, REMOTE_IDLE_SCALE.last)).distinct()
-private val UNTIL_TIME = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
 
 private val REMOTE_MODES = listOf(Mode.TURBO, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY, Mode.STANDBY)
 
@@ -289,7 +288,7 @@ private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturn
             }
         }
         Text(if (s.isRunning) stringResource(R.string.remote_running_until, tempText(s.targetTemperature, f), s.fanPercent,
-                durationText(s.remainingSeconds / 60), now.plusSeconds(s.remainingSeconds.toLong()).format(UNTIL_TIME))
+                durationText(s.remainingSeconds / 60), Format.clock(now.plusSeconds(s.remainingSeconds.toLong())))
             else stringResource(R.string.remote_not_running_choose), color = tokens.ink2, fontSize = 14.sp)
         // The reserved line: progress, then "Last reported", then a night's step; never a banner that pushes controls down.
         val line = sending ?: if (!canControl) stringResource(R.string.remote_last_reported)
