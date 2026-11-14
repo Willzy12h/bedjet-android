@@ -84,7 +84,7 @@ first, so you can compare and download it; the app never checks or downloads any
 | Ignore battery optimisation | Lets overnight alarm changes reach the BedJet. Recommended on Samsung phones. |
 | Run at start-up | Re-arm tonight's schedule after the phone restarts. |
 | Companion device presence | Optional. Lets Android tell Nocturne when your BedJet comes back into range, so the widget wakes up. |
-| Health Connect (sleep, read and write) | Optional and off by default. Read: show sleep stages on the Sleep page. Write: record completed BedJet programmes. |
+| Health Connect (read sleep) | Optional and off by default. Shows your sleep stages on the Sleep page beside your BedJet nights. Nocturne only reads; it never writes to Health Connect. |
 
 Android libraries add two more: keep the processor awake briefly for background work (wake lock) and read whether
 the phone has a network (network state). There is no internet permission.
@@ -92,7 +92,7 @@ the phone has a network (network state). There is no internet permission.
 ## Privacy
 
 Everything stays on your phone. Nocturne has no servers, accounts, analytics, advertising or crash reporting, and
-cannot connect to the internet. See [PRIVACY.md](PRIVACY.md) for the full policy.
+cannot connect to the internet. If it crashes, the trace stays on the phone until you save a diagnostics file. See [PRIVACY.md](PRIVACY.md) for the full policy.
 
 ## Safety and limitations
 
@@ -148,8 +148,9 @@ than every published release) in a pull request. Signing needs the repository se
 
 ## Contributing and forks
 
-Issues and pull requests are welcome, and you're free to fork it under the [MIT licence](LICENSE). Please keep a
-fork's application ID and name distinct so people don't confuse the two.
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md), and the [changelog](CHANGELOG.md) for
+what changed in each release. You're free to fork it under the [MIT licence](LICENSE). Please keep a fork's
+application ID and name distinct so people don't confuse the two.
 
 ## Credits
 

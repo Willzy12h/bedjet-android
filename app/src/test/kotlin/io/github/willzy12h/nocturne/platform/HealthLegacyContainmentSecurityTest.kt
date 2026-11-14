@@ -62,29 +62,4 @@ class HealthLegacyContainmentSecurityTest : PlatformGraphFixture() {
         assertThrows(UnsupportedOperationException::class.java) { AndroidSleepSource(context) }
         assertTrue(shadowOf(RuntimeEnvironment.getApplication()).boundServiceConnections.isEmpty())
     }
-
-    @Test fun savedExportOptInCannotConstructOrWriteToAnImitationProvider() = runBlocking {
-        installImitationProvider()
-        val graph = fresh { Graph(context, DemoBedJet()) }
-        graph.clock = Clock.fixed(Instant.parse("2026-10-27T08:00:00Z"), ZoneOffset.UTC)
-        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:FF",
-            platform = it.platform.copy(healthSleepExport = true)) }
-        graph.repository.addRecord(NightRecord("real", "profile", "Profile", "2026-10-26T22:30Z", "2026-10-27T07:00Z", false,
-            deviceId = "ble:AA:BB:CC:DD:EE:FF", bedJetRunConfirmed = true,
-            confirmedCompletionAt = "2026-10-27T07:15Z", healthExportVersion = 1793085300000,
-            events = listOf(HistoryEvent("2026-10-27T07:15Z", EventKind.ENDED, "Programme ended"))))
-        var clients = 0
-        var records = 0
-        val exporter = HealthSleepExporter(graph, writer = {
-            clients++
-            object : SleepSessionWriter {
-                override suspend fun permitted() = true
-                override suspend fun upsert(record: SleepSessionRecord) { records++ }
-            }
-        })
-        assertEquals(HealthExportStatus.ABSENT, exporter.sync().status)
-        assertEquals(0, clients)
-        assertEquals(0, records)
-        assertEquals(0L, graph.repository.history.value.single().healthExportedVersion)
-    }
 }

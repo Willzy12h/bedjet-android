@@ -48,20 +48,20 @@ class WidgetTruthLabelsTest : io.github.willzy12h.nocturne.platform.PlatformGrap
         app.graph.repository.updateRuntime { it.copy(slotWrite = SlotWrite("demo", 2, null, Confidence.UNKNOWN,
             "Restore", displaced = current.identity)) }
         assertEquals("Next wake unconfirmed", widgetWake(app, current))
-        assertEquals("Phase unconfirmed", widgetPhase(app, current))
+        assertEquals("Step unconfirmed", widgetPhase(app, current))
     }
     @Test fun aPendingSlotWriteForThisNightDoesNotKeepTheOldConfirmedWake() = runBlocking {
         val current = night(Confidence.CONFIRMED)
         app.graph.repository.updateRuntime { it.copy(slotWrite = SlotWrite("demo", 2, null, Confidence.PENDING,
             "Restore", displaced = current.identity)) }
         assertEquals("Next wake pending", widgetWake(app, current))
-        assertEquals("Phase unconfirmed", widgetPhase(app, current))
+        assertEquals("Step unconfirmed", widgetPhase(app, current))
     }
     @Test fun anUnresolvedWriteForAnotherNightDoesNotColourThisNight() = runBlocking {
         val current = night(Confidence.CONFIRMED)
         app.graph.repository.updateRuntime { it.copy(slotWrite = SlotWrite("demo", 1, null, Confidence.UNKNOWN,
             "Restore", displaced = NightIdentity("some-other-night", 1))) }
         assertTrue(widgetWake(app, current).startsWith("Next wake Tue 06:30"))
-        assertTrue(widgetPhase(app, current).startsWith("Planned phase: Start"))
+        assertTrue(widgetPhase(app, current).startsWith("Planned step: Start"))
     }
 }

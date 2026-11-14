@@ -19,6 +19,7 @@
     <string name="boost_editor_heat">Heat afterwards</string>
     <string name="boost_bar_turbo">Turbo %1$d m</string>
     <string name="boost_bar_heat">Heat %1$d m</string>
+    <string name="boost_bar_heat_compact">%1$d m</string>
     <string name="settings_boost_row">Boost</string>
     <string name="settings_boost_edit">Edit Boost</string>
 </resources>

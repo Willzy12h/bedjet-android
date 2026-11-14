@@ -43,7 +43,6 @@ class PlatformSettingsUiTest : PlatformGraphFixture() {
     private fun content(graph: Graph) = compose.setContent {
         MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
             AutoStartSettingsSection(graph)
-            HealthExportSettingsSection(graph)
         } }
     }
 
@@ -60,41 +59,15 @@ class PlatformSettingsUiTest : PlatformGraphFixture() {
         assertEquals(graph.repository.profiles.value.first().id, graph.repository.settings.value.platform.autoStart!!.profileId)
     }
 
-    @Test fun healthWriteIsExplicitOptionalAndHasASyncNowAction() {
-        val graph = setup(); content(graph)
-        compose.onNodeWithContentDescription("Export BedJet programmes").performScrollTo().assertIsOff()
-        compose.onNodeWithText("Sync now").performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText("not verified sleep", substring = true).assertExists()
-        assertFalse(graph.repository.settings.value.platform.healthSleepExport)
-    }
-
-    @Test fun demoCannotRequestExternalPermissionsOrExportRealHistory() {
+    @Test fun demoCannotRequestExternalPermissionsOrExportRealHistoryFiles() {
         val graph = setup(demo = true)
         compose.setContent { MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
-            AutoStartSettingsSection(graph); HealthExportSettingsSection(graph); HistoryExportButton(graph)
+            AutoStartSettingsSection(graph); HistoryExportButton(graph)
         } } }
         compose.onNodeWithContentDescription("Auto-start").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Export BedJet programmes").performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText("Sync now").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("Export history CSV").performScrollTo().assertIsNotEnabled()
     }
 
-    @Test fun historyMarkerAppearsOnlyForTheAcknowledgedExportVersion() {
-        val graph = setup()
-        val record = NightRecord("completed", "p", "Profile", "2026-10-26T00:00Z", "2026-10-26T07:00Z", false,
-            deviceId = "ble:AA:BB:CC:DD:EE:FF", bedJetRunConfirmed = true,
-            confirmedCompletionAt = "2026-10-26T07:15Z", healthExportVersion = 42)
-        runBlocking { graph.repository.addRecord(record) }
-        compose.setContent { MaterialTheme {
-            val records = graph.repository.history.collectAsState().value
-            HealthExportMarker(graph, records.single())
-        } }
-        compose.onNodeWithText("Exported to Health Connect").assertDoesNotExist()
-        runBlocking { graph.repository.addRecord(record.copy(healthExportedVersion = 42)) }
-        compose.onNodeWithText("Exported to Health Connect").assertIsDisplayed()
-        runBlocking { graph.repository.addRecord(record.copy(healthExportVersion = 43, healthExportedVersion = 42)) }
-        compose.onNodeWithText("Exported to Health Connect").assertDoesNotExist()
-    }
     @Test fun editingTimingOnAnotherSelectedBedJetDoesNotRebindEnabledAutoStart() {
         val graph = setup()
         val bound = "ble:AA:BB:CC:DD:EE:FF"

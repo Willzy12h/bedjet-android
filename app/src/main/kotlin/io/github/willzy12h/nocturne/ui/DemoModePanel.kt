@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -14,7 +15,6 @@ import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,7 +29,7 @@ import io.github.willzy12h.nocturne.R
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DemoModePanel(model: AppViewModel) {
-    val settings by model.settings.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
     if (settings.demoMode) {
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,

@@ -12,7 +12,7 @@ class PlanErrorModeNameTest {
     @Test
     fun heatRefusalUsesTheAppModeName() {
         assertEquals(
-            "Heat cannot honour this profile's temperature limits",
+            "Heat can't stay within this profile's temperature limits.",
             refusal(Mode.HEAT, 64, ProfileLimits(maxTemp = 44)),
         )
     }
@@ -20,7 +20,7 @@ class PlanErrorModeNameTest {
     @Test
     fun gentleHeatRefusalUsesTheAppModeName() {
         assertEquals(
-            "Gentle heat cannot honour this profile's temperature limits",
+            "Long heat can't stay within this profile's temperature limits.",
             refusal(Mode.EXTENDED_HEAT, 60, ProfileLimits(minTemp = 68)),
         )
     }
@@ -28,7 +28,7 @@ class PlanErrorModeNameTest {
     @Test
     fun coolRefusalUsesTheAppModeName() {
         assertEquals(
-            "Cool cannot honour this profile's temperature limits",
+            "Cool can't stay within this profile's temperature limits.",
             refusal(Mode.COOL, 44, ProfileLimits(minTemp = 63)),
         )
     }
@@ -36,7 +36,7 @@ class PlanErrorModeNameTest {
     @Test
     fun dryRefusalUsesTheAppModeName() {
         assertEquals(
-            "Dry cannot honour this profile's temperature limits",
+            "Dry can't stay within this profile's temperature limits.",
             refusal(Mode.DRY, 60, ProfileLimits(maxTemp = 39)),
         )
     }
@@ -46,7 +46,7 @@ class PlanErrorModeNameTest {
         // The editor and backup validator reject this range, but core accepts ProfileLimits directly.
         // With ordinary limits Turbo uses its separate 43 °C refusal before the generic error.
         assertEquals(
-            "Turbo cannot honour this profile's temperature limits",
+            "Turbo can't stay within this profile's temperature limits.",
             refusal(Mode.TURBO, 86, ProfileLimits(minTemp = 87, maxTemp = 87)),
         )
     }

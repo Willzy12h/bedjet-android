@@ -6,10 +6,10 @@
     <string name="ux_unknown_time">--:--</string>
     <string name="ux_curve_phase_target">%1$s · %2$s–%3$s · target %4$s</string>
     <string name="ux_curve_phase_without_target">%1$s · %2$s–%3$s</string>
-    <string name="ux_curve_details">Show phase details</string>
-    <string name="ux_edit_phase">Edit phase</string>
-    <string name="ux_current_phase">Current phase: %1$s</string>
-    <string name="ux_release_help">Release the connection so another phone can use this BedJet. This does not turn it off.</string>
+    <string name="ux_curve_details">Show step details</string>
+    <string name="ux_edit_phase">Edit step</string>
+    <string name="ux_current_phase">Current step: %1$s</string>
+    <string name="ux_release_help">Release the connection so another phone can use this BedJet. This doesn\'t turn it off.</string>
     <string name="settings_preset_unsupported">This saved action uses unsupported settings. Choose a mode below to repair it.</string>
-    <string name="settings_preset_quick_unsupported">The legacy %1$s shortcut or widget cannot use this preset. The mode buttons use Quick defaults.</string>
+    <string name="settings_preset_quick_unsupported">The older %1$s shortcut or widget can\'t use this preset. The mode buttons use Quick defaults.</string>
 </resources>

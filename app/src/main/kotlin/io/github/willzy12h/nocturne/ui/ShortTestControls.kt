@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
@@ -23,9 +24,9 @@ import io.github.willzy12h.nocturne.night.bedJetTargetName
 /** Local preview first; only the positive dialog action submits the captured equipment test. */
 @Composable
 fun ShortTestControls(model: AppViewModel) {
-    val settings by model.settings.collectAsState()
-    val night by model.activeNight.collectAsState()
-    val busy by model.busy.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val night by model.activeNight.collectAsStateWithLifecycle()
+    val busy by model.busy.collectAsStateWithLifecycle()
     var preview by remember { mutableStateOf<ShortTestPreview?>(null) }
     val words = rememberWords()
     Text(stringResource(R.string.short_test_help), style = MaterialTheme.typography.bodySmall)

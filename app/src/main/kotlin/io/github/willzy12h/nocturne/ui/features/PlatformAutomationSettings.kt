@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.willzy12h.nocturne.ui.nocturneRadioColors
 import io.github.willzy12h.nocturne.ui.NocturneSlider
 import io.github.willzy12h.nocturne.ui.amountSliderColors
@@ -53,9 +54,9 @@ import kotlin.math.roundToInt
 }
 
 @Composable fun AutoStartSettingsSection(graph: Graph) {
-    val saved by graph.repository.settings.collectAsState()
-    val profiles by graph.repository.profiles.collectAsState()
-    val automation by graph.repository.automation.collectAsState()
+    val saved by graph.repository.settings.collectAsStateWithLifecycle()
+    val profiles by graph.repository.profiles.collectAsStateWithLifecycle()
+    val automation by graph.repository.automation.collectAsStateWithLifecycle()
     val config = AutoStartSchedule.settings(graph)
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
@@ -148,7 +149,7 @@ import kotlin.math.roundToInt
         AutomationSwitch(stringResource(R.string.auto_start_only_charging), config.onlyIfCharging, editable) { value -> save { it.copy(onlyIfCharging = value) } }
         if (config.onlyIfCharging) Text(stringResource(R.string.auto_start_charging_grace), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(if (AutoStartSchedule.exact(graph)) R.string.auto_start_exact else R.string.auto_start_inexact), style = MaterialTheme.typography.bodySmall)
-        plan?.let { Text(stringResource(R.string.auto_start_next, it.startAt.format(DateTimeFormatter.ofPattern("EEE HH:mm"))), style = MaterialTheme.typography.bodySmall) }
+        plan?.let { Text(stringResource(R.string.auto_start_next, Format.dayClock(it.startAt)), style = MaterialTheme.typography.bodySmall) }
         message?.let { Text(it, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodySmall) }
     }
     if (choosingProfile) AlertDialog(onDismissRequest = { choosingProfile = false },
@@ -163,72 +164,4 @@ import kotlin.math.roundToInt
                 }
             }
         }, confirmButton = {}, dismissButton = { TextButton({ choosingProfile = false }) { Text(stringResource(R.string.feature_cancel)) } })
-}
-
-@Composable fun HealthExportSettingsSection(graph: Graph) {
-    val saved by graph.repository.settings.collectAsState()
-    val result by graph.platform.healthExport.state.collectAsState()
-    if (!HealthConnectAccess.platformSupported) Text(stringResource(R.string.health_platform_required))
-    val scope = rememberCoroutineScope()
-    var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-    var permissionRevision by remember { mutableStateOf<Long?>(null) }
-    val permission = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
-        val expected = permissionRevision; permissionRevision = null
-        scope.launch {
-            try {
-                var enabled = false
-                graph.repository.updateSettings { current ->
-                    if (!HealthConnectAccess.platformSupported || current.demoMode || expected != graph.repository.settingsPublication.value) current
-                    else {
-                        enabled = granted.containsAll(AndroidSleepWriter.PERMISSIONS)
-                        current.copy(platform = current.platform.copy(healthSleepExport = enabled))
-                    }
-                }
-                if (enabled) graph.platform.healthExport.sync()
-                else message = graph.context.getString(R.string.health_write_permission)
-            } catch (cancelled: CancellationException) { throw cancelled
-            } catch (_: Exception) { message = graph.context.getString(R.string.feature_saving_failed) }
-        }
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AutomationSwitch(stringResource(R.string.health_export_title), saved.platform.healthSleepExport, !saved.demoMode && !busy) { enabled ->
-            message = null
-            if (!enabled) scope.launch {
-                try { graph.repository.updateSettings { current -> if (current.demoMode) current else current.copy(platform = current.platform.copy(healthSleepExport = false)) }
-                } catch (cancelled: CancellationException) { throw cancelled
-                } catch (_: Exception) { message = graph.context.getString(R.string.feature_saving_failed) }
-            } else if (!HealthConnectAccess.available(graph.context))
-                message = HealthConnectAccess.unavailableMessage(graph.context)
-            else {
-                permissionRevision = graph.repository.settingsPublication.value
-                permission.launch(AndroidSleepWriter.PERMISSIONS)
-            }
-        }
-        Text(stringResource(R.string.health_export_help), style = MaterialTheme.typography.bodySmall)
-        if (saved.demoMode) Text(stringResource(R.string.platform_demo_unavailable), style = MaterialTheme.typography.bodySmall)
-        OutlinedButton(onClick = {
-            busy = true; message = null
-            scope.launch { try { graph.platform.healthExport.sync() } finally { busy = false } }
-        }, enabled = !saved.demoMode && saved.platform.healthSleepExport && !busy, modifier = Modifier.heightIn(min = 48.dp)) {
-            Text(stringResource(if (busy) R.string.health_sync_working else R.string.health_sync_now))
-        }
-        val stateText = when (result.status) {
-            HealthExportStatus.DISABLED, HealthExportStatus.DEMO -> null
-            HealthExportStatus.ABSENT -> stringResource(R.string.feature_health_absent)
-            HealthExportStatus.PERMISSION -> stringResource(R.string.health_write_permission)
-            HealthExportStatus.NOTHING -> stringResource(R.string.health_sync_nothing)
-            HealthExportStatus.EXPORTED -> stringResource(R.string.health_sync_done, result.exported)
-            HealthExportStatus.FAILED -> stringResource(R.string.health_sync_failed)
-        }
-        (message ?: stateText)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-    }
-}
-
-@Composable fun HealthExportMarker(graph: Graph, record: NightRecord) {
-    val saved by graph.repository.settings.collectAsState()
-    if (!saved.demoMode && !record.isTestRun && !DeviceId.isDemo(record.deviceId) && record.bedJetRunConfirmed &&
-        record.confirmedCompletionAt != null && record.healthExportVersion > 0 && record.healthExportedVersion == record.healthExportVersion)
-        Text(stringResource(R.string.health_exported), style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
 }

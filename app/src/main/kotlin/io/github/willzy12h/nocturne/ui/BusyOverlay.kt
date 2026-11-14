@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.progressSemantics
@@ -19,8 +20,8 @@ import io.github.willzy12h.nocturne.R
 /** Drawn over Tonight's heading, never as a child of its scrolling controls. Idle emits no layout. */
 @Composable
 fun BusyIndicator(model: AppViewModel) {
-    val local by model.busy.collectAsState()
-    val owner by model.commandBusy.collectAsState()
+    val local by model.busy.collectAsStateWithLifecycle()
+    val owner by model.commandBusy.collectAsStateWithLifecycle()
     if (!local && owner.runningLabel == null && owner.queuedCount == 0) return
     val label = owner.runningLabel?.let { stringResource(R.string.busy_running, it) }
         ?: stringResource(R.string.busy_waiting)

@@ -1,5 +1,7 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.willzy12h.nocturne.ui.Format
 import io.github.willzy12h.nocturne.ui.nocturneCheckboxColors
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,7 +32,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 @Composable fun HistoryExportButton(graph:Graph) {
-    val settings by graph.repository.settings.collectAsState()
+    val settings by graph.repository.settings.collectAsStateWithLifecycle()
     val scope=rememberCoroutineScope()
     var dialog by remember {mutableStateOf(false)}
     var identifiers by remember {mutableStateOf(false)}
@@ -64,7 +66,7 @@ import java.time.format.DateTimeFormatter
 
 @Composable fun HealthSleepOverlay(graph:Graph,record:NightRecord,plan:io.github.willzy12h.nocturne.core.plan.Plan?=null,detailed:Boolean=false) {
     if (record.isTestRun || io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(record.deviceId)) return
-    val settings by graph.repository.settings.collectAsState()
+    val settings by graph.repository.settings.collectAsStateWithLifecycle()
     if(settings.demoMode || !settings.platform.healthSleepOverlay)return
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     var resume by remember {mutableIntStateOf(0)}
@@ -96,8 +98,7 @@ import java.time.format.DateTimeFormatter
             SleepStageChart(value.stages,start.toInstant(),end.toInstant(),plan)
             if(detailed)value.stages.forEach {stage->
                 val label=stringResource(when(stage.stage) {1->R.string.feature_stage_awake;2->R.string.feature_stage_sleeping;3->R.string.feature_stage_out;4->R.string.feature_stage_light;5->R.string.feature_stage_deep;6->R.string.feature_stage_rem;else->R.string.feature_stage_unknown})
-                val format=DateTimeFormatter.ofPattern("HH:mm XXX")
-                Text(stringResource(R.string.feature_stage_line,stage.start.atZone(start.zone).format(format),stage.end.atZone(start.zone).format(format),label),style=MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.feature_stage_line,Format.clockWithOffset(stage.start.atZone(start.zone)),Format.clockWithOffset(stage.end.atZone(start.zone)),label),style=MaterialTheme.typography.bodySmall)
             }
         }
     }

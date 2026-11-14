@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
@@ -17,7 +18,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,7 +32,7 @@ import io.github.willzy12h.nocturne.night.OutcomeKind
 /** A visible, non-modal route through Android's permission and enable requests. */
 @Composable
 fun BluetoothBanner(model: AppViewModel) {
-    val off by model.bluetoothOff.collectAsState()
+    val off by model.bluetoothOff.collectAsStateWithLifecycle()
     if (!off) return
     val context = LocalContext.current
     val enable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { model.refreshBluetooth() }

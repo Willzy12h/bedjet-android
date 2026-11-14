@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.pluralStringResource
 import android.content.Context
 import androidx.compose.foundation.layout.*
@@ -70,12 +71,12 @@ internal fun quickMatches(status: DeviceStatus?, preset: ActionPreset): Boolean 
 /** The current receipt, only while nothing else (a night, a slot write, another command) owns the BedJet. */
 @Composable
 internal fun quickEvidence(model: AppViewModel): DeviceStatus? {
-    val status by model.status.collectAsState()
-    val live by model.hasLiveStatus.collectAsState()
-    val link by model.linkState.collectAsState()
-    val runtime by model.runtime.collectAsState()
-    val night by model.activeNight.collectAsState()
-    val owner by model.commandBusy.collectAsState()
+    val status by model.status.collectAsStateWithLifecycle()
+    val live by model.hasLiveStatus.collectAsStateWithLifecycle()
+    val link by model.linkState.collectAsStateWithLifecycle()
+    val runtime by model.runtime.collectAsStateWithLifecycle()
+    val night by model.activeNight.collectAsStateWithLifecycle()
+    val owner by model.commandBusy.collectAsStateWithLifecycle()
     val slotWrite = runtime.slotWrite
     // A confirmed Boost/pin journal remains for recovery; it must not hide a later fresh manual receipt.
     val slotSettled = slotWrite == null || slotWrite.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED
@@ -140,7 +141,9 @@ internal fun BoostEditor(model: AppViewModel, settings: Settings, onClose: () ->
                     }
                     if (minutes > turbo) androidx.compose.foundation.layout.Box(Modifier.weight((minutes - turbo).toFloat()).fillMaxHeight()
                         .background(heatColour, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.boost_bar_heat, minutes - turbo), color = Color(0xFF12152A), fontSize = 13.sp,
+                        // Five minutes of Heat is too narrow for its word; the colour and the line above name it.
+                        val heat = minutes - turbo
+                        Text(stringResource(if (heat < 10) R.string.boost_bar_heat_compact else R.string.boost_bar_heat, heat), color = Color(0xFF12152A), fontSize = 13.sp,
                             fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Clip)
                     }
                     if (minutes < 30) androidx.compose.foundation.layout.Box(Modifier.weight((30 - minutes).toFloat()).fillMaxHeight()

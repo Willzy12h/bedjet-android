@@ -52,6 +52,8 @@ class DiagnosticsDisclosureTest {
         } }
         val saved = Json.parseToJsonElement(output.toString(Charsets.UTF_8)).jsonObject
         assertEquals(JsonNull, saved.getValue("activeNight"))
+        // No crash yet, so the field is there and empty; the explanation names it either way.
+        assertEquals(JsonNull, saved.getValue("lastCrash"))
         val alarm = saved.getValue("alarm").jsonObject
         assertEquals(ALARM_AT, ZonedDateTime.parse(alarm.getValue("alarmAt").jsonPrimitive.content).toInstant())
         assertEquals(ALARM_SOURCE, alarm.getValue("creatorPackage").jsonPrimitive.content)
@@ -69,6 +71,8 @@ class DiagnosticsDisclosureTest {
             explanation.contains("source app", ignoreCase = true))
         assertTrue("The export contains a package name, so that identifier must be disclosed: $explanation",
             explanation.contains("package", ignoreCase = true))
+        assertTrue("The export can include the last crash, so that must be disclosed: $explanation",
+            explanation.contains("crash", ignoreCase = true))
     }
 
     private companion object {

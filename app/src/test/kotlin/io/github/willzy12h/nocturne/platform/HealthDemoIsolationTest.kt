@@ -28,12 +28,12 @@ class HealthDemoIsolationTest : PlatformGraphFixture() {
         assertFalse("Demo must not read real Health Connect data", constructed)
     }
 
-    @Test fun permissionRationaleExplainsTheOptionalWriteAndItsUnverifiedSleepMeaning() {
+    @Test fun permissionRationaleSaysSleepIsOnlyReadAndNothingIsWritten() {
         val activity = Robolectric.buildActivity(HealthRationaleActivity::class.java).create()
         try {
             val message = shadowOf(ShadowAlertDialog.getLatestAlertDialog()).message.toString()
-            assertTrue("Permission rationale must disclose optional programme writes", message.contains("writes", ignoreCase = true))
-            assertTrue("A BedJet programme is not verified sleep", message.contains("not verified sleep", ignoreCase = true))
+            assertTrue("The rationale must say what is read", message.contains("reads your sleep stages", ignoreCase = true))
+            assertTrue("The rationale must say nothing is written", message.contains("writes nothing to Health Connect", ignoreCase = true))
         } finally { activity.destroy() }
     }
 }

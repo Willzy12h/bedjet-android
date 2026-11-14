@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -48,7 +49,7 @@ import kotlinx.coroutines.launch
 }
 
 @Composable fun PlatformSettingsSection(graph: Graph, healthOnly: Boolean = false) {
-    val settings by graph.repository.settings.collectAsState()
+    val settings by graph.repository.settings.collectAsStateWithLifecycle()
     val prefs=settings.platform
     val scope=rememberCoroutineScope()
     if (healthOnly && !HealthConnectAccess.platformSupported) Text(stringResource(R.string.health_platform_required))
@@ -107,7 +108,6 @@ import kotlinx.coroutines.launch
             }
         }
         Text(stringResource(R.string.feature_health_privacy),style=MaterialTheme.typography.bodySmall)
-        HealthExportSettingsSection(graph)
         }
         message?.let {Text(it,color=MaterialTheme.colorScheme.onSurface)}
     }
@@ -116,8 +116,8 @@ import kotlinx.coroutines.launch
 /** [onOutcome] shows the result in the app's own feedback (once, with the owner's feed); without it, a Toast. */
 @Composable fun PhoneHandoverMenuItems(graph:Graph,onOutcome:((io.github.willzy12h.nocturne.night.CommandOutcome)->Unit)?=null,
     includeRelease:Boolean=true,asSettings:Boolean=false,onDismiss:()->Unit) {
-    val released by graph.sessions.released.collectAsState()
-    val settings by graph.repository.settings.collectAsState()
+    val released by graph.sessions.released.collectAsStateWithLifecycle()
+    val settings by graph.repository.settings.collectAsStateWithLifecycle()
     val scope=rememberCoroutineScope()
     var busy by remember {mutableStateOf(false)}
     fun show(outcome:io.github.willzy12h.nocturne.night.CommandOutcome) {
@@ -153,7 +153,7 @@ import kotlinx.coroutines.launch
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("health-explainer")) {
         Text(stringResource(R.string.health_explainer_title), style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.semantics { heading() })
-        listOf(R.string.health_explainer_read, R.string.health_explainer_write, R.string.health_explainer_never).forEach {
+        listOf(R.string.health_explainer_read, R.string.health_explainer_never).forEach {
             Text(stringResource(it), style = MaterialTheme.typography.bodySmall)
         }
     }

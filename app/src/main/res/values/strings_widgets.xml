@@ -6,9 +6,9 @@
     <string name="widget_report_time">Reported %1$s</string>
     <string name="widget_no_report">No BedJet report</string>
     <string name="widget_no_tracked_night">No tracked night</string>
-    <string name="widget_phase_unknown">Phase unconfirmed</string>
+    <string name="widget_phase_unknown">Step unconfirmed</string>
     <string name="widget_phase_manual">Manual control</string>
-    <string name="widget_phase">Planned phase: %1$s</string>
+    <string name="widget_phase">Planned step: %1$s</string>
     <string name="widget_pending">Pending</string>
     <string name="widget_confirmed">Confirmed</string>
     <string name="widget_failed">Failed</string>

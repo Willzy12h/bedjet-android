@@ -64,7 +64,7 @@ class PlatformActionActivity : ComponentActivity() {
             return
         }
         val description=if (command == NightActions.Command.START_NIGHT) {
-            preview?.refusalText(this) ?: profile?.let { getString(R.string.feature_preview_wake,it.name,preview?.wake?.time?.format(DateTimeFormatter.ofPattern("EEE HH:mm"))) }
+            preview?.refusalText(this) ?: profile?.let { getString(R.string.feature_preview_wake,it.name,preview?.wake?.time?.let(io.github.willzy12h.nocturne.ui.Format::dayClock)) }
                 ?: getString(R.string.feature_deleted_profile)
         } else getString(when(command) {
             NightActions.Command.BOOST -> R.string.feature_boost

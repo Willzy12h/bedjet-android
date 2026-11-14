@@ -45,11 +45,11 @@ fun widgetWake(context: Context, night: io.github.willzy12h.nocturne.core.night.
     if (night.trackingManual) return if (!java.time.ZonedDateTime.parse(night.endsAt).isAfter(context.graph.now()))
         context.getString(io.github.willzy12h.nocturne.R.string.feature_no_wake)
         else context.getString(io.github.willzy12h.nocturne.R.string.feature_manual_until,
-            java.time.ZonedDateTime.parse(night.endsAt).format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm")))
+            io.github.willzy12h.nocturne.ui.Format.dayClock(java.time.ZonedDateTime.parse(night.endsAt)))
     if (!java.time.ZonedDateTime.parse(night.wakeAt).isAfter(context.graph.now()))
         return context.getString(io.github.willzy12h.nocturne.R.string.feature_no_wake)
     return context.getString(io.github.willzy12h.nocturne.R.string.feature_wake,
-        java.time.ZonedDateTime.parse(night.wakeAt).format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm")))
+        io.github.willzy12h.nocturne.ui.Format.dayClock(java.time.ZonedDateTime.parse(night.wakeAt)))
 }
 fun widgetMode(context: Context, observation: io.github.willzy12h.nocturne.platform.DeviceObservation?): String {
     if (observation == null || observation.device != context.graph.repository.settings.value.deviceId()) return context.getString(io.github.willzy12h.nocturne.R.string.feature_unknown)
@@ -58,7 +58,7 @@ fun widgetMode(context: Context, observation: io.github.willzy12h.nocturne.platf
     val mode=runCatching { io.github.willzy12h.nocturne.core.protocol.Mode.valueOf(observation.mode) }.getOrNull()
         ?: return context.getString(io.github.willzy12h.nocturne.R.string.feature_unknown)
     return context.getString(io.github.willzy12h.nocturne.R.string.feature_mode_age,
-        context.getString(io.github.willzy12h.nocturne.ui.Format.modeNameRes(mode)),age,java.time.ZonedDateTime.parse(observation.at).format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm XXX")))
+        context.getString(io.github.willzy12h.nocturne.ui.Format.modeNameRes(mode)),age,java.time.ZonedDateTime.parse(observation.at).let { "${io.github.willzy12h.nocturne.ui.Format.shortDay(it)} ${io.github.willzy12h.nocturne.ui.Format.clockWithOffset(it)}" })
 }
 
 
@@ -75,7 +75,7 @@ internal fun widgetReportTime(context: Context, observation: io.github.willzy12h
         ?.let { runCatching { java.time.ZonedDateTime.parse(it) }.getOrNull() }
         ?: return context.getString(io.github.willzy12h.nocturne.R.string.widget_no_report)
     return context.getString(io.github.willzy12h.nocturne.R.string.widget_report_time,
-        at.format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm XXX")))
+        "${io.github.willzy12h.nocturne.ui.Format.shortDay(at)} ${io.github.willzy12h.nocturne.ui.Format.clockWithOffset(at)}")
 }
 
 internal fun widgetTemperature(context: Context, compact: Boolean = false): String {
@@ -121,8 +121,8 @@ internal fun widgetPhaseText(context: Context, night: io.github.willzy12h.noctur
     }
     val end = current.startsAt.plusMinutes(current.minutes.toLong())
     val span = context.getString(io.github.willzy12h.nocturne.R.string.widget_phase_span,
-        current.startsAt.format(java.time.format.DateTimeFormatter.ofPattern("d MMM HH:mm")),
-        end.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")))
+        current.startsAt.let { "${it.format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))} ${io.github.willzy12h.nocturne.ui.Format.clock(it)}" },
+        io.github.willzy12h.nocturne.ui.Format.clock(end))
     return WidgetPhaseText(context.getString(if (compact) io.github.willzy12h.nocturne.R.string.widget_phase_short
         else io.github.willzy12h.nocturne.R.string.widget_phase, context.getString(title)), span)
 }
@@ -149,5 +149,5 @@ internal fun widgetWakeShort(context: Context, night: io.github.willzy12h.noctur
     val at = java.time.ZonedDateTime.parse(if (night.trackingManual) night.endsAt else night.wakeAt)
     return context.getString(if (night.trackingManual) io.github.willzy12h.nocturne.R.string.widget_manual_until_short
         else io.github.willzy12h.nocturne.R.string.widget_wake_short,
-        at.format(java.time.format.DateTimeFormatter.ofPattern("EEE HH:mm")))
+        io.github.willzy12h.nocturne.ui.Format.dayClock(at))
 }

@@ -33,7 +33,8 @@ class ShortAutoStartWakeTextTest {
         val early = alarm.copy(time = alarm.time.minusMinutes(30))
         val headline = tonightWakeHeadline(Settings(), Presets.springAutumn, now, early, night(shortest = 120))
         assertEquals(R.string.gpt12_wake_profile_fallback, headline.label)
-        assertEquals(R.string.gpt12_wake_too_soon, headline.reason)
+        val retimed = night(shortest = 120).copy(wakeOrigin = WakeOrigin.ALARM)
+        assertEquals(AlarmReason.OUTSIDE_WINDOW, AlarmExplanation.resolve(Settings(), Presets.springAutumn, now, early, retimed).reason)
     }
 
     @Test fun anyOtherNightKeepsTheUsualThreeHours() {

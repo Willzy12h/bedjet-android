@@ -2190,6 +2190,8 @@ class NightActions(private val graph: Graph) {
         put("activeNight", repo.activeNight.value?.let { BackupCodec.json.encodeToJsonElement(ActiveNight.serializer(), it) } ?: kotlinx.serialization.json.JsonNull)
         put("events", BackupCodec.json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(HistoryEvent.serializer()), repo.history.value.flatMap { it.events }.sortedByDescending { it.at }.take(50)))
         put("notices", BackupCodec.json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(LoggedNotice.serializer()), repo.notices.value.take(50)))
+        put("lastCrash", io.github.willzy12h.nocturne.data.CrashLog.read(context.filesDir)?.let { kotlinx.serialization.json.JsonPrimitive(it) }
+            ?: kotlinx.serialization.json.JsonNull)
     }.toString()
 
     private suspend fun publishNight(night: ActiveNight?) {
@@ -2224,7 +2226,7 @@ class NightActions(private val graph: Graph) {
     private fun refused(id: Int) = CommandOutcome(OutcomeKind.REFUSED, text(id))
     private fun stale(id: Int = R.string.runtime_stale) = CommandOutcome(OutcomeKind.STALE, text(id))
     private fun label(command: Command) = commandLabel(context, command)
-    private fun clock(iso: String) = ZonedDateTime.parse(iso).format(DateTimeFormatter.ofPattern("HH:mm"))
+    private fun clock(iso: String) = io.github.willzy12h.nocturne.ui.Format.clock(ZonedDateTime.parse(iso))
     companion object {
         const val OPERATION_MS = 90_000L
         /** A background widget read's whole budget: one connection attempt and its first report, no retries. */

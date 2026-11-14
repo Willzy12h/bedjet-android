@@ -102,10 +102,10 @@ object BackupValidator {
                     // the codec carries, not the official app's per-mode range or heat cut-off table: a BedJet can
                     // hold a programme another app wrote, and the app's own snapshots must restore (IR-16).
                     if (step.fanStep !in 0..19) add("$what has a fan setting outside 5 to 100%.")
-                    if (step.temperature !in CODEC_BYTE) add("$what has a temperature value the BedJet cannot hold.")
+                    if (step.temperature !in CODEC_BYTE) add("$what has a temperature value the BedJet can't hold.")
                     if (step.minutes !in 0..59 || step.hours !in (if (step.endsAtClockTime) 0..23 else 0..11) ||
                         (!step.endsAtClockTime && step.durationMinutes !in 1..Limits.MAX_STEP_MINUTES))
-                        add("$what has a time the BedJet cannot run.")
+                        add("$what has a time the BedJet can't run.")
                 }
             }
         }

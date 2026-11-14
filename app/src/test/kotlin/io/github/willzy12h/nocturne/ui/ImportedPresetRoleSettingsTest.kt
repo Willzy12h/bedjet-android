@@ -83,7 +83,7 @@ class ImportedPresetRoleSettingsTest(private val role: PresetRole) {
             failures += "The whole supported timed preset is incorrectly labelled unsupported"
         }
         if (role.quickName != null) {
-            val note = "The legacy ${ui.s(role.quickName)} shortcut or widget cannot use this preset. The mode buttons use Quick defaults."
+            val note = "The older ${ui.s(role.quickName)} shortcut or widget can't use this preset. The mode buttons use Quick defaults."
             if (ui.compose.onAllNodesWithText(note).fetchSemanticsNodes().isEmpty()) {
                 failures += "The distinct legacy shortcut/widget restriction is not explained"
             } else ui.compose.onNodeWithText(note).performScrollTo().assertIsDisplayed()

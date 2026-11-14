@@ -352,7 +352,7 @@ class ManualEndRequestTest {
         assertEquals(OutcomeKind.LOCAL, run(NightActions.Command.STOP_TRACKING).kind)
         assertNoEndRequest()
         assertNull(graph.repository.activeNight.value)
-        assertEquals("Stopped tracking. This does not turn the BedJet off.", stopped(night).single().detail)
+        assertEquals("Stopped tracking. This doesn't turn the BedJet off.", stopped(night).single().detail)
     }
 
     @Test fun aReplacementClearsThePreviousNightsRequest() = runBlocking {

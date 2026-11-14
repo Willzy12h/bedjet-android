@@ -93,11 +93,11 @@ fun SleepStageChart(stages: List<SleepStage>, start: Instant, end: Instant, plan
             Column(Modifier.width(labelWidth)) {
                 lanes.forEach { lane ->
                     Box(Modifier.height(laneHeight), contentAlignment = Alignment.CenterStart) {
-                        Text(stringResource(lane.label), color = tokens.ink2, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1)
+                        Text(stringResource(lane.label), color = tokens.ink2, fontSize = 12.sp, lineHeight = 14.sp, maxLines = 1)
                     }
                 }
                 if (plan != null) Box(Modifier.padding(top = stripGap).height(stripHeight), contentAlignment = Alignment.CenterStart) {
-                    Text(stringResource(R.string.feature_stage_bedjet), color = tokens.ink2, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1)
+                    Text(stringResource(R.string.feature_stage_bedjet), color = tokens.ink2, fontSize = 12.sp, lineHeight = 14.sp, maxLines = 1)
                 }
             }
             val guide = tokens.ink3.copy(alpha = .35f)

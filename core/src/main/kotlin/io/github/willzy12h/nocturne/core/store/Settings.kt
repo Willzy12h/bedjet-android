@@ -138,7 +138,9 @@ data class Settings(
         }
     }
     /** Alarms from an app Android does not name are never used (see [acceptUnknownAlarmSource]). */
-    fun withoutUnidentifiedAlarms(): Settings = if (acceptUnknownAlarmSource) copy(acceptUnknownAlarmSource = false) else this
+    fun withoutUnidentifiedAlarms(): Settings = (if (acceptUnknownAlarmSource) copy(acceptUnknownAlarmSource = false) else this)
+        // Nocturne no longer writes to Health Connect; a choice saved by an earlier version is switched off.
+        .let { if (it.platform.healthSleepExport) it.copy(platform = it.platform.copy(healthSleepExport = false)) else it }
     fun setWakeOverride(wakeAt: ZonedDateTime, at: ZonedDateTime): Settings =
         copy(tonightOverride = TonightOverride(wakeAt.toString(), at.toString()))
     fun clearWakeOverride(): Settings = copy(tonightOverride = null)

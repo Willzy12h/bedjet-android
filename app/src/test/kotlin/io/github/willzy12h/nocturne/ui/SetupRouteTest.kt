@@ -61,10 +61,23 @@ class SetupRouteTest {
         assertTrue(compose.onAllNodesWithText("Connect to your BedJet to use the remote.").fetchSemanticsNodes().isEmpty())
     }
 
-    @Test fun settingsPhoneSetupHasSamsungBatteryGuidance() {
+    @Test fun settingsPhoneSetupHasSamsungBatteryGuidanceOnASamsungPhone() {
+        val maker = android.os.Build.MANUFACTURER
+        org.robolectric.util.ReflectionHelpers.setStaticField(android.os.Build::class.java, "MANUFACTURER", "samsung")
+        try {
+            compose.onAllNodesWithText("Settings")[0].performClick()
+            compose.openSettingsPage("permissions")
+            compose.onNodeWithText(s(R.string.setup_samsung_title)).performScrollTo().performClick()
+            compose.onNodeWithText(s(R.string.setup_samsung_help)).assertExists()
+        } finally {
+            org.robolectric.util.ReflectionHelpers.setStaticField(android.os.Build::class.java, "MANUFACTURER", maker)
+        }
+    }
+
+    @Test fun otherPhonesAreNotShownSamsungBatteryGuidance() {
         compose.onAllNodesWithText("Settings")[0].performClick()
         compose.openSettingsPage("permissions")
-        compose.onNodeWithText(s(R.string.setup_samsung_title)).performScrollTo().performClick()
-        compose.onNodeWithText(s(R.string.setup_samsung_help)).assertExists()
+        assertTrue(compose.onAllNodesWithText(s(R.string.setup_samsung_title)).fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodesWithText("Samsung", substring = true).fetchSemanticsNodes().isEmpty())
     }
 }

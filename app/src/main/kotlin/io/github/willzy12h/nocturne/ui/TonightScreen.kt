@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,7 +57,6 @@ import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -103,13 +103,13 @@ import java.time.ZonedDateTime
 fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenBackups: () -> Unit = {},
     onOpenAlarmSettings: () -> Unit = {}, onEditPhase: (Profile, EditorPhaseSelection) -> Unit = { p, _ -> onEdit(p) },
     onOpenRemote: () -> Unit = {}, onOpenSleep: () -> Unit = {}) {
-    val profiles by model.profiles.collectAsState()
-    val settings by model.settings.collectAsState()
-    val running by model.activeNight.collectAsState()
-    val alarm by model.nextAlarm.collectAsState()
-    val busy by model.busy.collectAsState()
-    val nightStatus by model.nightStatus.collectAsState()
-    val runtime by model.runtime.collectAsState()
+    val profiles by model.profiles.collectAsStateWithLifecycle()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val running by model.activeNight.collectAsStateWithLifecycle()
+    val alarm by model.nextAlarm.collectAsStateWithLifecycle()
+    val busy by model.busy.collectAsStateWithLifecycle()
+    val nightStatus by model.nightStatus.collectAsStateWithLifecycle()
+    val runtime by model.runtime.collectAsStateWithLifecycle()
     var now by remember { mutableStateOf(model.now()) }
     val foreground = rememberScreenInteractive()
     LaunchedEffect(model, foreground) {
@@ -142,7 +142,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             TimePickerDialog(themed, { _, hour, minute ->
                 model.setTonightWake(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()), expectedNight,
                     onFinished = then ?: {})
-            }, initial.hour, initial.minute, true).apply { show(); styleNativeDialog(this, pickerTokens) }
+            }, initial.hour, initial.minute, Format.twentyFourHour).apply { show(); styleNativeDialog(this, pickerTokens) }
         }
     }
     val pickWake: () -> Unit = { pickWakeThen(null) }
@@ -181,7 +181,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     var showDetail by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
     var editingQuick by remember { mutableStateOf(false) }
-    val presetEditingRequested by model.presetEditingRequested.collectAsState()
+    val presetEditingRequested by model.presetEditingRequested.collectAsStateWithLifecycle()
     LaunchedEffect(presetEditingRequested) {
         if (presetEditingRequested) { editingQuick = true; model.presetEditingRequested.value = false }
     }
@@ -194,7 +194,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
 
     Box(modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("tonight-content")
-        .padding(horizontal = 16.dp).padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        .padding(horizontal = 16.dp).padding(bottom = 16.dp + FeedbackClearance), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         StatusLine(model, runningName = profileName.takeIf { confirmed && night?.trackingManual == false }, onRemote = onOpenRemote)
         BluetoothBanner(model)
         HomeReading(model, settings, current?.let { (index, step) -> Triple(step, index + 1, plan?.steps?.size ?: 0) }, sending.value)
@@ -265,7 +265,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     now = now.takeIf { night != null && confirmed }, end = end, middle = night?.profile?.middle ?: profile?.middle,
                     onEditPhase = if (profile == null) null else editPhase)
             } ?: if (night == null) Text(if (needsWake) stringResource(R.string.tonight_wake_out_of_range,
-                    preview!!.wake.time.format(DateTimeFormatter.ofPattern("EEE HH:mm"))) else preview?.refusalReason.orEmpty(),
+                    Format.dayClock(preview!!.wake.time)) else preview?.refusalReason.orEmpty(),
                 color = MaterialTheme.colorScheme.onSurface) else Unit
             if (night == null) profile?.let { selected ->
                 val later = plan?.start?.isAfter(now.plusMinutes(1)) == true
@@ -285,7 +285,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     val stripe = tokens.stepColor(next.step.mode, next.step.temperature)
                     StripeTile(stripe = stripe, title = stringResource(R.string.parity_next, modeName(next.step.mode),
                             if (next.step.mode.usesTemperature) tempText(next.step.temperature, settings.fahrenheit) else "",
-                            Format.clock(next.startsAt)).trimEnd(), subtitle = wakeOriginLabel(night.wakeOrigin, WakeLabelStyle.HEADLINE),
+                            Format.clock(next.startsAt)).trimEnd(), subtitle = null,
                         titleFontWeight = FontWeight.Bold, level = TintLevel.ON, modifier = Modifier.fillMaxWidth().testTag("tonight-next"),
                         icon = { Box(Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(stripe.copy(alpha = .22f)),
                             contentAlignment = Alignment.Center) {
@@ -323,10 +323,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
 
         // One line explains the wake; an alarm from a calendar app is simply ignored, without comment. Any other
         // app's ignored alarm is named, with a tap to choose that app.
-        val clockApps by model.clockApps.collectAsState()
+        val clockApps by model.clockApps.collectAsStateWithLifecycle()
         val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
         if (!explanation.isStrayAlarm(clockApps, calendarApps)) {
-            headline.reason?.let { Note(stringResource(it)) }
             AlarmExplanationLine(explanation, openExplanation)
         }
         wakeOverride?.let { override ->
@@ -339,16 +338,15 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         QuickPresets(model, guard, sending, onEdit = { editingQuick = true }, onEditPreset = { editingPreset = it },
             onEditBoost = { editingBoost = true })
 
-        val unreadable by model.unreadable.collectAsState()
-        val restoreUnfinished by model.restoreUnfinished.collectAsState()
-        val originalsBlocked by model.originalsBlocked.collectAsState()
+        val unreadable by model.unreadable.collectAsStateWithLifecycle()
+        val restoreUnfinished by model.restoreUnfinished.collectAsStateWithLifecycle()
+        val originalsBlocked by model.originalsBlocked.collectAsStateWithLifecycle()
         val banner = UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked)
         UnreadableDataBanner(banner, onDismiss = model::dismissUnreadable,
             onRestore = onOpenBackups.takeIf { banner.offersRestore }, onAcceptLoss = model::acceptLostOriginals)
         runtime.unresolvedSlotWrite?.takeIf { DeviceId.same(it.deviceId, settings.deviceId()) }?.let {
             SlotWriteNotice(it, onChecked = model::acknowledgeSlotWrite)
         }
-        SetupChecks()
         // Last night stays apart from tonight's controls, below them.
         LastNightCard(model, onOpenSleep)
         // UX-01: once a BedJet is chosen the picker lives in Settings; it returns here if the target is removed.
@@ -392,7 +390,7 @@ private fun Tick(text: String, modifier: Modifier, align: TextAlign) {
         TextAlign.Start -> Alignment.CenterStart
         TextAlign.End -> Alignment.CenterEnd
         else -> Alignment.Center
-    }) { Text(text, color = paletteTokens.ink2, fontSize = 10.sp, textAlign = align) }
+    }) { Text(text, color = paletteTokens.ink2, fontSize = 12.sp, textAlign = align) }
 }
 
 /** The large reading and its context are based only on the current BedJet receipt; a running night adds its step. */
@@ -400,9 +398,9 @@ private fun Tick(text: String, modifier: Modifier, align: TextAlign) {
 @Composable
 private fun HomeReading(model: AppViewModel, settings: Settings,
     step: Triple<io.github.willzy12h.nocturne.core.plan.PlannedStep, Int, Int>? = null, sending: PresetSending? = null) {
-    val status by model.status.collectAsState()
-    val live by model.hasLiveStatus.collectAsState()
-    val link by model.linkState.collectAsState()
+    val status by model.status.collectAsStateWithLifecycle()
+    val live by model.hasLiveStatus.collectAsStateWithLifecycle()
+    val link by model.linkState.collectAsStateWithLifecycle()
     val tokens = paletteTokens
     val large = LocalConfiguration.current.fontScale >= 1.5f
     val reading = status.takeIf { live && link == LinkState.READY }
@@ -419,11 +417,11 @@ private fun HomeReading(model: AppViewModel, settings: Settings,
                 fontWeight = FontWeight.Bold, color = tokens.ink)
             Column(Modifier.align(Alignment.CenterVertically)) {
                 Text(stringResource(R.string.home_air_from_bedjet), modifier = Modifier.testTag("home-reading-context"),
-                    color = tokens.ink2, fontSize = 11.sp)
+                    color = tokens.ink2, fontSize = 12.sp)
                 if (sending != null) {
                     Text("${sending.title}…", modifier = Modifier.testTag("home-sending"), color = tokens.readableText(sending.color),
                         fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(stringResource(R.string.parity_waiting_bedjet), color = tokens.ink2, fontSize = 11.sp)
+                    Text(stringResource(R.string.parity_waiting_bedjet), color = tokens.ink2, fontSize = 12.sp)
                 } else if (reading.mode == Mode.STANDBY) Text(stringResource(R.string.home_idle), color = tokens.ink2,
                     fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -433,9 +431,9 @@ private fun HomeReading(model: AppViewModel, settings: Settings,
                     color = tokens.readableText(tokens.stepColor(reading.mode, reading.targetTemperature)), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 if (sending == null && step != null) Text(stringResource(R.string.parity_fan_step, reading.fanPercent, step.second, step.third),
-                    color = tokens.ink2, fontSize = 11.sp)
+                    color = tokens.ink2, fontSize = 12.sp)
                 else if (sending == null && reading.mode.usesFan) Text(stringResource(R.string.timeline_fan, reading.fanPercent),
-                    color = tokens.ink2, fontSize = 11.sp)
+                    color = tokens.ink2, fontSize = 12.sp)
             }
         }
     }

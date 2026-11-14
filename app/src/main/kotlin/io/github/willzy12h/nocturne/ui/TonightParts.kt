@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -27,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,15 +71,15 @@ import java.time.ZonedDateTime
 /** The design's boost stripe (`--boost`); no palette token carries it. */
 internal val BoostColor = Color(0xFFFF6FA0)
 
-/** The design's `.lbl`: 10.5, bold, uppercase, ink3. */
+/** The design's `.lbl`: 12, bold, uppercase, ink2. */
 @Composable
 internal fun SectionLabel(text: String, modifier: Modifier = Modifier) = Text(text.uppercase(), modifier,
-    color = paletteTokens.ink2, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
+    color = paletteTokens.ink2, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp)
 
-/** A text link in the accent colour (600, 11.5), with a 48 dp touch target. */
+/** A text link in the accent colour (600, 12), with a 48 dp touch target. */
 @Composable
 internal fun AccentLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Int? = null,
-    enabled: Boolean = true, fontSize: TextUnit = 11.5.sp) {
+    enabled: Boolean = true, fontSize: TextUnit = 12.sp) {
     Row(modifier.heightIn(min = 48.dp).widthIn(min = 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 4.dp)
         .alpha(if (enabled) 1f else .4f),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -91,14 +91,14 @@ internal fun AccentLink(text: String, onClick: () -> Unit, modifier: Modifier = 
 /** The design's status line: a dot and one short sentence, with Remote on the right. */
 @Composable
 internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (() -> Unit)? = null) {
-    val settings by model.settings.collectAsState()
-    val state by model.linkState.collectAsState()
-    val status by model.status.collectAsState()
-    val live by model.hasLiveStatus.collectAsState()
-    val bluetoothOff by model.bluetoothOff.collectAsState()
-    val released by model.graph.sessions.released.collectAsState()
-    val selectedName by model.selectedBedJetName.collectAsState()
-    val owner by model.commandBusy.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val state by model.linkState.collectAsStateWithLifecycle()
+    val status by model.status.collectAsStateWithLifecycle()
+    val live by model.hasLiveStatus.collectAsStateWithLifecycle()
+    val bluetoothOff by model.bluetoothOff.collectAsStateWithLifecycle()
+    val released by model.graph.sessions.released.collectAsStateWithLifecycle()
+    val selectedName by model.selectedBedJetName.collectAsStateWithLifecycle()
+    val owner by model.commandBusy.collectAsStateWithLifecycle()
     val tokens = paletteTokens
     val connection = headerConnection(settings.demoMode, settings.targetDevice != null, released,
         bluetoothOff, state, live && status != null)
@@ -275,9 +275,9 @@ private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?,
 @Composable
 internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit,
     onEditPreset: (Mode) -> Unit = {}, onEditBoost: () -> Unit = {}) {
-    val settings by model.settings.collectAsState()
-    val live by model.hasLiveStatus.collectAsState()
-    val link by model.linkState.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val live by model.hasLiveStatus.collectAsStateWithLifecycle()
+    val link by model.linkState.collectAsStateWithLifecycle()
     val columns = if (LocalConfiguration.current.fontScale >= 1.5f) 2 else 3
     val canControl = live && link == io.github.willzy12h.nocturne.core.link.LinkState.READY
     val evidence = quickEvidence(model)
@@ -304,16 +304,16 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: Mutab
 private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?, evidence: DeviceStatus?, canControl: Boolean,
     sending: MutableState<PresetSending?>, modifier: Modifier, onEditPreset: (Mode) -> Unit, onEditBoost: () -> Unit) {
     val context = LocalContext.current
-    val settings by model.settings.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
     val tokens = paletteTokens
-    val status by model.status.collectAsState()
-    val link by model.linkState.collectAsState()
-    val night by model.activeNight.collectAsState()
-    val runtime by model.runtime.collectAsState()
-    val owner by model.commandBusy.collectAsState()
+    val status by model.status.collectAsStateWithLifecycle()
+    val link by model.linkState.collectAsStateWithLifecycle()
+    val night by model.activeNight.collectAsStateWithLifecycle()
+    val runtime by model.runtime.collectAsStateWithLifecycle()
+    val owner by model.commandBusy.collectAsStateWithLifecycle()
     when (mode) {
         null -> {
-            val profiles by model.profiles.collectAsState()
+            val profiles by model.profiles.collectAsStateWithLifecycle()
             val limits = settings.resolveProfile(profiles, model.now())?.limits ?: io.github.willzy12h.nocturne.core.plan.ProfileLimits()
             val startBoost = stringResource(R.string.guard_start_boost)
             // Boost is Turbo for the unit's ten-minute limit, then Heat for the person's chosen minutes.

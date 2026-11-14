@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,7 +32,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -46,9 +46,9 @@ fun SetupFlow(model: AppViewModel, compact: Boolean = false) =
 
 @Composable
 fun BedJetPicker(model: AppViewModel, compact: Boolean = false) {
-    val settings by model.settings.collectAsState()
-    val found by model.foundBedJets.collectAsState()
-    val discovering by model.discovering.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val found by model.foundBedJets.collectAsStateWithLifecycle()
+    val discovering by model.discovering.collectAsStateWithLifecycle()
     val tokens = paletteTokens
     val context = androidx.compose.ui.platform.LocalContext.current
     // Nothing chosen yet and nearby-device access granted: start looking straight away instead of waiting for a tap.
@@ -104,7 +104,8 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false) {
                     style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = model::runSetupFanCheck) { Text(stringResource(if (checked) R.string.setup_fan_repeat else R.string.setup_fan_run)) }
             }
-            if (!compact) {
+            // Samsung has its own sleeping-apps lists on top of Android's battery setting; other phones do not.
+            if (!compact && android.os.Build.MANUFACTURER.equals("samsung", ignoreCase = true)) {
                 var samsung by rememberSaveable { mutableStateOf(false) }
                 TextButton(onClick = { samsung = !samsung }) { Text(stringResource(R.string.setup_samsung_title)) }
                 if (samsung) Text(stringResource(R.string.setup_samsung_help), style = MaterialTheme.typography.bodySmall)

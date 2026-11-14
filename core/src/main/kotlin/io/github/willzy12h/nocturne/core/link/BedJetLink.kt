@@ -88,6 +88,6 @@ sealed class BedJetError(message: String) : Exception(message) {
     class BadResponse : BedJetError("Your BedJet sent something unexpected. Try again.")
     class VerifyFailed : BedJetError("The night didn't save to your BedJet correctly. Try again.")
     class ClockNotSet : BedJetError("Your BedJet's clock wasn't set, so it didn't start the night. Try again.")
-    class ProgramTooLong : BedJetError("Your BedJet won't run a phase this long. Shorten the Heat phases or use Gentle heat.")
+    class ProgramTooLong : BedJetError("Your BedJet won't run a step this long. Shorten the Heat steps or use Long heat.")
     class InvalidProgram(message: String) : BedJetError(message)
 }

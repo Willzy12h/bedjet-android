@@ -92,8 +92,8 @@ class UatRound2RegressionTest {
         val model = model()
         compose.setContent { MaterialTheme { TonightScreen(model, Modifier, onEdit = {}) } }
         compose.onNodeWithTag("setup-checklist").assertIsDisplayed()
-        compose.onNodeWithText("Setup checklist").assertIsDisplayed()
-        compose.onNodeWithTag("setup-pair").assertIsDisplayed()
+        compose.onNodeWithText("Finish setting up").assertIsDisplayed()
+        compose.onNodeWithTag("setup-pair").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun U5_quickControlsExposeAllSixApprovedPresetsInsteadOfWarm() {

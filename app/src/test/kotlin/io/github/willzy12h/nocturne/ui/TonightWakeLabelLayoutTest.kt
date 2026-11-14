@@ -40,7 +40,7 @@ class TonightWakeLabelLayoutTest(
     @get:Rule val rules: TestRule = RuleChain.outerRule(width).around(ui.rules)
 
     companion object {
-        private const val COMPACT_LABEL = "Wake tonight only"
+        private const val COMPACT_LABEL = "Tonight only"
 
         @JvmStatic @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}dp-font{2}")
         fun layouts(): List<Array<Any>> = buildList {

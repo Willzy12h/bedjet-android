@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -33,7 +34,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -72,7 +72,6 @@ private val REMOTE_IDLE_SCALE = Mode.COOL.temperatureRange.first..Mode.HEAT.temp
 /** Every end label a mode's scale can show, so the bar reserves the same room for each. */
 private val REMOTE_EDGE_TEMPERATURES = (Mode.entries.filter { it.usesTemperature }.flatMap { listOf(it.temperatureRange.first, it.temperatureRange.last) } +
     listOf(REMOTE_IDLE_SCALE.first, REMOTE_IDLE_SCALE.last)).distinct()
-private val UNTIL_TIME = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
 
 private val REMOTE_MODES = listOf(Mode.TURBO, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.COOL, Mode.DRY, Mode.STANDBY)
 
@@ -92,11 +91,11 @@ internal fun PaletteTokens.modeColor(mode: Mode): Color = when (mode) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
-    val status by model.status.collectAsState()
-    val state by model.linkState.collectAsState()
-    val hasLiveStatus by model.hasLiveStatus.collectAsState()
-    val settings by model.settings.collectAsState()
-    val bluetoothOff by model.bluetoothOff.collectAsState()
+    val status by model.status.collectAsStateWithLifecycle()
+    val state by model.linkState.collectAsStateWithLifecycle()
+    val hasLiveStatus by model.hasLiveStatus.collectAsStateWithLifecycle()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val bluetoothOff by model.bluetoothOff.collectAsStateWithLifecycle()
     val f = settings.fahrenheit
     val tokens = paletteTokens
     val guard = rememberNightGuard(model)
@@ -116,7 +115,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         })
     }
 
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = FeedbackClearance), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StatusLine(model, runningName = null)
         BluetoothBanner(model)
         Text(stringResource(R.string.remote_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
@@ -215,7 +214,8 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                 if (motion) tween(150) else snap(), label = "remote-fan-colour")
             val fanSet = stringResource(R.string.remote_fan_set)
             RemoteSection(stringResource(R.string.slider_fan), if (usable) stringResource(R.string.remote_percent_tick, shown) else "—", colour,
-                note = if (!s.isRunning) notRunning else stringResource(R.string.remote_fan_minimum)) {
+                // The "choose a mode" hint is said once, on Temperature; the fan note stays true either way.
+                note = stringResource(R.string.remote_fan_minimum)) {
                 ScaledSlider(
                     fan, { fanDragging = true; fan = it.coerceAtLeast(5f) }, range = 0f..100f, steps = 0,
                     enabled = canControl && usable,
@@ -249,7 +249,6 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                         ((s.remainingSeconds + 59) / 60).coerceIn(1, maximumMinutes)) }, enabled = canControl && maximumMinutes > 0,
                         label = { Text(stringResource(R.string.remote_custom)) })
                 }
-                if (!s.isRunning) Text(notRunning, color = tokens.ink2, fontSize = 13.sp)
             }
         }
         s.extra?.let { extra ->
@@ -270,8 +269,8 @@ private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturn
     accent: Color, f: Boolean) {
     val tokens = paletteTokens
     val now = model.now()
-    val local by model.busy.collectAsState()
-    val owner by model.commandBusy.collectAsState()
+    val local by model.busy.collectAsStateWithLifecycle()
+    val owner by model.commandBusy.collectAsStateWithLifecycle()
     val sending = if (local || owner.runningLabel != null || owner.queuedCount > 0) {
         val label = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
         val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
@@ -289,7 +288,7 @@ private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturn
             }
         }
         Text(if (s.isRunning) stringResource(R.string.remote_running_until, tempText(s.targetTemperature, f), s.fanPercent,
-                durationText(s.remainingSeconds / 60), now.plusSeconds(s.remainingSeconds.toLong()).format(UNTIL_TIME))
+                durationText(s.remainingSeconds / 60), Format.clock(now.plusSeconds(s.remainingSeconds.toLong())))
             else stringResource(R.string.remote_not_running_choose), color = tokens.ink2, fontSize = 14.sp)
         // The reserved line: progress, then "Last reported", then a night's step; never a banner that pushes controls down.
         val line = sending ?: if (!canControl) stringResource(R.string.remote_last_reported)

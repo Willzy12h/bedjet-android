@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,6 @@ import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,8 +34,8 @@ import java.time.ZonedDateTime
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: NightGuard, now: ZonedDateTime) {
-    val runtime by model.runtime.collectAsState()
-    val settings by model.settings.collectAsState()
+    val runtime by model.runtime.collectAsStateWithLifecycle()
+    val settings by model.settings.collectAsStateWithLifecycle()
     val offer = runtime.resumeOffer?.takeIf { candidate ->
         candidate.night.deviceId == settings.deviceId() && candidate.commandVersion == runtime.generation &&
             runCatching { now.isBefore(ZonedDateTime.parse(candidate.expiresAt)) }.getOrDefault(false)

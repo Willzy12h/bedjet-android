@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 
 class BackupModeNameTest {
     @Test
-    fun temperatureErrorUsesTheAppNameForGentleHeat() {
+    fun temperatureErrorUsesTheAppNameForLongHeat() {
         val profile = Presets.springAutumn.copy(
             name = "Test",
             start = listOf(Phase(Mode.EXTENDED_HEAT, 70, 40, 30)),
@@ -20,7 +20,7 @@ class BackupModeNameTest {
         )
 
         assertEquals(
-            listOf("Test: step 1 of the start: the temperature is 35 °C; Gentle heat allows 19 °C to 33.5 °C."),
+            listOf("Test: step 1 of the start: the temperature is 35 °C; Long heat allows 19 °C to 33.5 °C."),
             BackupValidator.validate(bundle),
         )
     }

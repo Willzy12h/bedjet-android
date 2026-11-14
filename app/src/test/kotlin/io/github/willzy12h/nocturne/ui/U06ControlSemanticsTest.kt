@@ -254,9 +254,6 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         toggleTwice(s(R.string.auto_start_only_charging)) { graph.repository.settings.value.platform.autoStart?.onlyIfCharging == true }
         compose.onNodeWithTag("settings-back").performScrollTo().performClick()
         compose.openSettingsPage("health")
-        switchRow(s(R.string.health_export_title), true).assertIsEnabled().performClick()
-        fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepExport }
-        switchRow(s(R.string.health_export_title), false)
         // Disabling is a real supported action without a Health Connect provider or permission activity.
         switchRow(s(R.string.feature_health_title), true).assertIsEnabled().performClick()
         fixture.waitUntil { !graph.repository.settings.value.platform.healthSleepOverlay }
@@ -270,8 +267,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         switchRow(s(R.string.auto_start_only_charging), false).assertIsNotEnabled()
         compose.onNodeWithTag("settings-back").performScrollTo().performClick()
         compose.openSettingsPage("health")
-        switchRow(s(R.string.health_export_title), false).assertIsNotEnabled()
-        compose.onAllNodesWithText(s(R.string.platform_demo_unavailable)).onFirst().performScrollTo().assertIsDisplayed()
+        switchRow(s(R.string.feature_health_title), false).assertIsNotEnabled()
     }
 
     private fun openEditor() {

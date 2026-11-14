@@ -21,11 +21,38 @@ object Format {
         fun text(@StringRes id: Int, vararg args: Any): String
     }
 
-    private val clockFormat = DateTimeFormatter.ofPattern("HH:mm")
+    /**
+     * Whether times read as 22:30 or 10:30 pm. It follows the phone's own setting ([followPhoneClock]); every time the
+     * app shows, on screens, notifications and widgets alike, goes through [clock] so they all agree.
+     */
+    @Volatile var twentyFourHour: Boolean = true
+        private set
 
-    fun clock(time: ZonedDateTime): String = time.format(clockFormat)
+    /** Reads the phone's 12- or 24-hour setting: at start-up, when a screen opens and when the setting changes. */
+    fun followPhoneClock(context: android.content.Context) {
+        twentyFourHour = android.text.format.DateFormat.is24HourFormat(context)
+    }
+
+    private val formats = java.util.concurrent.ConcurrentHashMap<String, DateTimeFormatter>()
+    private fun format(pattern: String): DateTimeFormatter {
+        val locale = java.util.Locale.getDefault()
+        return formats.getOrPut("$pattern|$locale") { DateTimeFormatter.ofPattern(pattern, locale) }
+    }
+
+    fun clock(time: java.time.temporal.TemporalAccessor): String = format(if (twentyFourHour) "HH:mm" else "h:mm a").format(time)
     fun clock(iso: String): String = runCatching { clock(ZonedDateTime.parse(iso)) }.getOrDefault("--:--")
-    fun clockOfDay(minuteOfDay: Int): String = "%02d:%02d".format(minuteOfDay / 60 % 24, minuteOfDay % 60)
+    fun clockOfDay(minuteOfDay: Int): String = clock(java.time.LocalTime.of(minuteOfDay / 60 % 24, minuteOfDay % 60))
+    /** A short day name and the time: "Wed 07:00". */
+    fun dayClock(time: ZonedDateTime): String = "${format("EEE").format(time)} ${clock(time)}"
+    /** A saved moment, on the phone's clock: "Sun 9 Nov 2026, 20:13". The raw text if it cannot be read. */
+    fun savedAt(iso: String): String = runCatching {
+        val time = ZonedDateTime.parse(iso).withZoneSameInstant(java.time.ZoneId.systemDefault())
+        "${format("EEE d MMM yyyy").format(time)}, ${clock(time)}"
+    }.getOrDefault(iso)
+    /** The short day name alone, in the phone's language. */
+    fun shortDay(time: java.time.temporal.TemporalAccessor): String = format("EEE").format(time)
+    /** The time with its UTC offset, where the zone matters: "07:00 +01:00". */
+    fun clockWithOffset(time: ZonedDateTime): String = "${clock(time)} ${format("XXX").format(time)}"
 
     fun duration(minutes: Int, words: Words? = null): String {
         val h = minutes / 60

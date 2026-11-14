@@ -498,9 +498,10 @@ class GattLink(
         fun shut() {
             if (!closed.compareAndSet(false, true)) return
             scope.cancel()
+            // Close first, so whoever is told the connection failed never sees its port still open.
+            synchronized(this) { port }?.let(::closePort)
             services.complete(false)
             pending.getAndSet(null)?.result?.completeExceptionally(BedJetError.NotConnected())
-            synchronized(this) { port }?.let(::closePort)
         }
 
         private fun closePort(port: GattPort) {

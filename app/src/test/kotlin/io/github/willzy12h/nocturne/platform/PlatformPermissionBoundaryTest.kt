@@ -19,7 +19,6 @@ import androidx.core.app.ActivityOptionsCompat
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.core.link.DemoBedJet
 import io.github.willzy12h.nocturne.ui.features.AutoStartSettingsSection
-import io.github.willzy12h.nocturne.ui.features.HealthExportSettingsSection
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Rule
@@ -39,7 +38,6 @@ class PlatformPermissionBoundaryTest : PlatformGraphFixture() {
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
             this.requestCode = requestCode; requested = input
         }
-        fun health(granted: Boolean) = dispatchResult(requireNotNull(requestCode), if (granted) AndroidSleepWriter.PERMISSIONS else emptySet())
         fun notification() = dispatchResult(requireNotNull(requestCode), true)
     }
     private fun setup(): Graph {
@@ -56,34 +54,13 @@ class PlatformPermissionBoundaryTest : PlatformGraphFixture() {
         val owner = object : ActivityResultRegistryOwner { override val activityResultRegistry = registry }
         compose.setContent { CompositionLocalProvider(LocalActivityResultRegistryOwner provides owner) {
             MaterialTheme { Column(Modifier.verticalScroll(rememberScrollState())) {
-                AutoStartSettingsSection(graph); HealthExportSettingsSection(graph)
+                AutoStartSettingsSection(graph)
             } }
         } }
     }
     private fun barrier(graph: Graph) {
         runBlocking { graph.repository.updateSettings { it } }
         compose.waitForIdle()
-    }
-
-    @Test fun writeOptInRequiresTheExplicitWriteGrantWithoutRequestingReadAccess() {
-        val graph = setup(); val registry = PermissionRegistry(); content(graph, registry)
-        compose.onNodeWithContentDescription("Export BedJet programmes").performScrollTo().performClick()
-        assertEquals(AndroidSleepWriter.PERMISSIONS, registry.requested)
-        assertFalse(graph.repository.settings.value.platform.healthSleepExport)
-        compose.runOnIdle { registry.health(false) }; barrier(graph)
-        assertFalse(graph.repository.settings.value.platform.healthSleepExport)
-        compose.onNodeWithContentDescription("Export BedJet programmes").performClick()
-        compose.runOnIdle { registry.health(true) }
-        compose.waitUntil(5_000) { graph.repository.settings.value.platform.healthSleepExport }
-    }
-
-    @Test fun aWritePermissionResultAfterDemoEntryCannotEnableExport() {
-        val graph = setup(); val registry = PermissionRegistry(); content(graph, registry)
-        compose.onNodeWithContentDescription("Export BedJet programmes").performScrollTo().performClick()
-        assertNotNull(registry.requestCode)
-        runBlocking { graph.repository.updateSettings { it.copy(demoMode = true) } }
-        compose.runOnIdle { registry.health(true) }; barrier(graph)
-        assertFalse(graph.repository.settings.value.platform.healthSleepExport)
     }
 
     @Test fun aNotificationGrantAfterTargetChangeCannotEnableAutoStartOnTheNewBedJet() {

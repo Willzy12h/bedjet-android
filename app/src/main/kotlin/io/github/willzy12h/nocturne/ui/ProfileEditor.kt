@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
@@ -71,7 +72,6 @@ import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -122,7 +122,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     initialDraft: Profile? = null, onDraftChange: (Profile) -> Unit = {}, initialPhase: EditorPhaseSelection? = null) {
     var profile by remember(original.id) { mutableStateOf(initialDraft ?: original) }
     LaunchedEffect(profile) { onDraftChange(profile) }
-    val settings by model.settings.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
     val f = settings.fahrenheit
     val preview = model.previewPlan(profile)
     val validDurations = (profile.start + profile.wake + profile.afterWake).all { it.minutes in 1..720 }
@@ -134,7 +134,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     LaunchedEffect(focusedPhase, focusRequest) {
         if (focusedPhase?.block == Block.MIDDLE) { middleOpen = true }
     }
-    val night by model.activeNight.collectAsState()
+    val night by model.activeNight.collectAsStateWithLifecycle()
     val trackingTonight = night?.profileId == original.id
     var confirmDiscard by remember { mutableStateOf(false) }
     var applyTonightTo by remember { mutableStateOf<CommandRequest?>(null) }
@@ -206,6 +206,11 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
             ) {
                 Text(profile.name, color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 if (trackingTonight) Text(stringResource(R.string.editor_running_tonight), color = tokens.ink2, fontSize = 13.sp)
+                // The name and season come first: they are what a new profile needs before anything else.
+                OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneTextFieldColors())
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }, colors = nocturneFilterChipColors()) }
+                }
                 preview.fold(
                     onSuccess = { plan ->
                         NightCurve(plan, phaseInteraction = true, stepped = true, onEditPhase = { step ->
@@ -350,11 +355,6 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     preview.getOrNull(), focusedPhase, focusRequest, profile.limits, onAdd = { addingTo = Block.WAKE }) { profile = profile.copy(wake = it) }
                 PhaseList(Block.AFTER_WAKE, stringResource(R.string.parity_group_after), profile.afterWake, f, preview.getOrNull(), focusedPhase, focusRequest,
                     profile.limits, onAdd = { addingTo = Block.AFTER_WAKE }) { profile = profile.copy(afterWake = it) }
-
-                OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneTextFieldColors())
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Season.entries.forEach { s -> FilterChip(profile.season == s, { profile = profile.copy(season = s) }, label = { Text(stringResource(seasonName(s))) }, colors = nocturneFilterChipColors()) }
-                }
 
                 Section(stringResource(R.string.editor_limits)) {
                     Text(stringResource(R.string.editor_limits_help), style = MaterialTheme.typography.bodySmall)
@@ -685,7 +685,7 @@ fun TimeRow(label: String, minuteOfDay: Int, onChange: (Int) -> Unit) {
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         TextButton(onClick = {
             val themed = android.view.ContextThemeWrapper(context, if (tokens.dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
-            TimePickerDialog(themed, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, true).apply {
+            TimePickerDialog(themed, { _, h, m -> onChange(h * 60 + m) }, minuteOfDay / 60, minuteOfDay % 60, Format.twentyFourHour).apply {
                 show(); styleNativeDialog(this, tokens)
             }
         }) { Text(Format.clockOfDay(minuteOfDay)) }

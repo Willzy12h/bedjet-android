@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -38,7 +39,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -106,8 +106,8 @@ internal data class SleepPageData(val days: List<SleepDay>, val availability: Sl
  */
 @Composable
 internal fun rememberSleepDays(model: AppViewModel, loadDays: Int): SleepPageData {
-    val history by model.history.collectAsState()
-    val settings by model.settings.collectAsState()
+    val history by model.history.collectAsStateWithLifecycle()
+    val settings by model.settings.collectAsStateWithLifecycle()
     val now = model.now()
     val zone = now.zone
     val today = now.toLocalDate()
@@ -187,8 +187,8 @@ internal fun SleepTrendCard(days: List<SleepDay>, today: LocalDate, range: Int, 
     val average = if (averages.nights > 0) durationText(averages.asleepMinutes) else stringResource(R.string.sleep_figure_none)
     val description = pluralStringResource(R.plurals.sleep_trend_accessibility, averages.nights, averages.nights, average)
     val measurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(color = tokens.ink3, fontSize = 11.sp)
-    val selectedStyle = TextStyle(color = tokens.ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+    val labelStyle = TextStyle(color = tokens.ink3, fontSize = 12.sp)
+    val selectedStyle = TextStyle(color = tokens.ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     val guide = tokens.ink3.copy(alpha = .45f)
     val dayFormat = remember { DateTimeFormatter.ofPattern(if (range <= 7) "EEEEE" else "d") }
     Column(Modifier.sleepCard(tokens).testTag("sleep-trend"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -586,9 +586,9 @@ internal fun SleepTimelineCard(sleep: SleepNight, plan: Plan?, zone: ZoneId, fah
 @Composable
 internal fun SleepHistorySettings(model: AppViewModel, modifier: Modifier, onBack: () -> Unit, onOpenHealth: () -> Unit) {
     val tokens = paletteTokens
-    val settings by model.settings.collectAsState()
-    val history by model.history.collectAsState()
-    val importApplying by model.importApplying.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val history by model.history.collectAsStateWithLifecycle()
+    val importApplying by model.importApplying.collectAsStateWithLifecycle()
     val keep = History.keepDays(settings.historyKeepDays)
     var shrinkTo by remember { mutableStateOf<Int?>(null) }
     var deleting by remember { mutableStateOf(false) }

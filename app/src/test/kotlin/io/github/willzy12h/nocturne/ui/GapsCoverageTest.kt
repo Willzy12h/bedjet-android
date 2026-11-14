@@ -91,6 +91,8 @@ class GapsCoverageTest {
         compose.onNodeWithText(missing).performScrollTo().assertIsDisplayed()
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         shadowOf(compose.activity.application).grantPermissions(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+        // The setup list's Bluetooth item covers both the permission and Bluetooth being on.
+        shadowOf(compose.activity.getSystemService(android.bluetooth.BluetoothManager::class.java).adapter).setEnabled(true)
         compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
         waitUntil { !has(missing) }
         compose.onNodeWithText(missing).assertDoesNotExist()

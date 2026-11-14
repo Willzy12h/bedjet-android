@@ -108,7 +108,7 @@ fun AlarmExplanation.isStrayAlarm(clockApps: List<ClockApps.App>, calendarApps: 
 }
 
 private fun String.parseTime(): ZonedDateTime? = runCatching { ZonedDateTime.parse(this) }.getOrNull()
-private fun ZonedDateTime?.clock(): String = this?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: "--:--"
+private fun ZonedDateTime?.clock(): String = this?.let(io.github.willzy12h.nocturne.ui.Format::clock) ?: "--:--"
 
 /** App-facing words stay in resources; packages other than the two built-in clock sources remain identifiable. */
 fun alarmSourceName(context: Context, creator: String?): String = when (creator) {

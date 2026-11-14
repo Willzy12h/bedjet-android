@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.widget
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -34,7 +35,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -103,7 +103,7 @@ class QuickControlsConfigActivity : ComponentActivity() {
         // Chosen presets first, in their order, then the rest of the choices unticked.
         val everything = widgetPresetChoices(this).map { it.key }.filter { it != PRESET_OFF }
         setContent {
-            val settings by graph.repository.settings.collectAsState()
+            val settings by graph.repository.settings.collectAsStateWithLifecycle()
             val theme = rememberThemePresentation(settings, graph::now)
             var order by remember { mutableStateOf(chosen + everything.filter { it !in chosen }) }
             var ticked by remember { mutableStateOf(chosen.toSet()) }

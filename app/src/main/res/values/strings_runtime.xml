@@ -3,26 +3,26 @@
     <string name="runtime_target_changed">The selected BedJet changed. Try again.</string>
     <string name="runtime_stale">This action belongs to an older night. Open Nocturne for current controls.</string>
     <string name="runtime_choose_target">Choose a BedJet in setup first.</string>
-    <string name="runtime_failed">The command did not finish.</string>
+    <string name="runtime_failed">The command didn\'t finish.</string>
     <string name="runtime_operation_timeout">The command timed out. Check the BedJet before trying again.</string>
     <string name="runtime_charger_saved_data_unreadable">Charger start skipped: saved data couldn\'t be read.</string>
     <string name="runtime_slot_backups_unreadable">Saved slot originals are unreadable. Restore a backup of this BedJet\'s slot before writing it.</string>
     <string name="runtime_retime_refused">The wake-up change wasn\'t applied.</string>
-    <string name="runtime_retime_failed">The wake-up change did not finish.</string>
+    <string name="runtime_retime_failed">The wake-up change didn\'t finish.</string>
     <string name="runtime_retime_unknown_detail">The BedJet state is unknown. Check it before continuing. %1$s</string>
     <string name="runtime_retime_timeout">The wake-up change timed out.</string>
-    <string name="runtime_retime_timeout_detail">Nocturne could not confirm the change. Check the BedJet before continuing.</string>
+    <string name="runtime_retime_timeout_detail">Nocturne couldn\'t confirm the change. Check the BedJet before continuing.</string>
     <string name="runtime_retime_timeout_current_wake">Current wake-up: %1$s</string>
     <string name="runtime_retime_timeout_current_confirmed">The request timed out. The current programme is confirmed. Open Nocturne to review it.</string>
-    <string name="runtime_retime_record_incomplete">The BedJet confirmed the wake-up change, but Nocturne could not finish updating its local record. %1$s</string>
-    <string name="runtime_programme_record_incomplete">The BedJet confirmed the programme, but Nocturne could not finish updating its local record. %1$s</string>
-    <string name="runtime_retime_cleanup_pending">An old wake-up request could not be cleared from Nocturne\'s records. The current programme is unchanged. %1$s</string>
+    <string name="runtime_retime_record_incomplete">The BedJet confirmed the wake-up change, but Nocturne couldn\'t finish updating its local record. %1$s</string>
+    <string name="runtime_programme_record_incomplete">The BedJet confirmed the programme, but Nocturne couldn\'t finish updating its local record. %1$s</string>
+    <string name="runtime_retime_cleanup_pending">An old wake-up request couldn\'t be cleared from Nocturne\'s records. The current programme is unchanged. %1$s</string>
     <string name="runtime_slot_write_acknowledged">Marked as checked.</string>
     <string name="runtime_waited_too_long">This request waited too long. Try again.</string>
     <string name="runtime_add_profile">Add a profile first.</string>
     <string name="runtime_profile_deleted">That profile was deleted.</string>
     <string name="runtime_no_night">No night running.</string>
-    <string name="runtime_manual_tracking">Tracking a manual run. Alarm changes will not restart the night.</string>
+    <string name="runtime_manual_tracking">Tracking a manual run. Alarm changes won\'t restart the night.</string>
     <string name="runtime_manual_unconfirmed">Manual run not confirmed</string>
     <string name="runtime_started">%1$s started. Waking you at %2$s.</string>
     <string name="runtime_reapplied">Changes applied to %1$s. Waking you at %2$s.</string>
@@ -41,7 +41,7 @@
     <string name="runtime_extend_warm">Extend warm</string>
     <string name="runtime_extend_cool">Extend cool</string>
     <string name="runtime_timed">%1$s %2$d min.</string>
-    <string name="runtime_stop_tracking">Stopped tracking. This does not turn the BedJet off.</string>
+    <string name="runtime_stop_tracking">Stopped tracking. This doesn\'t turn the BedJet off.</string>
     <string name="runtime_ended">Night ended.</string>
     <string name="runtime_stopped">Night stopped.</string>
     <string name="runtime_resumed">Resumed the rest of %1$s. Waking you at %2$s.</string>
@@ -53,7 +53,7 @@
     <string name="runtime_pin_label">Pin programme</string>
     <string name="runtime_pin_slot">Choose a slot other than the working slot.</string>
     <string name="runtime_slot_running">A programme is running. Stop it before changing a saved slot.</string>
-    <string name="runtime_pinned">Saved in slot %1$d. Readback verified. This duration-based programme does not follow an alarm.</string>
+    <string name="runtime_pinned">Saved in slot %1$d. Readback verified. This duration-based programme doesn\'t follow an alarm.</string>
     <string name="runtime_restore_label">Restore original slot</string>
     <string name="runtime_no_original">No original was saved for this slot.</string>
     <string name="runtime_restore_imported_out_of_range">A step in this saved original has a temperature its mode doesn\'t allow, so it wasn\'t sent to the BedJet.</string>
@@ -72,14 +72,14 @@
     <string name="runtime_fan_restore_unconfirmed">We sent the fan setting back, but your BedJet hasn\'t confirmed it. Check its fan setting on the BedJet.</string>
     <string name="runtime_busy">A command is in progress. Try again when it finishes.</string>
     <string name="runtime_release_label">Release BedJet</string>
-    <string name="runtime_released">Released for another phone. Status changes cannot be detected while disconnected.</string>
+    <string name="runtime_released">Released for another phone. Status changes can\'t be detected while disconnected.</string>
     <string name="runtime_take_back">Take back BedJet</string>
     <string name="runtime_taken_back">Connected and checked the current BedJet status.</string>
     <string name="runtime_taken_back_takeover">Connected. Your BedJet isn\'t running tonight\'s night as tracked, so its state is now unknown. Keep tracking the current run, or stop tracking.</string>
     <string name="runtime_unchanged">Wake-up unchanged.</string>
     <string name="runtime_retime_pending">Wake-up change pending. Nocturne will try again in about 10 minutes or when you open the app.</string>
     <string name="runtime_retime_expired">The wake-up change expired.</string>
-    <string name="runtime_retime_expired_detail">The confirmed wake-up boundary passed before the change could be applied. The BedJet was not restarted.</string>
+    <string name="runtime_retime_expired_detail">The wake-up time arrived before the change could be made, so the BedJet was not restarted.</string>
     <string name="runtime_interrupted">An operation was interrupted. The BedJet state is unknown; check it before continuing.</string>
     <string name="runtime_connect_permission">Allow Bluetooth connection permission, then try again.</string>
     <string name="runtime_confirm_title">Send this command to your BedJet?</string>
@@ -110,7 +110,7 @@
     <string name="runtime_command_resume">Resume night</string>
     <string name="runtime_command_stop_tracking">Stop tracking</string>
     <string name="runtime_command_keep_tracking">Keep tracking</string>
-    <string name="runtime_export_failed">Could not open the diagnostics file.</string>
+    <string name="runtime_export_failed">Couldn\'t open the diagnostics file.</string>
     <string name="runtime_restore_active">End the night or stop tracking before restoring a slot.</string>
     <string name="runtime_override_cleared">Following the alarm or profile wake time again. The wake time is unchanged.</string>
     <!-- Notifications (P6) -->
@@ -119,7 +119,7 @@
     <string name="notify_channel_working">Talking to BedJet</string>
     <string name="notify_channel_working_help">Shown briefly while a command is sent.</string>
     <string name="notify_channel_alerts">Changes and problems</string>
-    <string name="notify_channel_alerts_help">When your wake-up moves with your alarm or something did not work.</string>
+    <string name="notify_channel_alerts_help">When your wake-up moves with your alarm or something didn\'t work.</string>
     <string name="notify_working">Talking to your BedJet…</string>
     <string name="notify_waking">Waking you at %1$s</string>
     <string name="notify_waking_text">Your BedJet is getting you ready to wake up.</string>
@@ -131,7 +131,7 @@
     <!-- App messages and repository text (P6) -->
     <string name="runtime_restore_target_changed">The selected BedJet changed. Check the saved slot before restoring.</string>
     <string name="runtime_restore_original_changed">The saved original changed. Check the slot before restoring.</string>
-    <string name="runtime_no_answer">The BedJet did not answer in time. Check its state before trying again.</string>
+    <string name="runtime_no_answer">The BedJet didn\'t answer in time. Check its state before trying again.</string>
     <string name="runtime_something_wrong">Something went wrong.</string>
     <string name="runtime_something_wrong_lower">something went wrong</string>
     <string name="runtime_wake_night_changed">Tonight\'s night changed. Check it before setting a wake time.</string>
@@ -141,7 +141,7 @@
     <string name="runtime_backup_restored">Backup restored. What you had before is saved as a snapshot.</string>
     <string name="runtime_read_failed">Couldn\'t read that file.</string>
     <string name="runtime_save_failed">Couldn\'t save: %1$s.</string>
-    <string name="runtime_discover_failed">Could not look for BedJets. Check Nearby devices permission.</string>
+    <string name="runtime_discover_failed">Couldn\'t look for BedJets. Check Nearby devices permission.</string>
     <string name="runtime_restore_unfinished_notice">Nocturne couldn\'t finish writing a restore. Until it can, changes to profiles, settings, history and saved originals aren\'t saved. Free some storage space, then reopen Nocturne.</string>
     <string name="runtime_originals_not_set_aside">The unreadable saved originals haven\'t been set aside yet. Reopen Nocturne, then try again.</string>
     <string name="runtime_originals_block_stuck">Couldn\'t lift the block on slots with no saved original.</string>
@@ -162,4 +162,5 @@
     <!-- Fix round 1: snapshot restore result and the BLE link's no-target message. -->
     <string name="runtime_snapshot_unreadable">That snapshot couldn\'t be read.</string>
     <string name="ble_no_target">No BedJet chosen yet. Choose yours in Setup.</string>
+    <string name="runtime_restore_preview_changed">The saved original has changed. Review it again before restoring.</string>
 </resources>

@@ -1,11 +1,7 @@
 <resources>
-    <string name="gpt12_wake_next_alarm">Next phone alarm</string>
-    <string name="gpt12_wake_profile_fallback">Profile fallback</string>
-    <string name="gpt12_wake_override">Tonight-only wake</string>
-    <string name="gpt12_wake_no_alarm">No phone alarm available</string>
-    <string name="gpt12_wake_unaccepted_alarm">Phone alarm source not accepted</string>
-    <string name="gpt12_wake_too_soon">Next alarm is less than 3 hours after bedtime</string>
-    <string name="gpt12_wake_too_late">Next alarm is beyond the 18-hour night window</string>
+    <string name="gpt12_wake_next_alarm">Your alarm</string>
+    <string name="gpt12_wake_profile_fallback">Profile wake time</string>
+    <string name="gpt12_wake_override">Tonight-only wake time</string>
     <string name="gpt12_demo_banner">Demo — no BedJet connected</string>
     <string name="gpt12_exit_demo">Exit demo</string>
     <string name="gpt12_demo_pair_help">Exit demo to scan for or choose a real BedJet.</string>
@@ -14,5 +10,5 @@
     <string name="gpt12_demo_started">Demo started. Changes stay in this session.</string>
     <string name="gpt12_demo_ended">Demo ended. Your real BedJet settings are restored.</string>
     <string name="gpt12_demo_migration_title">BedJet selection needs attention</string>
-    <string name="gpt12_demo_migration_failed">The previous demo selection could not be saved safely. No BedJet is selected. Restart Nocturne after storage is available, then pair a BedJet.</string>
+    <string name="gpt12_demo_migration_failed">The previous demo selection couldn\'t be saved safely. No BedJet is selected. Restart Nocturne after storage is available, then pair a BedJet.</string>
 </resources>

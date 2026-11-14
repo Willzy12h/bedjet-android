@@ -12,7 +12,7 @@ import io.github.willzy12h.nocturne.night.AlarmSource
 import java.time.ZonedDateTime
 
 /** A phone alarm is useful even when a profile keeps its own fixed programme wake. It is never a status receipt. */
-internal data class TonightWakeHeadline(val at: ZonedDateTime?, @StringRes val label: Int, @StringRes val reason: Int? = null)
+internal data class TonightWakeHeadline(val at: ZonedDateTime?, @StringRes val label: Int)
 
 internal fun tonightWakeHeadline(settings: Settings, profile: Profile?, now: ZonedDateTime,
     alarm: AlarmSource.NextAlarm?, night: ActiveNight?): TonightWakeHeadline {
@@ -32,11 +32,6 @@ internal fun tonightWakeHeadline(settings: Settings, profile: Profile?, now: Zon
     val fallback = (night?.profile ?: profile)?.let {
         WakeResolver.nextOccurrence(it.wakeSource.defaultWakeMinute, now.plus(WakeResolver.MIN_NIGHT))
     }
-    val reason = when {
-        alarm == null || !alarm.time.isAfter(now) -> R.string.gpt12_wake_no_alarm
-        !policy.acceptsSource(alarm.creator) -> R.string.gpt12_wake_unaccepted_alarm
-        alarm.time.isBefore(policy.earliest(start, bedtime, shortest)) -> R.string.gpt12_wake_too_soon
-        else -> R.string.gpt12_wake_too_late
-    }
-    return TonightWakeHeadline(fallback, R.string.gpt12_wake_profile_fallback, reason)
+    // Why the alarm is not used is said once, by the explanation line under the wake time.
+    return TonightWakeHeadline(fallback, R.string.gpt12_wake_profile_fallback)
 }

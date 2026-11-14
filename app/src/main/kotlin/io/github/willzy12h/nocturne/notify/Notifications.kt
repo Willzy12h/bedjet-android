@@ -71,11 +71,11 @@ object Notifications {
 
     /** The wake-up notification. It stays until the night ends or Off is pressed. */
     fun showWakeUp(context: Context, night: ActiveNight, settings: Settings, status: String? = null, logNotice: Boolean = true) {
-        val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
+        val wake = io.github.willzy12h.nocturne.ui.Format.clock(night.wakeAt)
         // Only a kept, confirmed manual run has a captured end; an uncertain adjustment can retain an old timestamp.
         val ordinaryTitle = when {
             night.hasPlannedManualEnd -> context.getString(R.string.feature_manual_until,
-                ZonedDateTime.parse(night.endsAt).format(DateTimeFormatter.ofPattern("HH:mm")))
+                io.github.willzy12h.nocturne.ui.Format.clock(night.endsAt))
             night.trackingManual -> context.getString(R.string.runtime_manual_unconfirmed)
             else -> context.getString(R.string.notify_waking, wake)
         }
@@ -101,7 +101,7 @@ object Notifications {
     fun showQuiet(context: Context, night: ActiveNight, settings: Settings, wakePending: Boolean = false) {
         if (!settings.quietNightNotification || night.trackingManual || night.confidence != io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED) { cancelQuiet(context); return }
         if (!canPost(context)) return
-        val wake = ZonedDateTime.parse(night.wakeAt).format(DateTimeFormatter.ofPattern("HH:mm"))
+        val wake = io.github.willzy12h.nocturne.ui.Format.clock(night.wakeAt)
         // While a wake-up change is pending, say so, as Tonight does, instead of a plain "Waking at".
         val notification = Notification.Builder(context, CHANNEL_WORKING).setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(if (wakePending) R.string.quiet_pending else if (night.isTestRun)

@@ -30,7 +30,7 @@ class FinalSettingsCleanupTest {
         val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel("alerts")
         assertNotNull(channel)
         assertEquals("Changes and problems", channel.name.toString())
-        assertEquals("When your wake-up moves with your alarm or something did not work.", channel.description)
+        assertEquals("When your wake-up moves with your alarm or something didn't work.", channel.description)
     }
 
     @Test fun updatesOpenTheFixedGitHubReleasesPageInTheBrowser() {

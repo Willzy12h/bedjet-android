@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -39,9 +39,9 @@ private data class GuardedAction(val what: String, val night: ActiveNight, val t
 
 @Composable
 fun rememberNightGuard(model: AppViewModel): NightGuard {
-    val night by model.activeNight.collectAsState()
-    val profiles by model.profiles.collectAsState()
-    val settings by model.settings.collectAsState()
+    val night by model.activeNight.collectAsStateWithLifecycle()
+    val profiles by model.profiles.collectAsStateWithLifecycle()
+    val settings by model.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pending by remember { mutableStateOf<GuardedAction?>(null) }
 
