@@ -74,29 +74,6 @@ import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-/** A proposed edit to the reusable profile; the expected values make an old preview safe to refuse. */
-data class MiddleSuggestion(
-    val nightId: String,
-    val profileId: String,
-    val comfort: MorningComfort,
-    val expectedMiddle: Middle,
-    val expectedLimits: ProfileLimits,
-    val proposedMiddle: Middle,
-) {
-    /** A fan change (Cool or Dry Middle) rather than a temperature change. */
-    val changesFan: Boolean get() = proposedMiddle.fanSpeeds != expectedMiddle.fanSpeeds
-}
-
-/** Middles whose comfort is adjusted by fan speed, not temperature (P5). */
-private val FAN_COMFORT_MODES = setOf(io.github.willzy12h.nocturne.core.protocol.Mode.COOL, io.github.willzy12h.nocturne.core.protocol.Mode.DRY)
-
-data class MorningCheckIn(
-    val night: NightRecord,
-    val endedAt: String,
-    val comfort: MorningComfort,
-    val suggestion: MiddleSuggestion?,
-)
-
 /**
  * Everything the app keeps, as JSON files in its private storage. Changes to profiles and settings are snapshotted
  * automatically (debounced), and on the first launch of each day.
@@ -104,44 +81,49 @@ data class MorningCheckIn(
  * Every change is written durably, off the main thread and one at a time on [writer], before its new value is
  * published: a flow never shows something that a power cut could take back. When the write fails the old value stays
  * and the error is thrown to the caller. [writeFile] is how a file is written; tests replace it to make writes fail.
+ *
+ * This file holds the state and the public API. The work behind it is in extension functions in this package, one
+ * file per responsibility: RepositoryStorage.kt (durable files and the restore journal), RepositoryImport.kt,
+ * RepositoryOriginals.kt, RepositoryMorningCheckIn.kt and RepositoryDemoSession.kt. Members marked internal for
+ * those files are not for use elsewhere.
  */
 @OptIn(FlowPreview::class)
 class Repository(
-    private val context: Context,
+    internal val context: Context,
     scope: CoroutineScope,
-    private val writer: CoroutineDispatcher = defaultWriter(),
-    private val writeFile: (File, ByteArray) -> Unit = ::writeDurably,
+    internal val writer: CoroutineDispatcher = defaultWriter(),
+    internal val writeFile: (File, ByteArray) -> Unit = ::writeDurably,
     private val openInput: (Uri) -> InputStream? = { context.contentResolver.openInputStream(it) },
     private val openOutput: (Uri) -> OutputStream? = { context.contentResolver.openOutputStream(it, "wt") },
     /** How the restore journal is removed; tests replace it to make the removal fail. */
-    private val deleteFile: (File) -> Unit = { AtomicFile(it).delete() },
-    private val now: () -> ZonedDateTime = { ZonedDateTime.now() },
+    internal val deleteFile: (File) -> Unit = { AtomicFile(it).delete() },
+    internal val now: () -> ZonedDateTime = { ZonedDateTime.now() },
 ) {
-    private val dir = context.filesDir
+    internal val dir = context.filesDir
     val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { now() }
-    private val lock = Mutex()
+    internal val lock = Mutex()
     val operationAdmission = OperationAdmission()
 
     // Declared before the loads below, which add to them.
     /** Files found unreadable while loading, moved aside by the writer once the Repository is made. */
-    private val toSetAside = mutableListOf<File>()
+    internal val toSetAside = mutableListOf<File>()
     /**
      * The contents, by file name, of a multi-file change ([writeAllOrNone]) that is committed (its journal is on disk)
      * but not yet completely written; null when there is none. What is shown already follows it, so it is finished on
      * disk before any of its files is written again ([finishJournalBefore]); otherwise the next start would roll it
      * forward over that write.
      */
-    private var pendingJournal: Map<String, ByteArray>? = null
+    internal var pendingJournal: Map<String, ByteArray>? = null
     // Complete any interrupted multi-file restore before individual files are loaded as one repository state.
     private val journalState = recoverPendingRestore()
     /** A journal still pending after start-up recovery: reported in [unreadable] until it is finished. */
-    private var journalStuck = journalState == JournalState.STUCK
+    internal var journalStuck = journalState == JournalState.STUCK
         set(value) { field = value; _restoreUnfinished.value = value }
-    private val _restoreUnfinished = MutableStateFlow(journalState == JournalState.STUCK)
+    internal val _restoreUnfinished = MutableStateFlow(journalState == JournalState.STUCK)
     /** True while a committed restore still isn't finished on disk ([RESTORE_JOURNAL] listed in [unreadable] for that
      * reason, not because a damaged journal was set aside). Dismissing the notice doesn't clear it. */
     val restoreUnfinished: StateFlow<Boolean> = _restoreUnfinished.asStateFlow()
-    private val _unreadable = MutableStateFlow((readUnreadableMarker() + listOfNotNull(RESTORE_JOURNAL.takeIf { journalState != JournalState.NONE })).distinct())
+    internal val _unreadable = MutableStateFlow((readUnreadableMarker() + listOfNotNull(RESTORE_JOURNAL.takeIf { journalState != JournalState.NONE })).distinct())
     // Dismissing the unreadable-file notice must not make an unknown slot original safe to overwrite.
     private val _originalsBlocked = MutableStateFlow(File(dir, SLOT_BACKUPS_BLOCK).exists())
     /**
@@ -151,13 +133,13 @@ class Repository(
      * `dismissUnreadable(acceptLostOriginals = true)`.
      */
     val originalsBlocked: StateFlow<Boolean> = _originalsBlocked.asStateFlow()
-    private var originalsIntegrityBlocked: Boolean
+    internal var originalsIntegrityBlocked: Boolean
         get() = _originalsBlocked.value
         set(value) { _originalsBlocked.value = value }
     /** When the loss of unreadable originals was accepted, or null; originals saved since are marked uncertain. */
     // A damaged record is set aside and reported, and read as accepted now: originals saved from now on stay
     // uncertain, while one saved earlier keeps the current-wins rule instead of giving way to any backup's.
-    private var originalsLossAcceptedAt: String? =
+    internal var originalsLossAcceptedAt: String? =
         load(SLOT_BACKUPS_LOSS) { text -> decode(String.serializer(), text).also { require(runCatching { ZonedDateTime.parse(it) }.isSuccess) } }
             ?: now().toString().takeIf { SLOT_BACKUPS_LOSS in _unreadable.value }
     /**
@@ -167,37 +149,37 @@ class Repository(
      */
     val unreadable: StateFlow<List<String>> = _unreadable.asStateFlow()
 
-    private val _profiles = MutableStateFlow(load(PROFILES) { decode(ListSerializer(Profile.serializer()), it) } ?: Presets.all)
+    internal val _profiles = MutableStateFlow(load(PROFILES) { decode(ListSerializer(Profile.serializer()), it) } ?: Presets.all)
     val profiles: StateFlow<List<Profile>> = _profiles.asStateFlow()
     private val settingsLoadedAt = now()
-    private val _settings = MutableStateFlow(load(SETTINGS) { decode(Settings.serializer(), it) } ?.withoutUnidentifiedAlarms() ?: Settings().withoutUnidentifiedAlarms())
+    internal val _settings = MutableStateFlow(load(SETTINGS) { decode(Settings.serializer(), it) } ?.withoutUnidentifiedAlarms() ?: Settings().withoutUnidentifiedAlarms())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
     // Publication signal, not persisted state: equal-value restores must still reconcile side effects.
-    private val _settingsPublication = MutableStateFlow(0L)
+    internal val _settingsPublication = MutableStateFlow(0L)
     internal val settingsPublication: StateFlow<Long> = _settingsPublication.asStateFlow()
     // Unlike demoMode, this cannot conflate an enter/exit round trip back to the same value.
-    private val _sessionRevision = MutableStateFlow(0L)
+    internal val _sessionRevision = MutableStateFlow(0L)
     internal val sessionRevision: StateFlow<Long> = _sessionRevision.asStateFlow()
     // Activity recreation keeps this instance; a new process/repository must invalidate every pending Share.
     private val shareInstanceNonce = UUID.randomUUID().toString()
-    private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now(), _settings.value.historyKeepDays))
+    internal val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now(), _settings.value.historyKeepDays))
     val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
-    private val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
+    internal val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
     /** What each device's slots held before the app first wrote them. See [recordOriginalSlot]. */
     val slotBackups: StateFlow<List<SlotBackup>> = _slotBackups.asStateFlow()
-    private val _activeNight = MutableStateFlow(load(ACTIVE_NIGHT) { decode(ActiveNight.serializer().nullable, it) })
+    internal val _activeNight = MutableStateFlow(load(ACTIVE_NIGHT) { decode(ActiveNight.serializer().nullable, it) })
     val activeNight: StateFlow<ActiveNight?> = _activeNight.asStateFlow()
-    private val _notices = MutableStateFlow(load(NOTICES) { decode(ListSerializer(LoggedNotice.serializer()), it) }.orEmpty())
+    internal val _notices = MutableStateFlow(load(NOTICES) { decode(ListSerializer(LoggedNotice.serializer()), it) }.orEmpty())
     /** Every notification the app has shown, newest first. Not part of backups. */
     val notices: StateFlow<List<LoggedNotice>> = _notices.asStateFlow()
-    private val _snapshotList = MutableStateFlow(snapshots.list())
+    internal val _snapshotList = MutableStateFlow(snapshots.list())
     val snapshotList: StateFlow<List<SnapshotInfo>> = _snapshotList.asStateFlow()
 
-    private val _runtime = MutableStateFlow(load(RUNTIME) { decode(RuntimeState.serializer(), it) } ?: RuntimeState())
+    internal val _runtime = MutableStateFlow(load(RUNTIME) { decode(RuntimeState.serializer(), it) } ?: RuntimeState())
     val runtime: StateFlow<RuntimeState> = _runtime.asStateFlow()
     suspend fun updateRuntime(change: (RuntimeState) -> RuntimeState) = update(_runtime, RUNTIME, RuntimeState.serializer(), change)
 
-    private val _automation = MutableStateFlow(load(AUTOMATION) {
+    internal val _automation = MutableStateFlow(load(AUTOMATION) {
         decode(io.github.willzy12h.nocturne.platform.AutomationState.serializer(), it)
     } ?: io.github.willzy12h.nocturne.platform.AutomationState())
     val automation: StateFlow<io.github.willzy12h.nocturne.platform.AutomationState> = _automation.asStateFlow()
@@ -221,7 +203,7 @@ class Repository(
     }
 
     /** The same flows serve a disposable demo; their durable real values are restored verbatim on exit. */
-    private data class SessionState(
+    internal data class SessionState(
         val settings: Settings,
         val profiles: List<Profile>,
         val history: List<NightRecord>,
@@ -242,29 +224,6 @@ class Repository(
     private val demoOriginals = ConcurrentHashMap<Int, SlotBackup>()
     @Volatile var startupMigrationBlocked: Boolean = false
         private set
-
-    private fun captureSession() = SessionState(_settings.value, _profiles.value, _history.value, _slotBackups.value,
-        _activeNight.value, _runtime.value, _automation.value, _notices.value, _snapshotList.value, _unreadable.value,
-        originalsIntegrityBlocked, originalsLossAcceptedAt, _restoreUnfinished.value)
-
-    private fun publishSession(state: SessionState) {
-        _profiles.value = state.profiles
-        _history.value = state.history
-        _slotBackups.value = state.originals
-        _activeNight.value = state.activeNight
-        _runtime.value = state.runtime
-        _automation.value = state.automation
-        _notices.value = state.notices
-        _snapshotList.value = state.snapshots
-        _unreadable.value = state.unreadable
-        originalsIntegrityBlocked = state.originalsBlocked
-        originalsLossAcceptedAt = state.originalsLossAcceptedAt
-        _restoreUnfinished.value = state.restoreUnfinished
-        // Switch the transport only after every flow belongs to the incoming session.
-        _settings.value = state.settings.withoutUnidentifiedAlarms()
-        _sessionRevision.value += 1
-        _settingsPublication.value += 1
-    }
 
     internal suspend fun enterDemoSession() = serially {
         if (isDemoSession) return@serially
@@ -361,10 +320,6 @@ class Repository(
             runCatching { writeValue(NOTICES, ListSerializer(LoggedNotice.serializer()), _notices.value) }
             false
         }
-    }
-
-    private fun requireRealSession() {
-        if (isDemoSession) throw IOException(context.getString(R.string.gpt12_demo_backup_unavailable))
     }
 
     init {
@@ -525,14 +480,6 @@ class Repository(
         return makeMorningCheckIn(night, end.at, comfort)
     }
 
-    private fun makeMorningCheckIn(night: NightRecord, endedAt: String, comfort: MorningComfort): MorningCheckIn {
-        val suggestion = if (night.events.any { it.kind == EventKind.MORNING_SUGGESTION_APPLIED }) null else
-            _profiles.value.firstOrNull { it.id == night.profileId }?.let { profile ->
-                proposedMiddle(profile, comfort)?.let { MiddleSuggestion(night.id, profile.id, comfort, profile.middle, profile.limits, it) }
-            }
-        return MorningCheckIn(night, endedAt, comfort, suggestion)
-    }
-
     /** Accept only the exact Middle edit the person previewed, with a matching live profile and feedback. */
     suspend fun acceptMorningSuggestion(suggestion: MiddleSuggestion): Boolean = serially {
         val night = _history.value.firstOrNull { it.id == suggestion.nightId } ?: return@serially false
@@ -562,35 +509,6 @@ class Repository(
             },
         ))
         true
-    }
-
-    private fun proposedMiddle(profile: Profile, comfort: MorningComfort): Middle? {
-        if (comfort == MorningComfort.JUST_RIGHT) return null
-        // Cooling is felt as fan speed: a Cool or Dry Middle moves its fan by 10 per cent (more when too hot).
-        if (profile.middle.mode in FAN_COMFORT_MODES) return proposedFan(profile, comfort)
-        if (!profile.middle.mode.usesTemperature) return null
-        val delta = if (comfort == MorningComfort.TOO_HOT) -2 else 2
-        val middle = profile.middle.copy(tempStart = profile.middle.tempStart + delta, tempEnd = profile.middle.tempEnd + delta)
-        val limits = profile.limits
-        val modeRange = profile.middle.mode.temperatureRange
-        fun validTemperature(value: Int) = value in limits.minTemp..limits.maxTemp && value in modeRange
-        if (limits.minFan !in 5..100 || limits.maxFan !in 5..100 || limits.minFan > limits.maxFan ||
-            profile.middle.fanSpeeds.any { it !in limits.minFan..limits.maxFan } ||
-            middle.rampSteps !in 1..8 || limits.minTemp !in 38..86 || limits.maxTemp !in 38..86 ||
-            limits.minTemp > limits.maxTemp || !validTemperature(profile.middle.tempStart) ||
-            !validTemperature(profile.middle.tempEnd) || !validTemperature(middle.tempStart) ||
-            !validTemperature(middle.tempEnd)) return null
-        return middle
-    }
-
-    private fun proposedFan(profile: Profile, comfort: MorningComfort): Middle? {
-        val delta = if (comfort == MorningComfort.TOO_HOT) 10 else -10
-        val middle = profile.middle.shiftFan(delta)
-        val limits = profile.limits
-        fun valid(fan: Int) = fan in 5..100 && fan % 5 == 0 && fan in limits.minFan..limits.maxFan
-        if (limits.minFan > limits.maxFan || middle.rampSteps !in 1..8 || !profile.middle.fanSpeeds.all(::valid) ||
-            !middle.fanSpeeds.all(::valid)) return null
-        return middle
     }
 
     /**
@@ -661,21 +579,6 @@ class Repository(
         clearUnreadable()
     }
 
-    /** Records the accepted loss, then lifts the barrier. Call on the writer. */
-    private fun acceptOriginalsLoss() {
-        requireRealSession()
-        // With no barrier file the unreadable file couldn't be set aside yet; the next start tries again first.
-        if (!File(dir, SLOT_BACKUPS_BLOCK).exists()) {
-            throw IOException(context.getString(R.string.runtime_originals_not_set_aside))
-        }
-        val at = now().toString()
-        writeValue(SLOT_BACKUPS_LOSS, String.serializer(), at)
-        originalsLossAcceptedAt = at
-        runCatching { deleteFile(File(dir, SLOT_BACKUPS_BLOCK)) }.onFailure { Log.w(TAG, "Couldn't remove $SLOT_BACKUPS_BLOCK", it) }
-        if (File(dir, SLOT_BACKUPS_BLOCK).exists()) throw IOException(context.getString(R.string.runtime_originals_block_stuck))
-        originalsIntegrityBlocked = false
-    }
-
     // Backups
 
     /** Everything a real-session backup holds; private preferences are excluded. */
@@ -730,88 +633,6 @@ class Repository(
         } } finally { admission.close() }
     }
 
-    private fun importBusy() = BackupException(context.getString(R.string.import_busy), failure = BackupFailure.BUSY)
-
-    /** A durable pending intention survives process queues; an already scheduled future alarm is not pending work. */
-    private fun requireImportIdle() {
-        val runtime = _runtime.value
-        val night = _activeNight.value
-        val pendingJob = context.getSystemService(android.app.job.JobScheduler::class.java)
-            ?.getPendingJob(io.github.willzy12h.nocturne.platform.ChargerJobs.ID)
-        if (pendingJournal != null || _restoreUnfinished.value ||
-            runtime.slotWrite?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.PENDING ||
-            night?.confidence == io.github.willzy12h.nocturne.core.night.Confidence.PENDING || night?.pending != null ||
-            runtime.retime != null || runtime.alarmInbox != null || runtime.localDeliveries.isNotEmpty() ||
-            pendingJob?.isPeriodic == false) throw importBusy()
-    }
-
-    /** Selection, tonight's live record and protected originals remain local. */
-    private fun restoreProjection(bundle: BackupBundle, restoreAt: ZonedDateTime): BackupBundle {
-        val current = _settings.value.migrateTonightChoice(restoreAt)
-        // Tonight's choice and override stay as they are. A version 1 selection in the bundle is migrated, as the
-        // app's own is, so it becomes tonight's choice only when there is none (IR-30).
-        val importedSettings = bundle.settings.copy(tonightChoice = current.tonightChoice, tonightOverride = current.tonightOverride)
-            .migrateTonightChoice(restoreAt)
-        val settings = importedSettings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
-            rememberedBedJets = current.rememberedBedJets, demoTargetMigrated = current.demoTargetMigrated,
-            setupFanCheckedDevice = current.setupFanCheckedDevice,
-            platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null, healthSleepExport = false,
-                autoStart = bundle.settings.platform.autoStart?.copy(enabled = false))).withoutUnidentifiedAlarms()
-        // Tonight's record, and that of a night being ended (its end is still to be added), are kept as they are.
-        val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
-        val carried = _history.value.filter { it.id in tonight }
-        val localHistory = _history.value.associateBy { it.id }
-        val importedHistory = bundle.history.map { incoming ->
-            val unverified = withoutImportedProof(incoming)
-            // An identical local record keeps only the proof already held locally; a file cannot mint proof,
-            // reset an exported marker or change a record while carrying its old hardware confirmation.
-            localHistory[incoming.id]?.takeIf { withoutImportedProof(it) == unverified } ?: unverified
-        }
-        val history = History.prune(importedHistory, restoreAt, bundle.settings.historyKeepDays).filterNot { restored -> carried.any { it.id == restored.id } } + carried
-        val slotBackups = _slotBackups.value.let { current ->
-            val incoming = bundle.slotBackups.map { it.copy(imported = true, deviceId = canonicalImportDevice(it.deviceId)) }
-            // One saved after the loss of unreadable originals was accepted may be the app's own programme, so
-            // the bundle's exact record of that BedJet's slot replaces it.
-            val list = current.filterNot { saved -> savedAfterLoss(saved) && incoming.any { DeviceId.same(it.deviceId, saved.deviceId) && it.slot == saved.slot } }
-            list + incoming.filter { restored -> list.none { it.covers(restored) } }
-        }
-        return bundle.copy(settings = settings, history = history, slotBackups = slotBackups)
-    }
-
-    private fun canonicalImportDevice(id: String): String = DeviceId.address(id)?.let(DeviceId::ble) ?: id
-
-    private fun withoutImportedProof(night: NightRecord): NightRecord = night.copy(
-        deviceId = canonicalImportDevice(night.deviceId), bedJetRunConfirmed = false, confirmedCompletionAt = null,
-        healthExportVersion = 0, healthExportedVersion = 0)
-
-    /** Called only with exclusive import admission and the repository writer held. */
-    private fun restoreLocked(bundle: BackupBundle, label: String, projected: BackupBundle = restoreProjection(bundle, now())) {
-        requireRealSession()
-        val profiles = projected.profiles
-        val settings = projected.settings
-        val history = projected.history
-        val slotBackups = projected.slotBackups
-        snapshots.save(bundle(), label, manual = true)
-        _snapshotList.value = snapshots.list()
-        writeAllOrNone(listOf(
-            Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value), encode(ListSerializer(Profile.serializer()), profiles)) {
-                _profiles.value = profiles
-            },
-            Write(SETTINGS, encode(Settings.serializer(), _settings.value), encode(Settings.serializer(), settings)) {
-                _settings.value = settings
-                _settingsPublication.value += 1
-                _sessionRevision.value += 1
-            },
-            Write(HISTORY, encode(ListSerializer(NightRecord.serializer()), _history.value), encode(ListSerializer(NightRecord.serializer()), history)) {
-                _history.value = history
-            },
-            Write(SLOT_BACKUPS, encode(ListSerializer(SlotBackup.serializer()), _slotBackups.value), encode(ListSerializer(SlotBackup.serializer()), slotBackups)) {
-                _slotBackups.value = slotBackups
-                clearUnreadable()
-            },
-        ))
-    }
-
     /** Build a read-only review. No snapshot or repository file is written until the person applies it. */
     suspend fun previewImport(bundle: BackupBundle,
         label: String = context.getString(R.string.snapshot_label_before_import), profilesOnly: Boolean = false): ImportPreview {
@@ -858,34 +679,12 @@ class Repository(
         } } finally { admission.close() }
     }
 
-    /** Profiles import merges by ID; every other part of the local bundle remains byte-for-byte owned locally. */
-    private fun profileImportProjection(incoming: BackupBundle): BackupBundle {
-        val replacements = incoming.profiles.associateBy { it.id }
-        val current = _profiles.value
-        val currentIds = current.map { it.id }.toSet()
-        return bundle().copy(profiles = current.map { replacements[it.id] ?: it } + incoming.profiles.filter { it.id !in currentIds })
-    }
-
     suspend fun previewSnapshot(id: String): ImportPreview? {
         val bundle = serially {
             bundle() // Enforce the real-session boundary before reading a saved snapshot, under the writer.
             snapshots.load(id)
         } ?: return null
         return previewImport(bundle, context.getString(R.string.snapshot_label_before_restore))
-    }
-
-    /** Compare the data and protection state as well as the projected result, including time-based retention. */
-    private fun importFingerprint(projected: BackupBundle): String {
-        val state = JsonArray(listOf(
-            BackupCodec.json.encodeToJsonElement(BackupBundle.serializer(), bundle().copy(createdAt = "")),
-            BackupCodec.json.encodeToJsonElement(BackupBundle.serializer(), projected.copy(createdAt = "")),
-            BackupCodec.json.encodeToJsonElement(ActiveNight.serializer().nullable, _activeNight.value),
-            BackupCodec.json.encodeToJsonElement(RuntimeState.serializer(), _runtime.value),
-            JsonPrimitive(_sessionRevision.value),
-            JsonPrimitive(originalsIntegrityBlocked), JsonPrimitive(originalsLossAcceptedAt),
-            JsonArray(_unreadable.value.map(::JsonPrimitive)),
-        ))
-        return digest(state.toString().toByteArray(Charsets.UTF_8))
     }
 
     /** Revalidate the reviewed bytes and local state after the writer wait, then apply that exact projection. */
@@ -966,279 +765,32 @@ class Repository(
         return BackupCodec.decode(BackupValidator.readWithinLimit(input))
     }
 
-    private suspend fun autoSnapshot() = serially {
-        if (isDemoSession || startupMigrationBlocked) return@serially
-        // Snapshots of the defaults standing in for an unreadable file would push the good ones out.
-        if (_unreadable.value.isNotEmpty()) return@serially
-        if (snapshots.saveIfChanged(bundle())) _snapshotList.value = snapshots.list()
-    }
-
-    // Files
-
-    /** Runs [work] on the writer, one at a time. */
-    private suspend fun <T> serially(work: suspend () -> T): T = withContext(writer) { lock.withLock { work() } }
-
-    private suspend fun <T> update(flow: MutableStateFlow<T>, name: String, serializer: KSerializer<T>, change: (T) -> T): Unit = serially {
-        if (isDemoSession && name == HISTORY) return@serially
-        val value = change(flow.value)
-        writeValue(name, serializer, value)
-        flow.value = value
-        if (name == SETTINGS) _settingsPublication.value += 1
-    }
-
-    private fun <T> writeValue(name: String, serializer: KSerializer<T>, value: T) {
-        if (isDemoSession) return
-        finishJournalBefore(name)
-        writeFile(File(dir, name), encode(serializer, value))
-    }
-
     /** One file of a [writeAllOrNone] change: its bytes before and after, and how to show the new value. */
-    private class Write(val name: String, val old: ByteArray, val new: ByteArray, val publish: () -> Unit)
-    @Serializable private data class JournalWrite(val name: String, val bytes: String, val sha256: String)
-    @Serializable private data class RestoreJournal(val writes: List<JournalWrite>)
+    internal class Write(val name: String, val old: ByteArray, val new: ByteArray, val publish: () -> Unit)
+    @Serializable internal data class JournalWrite(val name: String, val bytes: String, val sha256: String)
+    @Serializable internal data class RestoreJournal(val writes: List<JournalWrite>)
 
-    /**
-     * Writes several files as one change. A journal of the new contents is saved first; from then on the change is
-     * committed, as the next start rolls it forward. Call on the writer.
-     *
-     * - Every file written: the values are published and the journal removed. If it can't be removed it stays
-     *   pending ([pendingJournal]), to be removed before these files are next written.
-     * - A file fails (an Error too): the files already written are put back and the journal removed, and the failure
-     *   is thrown with nothing published. If a file can't be put back, or the journal can't be removed, the change
-     *   stays committed instead: the new values are published, as the next start will load them, the journal stays
-     *   pending, and [RestoreUnfinished] is thrown (an Error as it is). Nothing written after that is lost to the
-     *   roll-forward, as every later write of these files finishes the journal first or is refused.
-     */
-    private fun writeAllOrNone(writes: List<Write>) {
-        if (isDemoSession) { writes.forEach { it.publish() }; return }
-        // A journal still pending is finished first: the new one replaces it.
-        finishJournalBefore(*writes.map { it.name }.toTypedArray())
-        val entries = writes.associate { it.name to it.new }
-        val journal = RestoreJournal(writes.map { JournalWrite(it.name, Base64.getEncoder().encodeToString(it.new), digest(it.new)) })
-        writeValue(RESTORE_JOURNAL, RestoreJournal.serializer(), journal)
-        writes.forEachIndexed { i, write ->
-            try {
-                writeFile(File(dir, write.name), write.new)
-            } catch (e: Throwable) {
-                var putBack = true
-                writes.take(i).forEach { done ->
-                    runCatching { writeFile(File(dir, done.name), done.old) }.onFailure { e.addSuppressed(it); putBack = false }
-                }
-                if (putBack && removeJournal()) throw e
-                pendingJournal = entries
-                writes.forEach { it.publish() }
-                throw if (e is Exception) RestoreUnfinished(e, context.getString(R.string.runtime_change_unfinished)) else e
-            }
-        }
-        writes.forEach { it.publish() }
-        if (!removeJournal()) {
-            Log.w(TAG, "Couldn't remove $RESTORE_JOURNAL; it is finished before these files are next written")
-            pendingJournal = entries
-        }
-    }
-
-    /**
-     * Before any of [names] is written: finishes a pending journal that holds one of them, so the next start doesn't
-     * roll it forward over the write. Throws [RestoreUnfinished], and then nothing is written, when it can't be done.
-     */
-    private fun finishJournalBefore(vararg names: String) {
-        val entries = pendingJournal ?: return
-        if (names.none { it in entries }) return
-        try {
-            finishJournal()
-        } catch (e: Exception) {
-            throw RestoreUnfinished(e, context.getString(R.string.runtime_earlier_change_unfinished))
-        }
-    }
-
-    /** Writes every file of [pendingJournal], then removes the journal. Throws, leaving it pending, when either fails. */
-    private fun finishJournal() {
-        val entries = pendingJournal ?: return
-        entries.forEach { (name, bytes) -> writeFile(File(dir, name), bytes) }
-        if (!removeJournal()) throw IOException("Couldn't remove $RESTORE_JOURNAL.")
-        pendingJournal = null
-        if (journalStuck) {
-            journalStuck = false
-            _unreadable.value = _unreadable.value - RESTORE_JOURNAL
-        }
-    }
-
-    /** Removes the journal; true only when none of its files is left behind. */
-    private fun removeJournal(): Boolean {
-        runCatching { deleteFile(File(dir, RESTORE_JOURNAL)) }.onFailure { Log.w(TAG, "Couldn't remove $RESTORE_JOURNAL", it) }
-        return listOf("", ".new", ".bak").none { File(dir, RESTORE_JOURNAL + it).exists() }
-    }
-
-    /**
-     * Runs before anything is loaded: rolls an interrupted multi-file change forward from its journal, through
-     * [writeFile]. A journal that can't be read, names other files or fails its checks changes no file: it is noted
-     * to be set aside and reported in [unreadable] instead of stopping start-up ([JournalState.DAMAGED]). When a
-     * file can't be written now the journal stays pending ([JournalState.STUCK]): the loads read its contents, it is
-     * reported in [unreadable] with a notice, and it is finished before any of its files is next written.
-     */
-    private fun recoverPendingRestore(): JournalState {
-        val file = AtomicFile(File(dir, RESTORE_JOURNAL))
-        val entries = try {
-            readJournal(file.readFully())
-        } catch (_: FileNotFoundException) {
-            return JournalState.NONE
-        } catch (e: IOException) {
-            Log.e(TAG, "Couldn't use $RESTORE_JOURNAL; it will be moved aside (${e.javaClass.simpleName})")
-            toSetAside += file.baseFile
-            return JournalState.DAMAGED
-        }
-        // A restore clears the unreadable report; a morning check-in, the other multi-file change, does not.
-        if (entries.keys == setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS)) AtomicFile(File(dir, UNREADABLE)).delete()
-        pendingJournal = entries
-        return try {
-            finishJournal()
-            JournalState.NONE
-        } catch (e: Exception) {
-            Log.e(TAG, "Couldn't finish the interrupted change yet", e)
-            JournalState.STUCK
-        }
-    }
-
-    private enum class JournalState { NONE, DAMAGED, STUCK }
-
-    /** Every entry of a journal, checked before any is used. Throws [IOException] when it can't be trusted. */
-    private fun readJournal(bytes: ByteArray): Map<String, ByteArray> {
-        val journal = try { decode(RestoreJournal.serializer(), bytes.decodeToString()) }
-            catch (e: IllegalArgumentException) { throw IOException("The restore journal is unreadable.", e) }
-        val names = journal.writes.map { it.name }
-        if (names.size != names.toSet().size || names.toSet() !in setOf(setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS),
-                setOf(PROFILES, HISTORY), setOf(SETTINGS, ACTIVE_NIGHT, RUNTIME),
-                setOf(PROFILES), setOf(PROFILES, SETTINGS))) {
-            throw IOException("The restore journal does not name the expected files.")
-        }
-        return journal.writes.associate { entry ->
-            val content = try { Base64.getDecoder().decode(entry.bytes) }
-                catch (e: IllegalArgumentException) { throw IOException("The restore journal is damaged.", e) }
-            if (digest(content) != entry.sha256) throw IOException("The restore journal failed its integrity check.")
-            entry.name to content
-        }
-    }
-
-    private fun digest(bytes: ByteArray): String = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(bytes))
-
-    private fun <T> encode(serializer: KSerializer<T>, value: T) = BackupCodec.json.encodeToString(serializer, value).toByteArray()
-
-    private fun <T> decode(serializer: KSerializer<T>, text: String): T = BackupCodec.json.decodeFromString(serializer, text)
-
-    /**
-     * Null when the file doesn't exist yet, or couldn't be read; then it's moved aside and reported in [unreadable]. A
-     * file in a pending journal is read from the journal, which is what it will hold.
-     */
-    private fun <T> load(name: String, decode: (String) -> T): T? {
-        pendingJournal?.get(name)?.let { bytes ->
-            runCatching { decode(bytes.decodeToString()) }.onSuccess { return it }.onFailure { Log.e(TAG, "Couldn't read $name from the journal (${it.javaClass.simpleName})") }
-        }
-        val file = AtomicFile(File(dir, name))
-        return try {
-            decode(file.readFully().decodeToString())
-        } catch (_: FileNotFoundException) {
-            null
-        } catch (e: IOException) {
-            setAside(file.baseFile, e)
-        } catch (e: IllegalArgumentException) {
-            // SerializationException is one: bad JSON, or a value from a newer version such as an unknown enum.
-            setAside(file.baseFile, e)
-        }
-    }
-
-    /** Notes [file] as unreadable; [setAsidePending] moves it aside on the writer. */
-    private fun <T> setAside(file: File, cause: Exception): T? {
-        Log.w(TAG, "Couldn't read ${file.name}; it will be moved aside (${cause.javaClass.simpleName})")
-        toSetAside += file
-        _unreadable.value = (_unreadable.value + file.name).distinct()
-        if (file.name == SLOT_BACKUPS) originalsIntegrityBlocked = true
-        return null
-    }
-
-    /** Runs on the writer. A report that can't be saved is shown as unreadable too, rather than lost on a restart. */
-    private fun setAsidePending() {
-        // Write the independent barrier before moving the corrupt file. If this write fails, a restart will still
-        // encounter the corrupt original and refuse slot mutations rather than treating a missing file as new.
-        val barrierSaved = if (toSetAside.any { it.name == SLOT_BACKUPS }) {
-            runCatching { writeValue(SLOT_BACKUPS_BLOCK, String.serializer(), "blocked") }.onFailure {
-                Log.e(TAG, "Couldn't save $SLOT_BACKUPS_BLOCK", it)
-            }.isSuccess
-        } else true
-        val lossRecordAside = toSetAside.any { it.name == SLOT_BACKUPS_LOSS }
-        toSetAside.forEach { file ->
-            if (file.name == SLOT_BACKUPS && !barrierSaved) return@forEach
-            val aside = File(dir, "${file.name}.corrupt-${System.currentTimeMillis()}")
-            // If it can't be moved, a copy still keeps the original from being lost on the next write.
-            if (!file.renameTo(aside)) runCatching { file.copyTo(aside) }.onFailure { Log.e(TAG, "Couldn't keep ${file.name}", it) }
-        }
-        toSetAside.clear()
-        // A damaged record of the accepted loss is replaced by the time it is now read as.
-        if (lossRecordAside) originalsLossAcceptedAt?.let { at ->
-            runCatching { writeValue(SLOT_BACKUPS_LOSS, String.serializer(), at) }.onFailure { Log.e(TAG, "Couldn't save $SLOT_BACKUPS_LOSS", it) }
-        }
-        // A journal still pending is reported only while it is: each start finds it again.
-        val names = _unreadable.value
-        runCatching { writeValue(UNREADABLE, ListSerializer(String.serializer()), if (journalStuck) names - RESTORE_JOURNAL else names) }.onFailure {
-            Log.e(TAG, "Couldn't save $UNREADABLE", it)
-            _unreadable.value = (names + UNREADABLE).distinct()
-        }
-    }
-
-    /** Whether [backup] was saved by this app after the loss of unreadable originals was accepted. */
-    private fun savedAfterLoss(backup: SlotBackup): Boolean {
-        val lossAt = originalsLossAcceptedAt ?: return false
-        return backup.uncertain && !backup.imported &&
-            runCatching { !ZonedDateTime.parse(backup.savedAt).isBefore(ZonedDateTime.parse(lossAt)) }.getOrDefault(true)
-    }
-
-    /** True when [deviceId] takes over an original saved with [recordedFor] before devices were recorded. */
-    private fun adopts(deviceId: String, recordedFor: String) = recordedFor == Migrations.UNKNOWN_DEVICE && DeviceId.address(deviceId) != null
-
-    /** Two backups of the same slot of the same BedJet, counting a migrated one as the real BedJet's. */
-    private fun SlotBackup.covers(other: SlotBackup) =
-        slot == other.slot && (DeviceId.same(deviceId, other.deviceId) ||
-            adopts(deviceId, other.deviceId) || (!imported && adopts(other.deviceId, deviceId)))
-
-    /** Re-tags, durably, the migrated originals of slots [deviceId] has none for. Call on the writer. */
-    private fun adoptMigrated(deviceId: String) {
-        if (originalsIntegrityBlocked) return
-        val list = _slotBackups.value
-        val adopted = list.map { backup ->
-            if (!backup.imported && adopts(deviceId, backup.deviceId) && list.none { it.deviceId == deviceId && it.slot == backup.slot }) backup.copy(deviceId = deviceId) else backup
-        }
-        if (adopted == list) return
-        writeValue(SLOT_BACKUPS, ListSerializer(SlotBackup.serializer()), adopted)
-        _slotBackups.value = adopted
-    }
-
-    private fun readUnreadableMarker(): List<String> =
-        runCatching { decode(ListSerializer(String.serializer()), AtomicFile(File(dir, UNREADABLE)).readFully().decodeToString()) }.getOrDefault(emptyList())
-
-    private fun clearUnreadable() {
-        AtomicFile(File(dir, UNREADABLE)).delete()
-        // A restore that still isn't finished stays reported: dismissing the notice doesn't finish it.
-        _unreadable.value = if (journalStuck) listOf(RESTORE_JOURNAL) else emptyList()
-    }
+    internal enum class JournalState { NONE, DAMAGED, STUCK }
 
     companion object {
-        private const val TAG = "Repository"
-        private const val PROFILES = "profiles.json"
-        private const val SETTINGS = "settings.json"
-        private const val HISTORY = "history.json"
-        private const val SLOT_BACKUPS = "slot-backups.json"
-        private const val SLOT_BACKUPS_BLOCK = "slot-backups-integrity.json"
+        internal const val TAG = "Repository"
+        internal const val PROFILES = "profiles.json"
+        internal const val SETTINGS = "settings.json"
+        internal const val HISTORY = "history.json"
+        internal const val SLOT_BACKUPS = "slot-backups.json"
+        internal const val SLOT_BACKUPS_BLOCK = "slot-backups-integrity.json"
         /**
          * When the loss of unreadable originals was accepted. It travels with [SLOT_BACKUPS] and [SLOT_BACKUPS_BLOCK]
          * in cloud backup and device transfer (res/xml/backup_rules.xml, data_extraction_rules.xml).
          */
-        private const val SLOT_BACKUPS_LOSS = "slot-backups-loss-accepted.json"
+        internal const val SLOT_BACKUPS_LOSS = "slot-backups-loss-accepted.json"
         const val RESTORE_JOURNAL = "restore-pending.json"
-        private const val RUNTIME = "runtime.json"
+        internal const val RUNTIME = "runtime.json"
         private const val AUTOMATION = "automation.json"
-        private const val ACTIVE_NIGHT = "active-night.json"
+        internal const val ACTIVE_NIGHT = "active-night.json"
         private const val NOTICES = "notices.json"
         /** Lists the files in [unreadable], so the report survives a restart. */
-        private const val UNREADABLE = "unreadable.json"
+        internal const val UNREADABLE = "unreadable.json"
 
         /** One write at a time, on an IO thread. */
         @OptIn(ExperimentalCoroutinesApi::class)
