@@ -79,7 +79,7 @@
     <string name="runtime_unchanged">Wake-up unchanged.</string>
     <string name="runtime_retime_pending">Wake-up change pending. Nocturne will try again in about 10 minutes or when you open the app.</string>
     <string name="runtime_retime_expired">The wake-up change expired.</string>
-    <string name="runtime_retime_expired_detail">The confirmed wake-up boundary passed before the change could be applied. The BedJet wasn\'t restarted.</string>
+    <string name="runtime_retime_expired_detail">The wake-up time arrived before the change could be made, so the BedJet was not restarted.</string>
     <string name="runtime_interrupted">An operation was interrupted. The BedJet state is unknown; check it before continuing.</string>
     <string name="runtime_connect_permission">Allow Bluetooth connection permission, then try again.</string>
     <string name="runtime_confirm_title">Send this command to your BedJet?</string>
