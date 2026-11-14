@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kover)
 }
 
 // Keep release-only receiver hardening in the generated build overlay.
@@ -187,3 +188,6 @@ dependencies {
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+// The merged coverage report (root build.gradle.kts) takes only the debug unit tests, never the release ones.
+kover { currentProject { createVariant("unitTests") { add("debug") } } }

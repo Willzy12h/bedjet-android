@@ -19,6 +19,9 @@ has crashed, the last crash trace. It never contains your Health Connect data.
    ```
 
    Both must pass before you open a pull request. CI runs the same tests, plus lint and the release checks.
+   For a coverage report of both suites, run `./gradlew koverHtmlReportUnitTests` and open
+   `build/reports/kover/htmlUnitTests/index.html`. CI uploads the same report with each build. It doesn't fail on
+   low coverage.
 3. Keep each pull request to one change, and describe what it changes for someone using the app.
 
 ## Conventions

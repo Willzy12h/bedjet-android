@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kover)
 }
 
 java {
@@ -19,3 +20,6 @@ dependencies {
 }
 
 tasks.test { useJUnitPlatform() }
+
+// The merged coverage report (root build.gradle.kts) takes this module's JVM tests.
+kover { currentProject { createVariant("unitTests") { add("jvm") } } }

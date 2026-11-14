@@ -11,6 +11,7 @@ glance = "1.1.1"
 coreKtx = "1.15.0"
 robolectric = "4.16.1"
 junit4 = "4.13.2"
+kover = "0.9.11"
 
 [libraries]
 health-connect = { module = "androidx.health.connect:connect-client", version = "1.1.0" }
@@ -42,3 +43,4 @@ kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
