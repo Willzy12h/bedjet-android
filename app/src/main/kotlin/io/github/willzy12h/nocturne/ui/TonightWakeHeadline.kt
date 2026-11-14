@@ -24,7 +24,9 @@ internal fun tonightWakeHeadline(settings: Settings, profile: Profile?, now: Zon
     val start = night?.startedAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() } ?: now
     val policy = AlarmPolicy(settings)
     val bedtime = (night?.profile ?: profile)?.bedtimeMinute
-    if (alarm != null && alarm.time.isAfter(now) && policy.accept(alarm.time, alarm.creator, start, bedtime))
+    // An auto-start agreed less than 3 hours to the alarm keeps that shorter window, as the re-time does.
+    val shortest = night?.shortAlarmNightMinutes
+    if (alarm != null && alarm.time.isAfter(now) && policy.accept(alarm.time, alarm.creator, start, bedtime, shortest))
         return TonightWakeHeadline(alarm.time, R.string.gpt12_wake_next_alarm)
 
     val fallback = (night?.profile ?: profile)?.let {

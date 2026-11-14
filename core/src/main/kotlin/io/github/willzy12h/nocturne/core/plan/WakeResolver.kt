@@ -24,10 +24,12 @@ object WakeResolver {
     /**
      * The one place a night's wake time is chosen from its alarm and the profile, for previews and real starts alike.
      * [policy] carries the person's alarm-app choices; [alarmOrigin] is the app that set [alarm], when known.
+     * [shortestMinutes] is the shorter window a short auto-start agreed (see [AlarmPolicy.earliest]).
      */
     fun resolve(profile: Profile, now: ZonedDateTime, alarm: ZonedDateTime?, policy: AlarmPolicy = AlarmPolicy(),
-        alarmOrigin: String? = null): WakeChoice {
-        if (profile.wakeSource.useAlarm && policy.accept(alarm, alarmOrigin, now, profile.bedtimeMinute)) return WakeChoice(alarm!!, true)
+        alarmOrigin: String? = null, shortestMinutes: Int? = null): WakeChoice {
+        if (profile.wakeSource.useAlarm && policy.accept(alarm, alarmOrigin, now, profile.bedtimeMinute, shortestMinutes))
+            return WakeChoice(alarm!!, true)
         return WakeChoice(nextOccurrence(profile.wakeSource.defaultWakeMinute, now.plus(MIN_NIGHT)), fromAlarm = false)
     }
 

@@ -199,4 +199,19 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         assertEquals(plan.startAt.toInstant().toEpochMilli(), alarms().single().triggerAtMs)
         assertNull(context.getSystemService(JobScheduler::class.java).getPendingJob(ChargerJobs.ID))
     }
+
+    @Test fun aShortAlarmRelativeOffsetStillFollowsTheAlarm() = runBlocking {
+        val graph = setup()
+        val profile = graph.repository.profiles.value.first()
+        graph.repository.saveProfile(profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = 7 * 60)))
+        context.getSystemService(AlarmManager::class.java).setAlarmClock(
+            AlarmManager.AlarmClockInfo(Instant.parse("2026-10-27T06:00:00Z").toEpochMilli(), io.github.willzy12h.nocturne.clockAlarmShow(context)),
+            PendingIntent.getBroadcast(context, 924, Intent("test.short.alarm"), PendingIntent.FLAG_IMMUTABLE))
+        graph.repository.updateSettings { it.copy(platform = it.platform.copy(autoStart = it.platform.autoStart!!.copy(
+            mode = AutoStartMode.BEFORE_WAKE, minutesBeforeWake = 120))) }
+        val plan = AutoStartSchedule.next(graph)!!
+        assertEquals("Two hours before the 06:00 alarm, not before the 07:00 profile wake",
+            Instant.parse("2026-10-27T04:00:00Z"), plan.startAt.toInstant())
+        assertEquals(AutoStartWakeSource.ALARM, plan.wakeSource)
+    }
 }

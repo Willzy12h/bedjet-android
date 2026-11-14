@@ -135,7 +135,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         if (night.wakeOrigin == WakeOrigin.AUTO_START && !profile.wakeSource.useAlarm)
             return Preparation.Refused("AUTO_START_WAKE_UNCHANGED", unchanged = true)
         val start = ZonedDateTime.parse(night.startedAt)
-        val choice = WakeResolver.resolve(profile, start, alarm, AlarmPolicy(settings), alarmOrigin)
+        val choice = WakeResolver.resolve(profile, start, alarm, AlarmPolicy(settings), alarmOrigin, night.shortAlarmNightMinutes)
         if (choice.time.isEqual(ZonedDateTime.parse(night.wakeAt))) return Preparation.Refused("Wake-up unchanged.", unchanged = true)
         return prepareRewrite(night, expected, profile, choice.time, choice.origin, ChangeKind.RETIME, deadline)
     }

@@ -61,6 +61,9 @@ import java.time.ZonedDateTime
     /** Explicit short equipment test; never a real sleep session. */
     val isTestRun: Boolean = false,
     val temporary: TemporaryOverride? = null,
+    /** An auto-start set less than 3 hours before the alarm: the night length it agreed, in minutes. Later alarm
+     * changes may shorten the night to this instead of the usual 3 hours. Null for every other night. */
+    val shortAlarmNightMinutes: Int? = null,
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)
     val usesLiveProfileFallback: Boolean get() = profile == null
