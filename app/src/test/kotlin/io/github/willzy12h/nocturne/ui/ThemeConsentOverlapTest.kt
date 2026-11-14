@@ -24,7 +24,7 @@ import java.time.ZoneId
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-notnight-xhdpi")
 class ThemeConsentOverlapTest {
     private val zone = ZoneId.of("Europe/London")
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { f, _ ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { f, _ ->
         // 01:45 BST: the first occurrence of the 01:30–02:00 dark period.
         f.graph.clock = Clock.fixed(Instant.parse("2026-10-25T00:45:00Z"), zone)
         runBlocking { f.graph.repository.updateSettings { it.copy(

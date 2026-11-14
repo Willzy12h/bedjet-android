@@ -30,7 +30,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class WidgetCaptureTest {
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f)
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f)
     private val tag = System.getenv("SCREENSHOT_TAG")
     private val optIn = TestRule { base, _ -> object : Statement() { override fun evaluate() {
         assumeTrue("set SCREENSHOT_TAG to capture", !tag.isNullOrBlank())

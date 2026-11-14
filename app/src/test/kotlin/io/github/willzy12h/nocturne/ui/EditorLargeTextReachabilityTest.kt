@@ -23,12 +23,12 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
-class EditorLargeTextReachabilityTest(private val look: U06Look) {
-    private val ui = U06Fixture(look)
+class EditorLargeTextReachabilityTest(private val look: FixtureLook) {
+    private val ui = LargeTextActivityFixture(look)
     @get:Rule val rules = ui.rules
     companion object {
         @JvmStatic @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = listOf(U06Look.MIDNIGHT, U06Look.DAYLIGHT).map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = listOf(FixtureLook.MIDNIGHT, FixtureLook.DAYLIGHT).map { arrayOf(it) }
     }
     @Test fun everyStepControlAndItsFullLabelIsReachable() {
         ui.compose.openTonightProfileEditor()

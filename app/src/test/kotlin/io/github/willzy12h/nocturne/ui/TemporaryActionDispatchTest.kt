@@ -37,7 +37,7 @@ private annotation class CoolOnlyLimits
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class TemporaryActionDispatchTest {
     private val originalPreset = ActionPreset(Mode.DRY, 60, 25, 15)
-    private val ui = U06Fixture(U06Look.MIDNIGHT) { fixture, description -> runBlocking {
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT) { fixture, description -> runBlocking {
         fixture.graph.repository.updateSettings { it.copy(extendWarm = originalPreset) }
         if (description.getAnnotation(CoolOnlyLimits::class.java) != null) {
             val profile = fixture.graph.repository.profiles.value.first()

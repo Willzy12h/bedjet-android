@@ -19,7 +19,7 @@ class CooldownOfferTest {
     private val empty = Presets.all.first().copy(id = "empty", name = "Empty after wake", afterWake = emptyList())
     private val existing = Presets.all.first().copy(id = "existing", name = "Existing after wake", afterWake = listOf(Phase(Mode.HEAT, 64, 40, 20)))
     private val cooldown = listOf(Phase(Mode.COOL, 44, 30, 10))
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ ->
         runBlocking {
             fixture.graph.repository.profiles.value.forEach { fixture.graph.repository.deleteProfile(it.id) }
             fixture.graph.repository.saveProfile(empty)

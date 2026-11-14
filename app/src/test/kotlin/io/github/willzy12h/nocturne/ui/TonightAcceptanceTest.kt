@@ -37,7 +37,7 @@ import java.util.TimeZone
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class TonightAcceptanceTest {
     private val fixedClock = Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"), ZoneOffset.UTC)
-    private val ui = U06Fixture(U06Look.SIMPLE_MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, description ->
+    private val ui = LargeTextActivityFixture(FixtureLook.SIMPLE_MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, description ->
         val graph = fixture.graph
         graph.clock = fixedClock
         runBlocking {

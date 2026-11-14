@@ -20,7 +20,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ImportPreviewUiTest {
     private lateinit var snapshotId: String
-    private val ui = U06Fixture(U06Look.MIDNIGHT) { fixture, _ -> runBlocking {
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT) { fixture, _ -> runBlocking {
         val repo = fixture.graph.repository
         repo.restore(repo.bundle().copy(slotBackups = listOf(SlotBackup(Migrations.UNKNOWN_DEVICE, 0, null, fixture.graph.now().toString(), uncertain = true))))
         repo.snapshotNow("Review this backup")

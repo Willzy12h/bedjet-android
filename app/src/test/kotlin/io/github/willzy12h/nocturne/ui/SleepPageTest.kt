@@ -16,7 +16,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w360dp-h800dp-notnight-xhdpi")
 class SleepPageTest {
-    private val ui = U06Fixture(U06Look.SIMPLE_MIDNIGHT)
+    private val ui = LargeTextActivityFixture(FixtureLook.SIMPLE_MIDNIGHT)
     @get:Rule val rules = ui.rules
 
     @Test fun hiddenSectionsKeepTheirPlaceWhenTheShownOnesMove() {

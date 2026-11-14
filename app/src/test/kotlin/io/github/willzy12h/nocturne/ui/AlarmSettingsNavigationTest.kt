@@ -41,7 +41,7 @@ import java.util.TimeZone
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 class AlarmSettingsNavigationTest {
-    private val ui = U06Fixture(U06Look.MIDNIGHT) { fixture, _ ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT) { fixture, _ ->
         val graph = fixture.graph
         graph.clock = Clock.fixed(Instant.parse("2026-10-25T22:30:00Z"), ZoneOffset.UTC)
         runBlocking {

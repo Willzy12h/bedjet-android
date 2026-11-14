@@ -19,7 +19,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w320dp-h891dp-notnight-xhdpi")
 class ProfilesEditHitTest {
-    private val ui = U06Fixture(U06Look.SIMPLE_MIDNIGHT) { f, _ ->
+    private val ui = LargeTextActivityFixture(FixtureLook.SIMPLE_MIDNIGHT) { f, _ ->
         runBlocking {
             assertTrue(f.graph.actions.setDemoMode(false).succeeded)
             assertTrue(f.graph.actions.setDemoMode(true).succeeded)

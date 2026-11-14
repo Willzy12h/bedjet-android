@@ -27,7 +27,7 @@ import java.time.ZoneOffset
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-notnight-xhdpi")
 class FinalThemeAcceptanceTest {
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { f, description ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { f, description ->
         val automatic = description.methodName.startsWith("automaticScheduled")
         val edit = description.methodName.startsWith("scheduledTime")
         f.graph.clock = Clock.fixed(Instant.parse(when {

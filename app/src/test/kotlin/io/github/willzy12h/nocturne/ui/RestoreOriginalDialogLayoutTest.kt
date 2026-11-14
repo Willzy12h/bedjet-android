@@ -23,8 +23,8 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class RestoreOriginalDialogLayoutTest(look: U06Look) {
-    private val ui = U06Fixture(look) { fixture, _ ->
+class RestoreOriginalDialogLayoutTest(look: FixtureLook) {
+    private val ui = LargeTextActivityFixture(look) { fixture, _ ->
         runBlocking {
             val repo = fixture.graph.repository
             val original = SlotBackup(
@@ -41,7 +41,7 @@ class RestoreOriginalDialogLayoutTest(look: U06Look) {
 
     companion object {
         @JvmStatic @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = U06Look.entries.map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = FixtureLook.entries.map { arrayOf(it) }
 
         private const val UNCERTAINTY_WARNING = "May not be the true original: the slot may already have held one of Nocturne's programmes."
     }

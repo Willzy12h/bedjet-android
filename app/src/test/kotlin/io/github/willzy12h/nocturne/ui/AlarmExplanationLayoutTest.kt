@@ -12,8 +12,8 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class AlarmExplanationLayoutTest(private val look: U06Look) {
-    private val ui = U06Fixture(look)
+class AlarmExplanationLayoutTest(private val look: FixtureLook) {
+    private val ui = LargeTextActivityFixture(look)
     @get:Rule val rules = ui.rules
 
     @Test fun sourceExplanationRemainsCompleteAndActionableAt320DpAnd200Percent() {
@@ -22,6 +22,6 @@ class AlarmExplanationLayoutTest(private val look: U06Look) {
 
     companion object {
         @JvmStatic @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = U06Look.entries.map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = FixtureLook.entries.map { arrayOf(it) }
     }
 }

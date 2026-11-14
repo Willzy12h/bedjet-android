@@ -44,7 +44,7 @@ class ImportedPresetRoleSettingsTest(private val role: PresetRole) {
     }
 
     private val imported = ActionPreset(Mode.TURBO, 86, 100, 10)
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ -> runBlocking {
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ -> runBlocking {
         val graph = fixture.graph
         val saved = graph.repository.bundle().let { it.copy(settings = role.assign(it.settings, imported)) }
         val decoded = BackupCodec.decode(BackupCodec.encode(saved))
