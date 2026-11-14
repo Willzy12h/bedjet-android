@@ -533,7 +533,8 @@
       "trackingManual": true,
       "temporary": {
         "$ref": "temporary"
-      }
+      },
+      "shortAlarmNightMinutes": 120
     },
     "temporary": {
       "base": {
