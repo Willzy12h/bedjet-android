@@ -115,9 +115,6 @@ private fun NightActions.pendingProgrammeObservation(): ProgrammeObservation? = 
 internal fun ProgrammeObservation.concerns(night: ActiveNight?, target: String?): Boolean =
     boundary.identity == night?.identity && boundary.target == target && night?.deviceId == target
 
-internal fun NightActions.hasUnreconciledProgramme(night: ActiveNight?): Boolean =
-    unreconciledProgramme.value?.concerns(night, repo.settings.value.deviceId()) == true
-
 internal fun NightActions.unreconciledForCurrentNight(): ProgrammeObservation? {
     val observed = unreconciledProgramme.value ?: return null
     // Demo has separate disposable state. A real receipt is retained while that state is displayed.
@@ -158,7 +155,7 @@ internal suspend fun NightActions.observeProgrammeLocked(observed: ProgrammeObse
         return
     }
     retainProgrammeUncertainty(observed)
-    if (hasUnreconciledProgramme(repo.activeNight.value)) {
+    if (hasProgrammeUncertainty(repo.activeNight.value)) {
         Notifications.cancelQuiet(context)
         Notifications.cancelWakeUp(context)
     }

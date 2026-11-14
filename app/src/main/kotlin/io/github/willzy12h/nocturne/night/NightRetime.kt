@@ -309,7 +309,7 @@ internal suspend fun NightActions.retryRetimeLocked(): CommandOutcome {
         val current = repo.activeNight.value
         val change = preparedChange
         if (e is TimeoutCancellationException && current != null && current.identity == change?.intended?.identity &&
-            current.confidence == Confidence.CONFIRMED && !hasUnreconciledProgramme(current)) {
+            current.confidence == Confidence.CONFIRMED && !hasProgrammeUncertainty(current)) {
             withContext(NonCancellable) {
                 try {
                     withTimeout(8_000) {
@@ -342,7 +342,7 @@ internal suspend fun NightActions.retryRetimeLocked(): CommandOutcome {
         throw e
     } catch (e: Exception) {
         val current = repo.activeNight.value
-        if (hasUnreconciledProgramme(current))
+        if (hasProgrammeUncertainty(current))
             return reconcileProgrammeOutcome(CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover)))
         // Publication of this prepared revision proves the BedJet confirmed it. A later local save failure
         // cannot turn that into a failed change, nor credit some unrelated CONFIRMED revision to this request.

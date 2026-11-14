@@ -57,7 +57,7 @@ internal suspend fun NightActions.apply(preparation: Preparation, message: Int,
 
 private fun NightActions.confirmedPreparedProgramme(change: PreparedChange): ActiveNight? = repo.activeNight.value?.takeIf {
     change.request.kind in setOf(ChangeKind.START, ChangeKind.REAPPLY, ChangeKind.RESUME, ChangeKind.TEMPORARY) &&
-        it == change.intended && it.confidence == Confidence.CONFIRMED && !it.trackingManual && !hasUnreconciledProgramme(it)
+        it == change.intended && it.confidence == Confidence.CONFIRMED && !it.trackingManual && !hasProgrammeUncertainty(it)
 }
 
 /** A revision and its event share one durable history write, so interrupted settlement can repeat safely. */

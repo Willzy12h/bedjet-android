@@ -521,6 +521,10 @@ class NightActions(internal val graph: Graph) {
         } finally { lock.unlock() }
     }
 
+    // Kept a private member under this name: ProgrammeObservationRecoveryTest calls it reflectively.
+    private fun hasUnreconciledProgramme(night: ActiveNight?): Boolean =
+        unreconciledProgramme.value?.concerns(night, repo.settings.value.deviceId()) == true
+
     internal fun hasProgrammeUncertainty(night: ActiveNight?): Boolean = hasUnreconciledProgramme(night)
 
     internal var lastNotice: Pair<String, Int>? = null

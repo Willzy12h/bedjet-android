@@ -36,7 +36,7 @@ internal suspend fun NightActions.finishLocked(night: ActiveNight, kind: EventKi
 /** A clock or an ENDED label alone cannot turn uncertain tracking into a confirmed completed programme. */
 private fun NightActions.confirmedCompletion(night: ActiveNight, kind: EventKind): String? = night.endsAt.takeIf {
     kind == EventKind.ENDED && night.confidence == Confidence.CONFIRMED && night.pending == null &&
-        !night.trackingManual && !hasUnreconciledProgramme(night) && !night.isTestRun && !repo.settings.value.demoMode &&
+        !night.trackingManual && !hasProgrammeUncertainty(night) && !night.isTestRun && !repo.settings.value.demoMode &&
         !io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(night.deviceId) &&
         repo.runtime.value.retime == null && repo.runtime.value.alarmInbox == null &&
         !graph.now().isBefore(ZonedDateTime.parse(night.endsAt)) &&
@@ -96,7 +96,7 @@ internal suspend fun NightActions.consumeLocalDeliveriesLocked() {
 internal suspend fun NightActions.wakeUpLocked(expected: NightIdentity?) {
     val n = repo.activeNight.value ?: return
     if (n.identity != expected || n.trackingManual || n.confidence != Confidence.CONFIRMED || repo.runtime.value.wakeShown == n.identity ||
-        hasUnreconciledProgramme(n) ||
+        hasProgrammeUncertainty(n) ||
         graph.now().isBefore(ZonedDateTime.parse(n.wakeUpStart)) || !graph.now().isBefore(ZonedDateTime.parse(n.endsAt))) return
     repo.updateRuntime { it.copy(wakeShown = n.identity, manualWakeShown = false) }
     Notifications.showWakeUp(context, n, repo.settings.value)
