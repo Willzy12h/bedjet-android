@@ -406,8 +406,11 @@ class NightActions(private val graph: Graph) {
             val prepared = graph.runner().prepareStart(profile, alarm?.time, s.workingSlot, request.deviceId!!,
                 old?.identity, old, override, s, alarm?.creator)
             val attributed = if (explicit == null && automaticWake != null && prepared is Preparation.Ready)
-                Preparation.Ready(prepared.change.copy(intended = prepared.change.intended.copy(
-                    wakeOrigin = WakeOrigin.AUTO_START, wakeFromAlarm = automaticWake.fromAlarm))) else prepared
+                Preparation.Ready(prepared.change.copy(intended = prepared.change.intended.let { night ->
+                    val agreed = java.time.Duration.between(ZonedDateTime.parse(night.startedAt), ZonedDateTime.parse(night.wakeAt))
+                    night.copy(wakeOrigin = WakeOrigin.AUTO_START, wakeFromAlarm = automaticWake.fromAlarm,
+                        shortAlarmNightMinutes = agreed.toMinutes().toInt().takeIf { agreed < WakeResolver.MIN_ALARM_NIGHT })
+                })) else prepared
             if (attributed is Preparation.Ready) onPrepared(attributed.change)
             return apply(attributed, R.string.runtime_started, validate = {
                 if (!stillEligible()) throw PlanException(text(R.string.auto_start_skip_changed))
