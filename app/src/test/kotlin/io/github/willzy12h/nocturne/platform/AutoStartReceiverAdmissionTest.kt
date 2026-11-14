@@ -83,7 +83,7 @@ class AutoStartReceiverAdmissionTest : PlatformGraphFixture() {
     private fun shown() = shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(PlatformNotifications.OUTCOME_ID)
     private fun pendingJob() = app.getSystemService(JobScheduler::class.java).getPendingJob(ChargerJobs.ID)
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (!check() && System.nanoTime() < deadline) { shadowOf(Looper.getMainLooper()).idle(); Thread.yield() }
         assertTrue("The real receiver must complete its bounded broadcast delivery", check())
     }

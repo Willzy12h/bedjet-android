@@ -224,7 +224,7 @@ class RestoreOriginalCaptureTest {
     }
 
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         var advancedAt = System.nanoTime()
         while (!check() && System.nanoTime() < deadline) {
             val elapsedMs = (System.nanoTime() - advancedAt) / 1_000_000

@@ -19,7 +19,9 @@ import xml.etree.ElementTree as ET
 
 CLI_VERSION = "1.1.16717390"
 CLI_SHA256 = "b34ed0baeeffa2aaee2720d82491b975835696e2e56840449078bec885436564"
-CLI_URL = "https://dl.google.com/android/cli/latest/linux_x86_64/android-cli"
+# The versioned address always serves this exact build. The "latest" address changes whenever Google publishes a new
+# one, which failed every build until the hash was reviewed again.
+CLI_URL = "https://dl.google.com/android/cli/" + CLI_VERSION + "/linux_x86_64/android-cli"
 
 
 def install(environment, output):

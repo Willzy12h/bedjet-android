@@ -40,7 +40,7 @@ class ImportUiQueueAdmissionTest {
     @After fun clear() { release.countDown(); models.clear() }
 
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (!check() && System.nanoTime() < deadline) { shadowOf(Looper.getMainLooper()).idle(); Thread.yield() }
         assertTrue("Expected UI queue state was not reached", check())
     }

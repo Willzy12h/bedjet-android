@@ -39,7 +39,7 @@ class AlarmAndShortTestSettingsTest {
         ui.control("Re-check alarm").performClick()
         ui.waitUntil { ui.model.nextAlarm.value?.creator == "com.sec.android.app.clockpackage" }
         ui.compose.onNodeWithTag("alarm-check-result").assertTextContains("Samsung Clock", substring = true)
-            .assertTextContains("too soon", substring = true).assertTextContains("Profile wake", substring = true)
+            .assertTextContains("too early", substring = true).assertTextContains("Profile wake", substring = true)
         app.getSystemService(AlarmManager::class.java).cancel(fire)
         ui.control("Re-check alarm").performClick()
         ui.waitUntil { ui.model.nextAlarm.value == null }

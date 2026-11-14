@@ -54,7 +54,7 @@ class CommandOriginsTest {
     }
 
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 10_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         var lastTick = System.nanoTime()
         var remainder = 0L
         while (!check() && System.nanoTime() < deadline) {

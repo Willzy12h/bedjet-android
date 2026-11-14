@@ -605,14 +605,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** The clock apps on this phone, for choosing where alarms come from. */
     val clockApps: StateFlow<List<ClockApps.App>> = _clockApps.asStateFlow()
 
+    private val _otherAlarmApps = MutableStateFlow<List<ClockApps.App>>(emptyList())
+    /** Apps that aren't clock apps but may set alarms (a white-noise app, say), for ticking in the alarm-app list. */
+    val otherAlarmApps: StateFlow<List<ClockApps.App>> = _otherAlarmApps.asStateFlow()
+    private val _allAlarmAppsShown = MutableStateFlow(false)
+    /** True once "Show more apps" asked for every app that can set alarms, not only those seen setting one. */
+    val allAlarmAppsShown: StateFlow<Boolean> = _allAlarmAppsShown.asStateFlow()
+
     /** Looks for clock apps again; with "any clock app" chosen, a newly installed one counts from now on. */
     fun refreshClockApps() {
+        val previous = _clockApps.value
         val found = ClockApps.installed(getApplication())
         _clockApps.value = found
         val settings = repo.settings.value
         if (settings.alarmApps == AlarmApps.CLOCK_APPS && !settings.demoMode) {
-            val packages = ClockApps.packagesFor(AlarmApps.CLOCK_APPS, found)
+            // Other apps the person ticked stay counted alongside the clock apps.
+            val packages = ClockApps.packagesFor(AlarmApps.CLOCK_APPS, found,
+                ClockApps.extraApps(settings, found) - previous.map { it.packageName }.toSet())
             if (packages != settings.alarmPackages) save { repo.updateSettings { it.copy(alarmPackages = packages) } }
+        }
+    }
+
+    /** Looks for other apps that set alarms, off the main thread; [all] also lists every app that asks to set them. */
+    fun refreshOtherAlarmApps(all: Boolean = _allAlarmAppsShown.value) {
+        _allAlarmAppsShown.value = all
+        val context: android.app.Application = getApplication()
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val creator = nextAlarm.value?.identifiedCreator
+            _otherAlarmApps.value = ClockApps.otherAlarmApps(context, _clockApps.value, creator, all,
+                ticked = settings.value.alarmPackages)
         }
     }
 
@@ -620,7 +641,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * Where alarms come from: any clock app, only [chosen], or none. A running night is checked against the new
      * choice straight away, so a wake taken from an app no longer chosen goes back.
      */
-    fun chooseAlarmApps(choice: AlarmApps, chosen: String? = null) = save {
+    fun chooseAlarmApps(choice: AlarmApps, chosen: String? = null) = chooseAlarmApps(choice, setOfNotNull(chosen))
+    fun chooseAlarmApps(choice: AlarmApps, chosen: Set<String>) = save {
         repo.updateSettings { ClockApps.choose(it, choice, _clockApps.value, chosen) }
         if (activeNight.value != null) recheckAlarm() else refreshAlarm()
     }

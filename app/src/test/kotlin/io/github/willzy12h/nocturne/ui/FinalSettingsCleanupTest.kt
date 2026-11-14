@@ -36,10 +36,11 @@ class FinalSettingsCleanupTest {
     @Test fun updatesOpenTheFixedGitHubReleasesPageInTheBrowser() {
         settings()
         ui.compose.openSettingsPage("about")
-        ui.control("Check GitHub for a new APK").performClick()
-        val intent = shadowOf(ui.compose.activity).nextStartedActivity
-        assertEquals(Intent.ACTION_VIEW, intent.action)
-        assertEquals("https://github.com/Willzy12h/bedjet-android/releases", intent.dataString)
+        ui.control("Check for a newer build").performClick()
+        val latest = shadowOf(ui.compose.activity).nextStartedActivity
+        assertEquals(Intent.ACTION_VIEW, latest.action)
+        // Betas are pre-releases, which GitHub's releases/latest leaves out, so the check opens the full list.
+        assertEquals("https://github.com/Willzy12h/bedjet-android/releases", latest.dataString)
     }
 
     @Test fun aboutKeepsAttributionVersionAndProjectHelpReadableAtTwoHundredPercent() {

@@ -22,7 +22,7 @@ class P8SnackbarLayoutTest {
     @Test fun longFeedbackKeepsTheUnderlyingControlReachableAndCanBeReadAndDismissed() {
         ui.tab(ui.s(R.string.tab_settings))
         ui.compose.openSettingsPage("night")
-        val message = "Alarm 22:35 ignored: too soon — normal nights need at least 1 hour — tap to change. Profile wake 07:00 is the fallback. " +
+        val message = "Alarm 22:35 ignored: too early — under 3 hours after bedtime — tap to change. Profile wake 07:00 is the fallback. " +
             "The complete explanation remains available even when the text is large."
         ui.compose.runOnIdle { ui.model.report(CommandOutcome(OutcomeKind.LOCAL, message)) }
         ui.waitUntil { ui.compose.onAllNodesWithText(message).fetchSemanticsNodes().isNotEmpty() }

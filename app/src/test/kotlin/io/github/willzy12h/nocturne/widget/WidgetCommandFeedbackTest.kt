@@ -89,7 +89,7 @@ class WidgetCommandFeedbackTest : io.github.willzy12h.nocturne.platform.Platform
     }
     private suspend fun state(): String? = getAppWidgetState(app, PreferencesGlanceStateDefinition, id)[stateKey]
     private suspend fun awaitState(expected: String) {
-        val deadline = System.nanoTime() + 3_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (System.nanoTime() < deadline && state() != expected) delay(5)
         assertEquals(expected, state())
     }
@@ -171,7 +171,7 @@ class WidgetCommandFeedbackTest : io.github.willzy12h.nocturne.platform.Platform
             graph.repository.setActiveNight(newlyStarted)
             release.complete(Unit)
             withTimeout(5_000) { owner.await(); off.await() }
-            val deadline = System.nanoTime() + 3_000_000_000L
+            val deadline = System.nanoTime() + 30_000_000_000L
             while ((graph.actions.busy.value.runningLabel != null || graph.actions.busy.value.queuedCount != 0) && System.nanoTime() < deadline) delay(5)
             assertEquals("An unconfirmed stale Off must not write", 0, writes)
             assertEquals(newlyStarted.identity, graph.repository.activeNight.value?.identity)

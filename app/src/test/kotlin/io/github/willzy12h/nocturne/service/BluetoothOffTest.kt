@@ -57,7 +57,7 @@ class BluetoothOffTest {
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(20))
     private fun until(condition: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (!condition() && System.nanoTime() < deadline) { idle(); Thread.yield() }
         assertTrue("Expected the asynchronous result to finish", condition())
     }

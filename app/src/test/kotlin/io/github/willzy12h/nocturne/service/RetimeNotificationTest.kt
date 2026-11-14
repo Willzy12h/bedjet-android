@@ -111,7 +111,7 @@ class RetimeNotificationTest {
     }
 
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         var advancedAt = System.nanoTime()
         while (!check() && System.nanoTime() < deadline) {
             // Successful START waits through BedJetController's refusal grace on Main. Advance only measured

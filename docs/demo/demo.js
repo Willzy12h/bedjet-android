@@ -203,7 +203,7 @@ function freshState() {
     setup: { bt: true, notif: true, alarms: false, alarmapp: false, battery: false },
     settings: {
       lights: true, beeps: false, slot: 3, theme: 'dark', palette: 'midnight', fahrenheit: false,
-      alarmSource: 'samsung', alarm: null, reminder: false,
+      alarmApps: ['samsung', 'google'], alarmFrom: 'samsung', alarm: null, reminder: false,
       autoStart: { on: false, mode: 'fixed', at: 22 * 60 + 30, before: 8 * 60 + 30, charging: true, firedFor: null },
       wakeButtons: ['snoozeWarm', 'warm30', 'off'], quietStatus: false,
       autoBackup: true, hcRead: true, hcWrite: false,
@@ -372,11 +372,17 @@ function wakeNotification() {
 }
 
 /* ---------------- Night lifecycle ---------------- */
+const ALARM_APPS = {
+  samsung: { name: 'Samsung Clock', clock: true, icon: '#1E6FD9' },
+  google: { name: 'Google Clock', clock: true, icon: '#34A853' },
+  whitenoise: { name: 'White Noise', clock: false, icon: '#7C5CD6', hint: 'Has set an alarm on this phone' },
+};
+const alarmCounts = () => S.settings.alarm != null && S.settings.alarmApps.includes(S.settings.alarmFrom);
 const tonightProfile = () => S.profiles.find((p) => p.id === S.tonightProfile) || S.profiles[0];
 function wakeFor(p) {
   if (S.tonightWake != null) return { at: nightAbs(S.tonightWake), src: 'Tonight only' };
-  if (p.wakeWithAlarm && S.settings.alarmSource !== 'none' && S.settings.alarm != null)
-    return { at: nightAbs(S.settings.alarm), src: S.settings.alarmSource === 'samsung' ? 'Samsung Clock alarm' : 'Google Clock alarm' };
+  if (p.wakeWithAlarm && alarmCounts())
+    return { at: nightAbs(S.settings.alarm), src: `${ALARM_APPS[S.settings.alarmFrom].name} alarm` };
   return { at: nightAbs(p.wake), src: S.night ? "Profile's wake time" : 'Profile fallback' };
 }
 function startNight(auto = false) {
@@ -485,9 +491,11 @@ function tonightIdle() {
   const segs = compile(p, bed, w.at);
   const bj = S.bedjet;
   const state = S.link === 'sending' ? 'Sending to the BedJet…' : bj.mode === 'off' ? 'Idle' : `${stepName(bj)} · fan ${bj.fan}%${bj.endsAt ? ` · until ${hhmm(bj.endsAt)}` : ''}`;
-  const alarmLine = S.settings.alarmSource === 'none'
+  const alarmLine = !S.settings.alarmApps.length
     ? `Alarm app not chosen — profile wake ${hhmm(p.wake)}`
-    : S.settings.alarm == null ? `No alarm set — profile wake ${hhmm(p.wake)}` : `Next alarm ${hhmm(S.settings.alarm)} · ${S.settings.alarmSource === 'samsung' ? 'Samsung Clock' : 'Google Clock'}`;
+    : S.settings.alarm == null ? `No alarm set — profile wake ${hhmm(p.wake)}`
+    : !alarmCounts() ? `Alarm ${hhmm(S.settings.alarm)} ignored: from ${ALARM_APPS[S.settings.alarmFrom].name}, not one of your alarm apps — choose in Settings`
+    : `Next alarm ${hhmm(S.settings.alarm)} · ${ALARM_APPS[S.settings.alarmFrom].name}`;
   const setupLeft = Object.entries(S.setup).filter(([, v]) => !v);
   const last = S.nights[0];
   const week = S.nights.slice(0, 7);
@@ -744,7 +752,7 @@ PAGES.settings_home = () => {
     ['notifications', 'bell', 'Notifications', `${S.settings.wakeButtons.length} wake-up buttons`],
     ['sleep', 'sleep', 'Sleep', `${S.nights.length} nights recorded`],
     ['health', 'heart', 'Health Connect', S.settings.hcRead || S.settings.hcWrite ? 'On' : 'Off'],
-    ['about', 'info', 'Help and about', 'Version 1.1.0-beta.2'],
+    ['about', 'info', 'Help and about', 'Version 1.1.0-beta.3'],
   ];
   return `<h1 class="h-page">Settings</h1><div class="list">${rows.map(([k, ic, t, s]) => `<button class="listrow" data-a="settingsPage" data-v="${k}"><span class="ic">${svg(ic)}</span><span class="grow"><span class="t">${t}</span><br><span class="s">${esc(s)}</span></span><span class="chev">›</span></button>`).join('')}</div>`;
 };
@@ -763,12 +771,25 @@ PAGES.device = () => `${topbar('Settings')}<h1 class="h-page">BedJet 3</h1>
   <div class="seg">${[1, 2, 3].map((k) => `<button class="${S.settings.slot === k ? 'on' : ''}" data-a="slot" data-v="${k}">Slot ${k}</button>`).join('')}</div>
   <button class="btn ghost" style="margin-top:8px" data-a="toastOnly" data-v="Slot ${S.settings.slot} put back to what it held before Nocturne">Put back the original slot ${S.settings.slot}</button></div>`;
 
+const appRow = (k) => {
+  const a = ALARM_APPS[k], on = S.settings.alarmApps.includes(k);
+  return `<button class="listrow" role="checkbox" aria-checked="${on}" data-a="toggleAlarmApp" data-v="${k}" style="text-align:left">
+    <span class="appicon" style="background:${a.icon}" aria-hidden="true">${a.name[0]}</span>
+    <span class="grow"><span class="t">${a.name}</span>${a.hint ? `<br><span class="s">${a.hint}</span>` : ''}</span>
+    <span class="tickbox${on ? ' on' : ''}" aria-hidden="true"></span></button>`;
+};
 PAGES.nightwake = () => {
   const st = S.settings, a = st.autoStart;
   return `${topbar('Settings')}<h1 class="h-page">Night and wake-up</h1>
-  <div class="h-sec">Alarm app</div>
-  <div class="card"><div class="seg">${[['samsung', 'Samsung Clock'], ['google', 'Google Clock'], ['none', 'None']].map(([k, l]) => `<button class="${st.alarmSource === k ? 'on' : ''}" data-a="alarmSource" data-v="${k}">${l}</button>`).join('')}</div>
-  <p class="small faint" style="margin:10px 0 8px">Demo alarm in that app (moving it during a night rewrites the plan):</p>
+  <div class="h-sec">Alarm apps</div>
+  <p class="small faint" style="margin:0 4px 8px">Tick the apps whose alarms set your wake-up. Alarms from apps you haven’t ticked, such as calendars and reminders, are never used.</p>
+  <div class="kicker" style="margin:0 4px 6px">Clock apps</div>
+  <div class="list">${Object.entries(ALARM_APPS).filter(([, a]) => a.clock).map(([k]) => appRow(k)).join('')}</div>
+  <div class="kicker" style="margin:12px 4px 6px">Other apps that set alarms</div>
+  <div class="list">${Object.entries(ALARM_APPS).filter(([, a]) => !a.clock).map(([k]) => appRow(k)).join('')}</div>
+  <div class="card" style="margin-top:12px"><p class="small faint" style="margin:0 0 8px">Demo alarm set by:</p>
+  <div class="seg">${Object.entries(ALARM_APPS).map(([k, a]) => `<button class="${st.alarmFrom === k ? 'on' : ''}" data-a="alarmFrom" data-v="${k}">${a.name}</button>`).join('')}</div>
+  <p class="small faint" style="margin:10px 0 8px">Demo alarm time (moving it during a night rewrites the plan):</p>
   <div class="chips">${[[null, 'No alarm'], [6 * 60 + 30, '06:30'], [6 * 60 + 45, '06:45'], [7 * 60 + 15, '07:15']].map(([v, l]) => `<button class="chip${st.alarm === v ? ' on' : ''}" data-a="setAlarm" data-v="${v == null ? '' : v}">${l}</button>`).join('')}</div></div>
   <div class="list">
     ${setRow('Bedtime reminder', '30 minutes before your profile’s bedtime', sw(st.reminder, 'setBool', 'reminder', 'Bedtime reminder'))}
@@ -821,11 +842,11 @@ PAGES.health = () => `${topbar('Settings')}<h1 class="h-page">Health Connect</h1
   </div>`;
 
 PAGES.about = () => `${topbar('Settings')}<h1 class="h-page">Help and about</h1>
-  <div class="card"><div style="font:700 22px Bricolage,Figtree">Nocturne</div><div class="small muted">Version 1.1.0-beta.2</div>
+  <div class="card"><div style="font:700 22px Bricolage,Figtree">Nocturne</div><div class="small muted">Version 1.1.0-beta.3</div>
   <p class="small faint">A free, open-source app for the BedJet 3. Not affiliated with or endorsed by BedJet LLC.</p>
   <p class="small" style="color:var(--warn);margin-bottom:0">You're using the HTML demo. It imitates the app's main screens with a pretend BedJet.</p></div>
   <div class="list">
-    <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/releases" target="_blank" rel="noopener"><span class="grow"><span class="t">Updates</span><br><span class="s">Opens the Releases page</span></span><span class="chev">↗</span></a>
+    <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/releases" target="_blank" rel="noopener"><span class="grow"><span class="t">Check for a newer build</span><br><span class="s">Opens the releases in your browser, newest first, to compare with 1.1.0-beta.3 and download the APK</span></span><span class="chev">↗</span></a>
     <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/blob/main/PRIVACY.md" target="_blank" rel="noopener"><span class="grow"><span class="t">Privacy</span><br><span class="s">No servers, accounts or analytics</span></span><span class="chev">↗</span></a>
     <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android#readme" target="_blank" rel="noopener"><span class="grow"><span class="t">Project page</span><br><span class="s">Source, licence and credits</span></span><span class="chev">↗</span></a>
   </div>`;
@@ -1141,8 +1162,8 @@ const A = {
   saveBoost: () => { toast(`Boost: Turbo, then Heat for ${S.boost.heatMin} min`); back(); },
   setup: (k) => {
     S.setup[k] = true;
-    if (k === 'alarmapp') S.settings.alarmSource = 'samsung';
-    toast(k === 'alarmapp' ? 'Using Samsung Clock for your alarm' : 'On a phone this opens Android settings. Marked as allowed.');
+    if (k === 'alarmapp') S.settings.alarmApps = ['samsung', 'google'];
+    toast(k === 'alarmapp' ? 'Using your clock apps for your alarm' : 'On a phone this opens Android settings. Marked as allowed.');
     render();
   },
   openSleep: (v) => { S.sleepSel = Number(v); tick('sleep'); push({ p: 'sleep' }); },
@@ -1284,7 +1305,16 @@ const A = {
   setBool: (k) => { S.settings[k] = !S.settings[k]; applyTheme.key = null; render(); },
   toggleRange: () => { S.outOfRange = !S.outOfRange; render(); toast(S.outOfRange ? 'The BedJet is out of range' : 'The BedJet is back in range'); },
   slot: (k) => { S.settings.slot = Number(k); render(); toast(`Tonight's plan goes into slot ${k}. Slot ${k}'s old programme was saved.`); },
-  alarmSource: (k) => { S.settings.alarmSource = k; S.setup.alarmapp = k !== 'none'; render(); if (S.night) rewriteNight('Alarm app changed. Plan on the BedJet rewritten.'); },
+  toggleAlarmApp: (k) => {
+    const st = S.settings, was = alarmCounts();
+    st.alarmApps = st.alarmApps.includes(k) ? st.alarmApps.filter((x) => x !== k) : [...st.alarmApps, k];
+    S.setup.alarmapp = st.alarmApps.length > 0; render();
+    if (S.night && was !== alarmCounts()) rewriteNight('Alarm apps changed. Plan on the BedJet rewritten.');
+  },
+  alarmFrom: (k) => {
+    const was = alarmCounts(); S.settings.alarmFrom = k; render();
+    if (S.night && (was || alarmCounts())) rewriteNight(alarmCounts() ? `${ALARM_APPS[k].name} alarm used. Plan on the BedJet rewritten.` : `${ALARM_APPS[k].name} isn’t ticked, so its alarm is ignored.`);
+  },
   setAlarm: (v) => {
     S.settings.alarm = v === '' ? null : Number(v); render();
     if (S.night && S.tonightWake == null && S.night.profile.wakeWithAlarm) rewriteNight(v === '' ? 'Alarm removed. Plan on the BedJet uses the profile wake.' : `Alarm moved to ${hhmm(Number(v))}. Plan on the BedJet rewritten.`);

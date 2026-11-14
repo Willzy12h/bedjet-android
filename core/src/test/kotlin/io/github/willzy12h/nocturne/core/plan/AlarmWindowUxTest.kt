@@ -18,12 +18,12 @@ class AlarmWindowUxTest {
         }
     }
 
-    @Test fun `normal five minute alarm uses the profile wake and never relaxes the minimum`() {
+    @Test fun `an alarm under three hours away uses the profile wake`() {
         val preview = NightPreview.forStartNow(Presets.springAutumn, start, start.plusMinutes(5))
         assertEquals(WakeOrigin.PROFILE_DEFAULT, preview.wake.origin)
         assertTrue(preview.wake.time >= start.plusHours(1))
-        assertFalse(AlarmPolicy().accept(start.plusMinutes(59), null, start))
-        assertTrue(AlarmPolicy().accept(start.plusHours(1), null, start))
+        assertFalse(AlarmPolicy().accept(start.plusHours(3).minusMinutes(1), null, start))
+        assertTrue(AlarmPolicy().accept(start.plusHours(3), null, start))
     }
 
     @Test fun `later than eighteen hours and explicitly denied unknown sources use fallback`() {

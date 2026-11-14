@@ -220,7 +220,7 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         toggleTwice(s(R.string.settings_quiet_title)) { graph.repository.settings.value.quietNightNotification }
         compose.onNodeWithTag("settings-back").performScrollTo().performClick()
         compose.openSettingsPage("about")
-        fixture.control(s(R.string.settings_github_releases))
+        fixture.control(s(R.string.settings_update_check))
         fixture.control(s(R.string.settings_source_code))
         compose.onNodeWithTag("settings-back").performScrollTo().performClick()
         fixture.tab(s(R.string.tab_tonight))

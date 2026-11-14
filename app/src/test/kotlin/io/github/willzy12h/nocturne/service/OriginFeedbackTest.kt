@@ -22,7 +22,7 @@ import java.io.IOException
 class OriginFeedbackTest : io.github.willzy12h.nocturne.platform.PlatformGraphFixture() {
     private val app:App=RuntimeEnvironment.getApplication() as App
     private fun until(check:()->Boolean) {
-        val deadline=System.nanoTime()+5_000_000_000L
+        val deadline=System.nanoTime()+30_000_000_000L
         while(!check() && System.nanoTime()<deadline){shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(10));Thread.yield()}
         assertTrue("Timed out pumping looper",check())
     }

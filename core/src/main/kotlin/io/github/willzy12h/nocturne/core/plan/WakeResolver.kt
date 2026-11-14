@@ -13,13 +13,28 @@ object WakeResolver {
     val MIN_NIGHT: Duration = Duration.ofHours(1)
     /** An alarm later than this belongs to another night. */
     val MAX_NIGHT: Duration = Duration.ofHours(18)
+    /** A wake-up alarm sooner than this after bedtime isn't a night's sleep (a 23:00 reminder, say). */
+    val MIN_ALARM_NIGHT: Duration = Duration.ofHours(3)
+    /** A night started up to this long before the profile's bedtime is an early night, still measured from bedtime. */
+    private val EARLY_START: Duration = Duration.ofHours(6)
 
     /** Shortly after bedtime the night is starting now; later than this, previews look at tomorrow's bedtime. */
     private val BEDTIME_GRACE: Duration = Duration.ofHours(3)
 
     fun resolve(profile: Profile, now: ZonedDateTime, alarm: ZonedDateTime?): WakeChoice {
-        if (profile.wakeSource.useAlarm && AlarmPolicy().accept(alarm, null, now)) return WakeChoice(alarm!!, true)
+        if (profile.wakeSource.useAlarm && AlarmPolicy().accept(alarm, null, now, profile.bedtimeMinute)) return WakeChoice(alarm!!, true)
         return WakeChoice(nextOccurrence(profile.wakeSource.defaultWakeMinute, now.plus(MIN_NIGHT)), fromAlarm = false)
+    }
+
+    /**
+     * The earliest an alarm can end a night that starts at [nightStart]: [MIN_ALARM_NIGHT] after the later of the start
+     * and the profile's bedtime ([bedtimeMinute]), when that bedtime is coming up within [EARLY_START]. So an evening
+     * preview at 19:00 with a 22:30 bedtime ignores a 23:00 alarm, while a daytime sleep is measured from its start.
+     */
+    fun earliestAlarm(nightStart: ZonedDateTime, bedtimeMinute: Int? = null): ZonedDateTime {
+        val bedtime = bedtimeMinute?.let { nextOccurrence(it, nightStart) }
+            ?.takeIf { !it.isAfter(nightStart.plus(EARLY_START)) }
+        return (bedtime ?: nightStart).plus(MIN_ALARM_NIGHT)
     }
 
     /** When tonight's night would start, for showing a profile's wake time before it runs. */

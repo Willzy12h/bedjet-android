@@ -41,15 +41,21 @@ class ConnectionControlAdmissionTest {
     }
 
     @Test fun aTappedConnectionControlExcludesImportBeforeItsUiCoroutineRuns() {
-        val click = releaseClick()
+        val outcome = AtomicReference<CommandOutcome>()
+        val click = releaseClick(outcome)
         var allowed = false
+        var finished: CommandOutcome? = null
         compose.runOnUiThread {
             click()
             val lease = app.graph.repository.operationAdmission.tryImport()
             allowed = lease != null
             lease?.close()
+            finished = outcome.get()
         }
-        assertFalse("A queued connection control must be visible to import admission", allowed)
+        // An import may only be admitted once the tapped control has already reported its outcome (on a loaded
+        // machine it can finish within the tap); never while it is still queued or running.
+        assertFalse("A queued connection control must be visible to import admission (outcome: $finished)",
+            allowed && finished == null)
     }
 
     @Test fun aTapDuringImportCannotRunAfterThatImportFinishes() {

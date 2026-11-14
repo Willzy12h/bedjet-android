@@ -6,6 +6,11 @@ on:
     branches: [main, gpt/nocturne-independent-fixes]
     tags: ["v*"]
   pull_request:
+    # Docs-only changes (README, demo, policy text, images) cannot affect the app, so they skip the Android gate.
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE"
 
 permissions:
   contents: read
@@ -27,7 +32,7 @@ jobs:
   # This entire job is independent of production signing secrets.
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     outputs:
       version-name: ${{ steps.version.outputs.name }}
       version-code: ${{ steps.version.outputs.code }}
@@ -149,7 +154,9 @@ jobs:
       - name: Required test, debug and lint gate
         id: gate
         run: |
-          ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+          # Each app test class runs in its own JVM, three at a time (app/build.gradle.kts), so one class's leftover
+          # background work cannot stall the classes after it.
+          ./gradlew --no-daemon --max-workers=4 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
             :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug \
             -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE" \
             2>&1 | tee "$RUNNER_TEMP/nocturne-release/evidence/required-gate.log"

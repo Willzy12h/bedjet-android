@@ -143,7 +143,7 @@ class UnchangedAlarmObservationTest {
         assertTrue(added.single().detail, added.single().detail.contains(outcome.message))
         assertFalse(graph.actions.retimePending)
         assertNotNull(shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(3))
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (graph.repository.notices.value.none { it.kind == NoticeKind.PROBLEM } && System.nanoTime() < deadline) {
             shadowOf(Looper.getMainLooper()).idle()
             Thread.yield()

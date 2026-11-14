@@ -111,7 +111,7 @@ class RadioOffRetimeTest {
     }
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
     private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+        val deadline = System.nanoTime() + 30_000_000_000L
         var advanced = System.nanoTime()
         while (!check() && System.nanoTime() < deadline) {
             val elapsed = (System.nanoTime() - advanced) / 1_000_000

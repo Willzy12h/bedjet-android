@@ -31,7 +31,11 @@ Uninstalling Nocturne deletes all of this. You can also delete sleep history in 
 - **Bluetooth**: it scans for and connects to your BedJet. Scanning is declared as not used to work out your
   location, and Nocturne doesn't record other nearby devices.
 - **Your next alarm**: it reads the time of the next alarm, and which app set it, from Android so it can plan the
-  night. It doesn't read or change your alarms in the clock app.
+  night. It doesn't read or change your alarms in the clock app. It keeps a short list of the apps Android has named
+  as setting your next alarm, so it can offer them in Settings; that list stays on the phone and isn't backed up.
+- **Names and icons of your apps**: to let you choose which apps' alarms count, Nocturne can see the apps on your
+  home screen. It uses this only to show an app's name and icon and whether the app asks to set alarms. It doesn't
+  read anything from those apps, and nothing leaves the phone.
 - **Health Connect (optional, off by default)**: if you turn it on and grant permission, Nocturne reads sleep
   sessions and stages to show them on the Sleep page. If you also turn on export, it writes completed BedJet
   programmes to Health Connect as sleep sessions titled "BedJet programme ran". Health Connect keeps its own copy;

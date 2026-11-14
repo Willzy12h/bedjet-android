@@ -321,9 +321,11 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
         }
 
-        // One line explains the wake; an alarm from a calendar or reminder app is simply ignored, without comment.
+        // One line explains the wake; an alarm from a calendar app is simply ignored, without comment. Any other
+        // app's ignored alarm is named, with a tap to choose that app.
         val clockApps by model.clockApps.collectAsState()
-        if (!explanation.isStrayAlarm(clockApps)) {
+        val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
+        if (!explanation.isStrayAlarm(clockApps, calendarApps)) {
             headline.reason?.let { Note(stringResource(it)) }
             AlarmExplanationLine(explanation, openExplanation)
         }

@@ -9,7 +9,6 @@ import io.github.willzy12h.nocturne.core.plan.AlarmPolicy
 import io.github.willzy12h.nocturne.core.plan.NightPreview
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.WakeChoice
-import io.github.willzy12h.nocturne.core.plan.WakeResolver
 import io.github.willzy12h.nocturne.core.store.Settings
 import io.github.willzy12h.nocturne.core.store.deviceId
 import java.time.ZonedDateTime
@@ -30,6 +29,8 @@ data class AlarmExplanation(
     val wakeOrigin: WakeOrigin?,
     val alarm: AlarmSource.NextAlarm?,
     val nightStart: ZonedDateTime,
+    /** The earliest an alarm could end this night; see [AlarmPolicy.earliest]. */
+    val earliestAlarm: ZonedDateTime,
     val requestedWakeAt: ZonedDateTime?,
     val sourceAccepted: Boolean?,
     val matchesSavedWake: Boolean,
@@ -42,6 +43,8 @@ data class AlarmExplanation(
             val effectiveProfile = night?.profile ?: profile
             val start = night?.startedAt?.parseTime() ?: now
             val policy = AlarmPolicy(settings)
+            // A short auto-start keeps the night length it agreed when the alarm later moves (see NightRunner).
+            val shortest = night?.shortAlarmNightMinutes
             val preview = if (night == null && effectiveProfile != null) previewWake ?: NightPreview.forStartNow(
                 effectiveProfile, now, alarm?.time, settings.resolveWakeOverride(now), settings, alarm?.creator).wake else null
             val wake = night?.wakeAt?.parseTime() ?: preview?.time
@@ -57,7 +60,7 @@ data class AlarmExplanation(
                 alarm == null -> AlarmReason.NO_ALARM
                 sourceAccepted == false && alarm.creator == null -> AlarmReason.UNKNOWN_SOURCE
                 sourceAccepted == false -> AlarmReason.SOURCE_NOT_ALLOWED
-                !policy.accept(alarm.time, alarm.creator, start) -> AlarmReason.OUTSIDE_WINDOW
+                !policy.accept(alarm.time, alarm.creator, start, effectiveProfile.bedtimeMinute, shortest) -> AlarmReason.OUTSIDE_WINDOW
                 else -> AlarmReason.ELIGIBLE
             }
             val targetDevice = settings.deviceId()
@@ -87,6 +90,7 @@ data class AlarmExplanation(
                 else -> AlarmSettingsTarget.ALARM_SOURCES
             }
             return AlarmExplanation(reason, state, wake, origin, alarm, start,
+                policy.earliest(start, effectiveProfile?.bedtimeMinute, shortest),
                 (night?.pending?.requestedWake ?: pendingRetime?.requestedWakeAt ?: pendingRetime?.alarmAt)?.parseTime(), sourceAccepted,
                 state == WakeExplanationState.SAVED && origin == WakeOrigin.ALARM && alarm != null && wake != null &&
                     wake?.toInstant() == alarm?.time?.toInstant(), target)
@@ -94,12 +98,13 @@ data class AlarmExplanation(
     }
 }
 
-/** An alarm set by a calendar or reminder app (not a clock app) that was not chosen in Settings: Tonight ignores it
- * silently. An alarm from a clock app that isn't chosen still gets its line, so a new clock app is easy to add. */
-fun AlarmExplanation.isStrayAlarm(clockApps: List<ClockApps.App>): Boolean {
+/** An alarm set by a calendar app that was not chosen in Settings: Tonight ignores it silently. An alarm from any
+ * other app that isn't chosen (a white-noise or sleep app, say) gets its line naming the app, so it is easy to add. */
+fun AlarmExplanation.isStrayAlarm(clockApps: List<ClockApps.App>, calendarApps: Set<String> = emptySet()): Boolean {
     val creator = alarm?.identifiedCreator ?: return false
     return reason == AlarmReason.SOURCE_NOT_ALLOWED && creator !in samsungClockPackages &&
-        creator != "com.google.android.deskclock" && clockApps.none { it.packageName == creator }
+        creator != "com.google.android.deskclock" && clockApps.none { it.packageName == creator } &&
+        (creator in calendarApps || "calendar" in creator.lowercase())
 }
 
 private fun String.parseTime(): ZonedDateTime? = runCatching { ZonedDateTime.parse(this) }.getOrNull()
@@ -126,7 +131,7 @@ fun AlarmExplanation.description(context: Context): String {
         // Name the app, so a stray alarm from a calendar or reminder app is easy to place.
         AlarmReason.SOURCE_NOT_ALLOWED -> text(R.string.alarm_source_reason_other_app, source)
         AlarmReason.ALARMS_OFF -> text(R.string.alarm_source_reason_alarms_off)
-        AlarmReason.OUTSIDE_WINDOW -> text(if (alarm!!.time.isBefore(nightStart.plus(WakeResolver.MIN_NIGHT)))
+        AlarmReason.OUTSIDE_WINDOW -> text(if (alarm!!.time.isBefore(earliestAlarm))
             R.string.alarm_source_reason_too_soon else R.string.alarm_source_reason_too_late)
         AlarmReason.PROFILE_ALARMS_OFF -> text(R.string.alarm_source_reason_profile_off)
         AlarmReason.OVERRIDE -> text(R.string.alarm_source_reason_override)

@@ -10,10 +10,10 @@ import java.time.ZonedDateTime
 
 class WakePolicyHardeningTest {
     private val now = ZonedDateTime.parse("2026-10-21T22:30:00Z")
-    @Test fun `alarm policy includes one and eighteen hours but nothing beyond`() {
+    @Test fun `alarm policy includes three and eighteen hours but nothing beyond`() {
         val p = AlarmPolicy(Settings())
-        assertFalse(p.accept(now.plusMinutes(59), "com.google.android.deskclock", now))
-        assertTrue(p.accept(now.plusHours(1), "com.google.android.deskclock", now))
+        assertFalse(p.accept(now.plusHours(3).minusMinutes(1), "com.google.android.deskclock", now))
+        assertTrue(p.accept(now.plusHours(3), "com.google.android.deskclock", now))
         assertTrue(p.accept(now.plusHours(18), "com.sec.android.app.clockpackage", now))
         assertFalse(p.accept(now.plusHours(18).plusMinutes(1), "com.google.android.deskclock", now))
         assertFalse(p.accept(now.plusHours(8), "calendar", now))

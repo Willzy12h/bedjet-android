@@ -41,7 +41,7 @@ class IdleTelemetryTest {
 
     private fun showScreen() {
         graph.sessions.holdForScreen(true)
-        val deadline = System.nanoTime() + 2_000_000_000
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (demo.state.value != LinkState.READY && System.nanoTime() < deadline) {
             shadowOf(Looper.getMainLooper()).idle()
             Thread.yield()

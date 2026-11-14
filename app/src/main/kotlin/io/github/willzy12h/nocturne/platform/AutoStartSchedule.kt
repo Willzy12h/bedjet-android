@@ -98,7 +98,9 @@ object AutoStartSchedule {
         val offset = config.minutesBeforeWake.toLong()
         val accepted = alarm?.takeIf {
             val plannedStart = it.time.minusMinutes(offset)
-            AlarmPolicy(saved).accept(it.time, it.creator, plannedStart) && !plannedStart.isAfter(after.plusHours(24))
+            // The person chose this offset, so the 3-hour shortest-night rule for an ordinary start doesn't apply; the
+            // offset itself (1 to 18 hours) is the night's length. Only the alarm's app still has to be ticked.
+            AlarmPolicy(saved).acceptsSource(it.creator) && !plannedStart.isAfter(after.plusHours(24))
         }?.time
         val preferred = override ?: accepted
         val start = preferred?.minusMinutes(offset)

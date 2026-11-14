@@ -27,6 +27,12 @@
         <intent>
             <action android:name="android.intent.action.SHOW_ALARMS" />
         </intent>
+        <!-- Apps on the home screen, only to show the real name and icon of an app that sets alarms (a white-noise or
+             sleep app, say) and to offer it in the alarm-app list. Nothing is read from those apps. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <!-- Calendar apps, only to name one when its alarm is ignored. -->
         <intent>
             <action android:name="android.intent.action.INSERT" />

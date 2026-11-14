@@ -2,6 +2,7 @@ package io.github.willzy12h.nocturne.ui
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.material3.Button
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import android.app.TimePickerDialog
@@ -416,8 +417,13 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         }
 
         if (page == "about") Group(stringResource(R.string.settings_updates)) {
-            OutlinedButton(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android/releases") }) {
-                Text(stringResource(R.string.settings_github_releases))
+            // Nocturne has no internet permission, so the check happens in the browser. The Releases list, not
+            // releases/latest, because betas are pre-releases and GitHub's "latest" skips them.
+            Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodyMedium)
+            installedOn(context)?.let { Text(stringResource(R.string.settings_updated_on, it), style = MaterialTheme.typography.bodySmall) }
+            Text(stringResource(R.string.settings_update_check_help), style = MaterialTheme.typography.bodySmall)
+            Button(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android/releases") }) {
+                Text(stringResource(R.string.settings_update_check))
             }
         }
 
@@ -440,7 +446,6 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         if (page == "about") Group(stringResource(R.string.settings_about)) {
             Text(stringResource(R.string.settings_about_description), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.settings_about_unaffiliated), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { openSourceCode(context) }) {
                 Text(stringResource(R.string.settings_source_code))
             }
@@ -704,3 +709,12 @@ private fun PresetEditor(title: String, preset: ActionPreset, f: Boolean, quickC
 
 private fun noticeDay(iso: String): String =
     runCatching { java.time.ZonedDateTime.parse(iso).format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM")) }.getOrDefault("")
+
+/** When this build was installed or last updated on the phone, as a date; null if Android won't say. */
+private fun installedOn(context: android.content.Context): String? = runCatching {
+    val info = if (android.os.Build.VERSION.SDK_INT >= 33)
+        context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+    else @Suppress("DEPRECATION") context.packageManager.getPackageInfo(context.packageName, 0)
+    java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)
+        .format(java.time.Instant.ofEpochMilli(info.lastUpdateTime).atZone(java.time.ZoneId.systemDefault()))
+}.getOrNull()

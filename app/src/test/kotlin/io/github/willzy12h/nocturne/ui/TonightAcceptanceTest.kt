@@ -162,7 +162,7 @@ class TonightAcceptanceTest {
     @Test fun tooSoonPhoneAlarmShowsTheWindowFallback() {
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile fallback", substring = true)
-        ui.checkLayout(ui.compose.onNodeWithText("Next alarm is less than 1 hour after the night starts"), "Too-soon alarm fallback reason")
+        ui.checkLayout(ui.compose.onNodeWithText("Next alarm is less than 3 hours after bedtime"), "Too-soon alarm fallback reason")
     }
 
     @Test fun tooLatePhoneAlarmShowsTheWindowFallback() {

@@ -14,10 +14,7 @@ import io.github.willzy12h.nocturne.core.store.BackupFailure
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.night.OutcomeKind
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -39,7 +36,8 @@ import java.io.ByteArrayInputStream
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
-import kotlin.coroutines.CoroutineContext
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** A real backup review belongs to the real session in which the person requested it. */
 @RunWith(RobolectricTestRunner::class)
@@ -49,9 +47,9 @@ class DemoImportPreviewInvalidationTest {
     @get:Rule val graphs = GraphLifecycle()
     private val app = RuntimeEnvironment.getApplication() as App
     private val models = ViewModelStore()
-    private val pausedCompletion = PausedCompletion()
+    private val readReached = CountDownLatch(1)
+    private val readRelease = CountDownLatch(1)
     private lateinit var graph: Graph
-    private lateinit var originalScope: CoroutineScope
     private lateinit var model: AppViewModel
     private lateinit var before: BackupBundle
     private lateinit var filesBefore: Map<String, String>
@@ -65,20 +63,18 @@ class DemoImportPreviewInvalidationTest {
                 object : ByteArrayInputStream(input.toByteArray(Charsets.UTF_8)) {
                     override fun close() {
                         super.close()
-                        // The next graph-scope dispatch returns the completed read to AppViewModel. The
-                        // repository writer is released before that dispatch, so real demo actions can run.
+                        // Hold the finished read on its IO thread, before it returns to AppViewModel. It holds
+                        // neither the repository writer nor operation admission here, so demo actions can run.
                         if (holdReadCompletion) {
                             holdReadCompletion = false
-                            pausedCompletion.arm()
+                            readReached.countDown()
+                            readRelease.await(60, TimeUnit.SECONDS)
                         }
                     }
                 }
             }, now = now)
         }).also { it.clock = Clock.fixed(Instant.parse("2026-10-26T21:00:00Z"), ZoneOffset.UTC) } }
         ReflectionHelpers.setField(app, "graph", graph)
-        originalScope = graph.scope
-        // Share the original SupervisorJob: GraphLifecycle still owns and finishes every graph child.
-        ReflectionHelpers.setField(graph, "scope", CoroutineScope(originalScope.coroutineContext + pausedCompletion))
         runBlocking {
             val repo = graph.repository
             repo.updateSettings { it.copy(demoMode = false, targetDevice = REAL, rememberedBedJets = listOf(REAL)) }
@@ -101,14 +97,13 @@ class DemoImportPreviewInvalidationTest {
     }
 
     @After fun finish() {
-        pausedCompletion.release()
+        readRelease.countDown()
         models.clear()
-        ReflectionHelpers.setField(graph, "scope", originalScope)
     }
 
     @Test fun enteringDemoInvalidatesTheDisplayedRealPreviewAndItsExactApplyToken() {
         val staged = stageFile()
-        until { staged.isCompleted }
+        until("the staged read to finish") { staged.isCompleted }
         val reviewed = requireNotNull(model.importPreview.value)
         assertTrue(reviewed.canApply)
 
@@ -122,7 +117,7 @@ class DemoImportPreviewInvalidationTest {
         // Invoke the exact old token, even if a stale UI callback survived the session transition.
         val message = graph.scope.async(start = CoroutineStart.UNDISPATCHED) { model.messages.first() }
         model.confirmImport(reviewed)
-        until { message.isCompleted && !model.importApplying.value }
+        until("the stale apply to be refused") { message.isCompleted && !model.importApplying.value }
         assertNull("Entering disposable demo must remove a displayed real backup review", previewSeenInDemo)
         assertNull("Leaving demo must not resurrect the old review", previewSeenAfterExit)
         assertEquals(app.getString(R.string.import_preview_changed), runBlocking { message.await() })
@@ -136,8 +131,8 @@ class DemoImportPreviewInvalidationTest {
         assertNull(model.importPreview.value)
         demo(false)
         shadowOf(Looper.getMainLooper()).idle() // Give the observer its return-to-real emission too.
-        pausedCompletion.release()
-        until { staged.isCompleted }
+        readRelease.countDown()
+        until("the staged read to finish") { staged.isCompleted }
 
         assertNull("A read requested before demo must not publish a review after returning to real", model.importPreview.value)
         assertFalse(model.importApplying.value)
@@ -155,8 +150,8 @@ class DemoImportPreviewInvalidationTest {
         assertTrue("Both disposable-session boundaries must have occurred",
             graph.repository.settingsPublication.value >= publication + 2)
         shadowOf(Looper.getMainLooper()).idle()
-        pausedCompletion.release()
-        until { staged.isCompleted }
+        readRelease.countDown()
+        until("the staged read to finish") { staged.isCompleted }
 
         assertNull("A conflated enter/exit cannot revive the pre-demo import request", model.importPreview.value)
         assertFalse(model.importApplying.value)
@@ -192,11 +187,13 @@ class DemoImportPreviewInvalidationTest {
 
     private fun holdSelectedFileRead(): Job {
         holdReadCompletion = true
-        val staged = pausedCompletion.startTarget { stageFile() }
-        until { pausedCompletion.isHeld }
+        val staged = stageFile()
+        until("the read to be held") { readReached.count == 0L }
         assertFalse(staged.isCompleted)
         assertNull(model.importPreview.value)
-        assertTrue("Reading has not acquired apply admission", graph.repository.operationAdmission.isIdle())
+        // The held read takes neither the writer nor admission. A start-up command still finishing on a loaded
+        // machine is waited out before the demo actions, which need admission.
+        until("operation admission to be idle") { graph.repository.operationAdmission.isIdle() }
         return staged
     }
 
@@ -219,59 +216,13 @@ class DemoImportPreviewInvalidationTest {
             "active-night.json", "automation.json", "notices.json")
     }.associate { it.relativeTo(app.filesDir).path to it.readText() }
 
-    private fun until(check: () -> Boolean) {
-        val deadline = System.nanoTime() + 5_000_000_000L
+    private fun until(what: String, check: () -> Boolean) {
+        val deadline = System.nanoTime() + 30_000_000_000L
         while (!check() && System.nanoTime() < deadline) {
             shadowOf(Looper.getMainLooper()).idle()
             Thread.yield()
         }
-        assertTrue("The import/demo fixture did not reach its expected state", check())
-    }
-
-    private class PausedCompletion : CoroutineDispatcher() {
-        private var armed = false
-        private var targetJob: Job? = null
-        @Volatile private var held: Pair<CoroutineContext, Runnable>? = null
-        val isHeld: Boolean get() = held != null
-        @Synchronized fun arm() { armed = true }
-        private var registering = false
-        private val starting = mutableListOf<Pair<CoroutineContext, Runnable>>()
-
-        fun startTarget(start: () -> Job): Job {
-            // A loaded host can finish IO before stageFile returns its Job. Queue initial
-            // dispatches until that exact Job is registered, before allowing the read to start.
-            synchronized(this) { check(!registering); registering = true }
-            try {
-                return start().also { job -> synchronized(this) { targetJob = job } }
-            } finally {
-                val pending = synchronized(this) {
-                    registering = false
-                    starting.toList().also { starting.clear() }
-                }
-                pending.forEach { (context, block) -> dispatch(context, block) }
-            }
-        }
-
-        override fun dispatch(context: CoroutineContext, block: Runnable) {
-            synchronized(this) {
-                if (registering) {
-                    starting += context to block
-                    return
-                }
-                if (armed && context[Job] === targetJob) {
-                    armed = false
-                    check(held == null)
-                    held = context to block
-                    return
-                }
-            }
-            Dispatchers.Main.dispatch(context, block)
-        }
-
-        fun release() {
-            val pending = synchronized(this) { armed = false; held.also { held = null } } ?: return
-            Dispatchers.Main.dispatch(pending.first, pending.second)
-        }
+        assertTrue("Timed out waiting for $what", check())
     }
 
     companion object { private const val REAL = "ble:AA:BB:CC:DD:EE:01" }

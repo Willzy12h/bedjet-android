@@ -12,18 +12,24 @@ import java.time.ZonedDateTime
 }
 @Serializable data class TonightChoice(val profileId: String, val expiresAt: String)
 
-/** Attribution and window shared by start and re-time. The original start anchors both boundaries:
- * exactly 1 h and exactly 18 h are accepted; less than 1 h or more than 18 h is refused. */
+/** Attribution and window shared by start and re-time. An alarm is accepted from [WakeResolver.earliestAlarm]
+ * (3 h after the start, or after the profile's bedtime for an early start) up to exactly 18 h after the start.
+ * [shortestMinutes] replaces that earliest point for an auto-started night that agreed a shorter one. */
 class AlarmPolicy(private val settings: Settings = Settings()) {
     fun acceptsSource(origin: String?): Boolean = when {
         settings.alarmApps == io.github.willzy12h.nocturne.core.store.AlarmApps.NONE -> false
         origin == null -> settings.acceptUnknownAlarmSource
         else -> origin in settings.alarmPackages
     }
-    fun accept(alarm: ZonedDateTime?, origin: String?, nightStart: ZonedDateTime): Boolean =
-        alarm != null && acceptsSource(origin) && Duration.between(nightStart, alarm).let {
-            it >= WakeResolver.MIN_NIGHT && it <= WakeResolver.MAX_NIGHT
-        }
+    fun accept(alarm: ZonedDateTime?, origin: String?, nightStart: ZonedDateTime, bedtimeMinute: Int? = null,
+        shortestMinutes: Int? = null): Boolean =
+        alarm != null && acceptsSource(origin) && inWindow(alarm, nightStart, bedtimeMinute, shortestMinutes)
+    fun inWindow(alarm: ZonedDateTime, nightStart: ZonedDateTime, bedtimeMinute: Int? = null,
+        shortestMinutes: Int? = null): Boolean =
+        !alarm.isBefore(earliest(nightStart, bedtimeMinute, shortestMinutes)) &&
+            Duration.between(nightStart, alarm) <= WakeResolver.MAX_NIGHT
+    fun earliest(nightStart: ZonedDateTime, bedtimeMinute: Int? = null, shortestMinutes: Int? = null): ZonedDateTime =
+        shortestMinutes?.let { nightStart.plusMinutes(it.toLong()) } ?: WakeResolver.earliestAlarm(nightStart, bedtimeMinute)
 }
 
 data class Preview(val plan: Plan?, val wake: WakeChoice, val refusalReason: String?,
@@ -34,7 +40,7 @@ object NightPreview {
         val overrideTime = override?.let { ZonedDateTime.parse(it.wakeAt) }?.takeIf { it.isAfter(now) }
         val wake = when {
             overrideTime != null -> WakeChoice(overrideTime, false, WakeOrigin.OVERRIDE)
-            profile.wakeSource.useAlarm && AlarmPolicy(settings).accept(alarm, alarmOrigin, now) -> WakeChoice(alarm!!, true)
+            profile.wakeSource.useAlarm && AlarmPolicy(settings).accept(alarm, alarmOrigin, now, profile.bedtimeMinute) -> WakeChoice(alarm!!, true)
             else -> WakeChoice(WakeResolver.nextOccurrence(profile.wakeSource.defaultWakeMinute, now.plus(WakeResolver.MIN_NIGHT)), false)
         }
         val length = Duration.between(now, wake.time)

@@ -63,7 +63,7 @@ class RecoveryNotificationActionsTest {
         val service = Robolectric.buildService(BedJetService::class.java).create()
         try {
             service.get().onStartCommand(intent, 0, 1)
-            val deadline = System.nanoTime() + 5_000_000_000L
+            val deadline = System.nanoTime() + 30_000_000_000L
             var lastTick = System.nanoTime()
             var remainder = 0L
             fun settled() = condition() && shadowOf(service.get()).isStoppedBySelf

@@ -129,6 +129,10 @@ android {
         unitTests.isIncludeAndroidResources = true
         // Robolectric downloads its Android image; Maven Central rate-limits busy machines, so use Google's mirror.
         unitTests.all {
+            // Three test JVMs at a time, each replaced after ten classes: the suite runs in about a third of the
+            // time, and background work one class leaves behind cannot reach more than the few classes after it.
+            it.maxParallelForks = 3
+            it.forkEvery = 10
             it.systemProperty("robolectric.dependency.repo.url", "https://maven-central.storage-download.googleapis.com/maven2")
             // Respect Android's requested dialog/window size. Robolectric's compatibility default
             // ignores it and loops when a text-field dialog is measured above 320 dp (#8460).
