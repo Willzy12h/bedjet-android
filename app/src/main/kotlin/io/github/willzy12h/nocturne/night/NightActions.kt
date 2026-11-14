@@ -407,9 +407,14 @@ class NightActions(private val graph: Graph) {
                 old?.identity, old, override, s, alarm?.creator)
             val attributed = if (explicit == null && automaticWake != null && prepared is Preparation.Ready)
                 Preparation.Ready(prepared.change.copy(intended = prepared.change.intended.let { night ->
-                    val agreed = java.time.Duration.between(ZonedDateTime.parse(night.startedAt), ZonedDateTime.parse(night.wakeAt))
+                    val start = ZonedDateTime.parse(night.startedAt)
+                    val wake = ZonedDateTime.parse(night.wakeAt)
+                    // Kept whenever the usual window (from the later of start and bedtime) would refuse this wake-up,
+                    // so a moved alarm is judged against the night that was agreed.
+                    val agreed = java.time.Duration.between(start, wake).toMinutes().toInt()
+                        .takeIf { wake.isBefore(WakeResolver.earliestAlarm(start, profile.bedtimeMinute)) }
                     night.copy(wakeOrigin = WakeOrigin.AUTO_START, wakeFromAlarm = automaticWake.fromAlarm,
-                        shortAlarmNightMinutes = agreed.toMinutes().toInt().takeIf { agreed < WakeResolver.MIN_ALARM_NIGHT })
+                        shortAlarmNightMinutes = agreed)
                 })) else prepared
             if (attributed is Preparation.Ready) onPrepared(attributed.change)
             return apply(attributed, R.string.runtime_started, validate = {
