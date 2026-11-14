@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.widget
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
@@ -18,7 +19,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -42,7 +42,7 @@ class SingleActionConfigActivity : ComponentActivity() {
             ComponentName(this, SingleActionReceiver::class.java)) { finish(); return }
         val actions = widgetPresetChoices(this)
         setContent {
-            val settings by graph.repository.settings.collectAsState()
+            val settings by graph.repository.settings.collectAsStateWithLifecycle()
             val theme = rememberThemePresentation(settings, graph::now)
             NocturneTheme(settings, theme.at, paletteOverride = theme.palette) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {

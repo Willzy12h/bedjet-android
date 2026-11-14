@@ -50,7 +50,7 @@ class PhoneControlCopyTest {
     }
 
     @Test fun endingAndItsConfirmationSayStopNight() {
-        for (id in listOf(R.string.tonight_end_night, R.string.runtime_command_end_night,
+        for (id in listOf(R.string.runtime_command_end_night,
             R.string.runtime_end, R.string.guard_confirm)) {
             assertEquals("Stop night", context.getString(id))
         }

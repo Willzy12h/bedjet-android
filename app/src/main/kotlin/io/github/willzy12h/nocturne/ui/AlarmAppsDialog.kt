@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Spacer
@@ -27,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,11 +68,11 @@ fun alarmAppsSummary(settings: Settings): String {
  */
 @Composable
 fun AlarmAppsDialog(model: AppViewModel, onDismiss: () -> Unit, extra: @Composable () -> Unit = {}) {
-    val settings by model.settings.collectAsState()
-    val apps by model.clockApps.collectAsState()
-    val others by model.otherAlarmApps.collectAsState()
-    val allShown by model.allAlarmAppsShown.collectAsState()
-    val next by model.nextAlarm.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val apps by model.clockApps.collectAsStateWithLifecycle()
+    val others by model.otherAlarmApps.collectAsStateWithLifecycle()
+    val allShown by model.allAlarmAppsShown.collectAsStateWithLifecycle()
+    val next by model.nextAlarm.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { model.refreshClockApps(); model.refreshAlarm(); model.refreshOtherAlarmApps() }
     AlertDialog(onDismissRequest = onDismiss, modifier = Modifier.testTag("alarm-apps-dialog"),
         title = { Text(stringResource(R.string.alarm_apps_title)) },

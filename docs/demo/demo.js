@@ -206,7 +206,7 @@ function freshState() {
       alarmApps: ['samsung', 'google'], alarmFrom: 'samsung', alarm: null, reminder: false,
       autoStart: { on: false, mode: 'fixed', at: 22 * 60 + 30, before: 8 * 60 + 30, charging: true, firedFor: null },
       wakeButtons: ['snoozeWarm', 'warm30', 'off'], quietStatus: false,
-      autoBackup: true, hcRead: true, hcWrite: false,
+      autoBackup: true, hcRead: true,
     },
     backups: [{ when: 'Sun 8 Nov, 03:00', kind: 'Automatic' }, { when: 'Sat 7 Nov, 03:00', kind: 'Automatic' }],
     sleepRange: 7, sleepSel: 0,
@@ -708,6 +708,10 @@ PAGES.editor = (pg) => {
   const m = p.middle;
   return `${topbar('Profiles', `<button class="btn primary" style="min-height:38px" data-a="saveProfile">Save</button>`)}
   <h1 class="h-page" style="margin-top:2px">${esc(p.name || 'New profile')}</h1>
+  <div class="h-sec" style="margin-top:4px">Name</div>
+  <input class="field" data-in="pName" value="${esc(p.name)}" aria-label="Profile name" maxlength="40">
+  <div class="chips" style="margin-top:10px">${[['any', 'Any time'], ['summer', 'Summer'], ['winter', 'Winter'], ['spring', 'Spring/autumn']].map(([k, l]) => `<button class="chip${p.season === k ? ' on' : ''}" data-a="pSeason" data-v="${k}">${l}</button>`).join('')}</div>
+  <div style="height:10px"></div>
   <div class="card">${planBar(segs, { labels: [[segs.length ? segs[0].a : nightAbs(p.bed), 'Bed', hhmm(p.bed)], [wakeAt(segs) ?? nightAbs(p.wake), 'Wake', hhmm(p.wake)], [planEnd(segs), 'Off', hhmm(planEnd(segs))]] })}${legend(segs)}</div>
   <div class="h-sec">Timing</div>
   <div class="card">
@@ -726,9 +730,6 @@ PAGES.editor = (pg) => {
     <span class="grow"><span class="t">${MODES[m.mode].label} ${temp(m.temp)}${m.tempTo !== m.temp ? ` → ${temp(m.tempTo)}` : ''}</span><br><span class="s">Fan ${m.fanFrom}% → ${m.fanTo}% · ${m.steps} step${m.steps === 1 ? '' : 's'} · stretches to fit</span></span><span class="faint">›</span></button>
   ${phase('wakeUp', 'Wake up', wakeLen, p.wakeUp)}
   ${phase('after', 'After waking', afterLen, p.after)}
-  <div class="h-sec">Name</div>
-  <input class="field" data-in="pName" value="${esc(p.name)}" aria-label="Profile name" maxlength="40">
-  <div class="chips" style="margin-top:10px">${[['any', 'Any time'], ['summer', 'Summer'], ['winter', 'Winter'], ['spring', 'Spring/autumn']].map(([k, l]) => `<button class="chip${p.season === k ? ' on' : ''}" data-a="pSeason" data-v="${k}">${l}</button>`).join('')}</div>
   <div class="h-sec">Limits</div>
   <div class="card">
     <p class="small faint" style="margin:0 0 8px">The whole night stays inside these.</p>
@@ -751,8 +752,8 @@ PAGES.settings_home = () => {
     ['backups', 'box', 'Profiles and backups', `${S.backups.length} snapshots`],
     ['notifications', 'bell', 'Notifications', `${S.settings.wakeButtons.length} wake-up buttons`],
     ['sleep', 'sleep', 'Sleep', `${S.nights.length} nights recorded`],
-    ['health', 'heart', 'Health Connect', S.settings.hcRead || S.settings.hcWrite ? 'On' : 'Off'],
-    ['about', 'info', 'Help and about', 'Version 1.1.0-beta.3'],
+    ['health', 'heart', 'Health Connect', S.settings.hcRead ? 'On' : 'Off'],
+    ['about', 'info', 'Help and about', 'Version 1.1.0-beta.4'],
   ];
   return `<h1 class="h-page">Settings</h1><div class="list">${rows.map(([k, ic, t, s]) => `<button class="listrow" data-a="settingsPage" data-v="${k}"><span class="ic">${svg(ic)}</span><span class="grow"><span class="t">${t}</span><br><span class="s">${esc(s)}</span></span><span class="chev">›</span></button>`).join('')}</div>`;
 };
@@ -838,15 +839,15 @@ PAGES.health = () => `${topbar('Settings')}<h1 class="h-page">Health Connect</h1
   <p class="small faint" style="margin:0 2px 12px">Optional, and off by default in the app. Turned on here so the demo Sleep page has stages to show.</p>
   <div class="list">
     ${setRow('Show sleep stages', 'Read sleep from Health Connect for the Sleep page', sw(S.settings.hcRead, 'setBool', 'hcRead', 'Show sleep stages'))}
-    ${setRow('Record BedJet nights', 'Write completed programmes to Health Connect', sw(S.settings.hcWrite, 'setBool', 'hcWrite', 'Record nights'))}
-  </div>`;
+  </div>
+  <p class="small faint" style="margin:10px 2px 0">Nocturne only reads from Health Connect. It never writes or changes anything there.</p>`;
 
 PAGES.about = () => `${topbar('Settings')}<h1 class="h-page">Help and about</h1>
-  <div class="card"><div style="font:700 22px Bricolage,Figtree">Nocturne</div><div class="small muted">Version 1.1.0-beta.3</div>
+  <div class="card"><div style="font:700 22px Bricolage,Figtree">Nocturne</div><div class="small muted">Version 1.1.0-beta.4</div>
   <p class="small faint">A free, open-source app for the BedJet 3. Not affiliated with or endorsed by BedJet LLC.</p>
   <p class="small" style="color:var(--warn);margin-bottom:0">You're using the HTML demo. It imitates the app's main screens with a pretend BedJet.</p></div>
   <div class="list">
-    <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/releases" target="_blank" rel="noopener"><span class="grow"><span class="t">Check for a newer build</span><br><span class="s">Opens the releases in your browser, newest first, to compare with 1.1.0-beta.3 and download the APK</span></span><span class="chev">↗</span></a>
+    <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/releases" target="_blank" rel="noopener"><span class="grow"><span class="t">Check for a newer build</span><br><span class="s">Opens the releases in your browser, newest first, to compare with 1.1.0-beta.4 and download the APK</span></span><span class="chev">↗</span></a>
     <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/blob/main/PRIVACY.md" target="_blank" rel="noopener"><span class="grow"><span class="t">Privacy</span><br><span class="s">No servers, accounts or analytics</span></span><span class="chev">↗</span></a>
     <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android#readme" target="_blank" rel="noopener"><span class="grow"><span class="t">Project page</span><br><span class="s">Source, licence and credits</span></span><span class="chev">↗</span></a>
   </div>`;

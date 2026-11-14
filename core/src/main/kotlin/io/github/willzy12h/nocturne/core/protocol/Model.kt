@@ -19,7 +19,7 @@ enum class Mode(val code: Int) {
             STANDBY -> "Off"
             HEAT -> "Heat"
             TURBO -> "Turbo"
-            EXTENDED_HEAT -> "Gentle heat"
+            EXTENDED_HEAT -> "Long heat"
             COOL -> "Cool"
             DRY -> "Dry"
             WAIT -> "Pause"

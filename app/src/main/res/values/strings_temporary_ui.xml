@@ -9,11 +9,11 @@
     <string name="temporary_confirm">Run, then resume</string>
     <string name="temporary_duration">Run for %1$s</string>
     <string name="temporary_return">Return planned for %1$s. Wake at %2$s.</string>
-    <string name="temporary_schedule">The original schedule keeps moving. Elapsed phases are skipped when the programme continues.</string>
+    <string name="temporary_schedule">The original schedule keeps moving. Elapsed steps are skipped when the programme continues.</string>
     <string name="temporary_planned">Temporary action: return planned for %1$s.</string>
     <string name="temporary_preset_temperature">%1$s · %2$s · fan %3$d%% · %4$s</string>
     <string name="temporary_preset_fan">%1$s · fan %2$d%% · %3$s</string>
     <string name="temporary_preset_time">%1$s · %2$s</string>
-    <string name="temporary_native_end">This will stop the night and run the action. The night will not resume automatically.</string>
+    <string name="temporary_native_end">This will stop the night and run the action. The night won\'t resume automatically.</string>
     <string name="temporary_requested">Requested settings: %1$s</string>
 </resources>

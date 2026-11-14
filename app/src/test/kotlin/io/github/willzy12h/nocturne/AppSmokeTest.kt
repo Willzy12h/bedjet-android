@@ -195,7 +195,7 @@ class AppSmokeTest {
         }
         compose.onNodeWithTag("tonight-fixed-wake").performScrollTo().assertIsDisplayed()
             .assert(hasAnyDescendant(hasText(s(R.string.gpt12_wake_profile_fallback), substring = true)))
-        compose.onNodeWithText(s(R.string.tonight_waking_at)).assertDoesNotExist()
+        compose.onNodeWithText("Waking you at").assertDoesNotExist()
         assertTrue(compose.onAllNodes(hasText("Now:", substring = true)).fetchSemanticsNodes().isEmpty())
         compose.onNodeWithTag("night-active-phase").assertDoesNotExist()
         // Stop is deliberately available in UNKNOWN state; its presence must not claim a confirmed run.

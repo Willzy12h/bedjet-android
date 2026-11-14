@@ -2,7 +2,7 @@
 <resources>
     <string name="health_data_rationale">Nocturne reads your sleep stages from Health Connect only when you turn on the sleep overlay, to show them beside your BedJet nights. They are read when you open the Sleep page and are never saved, backed up or sent anywhere. Nocturne writes nothing to Health Connect.</string>
     <string name="auto_start_title">Auto-start</string>
-    <string name="auto_start_help">Start one chosen profile on the selected BedJet. Skip if a night is already running, the BedJet cannot be reached, or the plan changes. Selecting another BedJet pauses this setting; switch Auto-start off and on to link it to that BedJet.</string>
+    <string name="auto_start_help">Start one chosen profile on the selected BedJet. Skip if a night is already running, the BedJet can\'t be reached, or the plan changes. Selecting another BedJet pauses this setting; switch Auto-start off and on to link it to that BedJet.</string>
     <string name="auto_start_profile">Profile: %1$s</string>
     <string name="auto_start_choose_profile">Choose a profile</string>
     <string name="auto_start_fixed">Fixed time</string>
@@ -27,12 +27,12 @@
     <string name="auto_start_confirmed_interrupted">The BedJet confirmed this programme before local bookkeeping was interrupted.</string>
     <string name="auto_start_interrupted">The automatic attempt was interrupted before this programme could be confirmed.</string>
     <string name="auto_start_skip_running">A night or another BedJet run is already active.</string>
-    <string name="auto_start_skip_charging">The phone is not charging.</string>
+    <string name="auto_start_skip_charging">The phone isn\'t charging.</string>
     <string name="auto_start_skip_permission">Bluetooth or notification access is unavailable.</string>
     <string name="auto_start_skip_import">A backup import was in progress. Nothing was sent to the BedJet.</string>
-    <string name="auto_start_schedule_failed">Android could not schedule this automatic attempt. Nothing was sent to the BedJet.</string>
+    <string name="auto_start_schedule_failed">Android couldn\'t schedule this automatic attempt. Nothing was sent to the BedJet.</string>
     <string name="auto_start_skip_changed">The plan, alarm, selected BedJet or Auto-start settings changed, or this night was already attempted or cancelled.</string>
-    <string name="auto_start_skip_unreadable">Auto-start skipped: saved data could not be read.</string>
+    <string name="auto_start_skip_unreadable">Auto-start skipped: saved data couldn\'t be read.</string>
     <string name="auto_start_saved_wake">Auto-start saved this programme’s wake at %1$s.</string>
     <string name="wake_origin_auto_start">Auto-start wake</string>
     <string name="platform_demo_unavailable">External integrations are unavailable in demo.</string>

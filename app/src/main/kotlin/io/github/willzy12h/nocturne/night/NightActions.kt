@@ -2182,6 +2182,8 @@ class NightActions(private val graph: Graph) {
         put("activeNight", repo.activeNight.value?.let { BackupCodec.json.encodeToJsonElement(ActiveNight.serializer(), it) } ?: kotlinx.serialization.json.JsonNull)
         put("events", BackupCodec.json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(HistoryEvent.serializer()), repo.history.value.flatMap { it.events }.sortedByDescending { it.at }.take(50)))
         put("notices", BackupCodec.json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(LoggedNotice.serializer()), repo.notices.value.take(50)))
+        put("lastCrash", io.github.willzy12h.nocturne.data.CrashLog.read(context.filesDir)?.let { kotlinx.serialization.json.JsonPrimitive(it) }
+            ?: kotlinx.serialization.json.JsonNull)
     }.toString()
 
     private suspend fun publishNight(night: ActiveNight?) {

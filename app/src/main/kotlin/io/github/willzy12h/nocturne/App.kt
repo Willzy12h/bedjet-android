@@ -30,6 +30,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        io.github.willzy12h.nocturne.data.CrashLog.install(filesDir, BuildConfig.VERSION_NAME)
         io.github.willzy12h.nocturne.ui.Format.followPhoneClock(this)
         graph = Graph(this)
         Notifications.createChannels(this)
@@ -92,6 +93,8 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun startRuntime() {
         // The application does not expose a first screen or start side effects until this durable boundary passes.
+        // Kept synchronous on purpose: a receiver or widget woken at 3 a.m. must never act on half-loaded settings or a
+        // night that hasn't been read yet. The load is a few small files, so the wait is short.
         if (!runBlocking(Dispatchers.IO) { repository.migrateLegacyDemoSelection() }) return
         platform.start()
         // A force stop since the last start leaves the widget asleep until Nocturne is opened.

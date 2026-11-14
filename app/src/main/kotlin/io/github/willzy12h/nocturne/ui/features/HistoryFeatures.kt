@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.willzy12h.nocturne.ui.Format
 import io.github.willzy12h.nocturne.ui.nocturneCheckboxColors
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -31,7 +32,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 @Composable fun HistoryExportButton(graph:Graph) {
-    val settings by graph.repository.settings.collectAsState()
+    val settings by graph.repository.settings.collectAsStateWithLifecycle()
     val scope=rememberCoroutineScope()
     var dialog by remember {mutableStateOf(false)}
     var identifiers by remember {mutableStateOf(false)}
@@ -65,7 +66,7 @@ import java.time.format.DateTimeFormatter
 
 @Composable fun HealthSleepOverlay(graph:Graph,record:NightRecord,plan:io.github.willzy12h.nocturne.core.plan.Plan?=null,detailed:Boolean=false) {
     if (record.isTestRun || io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(record.deviceId)) return
-    val settings by graph.repository.settings.collectAsState()
+    val settings by graph.repository.settings.collectAsStateWithLifecycle()
     if(settings.demoMode || !settings.platform.healthSleepOverlay)return
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     var resume by remember {mutableIntStateOf(0)}

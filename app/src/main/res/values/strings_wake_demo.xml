@@ -10,5 +10,5 @@
     <string name="gpt12_demo_started">Demo started. Changes stay in this session.</string>
     <string name="gpt12_demo_ended">Demo ended. Your real BedJet settings are restored.</string>
     <string name="gpt12_demo_migration_title">BedJet selection needs attention</string>
-    <string name="gpt12_demo_migration_failed">The previous demo selection could not be saved safely. No BedJet is selected. Restart Nocturne after storage is available, then pair a BedJet.</string>
+    <string name="gpt12_demo_migration_failed">The previous demo selection couldn\'t be saved safely. No BedJet is selected. Restart Nocturne after storage is available, then pair a BedJet.</string>
 </resources>

@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui.features
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.willzy12h.nocturne.ui.nocturneRadioColors
 import io.github.willzy12h.nocturne.ui.NocturneSlider
 import io.github.willzy12h.nocturne.ui.amountSliderColors
@@ -53,9 +54,9 @@ import kotlin.math.roundToInt
 }
 
 @Composable fun AutoStartSettingsSection(graph: Graph) {
-    val saved by graph.repository.settings.collectAsState()
-    val profiles by graph.repository.profiles.collectAsState()
-    val automation by graph.repository.automation.collectAsState()
+    val saved by graph.repository.settings.collectAsStateWithLifecycle()
+    val profiles by graph.repository.profiles.collectAsStateWithLifecycle()
+    val automation by graph.repository.automation.collectAsStateWithLifecycle()
     val config = AutoStartSchedule.settings(graph)
     val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }

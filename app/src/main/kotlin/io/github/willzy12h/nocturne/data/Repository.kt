@@ -849,7 +849,6 @@ class Repository(
                     add(ImportWarning.ORIGINALS_PROTECTED)
                 if (sections.first { it.area == ImportArea.HISTORY }.count(ImportDisposition.OMITTED) > 0)
                     add(ImportWarning.HISTORY_OMITTED)
-                if (checked.history.isNotEmpty()) add(ImportWarning.IMPORTED_HISTORY_UNVERIFIED)
                 if (checked.settings.platform.chargerAutoStart || current.settings.platform.chargerAutoStart ||
                     checked.settings.platform.autoStart?.enabled == true || current.settings.platform.autoStart?.enabled == true ||
                     checked.settings.platform.healthSleepExport || current.settings.platform.healthSleepExport)

@@ -44,6 +44,11 @@ object Format {
     fun clockOfDay(minuteOfDay: Int): String = clock(java.time.LocalTime.of(minuteOfDay / 60 % 24, minuteOfDay % 60))
     /** A short day name and the time: "Wed 07:00". */
     fun dayClock(time: ZonedDateTime): String = "${format("EEE").format(time)} ${clock(time)}"
+    /** A saved moment, on the phone's clock: "Sun 9 Nov 2026, 20:13". The raw text if it cannot be read. */
+    fun savedAt(iso: String): String = runCatching {
+        val time = ZonedDateTime.parse(iso).withZoneSameInstant(java.time.ZoneId.systemDefault())
+        "${format("EEE d MMM yyyy").format(time)}, ${clock(time)}"
+    }.getOrDefault(iso)
     /** The short day name alone, in the phone's language. */
     fun shortDay(time: java.time.temporal.TemporalAccessor): String = format("EEE").format(time)
     /** The time with its UTC offset, where the zone matters: "07:00 +01:00". */

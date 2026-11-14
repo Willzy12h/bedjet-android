@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
@@ -19,8 +20,8 @@ import io.github.willzy12h.nocturne.core.protocol.Mode
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CooldownOfferCard(model: AppViewModel, profiles: List<Profile>, fahrenheit: Boolean) {
-    val revision by model.cooldownOfferSessionRevision.collectAsState()
-    val saving by model.cooldownOfferSaving.collectAsState()
+    val revision by model.cooldownOfferSessionRevision.collectAsStateWithLifecycle()
+    val saving by model.cooldownOfferSaving.collectAsStateWithLifecycle()
     var choices by remember(revision) { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     val tokens = paletteTokens
     StripeTile(stripe = tokens.stepColor(Mode.COOL, 44), title = stringResource(R.string.cooldown_offer_title), subtitle = null,
@@ -31,9 +32,9 @@ internal fun CooldownOfferCard(model: AppViewModel, profiles: List<Profile>, fah
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("cooldown-choice-${profile.id}")
                 .toggleable(value = checked, enabled = !saving, role = Role.Checkbox,
                     onValueChange = { choices = choices + (profile.id to it) }),
-                verticalAlignment = Alignment.CenterVertically) {
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = checked, onCheckedChange = null, enabled = !saving, colors = nocturneCheckboxColors())
-                Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Column(Modifier.weight(1f).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(profile.name)
                     val replacement = profile.afterWake.map { phase ->
                         when {

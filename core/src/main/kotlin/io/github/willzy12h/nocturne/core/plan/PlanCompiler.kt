@@ -61,8 +61,8 @@ object PlanCompiler {
 
         if (steps.size > Limits.STEPS_PER_PROGRAM) {
             throw PlanException(
-                "This night needs ${steps.size} BedJet steps but it holds ${Limits.STEPS_PER_PROGRAM}. " +
-                    "Use fewer phases or ramp steps, or shorter Heat phases.",
+                "This night needs ${steps.size} BedJet steps but the BedJet holds ${Limits.STEPS_PER_PROGRAM}. " +
+                    "Remove some steps, use fewer temperature changes through the night, or shorten the Heat steps.",
             )
         }
         return Plan(start, wake, steps)
@@ -213,7 +213,7 @@ object PlanCompiler {
     fun fanStepFor(fanPercent: Int, limits: ProfileLimits): Int {
         val low = (maxOf(5, limits.minFan) + 4) / 5
         val high = minOf(100, limits.maxFan) / 5
-        if (low > high) throw PlanException("No BedJet fan setting fits this profile's limits")
+        if (low > high) throw PlanException("No BedJet fan speed fits this profile's limits.")
         return (fanPercent / 5.0).roundToInt().coerceIn(low, high) - 1
     }
 
@@ -221,12 +221,12 @@ object PlanCompiler {
     fun temperatureFor(mode: Mode, requested: Int, limits: ProfileLimits): Int {
         val range = mode.temperatureRange
         if (mode == Mode.TURBO && limits.maxTemp < 86) {
-            throw PlanException("Turbo always runs at 43 °C, above this profile's limit")
+            throw PlanException("Turbo always runs at 43 °C, above this profile's temperature limit.")
         }
         if (mode == Mode.STANDBY || mode == Mode.WAIT) return range.first
         val low = maxOf(limits.minTemp, range.first)
         val high = minOf(limits.maxTemp, range.last)
-        if (low > high) throw PlanException("${mode.displayName} cannot honour this profile's temperature limits")
+        if (low > high) throw PlanException("${mode.displayName} can't stay within this profile's temperature limits.")
         return requested.coerceIn(low, high)
     }
 

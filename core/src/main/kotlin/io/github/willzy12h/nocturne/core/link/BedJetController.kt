@@ -48,7 +48,7 @@ class BedJetController(private val link: BedJetLink, private val now: () -> Zone
     suspend fun store(program: StoredProgram, slot: Int) {
         validateSlot(slot)
         validateProgram(program)
-        if (program.steps.isEmpty()) throw BedJetError.InvalidProgram("Add at least one phase first.")
+        if (program.steps.isEmpty()) throw BedJetError.InvalidProgram("Add at least one step first.")
         if (program.steps.size > Limits.STEPS_PER_PROGRAM) {
             throw BedJetError.InvalidProgram("A BedJet night can hold up to ${Limits.STEPS_PER_PROGRAM} steps.")
         }

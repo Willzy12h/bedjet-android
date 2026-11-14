@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.annotation.StringRes
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
@@ -64,7 +65,6 @@ import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,7 +98,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
         SleepHistorySettings(model, modifier, onBack = { retention = false }, onOpenHealth = { onOpenPage("health") })
         return
     }
-    val settings by model.settings.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
     val tokens = paletteTokens
     val range = settings.normalisedSleepRange()
     // Eight days more than the range, so the oldest night in range can still be compared with the week before it.
@@ -218,9 +218,9 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
 /** The saved BedJet nights: how long they are kept, a card per night (the newest three, then the rest on request) and export. */
 @Composable
 private fun SavedNights(model: AppViewModel, settings: io.github.willzy12h.nocturne.core.store.Settings, onRetention: () -> Unit) {
-    val history by model.history.collectAsState()
-    val profiles by model.profiles.collectAsState()
-    val activeNight by model.activeNight.collectAsState()
+    val history by model.history.collectAsStateWithLifecycle()
+    val profiles by model.profiles.collectAsStateWithLifecycle()
+    val activeNight by model.activeNight.collectAsStateWithLifecycle()
     val tokens = paletteTokens
     var earlier by rememberSaveable { mutableStateOf(false) }
     val nights = history.sortedByDescending { it.startedAt }

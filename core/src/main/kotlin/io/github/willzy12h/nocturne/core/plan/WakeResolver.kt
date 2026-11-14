@@ -21,8 +21,13 @@ object WakeResolver {
     /** Shortly after bedtime the night is starting now; later than this, previews look at tomorrow's bedtime. */
     private val BEDTIME_GRACE: Duration = Duration.ofHours(3)
 
-    fun resolve(profile: Profile, now: ZonedDateTime, alarm: ZonedDateTime?): WakeChoice {
-        if (profile.wakeSource.useAlarm && AlarmPolicy().accept(alarm, null, now, profile.bedtimeMinute)) return WakeChoice(alarm!!, true)
+    /**
+     * The one place a night's wake time is chosen from its alarm and the profile, for previews and real starts alike.
+     * [policy] carries the person's alarm-app choices; [alarmOrigin] is the app that set [alarm], when known.
+     */
+    fun resolve(profile: Profile, now: ZonedDateTime, alarm: ZonedDateTime?, policy: AlarmPolicy = AlarmPolicy(),
+        alarmOrigin: String? = null): WakeChoice {
+        if (profile.wakeSource.useAlarm && policy.accept(alarm, alarmOrigin, now, profile.bedtimeMinute)) return WakeChoice(alarm!!, true)
         return WakeChoice(nextOccurrence(profile.wakeSource.defaultWakeMinute, now.plus(MIN_NIGHT)), fromAlarm = false)
     }
 

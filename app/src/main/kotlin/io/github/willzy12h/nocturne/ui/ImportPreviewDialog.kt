@@ -158,7 +158,6 @@ private fun readableImportTime(value: String): String = runCatching {
     ImportWarning.UNSUPPORTED_ORIGINALS -> R.string.import_unsupported_originals
     ImportWarning.ORIGINALS_PROTECTED -> R.string.import_originals_protected
     ImportWarning.HISTORY_OMITTED -> R.string.import_history_omitted
-    ImportWarning.IMPORTED_HISTORY_UNVERIFIED -> R.string.import_history_unverified
     ImportWarning.AUTOMATIC_ACTIONS_DISABLED -> R.string.import_automatic_disabled
 }
 

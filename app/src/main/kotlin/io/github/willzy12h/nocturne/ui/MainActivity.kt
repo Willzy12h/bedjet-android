@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.os.Bundle
 import android.content.Intent
 import android.view.HapticFeedbackConstants
@@ -27,6 +28,8 @@ import io.github.willzy12h.nocturne.R
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -46,7 +49,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -98,7 +100,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) consumeTonightRequest(intent)
         setContent {
-            val settings by model.settings.collectAsState()
+            val settings by model.settings.collectAsStateWithLifecycle()
             val theme = rememberThemePresentation(settings, model::now)
             val dark = theme.palette.tokens.dark
             // The bars are drawn over the app, so their icons follow the app's theme, not the phone's.
@@ -151,7 +153,7 @@ private data class ProfileDraft(val original: Profile, val edited: Profile, val 
 
 @androidx.compose.runtime.Composable
 private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
-    val settings by model.settings.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
     // Editor drafts and captured dialogues belong to their real or disposable demo session.
     key(settings.demoMode) { SessionApp(model, tonightRequest) }
 }
@@ -171,7 +173,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     var tab by rememberSaveable { mutableStateOf(Tab.TONIGHT) }
-    val setupRequest by model.setupChecklistRequest.collectAsState()
+    val setupRequest by model.setupChecklistRequest.collectAsStateWithLifecycle()
     var handledSetupRequest by rememberSaveable { mutableIntStateOf(0) }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
     // Every interrupted editor keeps its own baseline and edits, including profiles not yet saved to the repository.
@@ -222,6 +224,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
 
     draftJson?.let { json ->
         val draft = Json.decodeFromString<ProfileDraft>(json)
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) { Box(Modifier.widthIn(max = MaxContentWidth)) {
         ProfileEditor(model, draft.original, onDone = { draftJson = null },
             initialDraft = draft.edited, initialPhase = draft.selection, onDraftChange = { edited ->
                 val updated = Json.encodeToString(draft.copy(edited = edited))
@@ -234,6 +237,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                     }
                 }
             })
+        } }
         return
     }
     Scaffold(
@@ -287,7 +291,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                             onClick = { if (tab == it && it == Tab.SETTINGS) settingsHomeRequest++; tab = it },
                             modifier = if (compactNavigation) Modifier.semantics { contentDescription = label } else Modifier,
                             icon = { Icon(androidx.compose.ui.res.painterResource(it.icon), null, Modifier.size(22.dp)) },
-                            label = if (compactNavigation) null else { { Text(label, fontSize = 10.5.sp,
+                            label = if (compactNavigation) null else { { Text(label, fontSize = 12.sp,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) } },
                             colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
                                 selectedIconColor = tokens.ink, selectedTextColor = tokens.ink,
@@ -299,7 +303,9 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
             }
         },
     ) { padding ->
-        val modifier = Modifier.padding(padding)
+      // Phones use the full width; on tablets and in landscape the content stays a readable column.
+      Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+        val modifier = Modifier.widthIn(max = MaxContentWidth)
         when (tab) {
             Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onEditPhase = editPhase,
                 onOpenRemote = { tab = Tab.REMOTE },
@@ -313,5 +319,12 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                 onAlarmsRequestHandled = { if (alarmsRequest == it) alarmsRequest = 0 },
                 sleepRequest = sleepRequest, onSleepRequestHandled = { if (sleepRequest == it) sleepRequest = 0 })
         }
+      }
     }
 }
+
+/** The widest a screen's content grows; wider windows centre it. */
+internal val MaxContentWidth = 640.dp
+
+/** Extra scroll room at the end of each screen, so the feedback bubble never hides the last item. */
+internal val FeedbackClearance = 72.dp

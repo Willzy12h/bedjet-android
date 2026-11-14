@@ -14,7 +14,7 @@ class PlanningHardeningTest {
     }
     @Test fun `turbo then heat cannot silently exceed the cap`() {
         val p = Presets.winterWarm.copy(limits = ProfileLimits(maxTemp = 76))
-        assertEquals("Turbo always runs at 43 °C, above this profile's limit", assertThrows<PlanException> {
+        assertEquals("Turbo always runs at 43 °C, above this profile's temperature limit.", assertThrows<PlanException> {
             PlanCompiler.compile(p, start, start.plusHours(8))
         }.message)
     }

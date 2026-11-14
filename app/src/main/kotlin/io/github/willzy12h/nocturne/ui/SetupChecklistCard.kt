@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.net.toUri
 import android.Manifest
 import android.app.ActivityManager
@@ -89,9 +90,9 @@ internal fun setupItemWhy(item: SetupItem): Int? = when (item) {
 @Composable
 internal fun SetupChecklistCard(model: AppViewModel) {
     val context = LocalContext.current
-    val settings by model.settings.collectAsState()
-    val forced by model.setupChecklistOpen.collectAsState()
-    val bluetoothOff by model.bluetoothOff.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val forced by model.setupChecklistOpen.collectAsStateWithLifecycle()
+    val bluetoothOff by model.bluetoothOff.collectAsStateWithLifecycle()
     var refresh by remember { mutableIntStateOf(0) }
     var healthGranted by remember { mutableStateOf(false) }
     var pairDialog by remember { mutableStateOf(false) }

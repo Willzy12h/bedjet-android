@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.clickable
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -54,7 +55,6 @@ import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -100,14 +100,14 @@ private data class PinRequest(val profile: Profile, val target: String?, val wor
 @Composable
 fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit) {
     val context = LocalContext.current
-    val profiles by model.profiles.collectAsState()
-    val settings by model.settings.collectAsState()
-    model.nextAlarm.collectAsState().value
+    val profiles by model.profiles.collectAsStateWithLifecycle()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    model.nextAlarm.collectAsStateWithLifecycle().value
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<Profile?>(null) }
     var pinning by remember { mutableStateOf<PinRequest?>(null) }
     var pinSlot by remember { mutableIntStateOf(0) }
-    val activeNight by model.activeNight.collectAsState()
+    val activeNight by model.activeNight.collectAsStateWithLifecycle()
     val tokens = paletteTokens
     val largeText = LocalConfiguration.current.fontScale >= 1.5f
     // UX-02: long-press a card and drag it. The order shown while dragging is local; it is saved once, on release.
@@ -126,8 +126,8 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     // Near the top or bottom edge the list scrolls under the held card, so a long list can still be reordered.
     LaunchedEffect(reorder.dragging) { scrollWhileHeld(listState, reorder, spacingPx, holdThreshold) }
 
-    val importPreview by model.importPreview.collectAsState()
-    val importApplying by model.importApplying.collectAsState()
+    val importPreview by model.importPreview.collectAsStateWithLifecycle()
+    val importApplying by model.importApplying.collectAsStateWithLifecycle()
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::importProfiles) }
     var sharing by rememberSaveable { mutableStateOf<String?>(null) }
     val sharer = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -151,6 +151,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
         if (profiles.size > 1) Text(stringResource(R.string.profiles_reorder_hint),
             Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), color = tokens.ink2, fontSize = 13.sp)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = listState,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = FeedbackClearance),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(shown, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }

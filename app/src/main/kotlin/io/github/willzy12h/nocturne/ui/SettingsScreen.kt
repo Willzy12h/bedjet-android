@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Button
@@ -53,7 +54,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -103,16 +103,16 @@ import kotlin.math.roundToInt
 fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int = 0, alarmsRequest: Int = 0, homeRequest: Int = 0,
     onBackupsRequestHandled: (Int) -> Unit = {}, onAlarmsRequestHandled: (Int) -> Unit = {}, sleepRequest: Int = 0,
     onSleepRequestHandled: (Int) -> Unit = {}) {
-    val settings by model.settings.collectAsState()
-    val selectedName by model.selectedBedJetName.collectAsState()
-    val snapshots by model.snapshots.collectAsState()
-    val importPreview by model.importPreview.collectAsState()
-    val importApplying by model.importApplying.collectAsState()
-    val slotBackups by model.slotBackups.collectAsState()
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val selectedName by model.selectedBedJetName.collectAsStateWithLifecycle()
+    val snapshots by model.snapshots.collectAsStateWithLifecycle()
+    val importPreview by model.importPreview.collectAsStateWithLifecycle()
+    val importApplying by model.importApplying.collectAsStateWithLifecycle()
+    val slotBackups by model.slotBackups.collectAsStateWithLifecycle()
     val fromBackup = slotBackups.filter { it.deviceId != settings.deviceId() }
-    val unreadable by model.unreadable.collectAsState()
-    val restoreUnfinished by model.restoreUnfinished.collectAsState()
-    val originalsBlocked by model.originalsBlocked.collectAsState()
+    val unreadable by model.unreadable.collectAsStateWithLifecycle()
+    val restoreUnfinished by model.restoreUnfinished.collectAsStateWithLifecycle()
+    val originalsBlocked by model.originalsBlocked.collectAsStateWithLifecycle()
     var page by rememberSaveable { mutableStateOf("home") }
     BackHandler(enabled = page != "home") { page = "home" }
     LaunchedEffect(homeRequest) { if (homeRequest > 0) page = "home" }
@@ -129,8 +129,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     LaunchedEffect(sleepRequest) { if (sleepRequest > 0) {
         try { page = "sleep" } finally { onSleepRequestHandled(sleepRequest) }
     } }
-    val alarm by model.nextAlarm.collectAsState()
-    val alarmCheck by model.alarmCheck.collectAsState()
+    val alarm by model.nextAlarm.collectAsStateWithLifecycle()
+    val alarmCheck by model.alarmCheck.collectAsStateWithLifecycle()
     val f = settings.fahrenheit
     val context = LocalContext.current
     val uri = LocalUriHandler.current
@@ -172,7 +172,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     var alarmDetails by rememberSaveable { mutableStateOf(false) }
     val settingsScroll = rememberScrollState()
     var settingsViewportHeight by remember { mutableIntStateOf(0) }
-    Column(modifier.fillMaxSize().onSizeChanged { settingsViewportHeight = it.height }.verticalScroll(settingsScroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier.fillMaxSize().onSizeChanged { settingsViewportHeight = it.height }.verticalScroll(settingsScroll).padding(16.dp).padding(bottom = FeedbackClearance), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (page == "home") {
             Text(stringResource(R.string.settings_title), color = paletteTokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             SettingsHome(model) { page = it }
@@ -399,7 +399,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Column {
                         Text(snap.label ?: stringResource(R.string.settings_automatic), style = MaterialTheme.typography.bodyMedium)
-                        Text(snap.createdAt.take(16).replace('T', ' '), style = MaterialTheme.typography.bodySmall)
+                        Text(Format.savedAt(snap.createdAt), style = MaterialTheme.typography.bodySmall)
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(enabled = !settings.demoMode && !importApplying, onClick = { model.restoreSnapshot(snap.id) }) { Text(stringResource(R.string.settings_restore)) }
@@ -428,7 +428,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         }
 
         if (page == "notifications") Group(stringResource(R.string.settings_notice_log)) {
-            val notices by model.notices.collectAsState()
+            val notices by model.notices.collectAsStateWithLifecycle()
             var showAll by remember { mutableStateOf(false) }
             if (notices.isEmpty()) Text(stringResource(R.string.settings_notice_log_empty), style = MaterialTheme.typography.bodySmall)
             (if (showAll) notices else notices.take(10)).forEach { notice ->
@@ -501,15 +501,15 @@ private data class SettingsDestination(val id: String, val label: String, val su
 private fun SettingsHome(model: AppViewModel, open: (String) -> Unit) {
     val tokens = paletteTokens
     val context = LocalContext.current
-    val settings by model.settings.collectAsState()
-    val name by model.selectedBedJetName.collectAsState()
-    val link by model.linkState.collectAsState()
-    val status by model.status.collectAsState()
-    val live by model.hasLiveStatus.collectAsState()
-    val bluetoothOff by model.bluetoothOff.collectAsState()
-    val released by model.graph.sessions.released.collectAsState()
-    val notices by model.notices.collectAsState()
-    val nights = model.history.collectAsState().value.size
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val name by model.selectedBedJetName.collectAsStateWithLifecycle()
+    val link by model.linkState.collectAsStateWithLifecycle()
+    val status by model.status.collectAsStateWithLifecycle()
+    val live by model.hasLiveStatus.collectAsStateWithLifecycle()
+    val bluetoothOff by model.bluetoothOff.collectAsStateWithLifecycle()
+    val released by model.graph.sessions.released.collectAsStateWithLifecycle()
+    val notices by model.notices.collectAsStateWithLifecycle()
+    val nights = model.history.collectAsStateWithLifecycle().value.size
     var refresh by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
     val checks = remember(refresh) { checks(context) { } }

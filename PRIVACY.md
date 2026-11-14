@@ -10,7 +10,8 @@ anyone else.**
 
 - It has no internet permission, so it cannot send or receive anything over the internet.
 - It has no account, sign-in, server or cloud storage.
-- It contains no analytics, advertising, tracking or crash-reporting libraries.
+- It contains no analytics, advertising, tracking or crash-reporting libraries. If it crashes, it keeps the last
+  crash trace on your phone only (see below).
 - It does not sell, share or transfer any data. The developer never receives any of it.
 
 ## What it keeps on your phone
@@ -37,18 +38,22 @@ Uninstalling Nocturne deletes all of this. You can also delete sleep history in 
   home screen. It uses this only to show an app's name and icon and whether the app asks to set alarms. It doesn't
   read anything from those apps, and nothing leaves the phone.
 - **Health Connect (optional, off by default)**: if you turn it on and grant permission, Nocturne reads sleep
-  sessions and stages to show them on the Sleep page. If you also turn on export, it writes completed BedJet
-  programmes to Health Connect as sleep sessions titled "BedJet programme ran". Health Connect keeps its own copy;
-  manage or remove that in the Health Connect app. You can withdraw either permission at any time.
+  sessions and stages to show them on the Sleep page beside your BedJet nights. It only reads: it never writes or
+  changes anything in Health Connect. You can withdraw the permission at any time. (Betas before 1.1.0-beta.4 could
+  also write finished BedJet programmes there; anything already written stays in Health Connect until you remove it in
+  the Health Connect app.)
 - **Companion device presence (optional)**: if you allow it, Android tells Nocturne when your BedJet is in range so
   the widget can reconnect. This is handled by Android and nothing is recorded beyond the setting.
+- **The last crash**: if Nocturne crashes, it saves the error's technical trace (the time, the app version and the
+  code that failed) in its own storage, replacing any earlier one. It contains no personal data, isn't backed up, and
+  only leaves the phone inside a diagnostics file you save yourself.
 
 ## Files you export
 
 Backups, history exports and diagnostics are only written when you ask, to a location you pick. Once saved, those
 files are under your control. A diagnostics file contains the phone model, app settings (including the chosen
-BedJet), tonight's state, your next alarm time and which app set it, recent night events and notices. It contains
-no Health Connect data. Nothing is sent anywhere unless you share the file yourself.
+BedJet), tonight's state, your next alarm time and which app set it, recent night events and notices, and the last
+crash trace if there is one. It contains no Health Connect data. Nothing is sent anywhere unless you share the file yourself.
 
 ## Children
 

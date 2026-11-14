@@ -18,7 +18,7 @@
     <string name="uat_setup_dismiss_item">Skip %1$s</string>
     <string name="uat_setup_done">Done</string>
     <string name="uat_setup_widget_help">Touch and hold your home screen, choose Widgets, then add a Nocturne widget.</string>
-    <string name="uat_setup_unavailable">This phone could not open that setting. Open the app’s settings to review it.</string>
+    <string name="uat_setup_unavailable">This phone couldn\'t open that setting. Open the app’s settings to review it.</string>
     <string name="uat_setup_demo">Exit Demo to set up a real BedJet.</string>
     <string name="uat_quick_defaults">Quick defaults</string>
     <string name="uat_quick_temp">%1$s %2$s</string>
@@ -29,4 +29,5 @@
     <string name="uat_quick_cancel">Cancel</string>
     <string name="uat_quick_off_help">Off has no temperature, fan or duration. It always asks for confirmation during a tracked night.</string>
     <string name="uat_connecting">Connecting…</string>
+    <string name="setup_health_optional">Optional. Shows your sleep stages beside the BedJet’s steps. You can dismiss this and turn it on later in Settings.</string>
 </resources>

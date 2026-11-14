@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -114,7 +115,7 @@ internal data class ThemePresentation(
 internal fun rememberThemePresentation(settings: Settings, now: () -> ZonedDateTime): ThemePresentation {
     val context = LocalContext.current
     val repository = context.graph.repository
-    val sessionRevision by repository.sessionRevision.collectAsState()
+    val sessionRevision by repository.sessionRevision.collectAsStateWithLifecycle()
     val consent = remember(repository, sessionRevision, settings.demoMode) { ConsentScope(context, settings.demoMode) }
     val preferences = consent.preferences
     var revision by remember { mutableIntStateOf(0) }

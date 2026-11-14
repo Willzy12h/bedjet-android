@@ -33,11 +33,8 @@ object NightPreview {
     fun forStartNow(profile: Profile, now: ZonedDateTime, alarm: ZonedDateTime?, override: TonightOverride? = null,
         settings: Settings = Settings(), alarmOrigin: String? = null): Preview {
         val overrideTime = override?.let { ZonedDateTime.parse(it.wakeAt) }?.takeIf { it.isAfter(now) }
-        val wake = when {
-            overrideTime != null -> WakeChoice(overrideTime, false, WakeOrigin.OVERRIDE)
-            profile.wakeSource.useAlarm && AlarmPolicy(settings).accept(alarm, alarmOrigin, now, profile.bedtimeMinute) -> WakeChoice(alarm!!, true)
-            else -> WakeChoice(WakeResolver.nextOccurrence(profile.wakeSource.defaultWakeMinute, now.plus(WakeResolver.MIN_NIGHT)), false)
-        }
+        val wake = if (overrideTime != null) WakeChoice(overrideTime, false, WakeOrigin.OVERRIDE)
+            else WakeResolver.resolve(profile, now, alarm, AlarmPolicy(settings), alarmOrigin)
         val length = Duration.between(now, wake.time)
         if (length < WakeResolver.MIN_NIGHT || length > WakeResolver.MAX_NIGHT) {
             return Preview(null, wake, NightDurationProblem.OUTSIDE_WINDOW.name, NightDurationProblem.OUTSIDE_WINDOW)

@@ -211,7 +211,7 @@ class WidgetConfirmationTest : io.github.willzy12h.nocturne.platform.PlatformGra
             val temporary = requireNotNull(current.temporary)
             assertEquals(15, temporary.steps.sumOf { it.minutes })
             assertTrue(temporary.steps.all { it.mode == reviewed.mode && it.temperature == reviewed.temperature && it.fanPercent == reviewed.fanPercent })
-            assertTrue("The confirmed widget phase must name Temporary", widgetPhase(app, current).startsWith("Planned phase: Temporary"))
+            assertTrue("The confirmed widget phase must name Temporary", widgetPhase(app, current).startsWith("Planned step: Temporary"))
             assertTrue("The frozen widget phase keeps its absolute span", widgetPhase(app, current).contains("26 Oct 22:30–22:45"))
             assertEquals("Plan: Temporary", widgetPhaseText(app, current, compact = true).title)
             assertTrue(writes > 0)

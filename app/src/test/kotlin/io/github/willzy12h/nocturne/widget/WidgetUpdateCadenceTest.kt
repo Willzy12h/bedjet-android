@@ -70,10 +70,10 @@ class WidgetUpdateCadenceTest : io.github.willzy12h.nocturne.platform.PlatformGr
         try {
             advanceTimeBy(600); runCurrent()
             assertEquals(1, phases.size)
-            assertTrue(phases.single().startsWith("Planned phase: Start · 26 Oct 22:30–22:31"))
+            assertTrue(phases.single().startsWith("Planned step: Start · 26 Oct 22:30–22:31"))
             advanceTimeBy(60_000); runCurrent()
             assertEquals("The planned phase boundary is an event even with no BLE connection", 2, phases.size)
-            assertTrue(phases.last().startsWith("Planned phase: Middle · 26 Oct 22:31–"))
+            assertTrue(phases.last().startsWith("Planned step: Middle · 26 Oct 22:31–"))
             graph.repository.setActiveNight(null)
             advanceTimeBy(600); runCurrent()
             val afterClear = phases.size

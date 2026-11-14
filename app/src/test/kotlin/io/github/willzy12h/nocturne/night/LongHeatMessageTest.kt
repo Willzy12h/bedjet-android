@@ -26,16 +26,16 @@ class LongHeatMessageTest {
 
     @Test fun programmeDurationErrorUsesTheUserFacingModeName() {
         val coreError = BedJetError.ProgramTooLong()
-        assertTrue(coreError.message!!.contains("Gentle heat"))
+        assertTrue(coreError.message!!.contains("Long heat"))
         assertTrue(coreError.planMessage(context)!!.contains("Long heat"))
     }
 
-    @Test fun compilerTemperatureRefusalUsesTheUserFacingModeName() {
-        val coreMessage = "Gentle heat cannot honour this profile's temperature limits"
-        assertEquals("Long heat cannot honour this profile's temperature limits", PlanException(coreMessage).planMessage(context))
+    @Test fun compilerTemperatureRefusalAlreadyUsesTheUserFacingModeName() {
+        val coreMessage = "Long heat can't stay within this profile's temperature limits."
+        assertEquals(coreMessage, PlanException(coreMessage).planMessage(context))
     }
 
-    @Test fun editorPlanPreviewPresentsTheCompilerRefusalAndPreservesItsCause() {
+    @Test fun editorPlanPreviewPresentsTheCompilerRefusalUnchanged() {
         val profile = Presets.springAutumn.copy(
             start = emptyList(), wake = emptyList(), afterWake = emptyList(),
             middle = Presets.springAutumn.middle.copy(mode = Mode.EXTENDED_HEAT),
@@ -46,16 +46,15 @@ class LongHeatMessageTest {
             val model = AppViewModel(context as App)
             store.put("long-heat-preview", model)
             val failure = model.previewPlan(profile).exceptionOrNull()!!
-            assertEquals("Long heat cannot honour this profile's temperature limits", failure.message)
-            assertTrue(failure.cause is PlanException)
-            assertEquals("Gentle heat cannot honour this profile's temperature limits", failure.cause!!.message)
+            assertTrue(failure is PlanException)
+            assertEquals("Long heat can't stay within this profile's temperature limits.", failure.message)
         } finally {
             store.clear()
         }
     }
 
     @Test fun arbitraryUserTextIsNotRewritten() {
-        val message = "Profile Gentle heat is unavailable"
+        val message = "Profile Long heat is unavailable"
         assertEquals(message, IllegalStateException(message).planMessage(context))
     }
 }

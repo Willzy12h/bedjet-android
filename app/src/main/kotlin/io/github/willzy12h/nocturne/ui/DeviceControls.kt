@@ -1,9 +1,9 @@
 package io.github.willzy12h.nocturne.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,9 +22,9 @@ import kotlinx.coroutines.launch
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun DeviceControls(model: AppViewModel, scroll: ScrollState, viewportHeight: Int) {
-    val status by model.status.collectAsState()
-    val state by model.linkState.collectAsState()
-    val hasLiveStatus by model.hasLiveStatus.collectAsState()
+    val status by model.status.collectAsStateWithLifecycle()
+    val state by model.linkState.collectAsStateWithLifecycle()
+    val hasLiveStatus by model.hasLiveStatus.collectAsStateWithLifecycle()
     val canControl = state == LinkState.READY && hasLiveStatus
     val extra = status?.extra ?: return
     val lightsOn = stringResource(R.string.remote_lights_on)
