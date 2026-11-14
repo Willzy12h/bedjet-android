@@ -88,7 +88,7 @@ class ScreenshotCapture {
             val oldClock = app.graph.clock
             val oldScale = app.resources.configuration.fontScale
             // The Compose test frame clock can resume inline from a StateFlow writer. Keep capture
-            // publications on Main, as U06Fixture does, without disabling the real runtime collectors.
+            // publications on Main, as LargeTextActivityFixture does, without disabling the real runtime collectors.
             val captureGraph = graphs.fresh {
                 Graph(app, repositoryFactory = { scope, now ->
                     Repository(app, scope, writer = Dispatchers.Main.immediate, now = now)

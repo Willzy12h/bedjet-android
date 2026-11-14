@@ -33,7 +33,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 class RemoteRuntimeLimitsTest {
     private var swallowRuntime = false
     private var runtimeWrites = 0
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 320, fontScale = 2f) { fixture, description ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 320, fontScale = 2f) { fixture, description ->
         runBlocking {
             val demo = fixture.graph.link
             val transport = object : BedJetLink by demo {

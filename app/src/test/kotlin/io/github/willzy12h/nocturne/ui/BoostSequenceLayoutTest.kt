@@ -17,13 +17,13 @@ internal fun expectedBoostActionLabel(minutes: Int): String =
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class BoostSequenceLayoutTest(look: U06Look) {
-    private val ui = U06Fixture(look)
+class BoostSequenceLayoutTest(look: FixtureLook) {
+    private val ui = LargeTextActivityFixture(look)
     @get:Rule val rules = ui.rules
 
     companion object {
         @JvmStatic @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = U06Look.entries.map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = FixtureLook.entries.map { arrayOf(it) }
     }
 
     private fun everyDuration() {

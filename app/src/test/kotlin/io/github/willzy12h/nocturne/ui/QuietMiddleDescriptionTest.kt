@@ -17,7 +17,7 @@ import java.time.ZonedDateTime
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class QuietMiddleDescriptionTest {
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f)
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f)
     @get:Rule val rules = ui.rules
 
     @Test fun profileSummaryNamesAllThreeQuietFanSpeeds() {

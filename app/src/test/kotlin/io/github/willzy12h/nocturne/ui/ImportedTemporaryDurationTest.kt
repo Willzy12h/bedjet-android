@@ -25,7 +25,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ImportedTemporaryDurationTest {
     private val imported = ActionPreset(Mode.TURBO, 86, 100, 15)
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ -> runBlocking {
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ -> runBlocking {
         val repo = fixture.graph.repository
         val saved = repo.bundle().let { it.copy(settings = it.settings.copy(extendWarm = imported)) }
         val decoded = BackupCodec.decode(BackupCodec.encode(saved))

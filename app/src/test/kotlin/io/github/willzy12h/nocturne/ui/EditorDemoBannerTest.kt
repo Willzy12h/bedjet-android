@@ -18,7 +18,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w320dp-h891dp-notnight-xhdpi")
 class EditorDemoBannerTest {
     private var realProfiles: List<Profile> = emptyList()
-    private val ui = U06Fixture(U06Look.SIMPLE_MIDNIGHT) { f, _ ->
+    private val ui = LargeTextActivityFixture(FixtureLook.SIMPLE_MIDNIGHT) { f, _ ->
         runBlocking {
             // U06 seeds a legacy demo flag. Enter a genuine disposable session for this case.
             assertTrue(f.graph.actions.setDemoMode(false).succeeded)

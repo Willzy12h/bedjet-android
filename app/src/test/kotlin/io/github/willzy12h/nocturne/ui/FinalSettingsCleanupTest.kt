@@ -19,7 +19,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h891dp-notnight-xhdpi")
 class FinalSettingsCleanupTest {
-    private val ui = U06Fixture(U06Look.SIMPLE_MIDNIGHT)
+    private val ui = LargeTextActivityFixture(FixtureLook.SIMPLE_MIDNIGHT)
     @get:Rule val rules = ui.rules
 
     private fun settings() = ui.tab("Settings")

@@ -28,7 +28,7 @@ import org.robolectric.util.ReflectionHelpers
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class RemediationStateSafetyTest {
     private val link = ReceiptLink()
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, test ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, test ->
         val clock = fixture.graph.clock
         val app = RuntimeEnvironment.getApplication() as App
         val graph = fixture.graphs.fresh {

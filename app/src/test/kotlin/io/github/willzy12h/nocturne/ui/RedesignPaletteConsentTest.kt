@@ -30,7 +30,7 @@ import java.time.ZoneOffset
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-notnight-xhdpi")
 class RedesignPaletteConsentTest {
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, test ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, test ->
         val legacy = test.methodName == "legacyDefaultPaletteHoldSurvivesUpgrade"
         fixture.graph.clock = Clock.fixed(Instant.parse(if (legacy) "2026-10-26T08:00:00Z" else "2026-10-26T21:59:00Z"), ZoneOffset.UTC)
         runBlocking { fixture.graph.repository.updateSettings {

@@ -7,7 +7,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.protocol.Mode
 
-internal fun captureTonightSurfaces(ui: U06Fixture, shot: (String) -> Unit) {
+internal fun captureTonightSurfaces(ui: LargeTextActivityFixture, shot: (String) -> Unit) {
     val compose = ui.compose
     fun dialogButton(text: String) = compose.onNode(hasText(text) and hasClickAction() and hasAnyAncestor(isDialog()))
     compose.onNodeWithTag("tonight-change").performScrollTo().performClick()
@@ -27,7 +27,7 @@ internal fun captureTonightSurfaces(ui: U06Fixture, shot: (String) -> Unit) {
 }
 
 /** Additional opt-in native captures; callers own the palette and deterministic GraphLifecycle fixture. */
-internal fun captureEditorSurfaces(ui: U06Fixture, shot: (String) -> Unit) {
+internal fun captureEditorSurfaces(ui: LargeTextActivityFixture, shot: (String) -> Unit) {
     val compose = ui.compose
     fun tag(value: String) = compose.onNodeWithTag(value).performScrollTo()
     fun doneMiddle() = compose.onNode(hasText(ui.s(R.string.uat_setup_done)) and hasClickAction() and
@@ -84,7 +84,7 @@ internal fun captureEditorSurfaces(ui: U06Fixture, shot: (String) -> Unit) {
     try { shot("editor-drag") } finally { row.performTouchInput { cancel() } }
 }
 
-internal fun captureProfileSurfaces(ui: U06Fixture, shot: (String) -> Unit) {
+internal fun captureProfileSurfaces(ui: LargeTextActivityFixture, shot: (String) -> Unit) {
     val compose = ui.compose
     val profile = ui.graph.repository.profiles.value.first()
     compose.onNodeWithTag("profile-more-${profile.id}", useUnmergedTree = true).performScrollTo().performClick()
@@ -134,7 +134,7 @@ internal fun captureProfileSurfaces(ui: U06Fixture, shot: (String) -> Unit) {
 }
 
 /** Move each visible scroll area to its genuine end, using its published semantics. */
-internal fun captureScrollEnd(ui: U06Fixture) {
+internal fun captureScrollEnd(ui: LargeTextActivityFixture) {
     val compose = ui.compose
     val scrollable = SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange) and
         SemanticsMatcher.keyIsDefined(SemanticsActions.ScrollBy)

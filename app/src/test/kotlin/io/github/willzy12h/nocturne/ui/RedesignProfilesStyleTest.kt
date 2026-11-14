@@ -27,7 +27,7 @@ import kotlin.math.abs
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class RedesignProfilesStyleTest {
-    private val ui = U06Fixture(U06Look.DAYLIGHT, widthDp = 411, fontScale = 1f)
+    private val ui = LargeTextActivityFixture(FixtureLook.DAYLIGHT, widthDp = 411, fontScale = 1f)
     @get:Rule val rules = ui.rules
 
     @Test fun profileCardRendersTheMiddleStepColourAsItsStripe() {
@@ -107,7 +107,7 @@ class RedesignProfilesStyleTest {
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class RedesignProfileChooserLargeTextTest(private val preset: io.github.willzy12h.nocturne.core.plan.Profile) {
-    private val ui = U06Fixture(U06Look.MIDNIGHT)
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT)
     @get:Rule val rules = ui.rules
 
     companion object {

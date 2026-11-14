@@ -72,7 +72,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         MANUAL("Manual control — no alarm wake programme · Next alarm 06:30 from Samsung Clock"),
     }
 
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ ->
         val graph = fixture.graph
         graph.clock = Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"), ZoneOffset.UTC)
         runBlocking {

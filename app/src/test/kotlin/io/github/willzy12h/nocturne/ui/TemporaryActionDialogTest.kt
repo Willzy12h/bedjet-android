@@ -18,8 +18,8 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class TemporaryActionDialogTest(look: U06Look) {
-    private val ui = U06Fixture(look) { fixture, _ ->
+class TemporaryActionDialogTest(look: FixtureLook) {
+    private val ui = LargeTextActivityFixture(look) { fixture, _ ->
         runBlocking {
             val outcome = fixture.graph.actions.execute(fixture.graph.actions.capture(NightActions.Command.START_NIGHT))
             assertEquals(outcome.message, OutcomeKind.CONFIRMED, outcome.kind)
@@ -29,7 +29,7 @@ class TemporaryActionDialogTest(look: U06Look) {
 
     companion object {
         @JvmStatic @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = U06Look.entries.map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = FixtureLook.entries.map { arrayOf(it) }
     }
 
     @Test fun runningQuickOffersTemporaryAndEndAndKeepsCancellationAtLargeText() {

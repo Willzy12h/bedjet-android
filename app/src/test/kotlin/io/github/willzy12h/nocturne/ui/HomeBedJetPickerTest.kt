@@ -39,7 +39,7 @@ class HomeBedJetPickerTest {
             return AutoCloseable { scan.close(); openScans-- }
         }
     }
-    private val ui = U06Fixture(U06Look.SIMPLE_MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ ->
+    private val ui = LargeTextActivityFixture(FixtureLook.SIMPLE_MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ ->
         val graph = fixture.graph
         val adapter = AndroidBedJetLink(graph.context, observedRadio) { graph.repository.settings.value.deviceId() }
         ReflectionHelpers.setField(graph, "bleLink\$delegate", lazyOf(adapter))

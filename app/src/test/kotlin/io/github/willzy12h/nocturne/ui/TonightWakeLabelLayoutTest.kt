@@ -22,11 +22,11 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w320dp-h640dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class TonightWakeLabelLayoutTest(
-    private val look: U06Look,
+    private val look: FixtureLook,
     private val widthDp: Int,
     private val fontScale: Float,
 ) {
-    private val ui = U06Fixture(look, widthDp = widthDp, fontScale = fontScale) { fixture, _ ->
+    private val ui = LargeTextActivityFixture(look, widthDp = widthDp, fontScale = fontScale) { fixture, _ ->
         val graph = fixture.graph
         val now = graph.now()
         runBlocking { graph.repository.updateSettings { it.setWakeOverride(now.plusHours(7), now) } }
@@ -44,8 +44,8 @@ class TonightWakeLabelLayoutTest(
 
         @JvmStatic @ParameterizedRobolectricTestRunner.Parameters(name = "{0}-{1}dp-font{2}")
         fun layouts(): List<Array<Any>> = buildList {
-            U06Look.entries.forEach { add(arrayOf(it, 320, 2f)) }
-            listOf(U06Look.SIMPLE_MIDNIGHT, U06Look.SIMPLE_DAYLIGHT).forEach {
+            FixtureLook.entries.forEach { add(arrayOf(it, 320, 2f)) }
+            listOf(FixtureLook.SIMPLE_MIDNIGHT, FixtureLook.SIMPLE_DAYLIGHT).forEach {
                 add(arrayOf(it, 320, 1f))
                 add(arrayOf(it, 411, 2f))
             }

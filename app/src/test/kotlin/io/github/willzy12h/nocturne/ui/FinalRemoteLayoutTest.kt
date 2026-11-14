@@ -17,7 +17,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w320dp-h891dp-notnight-xhdpi")
 class FinalRemoteLayoutTest {
-    private val ui = U06Fixture(U06Look.SIMPLE_MIDNIGHT) { f, description ->
+    private val ui = LargeTextActivityFixture(FixtureLook.SIMPLE_MIDNIGHT) { f, description ->
         runBlocking {
             f.graph.actions.confirmMs = 20
             assertEquals(OutcomeKind.CONFIRMED, f.graph.actions.execute(f.graph.actions.capture(Command.WARM)).kind)

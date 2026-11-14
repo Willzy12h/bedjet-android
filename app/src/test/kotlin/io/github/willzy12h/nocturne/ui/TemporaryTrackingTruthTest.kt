@@ -22,7 +22,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class TemporaryTrackingTruthTest {
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ -> runBlocking {
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ -> runBlocking {
         fixture.graph.actions.confirmMs = 20
         fixture.graph.actions.freshStatusMs = 20
         assertEquals(OutcomeKind.CONFIRMED, fixture.graph.actions.execute(

@@ -21,7 +21,7 @@ class CooldownOfferLayoutTest {
         Presets.all.first().copy(id = "layout-empty", name = "Empty after wake", afterWake = emptyList()),
         Presets.all.first().copy(id = "layout-existing", name = "Existing after wake", afterWake = listOf(Phase(Mode.HEAT, 64, 40, 20))),
     )
-    private val ui = U06Fixture(U06Look.MIDNIGHT) { fixture, _ ->
+    private val ui = LargeTextActivityFixture(FixtureLook.MIDNIGHT) { fixture, _ ->
         runBlocking {
             fixture.graph.repository.profiles.value.forEach { fixture.graph.repository.deleteProfile(it.id) }
             profiles.forEach { fixture.graph.repository.saveProfile(it) }
