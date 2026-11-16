@@ -38,7 +38,7 @@ class AlarmWindowExplanationTest {
         val text = explanation.description(RuntimeEnvironment.getApplication())
         assertEquals(AlarmReason.OUTSIDE_WINDOW, explanation.reason)
         assertTrue(text, text.contains("too early"))
-        assertTrue(text, text.contains("3 hours"))
+        assertTrue(text, text.contains("under an hour after the start"))
     }
     @Test fun onlyAnAlarmFromANonClockAppIsIgnoredWithoutComment() {
         fun from(creator: String) = AlarmExplanation.resolve(Settings(), Presets.springAutumn, now,

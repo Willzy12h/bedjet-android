@@ -3,6 +3,11 @@
 Each release's full notes are in [docs/releases](docs/releases) and on the
 [releases page](https://github.com/Willzy12h/bedjet-android/releases).
 
+## 1.1.0-beta.5
+- Any alarm at least an hour after the night starts is used as your wake-up, whatever the time of day, so naps can end
+  on an alarm again. This replaces the 3-hours-after-bedtime rule from 1.1.0-beta.3, so a stray alarm from a ticked
+  clock app an hour or more after the start is used too.
+
 ## 1.1.0-beta.4
 Includes everything in 1.1.0-beta.3. See [docs/releases/1.1.0-beta.4.md](docs/releases/1.1.0-beta.4.md).
 

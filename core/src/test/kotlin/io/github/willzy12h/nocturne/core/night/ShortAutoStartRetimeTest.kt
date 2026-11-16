@@ -9,7 +9,8 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.time.ZonedDateTime
 
-/** An auto-start set 2 hours before the alarm keeps that short window when the alarm moves during the night. */
+/** An auto-start saved by 1.1.0-beta.3 or beta.4 with an agreed window (2 hours here) keeps following a moved alarm after
+ * the upgrade, and that stored window never makes it stricter than the usual hour from the start. */
 class ShortAutoStartRetimeTest {
     private val clock = "com.google.android.deskclock"
     private var now = ZonedDateTime.parse("2026-10-27T04:00:00Z")
@@ -26,7 +27,7 @@ class ShortAutoStartRetimeTest {
         return started.copy(wakeOrigin = WakeOrigin.AUTO_START, wakeFromAlarm = true, shortAlarmNightMinutes = shortest)
     }
 
-    @Test fun `a moved alarm inside the agreed short window is followed`() = runTest {
+    @Test fun `a moved alarm inside the agreed window is followed`() = runTest {
         val night = night(shortest = 120)
         val ready = runner.prepareRetime(night, night.identity, alarm.plusMinutes(15), alarmOrigin = clock) as Preparation.Ready
         assertEquals(alarm.plusMinutes(15).toString(), ready.change.intended.wakeAt)
@@ -34,15 +35,24 @@ class ShortAutoStartRetimeTest {
         assertEquals(120, ready.change.intended.shortAlarmNightMinutes, "Later changes keep the same window")
     }
 
-    @Test fun `an alarm before the agreed window is still ignored`() = runTest {
+    @Test fun `a stored window never refuses an alarm the usual hour accepts`() = runTest {
         val night = night(shortest = 120)
-        val result = runner.prepareRetime(night, night.identity, alarm.minusMinutes(30), alarmOrigin = clock)
+        val moved = now.minusMinutes(30).plusMinutes(75)
+        val ready = runner.prepareRetime(night, night.identity, moved, alarmOrigin = clock) as Preparation.Ready
+        assertEquals(moved.toString(), ready.change.intended.wakeAt)
+        assertEquals(WakeOrigin.ALARM, ready.change.intended.wakeOrigin)
+    }
+
+    @Test fun `an alarm under an hour after the start is still ignored`() = runTest {
+        val night = night(shortest = 120)
+        val result = runner.prepareRetime(night, night.identity, now.plusMinutes(20), alarmOrigin = clock)
         assertFalse(result is Preparation.Ready && result.change.intended.wakeOrigin == WakeOrigin.ALARM)
     }
 
-    @Test fun `any other night keeps the usual three hours`() = runTest {
+    @Test fun `any other night follows an alarm an hour after its start`() = runTest {
         val night = night(shortest = null)
-        val result = runner.prepareRetime(night, night.identity, alarm.plusMinutes(15), alarmOrigin = clock)
-        assertFalse(result is Preparation.Ready && result.change.intended.wakeOrigin == WakeOrigin.ALARM)
+        val moved = now.minusMinutes(30).plusMinutes(75)
+        val ready = runner.prepareRetime(night, night.identity, moved, alarmOrigin = clock) as Preparation.Ready
+        assertEquals(WakeOrigin.ALARM, ready.change.intended.wakeOrigin)
     }
 }

@@ -12,8 +12,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.ZonedDateTime
 
-/** Tonight's headline and wake explanation agree with the BedJet for an auto-start set less than 3 hours before the
- * alarm, including after the alarm moves and the night is re-timed to it. */
+/** Tonight's headline and wake explanation agree with the BedJet for an auto-start saved by 1.1.0-beta.3 or beta.4 with
+ * an agreed window, including after the alarm moves and the night is re-timed to it. The stored window never makes the
+ * night stricter than the usual hour from the start. */
 class ShortAutoStartWakeTextTest {
     private val startedAt = ZonedDateTime.parse("2026-10-27T04:00:00Z")
     private val now = startedAt.plusMinutes(30)
@@ -29,17 +30,23 @@ class ShortAutoStartWakeTextTest {
         assertEquals(R.string.gpt12_wake_next_alarm, headline.label)
     }
 
-    @Test fun anAlarmBeforeTheAgreedWindowIsStillTooSoon() {
-        val early = alarm.copy(time = alarm.time.minusMinutes(30))
+    @Test fun aStoredWindowNeverMakesAnAlarmTooSoon() {
+        val moved = alarm.copy(time = startedAt.plusMinutes(75))
+        val headline = tonightWakeHeadline(Settings(), Presets.springAutumn, now, moved, night(shortest = 120))
+        assertEquals(R.string.gpt12_wake_next_alarm, headline.label)
+    }
+
+    @Test fun anAlarmUnderAnHourAfterTheStartIsStillTooSoon() {
+        val early = alarm.copy(time = startedAt.plusMinutes(50))
         val headline = tonightWakeHeadline(Settings(), Presets.springAutumn, now, early, night(shortest = 120))
         assertEquals(R.string.gpt12_wake_profile_fallback, headline.label)
         val retimed = night(shortest = 120).copy(wakeOrigin = WakeOrigin.ALARM)
         assertEquals(AlarmReason.OUTSIDE_WINDOW, AlarmExplanation.resolve(Settings(), Presets.springAutumn, now, early, retimed).reason)
     }
 
-    @Test fun anyOtherNightKeepsTheUsualThreeHours() {
+    @Test fun anyOtherNightUsesTheUsualHour() {
         val headline = tonightWakeHeadline(Settings(), Presets.springAutumn, now, alarm, night(shortest = null))
-        assertEquals(R.string.gpt12_wake_profile_fallback, headline.label)
+        assertEquals(R.string.gpt12_wake_next_alarm, headline.label)
     }
 
     @Test fun aRetimedShortAutoStartIsNotExplainedAsOutsideTheWindow() {
@@ -47,6 +54,6 @@ class ShortAutoStartWakeTextTest {
         val retimed = night(shortest = 120).copy(wakeAt = moved.time.toString(), wakeOrigin = WakeOrigin.ALARM)
         val explanation = AlarmExplanation.resolve(Settings(), Presets.springAutumn, now, moved, retimed)
         assertEquals(AlarmReason.ELIGIBLE, explanation.reason)
-        assertEquals(startedAt.plusMinutes(120), explanation.earliestAlarm)
+        assertEquals(startedAt.plusMinutes(60), explanation.earliestAlarm)
     }
 }
