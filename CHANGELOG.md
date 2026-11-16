@@ -4,12 +4,13 @@ Each release's full notes are in [docs/releases](docs/releases) and on the
 [releases page](https://github.com/Willzy12h/bedjet-android/releases).
 
 ## 1.1.0-beta.4
-See [docs/releases/1.1.0-beta.4.md](docs/releases/1.1.0-beta.4.md).
+Includes everything in 1.1.0-beta.3. See [docs/releases/1.1.0-beta.4.md](docs/releases/1.1.0-beta.4.md).
 
 ## 1.1.0-beta.3
 - Choose which apps' alarms count, by name, from a list of your clock and alarm apps.
 - Tonight names an ignored alarm's app and lets you choose it.
-- An alarm less than 3 hours after bedtime no longer makes a very short night.
+- An alarm less than 3 hours after bedtime is no longer used as your wake-up, unless the night started automatically
+  a set time before that alarm.
 - About shows the installed version and can open the releases page to check for a newer build.
 
 ## 1.1.0-beta.2
