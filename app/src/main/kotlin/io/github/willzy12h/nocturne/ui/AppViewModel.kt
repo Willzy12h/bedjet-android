@@ -277,7 +277,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val testBuild: Boolean = version.contains("-test")
 
     private val firstRun = application.getSharedPreferences("first-run", android.content.Context.MODE_PRIVATE)
-    private val _restoreOffer = MutableStateFlow(repo.startedEmpty && !firstRun.getBoolean(RESTORE_OFFER_DISMISSED, false))
+    private val _restoreOffer = MutableStateFlow(run {
+        // Remembered, because the first launch writes settings, so the next launch no longer starts empty.
+        if (repo.startedEmpty && !firstRun.contains(RESTORE_OFFER_PENDING))
+            firstRun.edit().putBoolean(RESTORE_OFFER_PENDING, true).commit()
+        firstRun.getBoolean(RESTORE_OFFER_PENDING, false) && !firstRun.getBoolean(RESTORE_OFFER_DISMISSED, false)
+    })
     /** Shown on Tonight after a fresh install, until it is dismissed or a backup is restored: restore a backup file. */
     val restoreOffer: StateFlow<Boolean> = _restoreOffer.asStateFlow()
     fun dismissRestoreOffer() {
@@ -863,3 +868,4 @@ internal fun displayedStatus(report: io.github.willzy12h.nocturne.core.link.Sour
     report?.takeIf { it.isFrom(target) }?.status
 
 private const val RESTORE_OFFER_DISMISSED = "restoreOfferDismissed"
+private const val RESTORE_OFFER_PENDING = "restoreOfferPending"

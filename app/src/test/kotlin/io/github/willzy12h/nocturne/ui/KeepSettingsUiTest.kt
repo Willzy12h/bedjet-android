@@ -60,6 +60,13 @@ class KeepSettingsUiTest {
     }
 
     private fun model(): AppViewModel {
+        val graph = graph()
+        runBlocking { graph.repository.updateSettings { it.copy(themeMode = ThemeMode.DARK, cooldownOfferAnswered = true) } }
+        return AppViewModel(app).also { models.put("keep", it) }
+    }
+
+    /** A new graph over the same files, as after the app restarts. */
+    private fun graph(): Graph {
         val link = object : BedJetLink {
             override val state = MutableStateFlow(LinkState.READY)
             override val status = MutableStateFlow<DeviceStatus?>(null)
@@ -71,8 +78,7 @@ class KeepSettingsUiTest {
         val graph = graphs.fresh { Graph(app, link) }
         ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-11-17T22:30:00Z"), ZoneOffset.UTC)
-        runBlocking { graph.repository.updateSettings { it.copy(themeMode = ThemeMode.DARK, cooldownOfferAnswered = true) } }
-        return AppViewModel(app).also { models.put("keep", it) }
+        return graph
     }
 
     @Test fun profilesOffersRestoreOnlyOnceABuiltInProfileHasChanged() {
@@ -135,5 +141,19 @@ class KeepSettingsUiTest {
         compose.onNodeWithTag("restore-offer-dismiss").performClick()
         compose.onNodeWithTag("restore-offer").assertDoesNotExist()
         assertFalse(AppViewModel(app).also { models.put("again", it) }.restoreOffer.value)
+    }
+
+    @Test fun theRestoreOfferSurvivesARestartAfterTheFirstLaunchSavedSettings() {
+        assertTrue(model().restoreOffer.value)
+        val restarted = graph()
+        assertFalse("Settings were saved on the first launch", restarted.repository.startedEmpty)
+        assertTrue(AppViewModel(app).also { models.put("restarted", it) }.restoreOffer.value)
+    }
+
+    @Test fun anExistingInstallIsNotOfferedARestore() {
+        runBlocking { graph().repository.updateSettings { it.copy(fahrenheit = true) } }
+        app.getSharedPreferences("first-run", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        graph()
+        assertFalse(AppViewModel(app).also { models.put("upgraded", it) }.restoreOffer.value)
     }
 }
