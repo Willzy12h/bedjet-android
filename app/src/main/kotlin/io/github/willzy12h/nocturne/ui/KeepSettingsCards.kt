@@ -34,16 +34,18 @@ internal fun TestBuildBackupNote(onExport: (() -> Unit)? = null) {
 
 /**
  * On Tonight after a fresh install, until dismissed or a backup is restored: restore a backup file, as after moving
- * from a test build to a release. The file is checked and previewed before anything changes, as in Settings.
+ * from a test build to a release. The file is checked and previewed before anything changes, as in Settings. Hidden
+ * in the demo, which can't restore a backup.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun RestoreOfferCard(model: AppViewModel) {
     val offered by model.restoreOffer.collectAsStateWithLifecycle()
+    val settings by model.settings.collectAsStateWithLifecycle()
     val importApplying by model.importApplying.collectAsStateWithLifecycle()
     val importPreview by model.importPreview.collectAsStateWithLifecycle()
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
-    if (offered) StripeTile(stripe = paletteTokens.accent, title = stringResource(R.string.restore_offer_title), subtitle = null,
+    if (offered && !settings.demoMode) StripeTile(stripe = paletteTokens.accent, title = stringResource(R.string.restore_offer_title), subtitle = null,
         modifier = Modifier.fillMaxWidth().testTag("restore-offer")) {
         Text(stringResource(R.string.restore_offer_body), style = MaterialTheme.typography.bodySmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

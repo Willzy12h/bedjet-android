@@ -143,6 +143,19 @@ class KeepSettingsUiTest {
         assertFalse(AppViewModel(app).also { models.put("again", it) }.restoreOffer.value)
     }
 
+    @Test fun theRestoreOfferIsHiddenInDemoMode() {
+        val model = model()
+        compose.setContent {
+            val settings by model.settings.collectAsState()
+            NocturneTheme(settings, model.now()) { RestoreOfferCard(model) }
+        }
+        compose.onNodeWithTag("restore-offer").assertExists()
+        model.useDemo()
+        waitFor { model.settings.value.demoMode }
+        compose.onNodeWithTag("restore-offer").assertDoesNotExist()
+        assertTrue("Still offered once the demo ends", model.restoreOffer.value)
+    }
+
     @Test fun theRestoreOfferSurvivesARestartAfterTheFirstLaunchSavedSettings() {
         assertTrue(model().restoreOffer.value)
         val restarted = graph()
