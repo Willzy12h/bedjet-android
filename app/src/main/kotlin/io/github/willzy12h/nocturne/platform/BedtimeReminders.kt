@@ -42,12 +42,18 @@ object BedtimeReminders {
             settings.resolveProfile(repo.profiles.value,bedtime)?.id != profileId || !PlatformNotifications.available(graph.context)) return false
         if (!repo.claimAutomation("reminder:${bedtime.toLocalDate()}")) return false
         val preview=Intent(graph.context,PlatformActionActivity::class.java).putExtra("profile",profileId)
+        val builder=NotificationCompat.Builder(graph.context,PlatformNotifications.CHANNEL).setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(graph.context.getString(R.string.feature_reminder_title,profile.name))
+            .setContentText(graph.context.getString(R.string.feature_reminder_preview)).setAutoCancel(true)
+            .setContentIntent(PendingIntent.getActivity(graph.context,REQUEST,preview,PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        // "Ask each night": an alarm Android didn't name can be used for tonight from here, with one tap.
+        UnnamedAlarmOffer.current(graph,profileId)?.let { offer ->
+            val use=Intent(graph.context,UnnamedAlarmReceiver::class.java).putExtra("profile",profileId).putExtra("wake",offer.toString())
+            builder.addAction(0,graph.context.getString(R.string.missing_alarm_use_unnamed,io.github.willzy12h.nocturne.ui.Format.clock(offer)),
+                PendingIntent.getBroadcast(graph.context,REQUEST,use,PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        }
         return try {
-            NotificationManagerCompat.from(graph.context).notify(PlatformNotifications.REMINDER_ID,
-            NotificationCompat.Builder(graph.context,PlatformNotifications.CHANNEL).setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(graph.context.getString(R.string.feature_reminder_title,profile.name))
-                .setContentText(graph.context.getString(R.string.feature_reminder_preview)).setAutoCancel(true)
-                .setContentIntent(PendingIntent.getActivity(graph.context,REQUEST,preview,PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)).build())
+            NotificationManagerCompat.from(graph.context).notify(PlatformNotifications.REMINDER_ID,builder.build())
             true
         } catch (_: SecurityException) { false } // Permission can be revoked after the eligibility check.
     }
@@ -61,6 +67,36 @@ class BedtimeReminderReceiver : BroadcastReceiver() {
                 val profile=intent.getStringExtra("profile")
                 if (bedtime != null && profile != null) BedtimeReminders.deliver(context.graph,profile,bedtime)
                 BedtimeReminders.sync(context.graph)
+            } } finally {pending.finish()}
+        }
+    }
+}
+
+/** The unnamed alarm "Ask each night" would offer now, before tonight's night starts; null when there's none to offer. */
+object UnnamedAlarmOffer {
+    fun current(graph: Graph,profileId: String): ZonedDateTime? {
+        val repo=graph.repository
+        if (repo.activeNight.value != null) return null
+        val profile=repo.profile(profileId) ?: return null
+        val settings=repo.settings.value
+        val alarm=io.github.willzy12h.nocturne.night.AlarmSource.describe(graph.context,settings)
+        return io.github.willzy12h.nocturne.night.AlarmExplanation.resolve(settings,profile,graph.now(),alarm).unnamedOffer
+    }
+}
+
+/** The reminder's "Use the 06:30 alarm tonight": checked again at the tap, then saved as tonight's wake time. */
+class UnnamedAlarmReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context,intent: Intent) {
+        val pending=goAsync()
+        context.graph.scope.launch {
+            try { withTimeout(8_000) {
+                val graph=context.graph
+                val profile=intent.getStringExtra("profile")
+                val wake=intent.getStringExtra("wake")?.let { runCatching {ZonedDateTime.parse(it)}.getOrNull() }
+                // Only the same alarm, still offered: the mode, the alarm or a started night may have changed since.
+                if (profile != null && wake != null && UnnamedAlarmOffer.current(graph,profile)?.toInstant() == wake.toInstant())
+                    graph.actions.setWakeOverride(wake,null)
+                NotificationManagerCompat.from(context).cancel(PlatformNotifications.REMINDER_ID)
             } } finally {pending.finish()}
         }
     }

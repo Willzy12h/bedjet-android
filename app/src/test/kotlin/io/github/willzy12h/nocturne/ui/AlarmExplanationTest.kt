@@ -21,6 +21,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
+import io.github.willzy12h.nocturne.core.store.UnnamedAlarms
+import kotlinx.serialization.json.contentOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -48,9 +50,13 @@ class AlarmExplanationTest(private val scenario: Scenario) {
     enum class Scenario(val expected: String, val expectedWake: String = "07:00",
         /** Tonight's line, where it adds to the exported explanation. */ val shown: String = expected) {
         SAMSUNG("Next alarm 06:30 · Samsung Clock — used", "06:30"),
+        /** "Ignore them" chosen for alarms from unnamed apps. */
         NULL_DENIED("Alarm 06:30 ignored: source unknown — tap to change"),
-        /** "From any app" was retired in 0.3.0-acceptance.3: asking for it no longer lets an unnamed alarm through. */
-        NULL_ALLOWED("Alarm 06:30 ignored: source unknown — tap to change"),
+        /** "From any app" was retired in 0.3.0-acceptance.3: asking for it no longer lets an unnamed alarm through.
+         * With the default "Ask each night" the alarm is offered for tonight, but still not used by itself. */
+        NULL_ALLOWED("Alarm 06:30 from an unnamed app — tap to use it tonight"),
+        /** "Always use them": an unnamed alarm inside the window counts like a ticked app's. */
+        NULL_ALWAYS("Next alarm 06:30 · Phone alarm (app not identified) — used", "06:30"),
         APP_DENIED("Alarm 06:30 ignored: from unapproved.clock, not one of your alarm apps — tap to change"),
         TOO_SOON("Alarm 23:00 ignored: too early — under an hour after the start — tap to change"),
         TOO_LATE("Alarm 16:31 ignored: too late — beyond tonight’s 18 hours — tap to change"),
@@ -85,6 +91,11 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             graph.repository.updateSettings {
                 it.chooseTonight(profile.id, graph.now()).copy(
                     acceptUnknownAlarmSource = scenario == Scenario.NULL_ALLOWED,
+                    unnamedAlarms = when (scenario) {
+                        Scenario.NULL_DENIED -> UnnamedAlarms.IGNORE
+                        Scenario.NULL_ALWAYS -> UnnamedAlarms.ALWAYS
+                        else -> UnnamedAlarms.ASK
+                    },
                     alarmPackages = setOf(SAMSUNG_PACKAGE),
                 ).let { settings ->
                     if (scenario == Scenario.OVERRIDE) settings.setWakeOverride(
@@ -130,7 +141,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
                 else -> "2026-10-23T06:30:00Z"
             }
             // A missing show intent is one route to creator == null; do not fabricate Samsung provenance.
-            val showIntent = pending.takeUnless { scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED) }
+            val showIntent = pending.takeUnless { scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED, Scenario.NULL_ALWAYS) }
             app.getSystemService(AlarmManager::class.java).setAlarmClock(
                 AlarmManager.AlarmClockInfo(Instant.parse(time).toEpochMilli(), showIntent), pending)
         }
@@ -164,10 +175,10 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         val wake = night?.wakeAt?.let(ZonedDateTime::parse)
             ?: ui.model.startPreview(ui.model.tonightsProfile()!!).wake.time
         assertEquals("The explanatory text must not loosen the existing wake policy", scenario.expectedWake, Format.clock(wake))
-        if (scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED)) {
+        if (scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED, Scenario.NULL_ALWAYS)) {
             val next = AlarmSource.describe(ui.compose.activity, ui.graph.repository.settings.value)!!
             assertEquals(null, next.creator)
-            assertFalse(next.counts)
+            assertEquals(scenario == Scenario.NULL_ALWAYS, next.counts)
         }
         ui.compose.onNodeWithText(scenario.shown).assertExists().assertHasClickAction()
         val diagnostic = AlarmSource.diagnostics(ui.compose.activity, ui.graph.repository.settings.value,
@@ -194,9 +205,12 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         }, diagnostic.getValue("wakeState").jsonPrimitive.content)
         assertEquals(scenario == Scenario.SAVED_MATCH, diagnostic.getValue("matchesSavedWake").jsonPrimitive.boolean)
         assertTrue(diagnostic.getValue("onlyNextAlarmExposed").jsonPrimitive.boolean)
-        if (scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED)) {
+        if (scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED, Scenario.NULL_ALWAYS)) {
             assertEquals(JsonNull, diagnostic.getValue("creatorPackage"))
         }
+        // Only "Ask each night" offers the unnamed alarm, and the export says so.
+        assertEquals(if (scenario == Scenario.NULL_ALLOWED) Instant.parse("2026-10-23T06:30:00Z") else null,
+            diagnostic["unnamedOffer"]?.jsonPrimitive?.contentOrNull?.let { ZonedDateTime.parse(it).toInstant() })
         if (scenario in setOf(Scenario.TOO_SOON, Scenario.TOO_LATE, Scenario.OVERRIDE, Scenario.SAVED_OVERRIDE, Scenario.SAVED_OVERRIDE_NO_ALARM)) {
             ui.compose.onNodeWithText(scenario.expected).assertIsDisplayed().performClick()
             assertTrue("A wake choice must open the existing tonight-only picker", ShadowDialog.getLatestDialog() is TimePickerDialog)

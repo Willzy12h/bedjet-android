@@ -37,6 +37,8 @@ data class AlarmExplanation(
     val sourceAccepted: Boolean?,
     val matchesSavedWake: Boolean,
     val target: AlarmSettingsTarget,
+    /** With "Ask each night", the unnamed alarm that can be used for this night only with one tap; see [UnnamedAlarms]. */
+    val unnamedOffer: ZonedDateTime? = null,
 ) {
     companion object {
         fun resolve(settings: Settings, profile: Profile?, now: ZonedDateTime, alarm: AlarmSource.NextAlarm?,
@@ -93,11 +95,17 @@ data class AlarmExplanation(
                 reason in setOf(AlarmReason.PROFILE_ALARMS_OFF, AlarmReason.NO_ALARM) -> AlarmSettingsTarget.PROFILE_WAKE
                 else -> AlarmSettingsTarget.ALARM_SOURCES
             }
+            // Only offered while the wake can still change, and only for an alarm the window would allow.
+            val unnamedOffer = alarm?.time?.takeIf {
+                reason == AlarmReason.UNKNOWN_SOURCE && canChooseWake &&
+                    settings.unnamedAlarms == io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ASK &&
+                    it.isAfter(now) && policy.inWindow(it, start, shortest)
+            }
             return AlarmExplanation(reason, state, wake, origin, alarm, start,
                 policy.earliest(start, shortest),
                 (night?.pending?.requestedWake ?: pendingRetime?.requestedWakeAt ?: pendingRetime?.alarmAt)?.parseTime(), sourceAccepted,
                 state == WakeExplanationState.SAVED && origin == WakeOrigin.ALARM && alarm != null && wake != null &&
-                    wake?.toInstant() == alarm?.time?.toInstant(), target)
+                    wake?.toInstant() == alarm?.time?.toInstant(), target, unnamedOffer)
         }
     }
 }
@@ -130,7 +138,9 @@ fun AlarmExplanation.description(context: Context): String {
     val wake = wakeAt.clock()
     val next = alarm?.time.clock()
     val source = alarmSourceName(context, alarm?.identifiedCreator)
-    fun ignored(): String = text(R.string.alarm_source_ignored, next, when (reason) {
+    // "Ask each night": the unnamed alarm isn't ignored outright, it waits for a tap.
+    fun ignored(): String = if (unnamedOffer != null) text(R.string.alarm_source_unnamed_offer, next)
+        else text(R.string.alarm_source_ignored, next, when (reason) {
         AlarmReason.UNKNOWN_SOURCE -> text(R.string.alarm_source_reason_unknown)
         // Name the app, so a stray alarm from a calendar or reminder app is easy to place.
         AlarmReason.SOURCE_NOT_ALLOWED -> text(R.string.alarm_source_reason_other_app, source)

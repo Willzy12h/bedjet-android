@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
 import io.github.willzy12h.nocturne.core.store.AlarmApps
+import io.github.willzy12h.nocturne.core.store.UnnamedAlarms
 import androidx.compose.ui.test.onNodeWithTag
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -65,13 +66,15 @@ class AlarmSettingsNavigationTest {
     } }
     @get:Rule val rules: TestRule = RuleChain.outerRule(timezone).around(ui.rules)
 
-    @Test fun anIgnoredUnknownAlarmOpensTheAlarmAppChoiceAndStaysIgnored() {
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change")
+    @Test fun anUnnamedAlarmOpensTheAlarmAppChoiceAndIsOnlyOfferedWhileAskIsChosen() {
+        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight")
             .performScrollTo().assertIsDisplayed().performClick()
         ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
-        // There is no longer a way to accept alarms from an app Android doesn't name.
+        // The retired "from any app" choice stays gone; unnamed alarms have their own three choices instead.
         ui.compose.onNodeWithText("Next known alarm, from any app").assertDoesNotExist()
+        ui.compose.onNodeWithTag("unnamed-alarms-ignore").performScrollTo().performClick()
+        ui.waitUntil { ui.graph.repository.settings.value.unnamedAlarms == UnnamedAlarms.IGNORE }
         ui.compose.onNodeWithTag("alarm-apps-any").performScrollTo().performClick()
         ui.waitUntil { ui.graph.repository.settings.value.alarmAppsChosen }
         assertEquals(AlarmApps.CLOCK_APPS, ui.graph.repository.settings.value.alarmApps)
@@ -97,6 +100,7 @@ class AlarmSettingsNavigationTest {
         val alarm = saved["alarm"]?.jsonObject
         assertNotNull("Diagnostics export must include the alarm selection decision", alarm)
         assertEquals("UNKNOWN_SOURCE", alarm!!["reason"]?.jsonPrimitive?.content)
-        assertEquals("Alarm 06:30 ignored: source unknown — tap to change", alarm["explanation"]?.jsonPrimitive?.content)
+        assertEquals("Alarm 06:30 from an unnamed app — tap to use it tonight", alarm["explanation"]?.jsonPrimitive?.content)
+        assertEquals("ASK", alarm["unnamedAlarms"]?.jsonPrimitive?.content)
     }
 }

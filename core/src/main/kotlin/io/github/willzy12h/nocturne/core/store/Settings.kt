@@ -26,6 +26,17 @@ enum class Palette(val dark: Boolean) {
     MIDNIGHT_INK(true), FOREST(true), GRAPHITE(true), PLUM(true), AUTUMN_RUST(true), WINTER_STORM(true), OVERCAST(false)
 }
 
+/** What to do with an alarm Android reports without naming the app that set it. */
+@Serializable
+enum class UnnamedAlarms {
+    /** Never used. */
+    IGNORE,
+    /** Never used by itself; Tonight and the bedtime reminder offer it for that night only. */
+    ASK,
+    /** Used like an alarm from a ticked app. */
+    ALWAYS,
+}
+
 /** Where wake-up alarms may come from. Alarms from calendars, reminders and other apps are never used. */
 @Serializable
 enum class AlarmApps {
@@ -75,6 +86,8 @@ data class Settings(
     val alarmApps: AlarmApps = AlarmApps.CLOCK_APPS,
     /** True once the person has chosen [alarmApps] themselves, in setup or Settings. */
     val alarmAppsChosen: Boolean = false,
+    /** Alarms from an app Android doesn't name; see [UnnamedAlarms]. Replaces the retired [acceptUnknownAlarmSource]. */
+    val unnamedAlarms: UnnamedAlarms = UnnamedAlarms.ASK,
     // Appearance. Defaults keep older saved settings and backups loading unchanged.
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** The palette used while [themeMode] means dark, and while it means light. */

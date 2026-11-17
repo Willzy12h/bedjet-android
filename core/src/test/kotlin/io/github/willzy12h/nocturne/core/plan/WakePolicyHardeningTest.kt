@@ -22,6 +22,23 @@ class WakePolicyHardeningTest {
         assertTrue(AlarmPolicy(Settings()).accept(now.plusHours(8), null, now))
         assertFalse(AlarmPolicy(Settings(acceptUnknownAlarmSource = false)).accept(now.plusHours(8), null, now))
     }
+    @Test fun `unnamed alarms count only when always is chosen and still only inside the window`() {
+        fun policy(mode: io.github.willzy12h.nocturne.core.store.UnnamedAlarms) =
+            AlarmPolicy(Settings(acceptUnknownAlarmSource = false, unnamedAlarms = mode))
+        assertEquals(io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ASK, Settings().unnamedAlarms)
+        assertFalse(policy(io.github.willzy12h.nocturne.core.store.UnnamedAlarms.IGNORE).accept(now.plusHours(8), null, now))
+        assertFalse(policy(io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ASK).accept(now.plusHours(8), null, now))
+        val always = policy(io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ALWAYS)
+        assertTrue(always.accept(now.plusHours(8), null, now))
+        assertFalse(always.accept(now.plusMinutes(30), null, now))
+        assertFalse(always.accept(now.plusHours(19), null, now))
+        assertFalse(AlarmPolicy(Settings(acceptUnknownAlarmSource = false, alarmApps = io.github.willzy12h.nocturne.core.store.AlarmApps.NONE,
+            unnamedAlarms = io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ALWAYS)).accept(now.plusHours(8), null, now))
+    }
+    @Test fun `settings saved before unnamed alarms existed read as ask`() {
+        val old = Json { ignoreUnknownKeys = true }.decodeFromString(Settings.serializer(), "{\"acceptUnknownAlarmSource\":false}")
+        assertEquals(io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ASK, old.unnamedAlarms)
+    }
     @Test fun `override wins survives restart and expires at wake`() {
         val settings = Settings().setWakeOverride(now.plusHours(7), now)
         val restored = Json.decodeFromString<Settings>(Json.encodeToString(settings))

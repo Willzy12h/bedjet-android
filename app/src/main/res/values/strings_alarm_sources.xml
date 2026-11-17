@@ -32,7 +32,10 @@
     <string name="alarm_source_open_missing">Help with an alarm Nocturne can’t see</string>
     <string name="missing_alarm_title">Can’t see your alarm?</string>
     <string name="missing_alarm_body">Nocturne can only see alarms that show the alarm icon in your status bar. Some apps, such as white-noise apps, set alarms that Android doesn’t share with other apps.</string>
-    <string name="missing_alarm_body_unnamed">There’s an alarm at %1$s, but Android didn’t say which app set it, so Nocturne doesn’t use it.</string>
+    <string name="missing_alarm_body_unnamed">There’s an alarm at %1$s, but Android didn’t say which app set it.</string>
+    <string name="alarm_source_unnamed_offer">Alarm %1$s from an unnamed app — tap to use it tonight</string>
+    <string name="missing_alarm_use_unnamed">Use the %1$s alarm tonight</string>
+    <string name="missing_alarm_use_unnamed_help">For tonight only. Saved on your BedJet, like a wake time you set yourself.</string>
     <string name="missing_alarm_tonight">Set tonight’s wake time</string>
     <string name="missing_alarm_tonight_help">Saved on your BedJet, so it still wakes you if your phone closes Nocturne.</string>
     <string name="missing_alarm_fixed">Use a fixed wake time in this profile</string>

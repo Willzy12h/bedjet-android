@@ -23,11 +23,12 @@ import io.github.willzy12h.nocturne.night.AlarmReason
 /**
  * Nocturne can't see the person's alarm (none in Android's next-alarm slot, or one Android didn't name). Says why,
  * and offers the two ways round it: a wake time for tonight, which the BedJet keeps even if the phone closes
- * Nocturne, or a fixed wake time in the profile. A null action is left out.
+ * Nocturne, or a fixed wake time in the profile. With "Ask each night", an unnamed alarm can be used for tonight with
+ * one tap ([onUseUnnamed]). A null action is left out.
  */
 @Composable
 fun MissingAlarmDialog(explanation: AlarmExplanation, onDismiss: () -> Unit, onSetTonight: (() -> Unit)?,
-    onFixedWake: (() -> Unit)?, onChooseAlarmApps: () -> Unit) {
+    onFixedWake: (() -> Unit)?, onChooseAlarmApps: () -> Unit, onUseUnnamed: (() -> Unit)? = null) {
     val unnamed = explanation.reason == AlarmReason.UNKNOWN_SOURCE
     AlertDialog(onDismissRequest = onDismiss, modifier = Modifier.testTag("missing-alarm-dialog"),
         title = { Text(stringResource(R.string.missing_alarm_title)) },
@@ -38,6 +39,13 @@ fun MissingAlarmDialog(explanation: AlarmExplanation, onDismiss: () -> Unit, onS
                         style = MaterialTheme.typography.bodyMedium)
                 }
                 Text(stringResource(R.string.missing_alarm_body), style = MaterialTheme.typography.bodyMedium)
+                explanation.unnamedOffer?.takeIf { onUseUnnamed != null }?.let { offer ->
+                    Action(stringResource(R.string.missing_alarm_use_unnamed, Format.clock(offer)), "missing-alarm-use-unnamed") {
+                        onDismiss(); onUseUnnamed?.invoke()
+                    }
+                    Text(stringResource(R.string.missing_alarm_use_unnamed_help), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 onSetTonight?.let {
                     Action(stringResource(R.string.missing_alarm_tonight), "missing-alarm-tonight") { onDismiss(); it() }
                     Text(stringResource(R.string.missing_alarm_tonight_help), style = MaterialTheme.typography.bodySmall,

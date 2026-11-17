@@ -158,7 +158,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     var missingAlarm by remember { mutableStateOf(false) }
     if (missingAlarm) MissingAlarmDialog(explanation, onDismiss = { missingAlarm = false },
         onSetTonight = pickWake.takeIf { overridable }, onFixedWake = profile?.let { p -> { onEdit(p) } },
-        onChooseAlarmApps = { choosingAlarmApps = true })
+        onChooseAlarmApps = { choosingAlarmApps = true },
+        onUseUnnamed = explanation.unnamedOffer?.takeIf { overridable }?.let { offer -> { model.setTonightWake(offer, night?.identity) } })
     val openExplanation = {
         when (explanation.target) {
             AlarmSettingsTarget.ALARM_SOURCES -> { choosingAlarmApps = true }
