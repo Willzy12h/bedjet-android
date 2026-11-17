@@ -3,6 +3,12 @@
 Each release's full notes are in [docs/releases](docs/releases) and on the
 [releases page](https://github.com/Willzy12h/bedjet-android/releases).
 
+## 1.1.0-beta.6
+- Reset to defaults: a built-in profile in its editor, the built-in profiles on Profiles, and the controls in Settings.
+  Each asks first; restoring profiles and resetting controls save a "Before reset" snapshot first.
+- A test build reminds you to export a backup, and a fresh install offers to restore from a backup file.
+- Saved profiles, settings and backups from earlier betas are checked to load in every release.
+
 ## 1.1.0-beta.5
 - Any alarm at least an hour after the night starts is used as your wake-up, whatever the time of day, so naps can end
   on an alarm again. This replaces the 3-hours-after-bedtime rule from 1.1.0-beta.3, so a stray alarm from a ticked

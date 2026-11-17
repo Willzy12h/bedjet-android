@@ -20,3 +20,7 @@ it needs no manual step.
 - User-facing text is in UK English.
 - Run `./gradlew :core:test` and `./gradlew :app:testDebugUnitTest` before pushing changes to app or core code.
 - Never commit signing keys or other secrets.
+- When you bump `release.properties`, add the new version's saved data under
+  `core/src/test/resources/saved-data/<versionName>/`: a `profiles.json` with "Summer, cooler" edited (days 6 and 7,
+  fan start 70) and an own profile `own-1` on days 1 to 3, a `settings.json` with working slot 1 and Fahrenheit on, and
+  a `backup.json` of the same. `SavedDataCompatibilityTest` then checks every later release still reads it.
