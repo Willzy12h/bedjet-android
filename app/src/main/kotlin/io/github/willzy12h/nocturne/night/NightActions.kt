@@ -2170,6 +2170,7 @@ class NightActions(private val graph: Graph) {
     fun diagnostics(): String = kotlinx.serialization.json.buildJsonObject {
         put("version", kotlinx.serialization.json.JsonPrimitive(io.github.willzy12h.nocturne.BuildConfig.VERSION_NAME))
         put("deviceModel", kotlinx.serialization.json.JsonPrimitive(android.os.Build.MODEL))
+        put("phone", io.github.willzy12h.nocturne.platform.PhoneDiagnostics.snapshot(context))
         put("linkState", kotlinx.serialization.json.JsonPrimitive(graph.link.state.value.name))
         put("unreadable", kotlinx.serialization.json.JsonArray(repo.unreadable.value.map { kotlinx.serialization.json.JsonPrimitive(it) }))
         put("originalsBlocked", kotlinx.serialization.json.JsonPrimitive(repo.originalsBlocked.value))

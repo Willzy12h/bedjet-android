@@ -14,8 +14,10 @@ import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.PlanCompiler
 import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.core.store.UnnamedAlarms
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
@@ -46,7 +48,7 @@ class AlarmExplanationActionTest {
     private var sourceRequests = 0
     private val profileRequests = mutableListOf<Profile>()
 
-    private fun show(unknown: Boolean = false, profileOnly: Boolean = false, savedWake: Boolean = false) {
+    private fun show(unknown: Boolean = false, profileOnly: Boolean = false, savedWake: Boolean = false, noAlarm: Boolean = false) {
         val graph = ui.graph
         graph.clock = Clock.fixed(Instant.parse("2026-10-22T22:30:00Z"), ZoneOffset.UTC)
         ui.compose.runOnIdle { runBlocking {
@@ -62,6 +64,7 @@ class AlarmExplanationActionTest {
                     true, 2, plan.wakeUpStart.toString(), plan.end.toString(), deviceId = "demo", profile = profile,
                     confidence = Confidence.CONFIRMED))
             }
+            if (noAlarm) { ui.model.refreshAlarm(); return@runBlocking }
             val pending = PendingIntent.getBroadcast(ui.compose.activity, 82, Intent("test.alarm.action"), PendingIntent.FLAG_IMMUTABLE)
             shadowOf(pending).setCreatorPackage("com.sec.android.app.clockpackage")
             ui.compose.activity.getSystemService(AlarmManager::class.java).setAlarmClock(
@@ -80,12 +83,74 @@ class AlarmExplanationActionTest {
         ui.compose.waitForIdle()
     }
 
-    @Test fun unknownSourceOpensTheAlarmAppChoiceWithoutEditingAProfile() {
+    @Test fun unknownSourceExplainsTheMissingAlarmAndStillOffersTheAlarmAppChoice() {
         show(unknown = true)
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").assertIsDisplayed().performClick()
+        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performScrollTo().assertIsDisplayed().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
+        ui.compose.onNodeWithTag("missing-alarm-tonight").assertExists()
+        ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertDoesNotExist()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
         assertEquals(0, sourceRequests)
         assertEquals(emptyList<Profile>(), profileRequests)
+    }
+
+    @Test fun noAlarmAsksWhetherTheAlarmIsInAnotherApp() {
+        show(noAlarm = true)
+        ui.compose.onNodeWithText("No alarm found — profile wake 07:00 · Alarm in another app?").assertIsDisplayed().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
+        ui.compose.onNodeWithText("Saved on your BedJet, so it still wakes you if your phone closes Nocturne.", substring = true)
+            .assertExists()
+        ui.compose.onNodeWithTag("missing-alarm-sources").assertDoesNotExist()
+        val profile = ui.model.tonightsProfile()!!
+        ui.compose.onNodeWithTag("missing-alarm-fixed").performScrollTo().performClick()
+        assertEquals(listOf(profile), profileRequests)
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertDoesNotExist()
+    }
+
+    @Test fun setTonightsWakeFromTheMissingAlarmDialogOpensTheTimePicker() {
+        show(noAlarm = true)
+        ui.compose.onNodeWithText("No alarm found — profile wake 07:00 · Alarm in another app?").performClick()
+        ui.compose.onNodeWithTag("missing-alarm-tonight").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertDoesNotExist()
+        ui.compose.waitForIdle()
+        assertTrue(org.robolectric.shadows.ShadowDialog.getLatestDialog() is android.app.TimePickerDialog)
+        assertEquals(emptyList<Profile>(), profileRequests)
+    }
+
+    @Test fun askEachNightUsesTheUnnamedAlarmForTonightOnlyAfterATap() {
+        show(unknown = true)
+        // Not used by itself: tonight still ends at the profile's wake time until the person taps.
+        assertEquals("07:00", Format.clock(ui.model.startPreview(ui.model.tonightsProfile()!!).wake.time))
+        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-use-unnamed").performScrollTo().assertIsDisplayed().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertDoesNotExist()
+        ui.waitUntil { ui.graph.repository.settings.value.tonightOverride != null }
+        assertEquals("06:30", Format.clock(ui.graph.repository.settings.value.tonightOverride!!.wakeAt))
+        assertEquals(UnnamedAlarms.ASK, ui.graph.repository.settings.value.unnamedAlarms)
+        assertEquals(emptyList<Profile>(), profileRequests)
+    }
+
+    @Test fun ignoringUnnamedAlarmsOffersNoOneTapUse() {
+        ui.compose.runOnIdle { runBlocking { ui.graph.repository.updateSettings { it.copy(unnamedAlarms = UnnamedAlarms.IGNORE) } } }
+        show(unknown = true)
+        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
+        ui.compose.onNodeWithTag("missing-alarm-use-unnamed").assertDoesNotExist()
+    }
+
+    @Test fun alwaysUsingUnnamedAlarmsIsConfirmedFirst() {
+        show(unknown = true)
+        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("unnamed-alarms-ask").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithTag("unnamed-alarms-always").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("unnamed-alarms-confirm").assertExists()
+        assertEquals(UnnamedAlarms.ASK, ui.graph.repository.settings.value.unnamedAlarms)
+        ui.compose.onNodeWithTag("unnamed-alarms-confirm-yes").performClick()
+        ui.waitUntil { ui.graph.repository.settings.value.unnamedAlarms == UnnamedAlarms.ALWAYS }
+        ui.waitUntil { ui.model.nextAlarm.value?.counts == true }
+        assertEquals("06:30", Format.clock(ui.model.startPreview(ui.model.tonightsProfile()!!).wake.time))
     }
 
     @Test fun profileAlarmOptOutOpensThatProfilesWakeSettings() {
@@ -106,7 +171,8 @@ class AlarmExplanationActionTest {
 
     @Test fun theAlarmAppChoiceOffersAFixedWakeTimeForTonightsProfile() {
         show(unknown = true)
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").performClick()
+        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performClick()
+        ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
         val profile = ui.model.tonightsProfile()!!
         ui.compose.onNodeWithText("Use a fixed wake time for ${profile.name}").performScrollTo().performClick()
         assertEquals(listOf(profile), profileRequests)

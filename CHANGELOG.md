@@ -3,6 +3,15 @@
 Each release's full notes are in [docs/releases](docs/releases) and on the
 [releases page](https://github.com/Willzy12h/bedjet-android/releases).
 
+## 1.1.0-beta.7
+- "Can't see your alarm?" help on Tonight when no alarm is found, with tonight's wake time, a fixed profile wake time
+  or a choice of alarm apps.
+- A setting for alarms from unnamed apps: Ignore them, Ask each night (the default) or Always use them. Earlier betas
+  ignored them.
+- Battery tips and settings links for Honor, Huawei, Xiaomi, OPPO, OnePlus, realme and vivo phones, and an explanation
+  before Android's battery prompt.
+- Phone details in the diagnostics export, and repeated start-up, clock and alarm-change broadcasts handled together.
+
 ## 1.1.0-beta.6
 - Reset to defaults: a built-in profile in its editor, the built-in profiles on Profiles, and the controls in Settings.
   Each asks first; restoring profiles and resetting controls save a "Before reset" snapshot first.

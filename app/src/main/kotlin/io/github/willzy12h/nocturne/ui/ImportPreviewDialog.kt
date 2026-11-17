@@ -167,7 +167,7 @@ private fun readableImportTime(value: String): String = runCatching {
     "selectedProfileId" -> R.string.import_setting_saved_profile
     "tonightChoice" -> R.string.import_setting_tonight_profile
     "tonightOverride" -> R.string.import_setting_tonight_wake
-    "acceptUnknownAlarmSource" -> R.string.import_setting_unknown_alarms
+    "acceptUnknownAlarmSource", "unnamedAlarms" -> R.string.import_setting_unknown_alarms
     "notificationActions" -> R.string.import_setting_notification_actions
     "snoozeWarm" -> R.string.import_setting_snooze_warm
     "snoozeCool" -> R.string.import_setting_snooze_cool

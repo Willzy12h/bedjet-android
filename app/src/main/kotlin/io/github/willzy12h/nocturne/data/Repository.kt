@@ -786,6 +786,9 @@ class Repository(
             setupFanCheckedDevice = current.setupFanCheckedDevice,
             platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null, healthSleepExport = false,
                 autoStart = bundle.settings.platform.autoStart?.copy(enabled = false))).withoutUnidentifiedAlarms()
+            // Like the automatic actions above, "always use unnamed alarms" is chosen again on this phone, not restored.
+            .let { if (it.unnamedAlarms == io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ALWAYS)
+                it.copy(unnamedAlarms = io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ASK) else it }
         // Tonight's record, and that of a night being ended (its end is still to be added), are kept as they are.
         val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
         val carried = _history.value.filter { it.id in tonight }

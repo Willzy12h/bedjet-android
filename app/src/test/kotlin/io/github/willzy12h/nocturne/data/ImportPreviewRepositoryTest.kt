@@ -197,6 +197,13 @@ class ImportPreviewRepositoryTest {
         assertNull(repo.settings.value.targetDevice)
     }
 
+    @Test fun importedAlwaysUseUnnamedAlarmsComesBackAsAskEachNight() = runBlocking {
+        val repo = repo()
+        val incoming = repo.bundle().copy(settings = repo.settings.value.copy(
+            unnamedAlarms = io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ALWAYS))
+        repo.applyImport(repo.previewImport(incoming))
+        assertEquals(io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ASK, repo.settings.value.unnamedAlarms)
+    }
     @Test fun importedCaseVariantIsStoredUnderTheCanonicalDeviceIdentity() = runBlocking {
         val repo = repo()
         repo.applyImport(repo.previewImport(repo.bundle().copy(slotBackups = listOf(SlotBackup(device.lowercase(), 1, null, now.toString())))))

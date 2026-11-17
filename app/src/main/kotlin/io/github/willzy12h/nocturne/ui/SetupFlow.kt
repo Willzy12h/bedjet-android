@@ -28,9 +28,6 @@ import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -104,12 +101,9 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false) {
                     style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = model::runSetupFanCheck) { Text(stringResource(if (checked) R.string.setup_fan_repeat else R.string.setup_fan_run)) }
             }
-            // Samsung has its own sleeping-apps lists on top of Android's battery setting; other phones do not.
-            if (!compact && android.os.Build.MANUFACTURER.equals("samsung", ignoreCase = true)) {
-                var samsung by rememberSaveable { mutableStateOf(false) }
-                TextButton(onClick = { samsung = !samsung }) { Text(stringResource(R.string.setup_samsung_title)) }
-                if (samsung) Text(stringResource(R.string.setup_samsung_help), style = MaterialTheme.typography.bodySmall)
-            }
+            // Some makers add their own battery and launch controls on top of Android's; Pixels and others do not.
+            val maker = io.github.willzy12h.nocturne.platform.PhoneMaker.of()
+            if (!compact && maker != null) MakerTips(maker)
           }
         }
     }

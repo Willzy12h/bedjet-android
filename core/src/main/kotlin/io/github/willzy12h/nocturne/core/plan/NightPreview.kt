@@ -19,7 +19,9 @@ import java.time.ZonedDateTime
 class AlarmPolicy(private val settings: Settings = Settings()) {
     fun acceptsSource(origin: String?): Boolean = when {
         settings.alarmApps == io.github.willzy12h.nocturne.core.store.AlarmApps.NONE -> false
-        origin == null -> settings.acceptUnknownAlarmSource
+        // The retired flag still answers for core callers that state it; the app always saves it off.
+        origin == null -> settings.unnamedAlarms == io.github.willzy12h.nocturne.core.store.UnnamedAlarms.ALWAYS ||
+            settings.acceptUnknownAlarmSource
         else -> origin in settings.alarmPackages
     }
     fun accept(alarm: ZonedDateTime?, origin: String?, nightStart: ZonedDateTime, shortestMinutes: Int? = null): Boolean =

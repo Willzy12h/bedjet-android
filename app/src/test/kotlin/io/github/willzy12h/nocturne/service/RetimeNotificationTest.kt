@@ -39,6 +39,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -1431,6 +1432,26 @@ class RetimeNotificationTest {
 
     @Test fun aDeniedRetryWithALocalPersistenceTimeoutStaysQuietAndDurable() = runBlocking {
         failedLocalRetryIsQuiet(NightAlarmReceiver(), NightAlarms.ACTION_RETRY, timeout = true)
+    }
+
+    @Test fun aBurstOfFiveAlarmChangesLooksAtTheAlarmTwice() = runBlocking {
+        pendingAfterConnectionFailure()
+        val before = graph.alarmChanges.runsStarted
+        // Hold a look at the alarm open, so all five broadcasts are in hand before it ends.
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.alarmChanges.run { entered.complete(Unit); release.await() } }
+        until { entered.isCompleted }
+        val callers = graph.alarmChanges.callers
+        // AlarmChangedReceiver is declared in the manifest, so each broadcast reaches it once.
+        repeat(5) { app.sendBroadcast(android.content.Intent(AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED)) }
+        until { graph.alarmChanges.callers == callers + 5 }
+        assertEquals(before + 1, graph.alarmChanges.runsStarted)
+        release.complete(Unit)
+        // Each run starts the service, whose place in the queue lasts until it runs, so wait for the runs instead.
+        until { held.isCompleted && graph.alarmChanges.runsStarted >= before + 2 }
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        assertEquals("One held, then one more; the other four joined it", before + 2, graph.alarmChanges.runsStarted)
+        assertTrue(graph.actions.retimePending)
     }
 
     @Test fun anAlarmChangeWithALocalPersistenceFailureStaysQuietAndDurable() = runBlocking {

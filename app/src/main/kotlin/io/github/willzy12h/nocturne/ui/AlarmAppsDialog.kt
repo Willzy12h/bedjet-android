@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.store.AlarmApps
 import io.github.willzy12h.nocturne.core.store.Settings
+import io.github.willzy12h.nocturne.core.store.UnnamedAlarms
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.ClockApps
 import io.github.willzy12h.nocturne.night.alarmSourceName
@@ -81,6 +84,7 @@ fun AlarmAppsDialog(model: AppViewModel, onDismiss: () -> Unit, extra: @Composab
                 AlarmAppsChoices(settings, apps, next, others, allShown, onShowMore = { model.refreshOtherAlarmApps(all = true) }) {
                     choice, chosen -> model.chooseAlarmApps(choice, chosen)
                 }
+                if (settings.alarmApps != AlarmApps.NONE) UnnamedAlarmChoices(settings.unnamedAlarms, model::chooseUnnamedAlarms)
                 extra()
             }
         },
@@ -144,6 +148,32 @@ fun AlarmAppsChoices(settings: Settings, apps: List<ClockApps.App>, next: AlarmS
             Format.clock(it.time), alarmSourceName(context, it.identifiedCreator)),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** Ignore, ask each night, or always use an alarm Android doesn't name. "Always" is confirmed first. */
+@Composable
+fun UnnamedAlarmChoices(current: UnnamedAlarms, onChoose: (UnnamedAlarms) -> Unit) {
+    var confirmingAlways by remember { mutableStateOf(false) }
+    SectionLabel(stringResource(R.string.alarm_apps_unnamed_header))
+    Text(stringResource(R.string.alarm_apps_unnamed_help), style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
+    ChoiceRow(current == UnnamedAlarms.ASK, stringResource(R.string.alarm_apps_unnamed_ask),
+        stringResource(R.string.alarm_apps_unnamed_ask_help), "unnamed-alarms-ask") { onChoose(UnnamedAlarms.ASK) }
+    ChoiceRow(current == UnnamedAlarms.ALWAYS, stringResource(R.string.alarm_apps_unnamed_always),
+        stringResource(R.string.alarm_apps_unnamed_always_help), "unnamed-alarms-always") {
+        if (current != UnnamedAlarms.ALWAYS) confirmingAlways = true
+    }
+    ChoiceRow(current == UnnamedAlarms.IGNORE, stringResource(R.string.alarm_apps_unnamed_ignore), null,
+        "unnamed-alarms-ignore") { onChoose(UnnamedAlarms.IGNORE) }
+    if (confirmingAlways) AlertDialog(onDismissRequest = { confirmingAlways = false },
+        modifier = Modifier.testTag("unnamed-alarms-confirm"),
+        title = { Text(stringResource(R.string.alarm_apps_unnamed_confirm_title)) },
+        text = { Text(stringResource(R.string.alarm_apps_unnamed_confirm_body)) },
+        confirmButton = { TextButton(onClick = { confirmingAlways = false; onChoose(UnnamedAlarms.ALWAYS) },
+            modifier = Modifier.heightIn(min = 48.dp).testTag("unnamed-alarms-confirm-yes")) {
+            Text(stringResource(R.string.alarm_apps_unnamed_confirm)) } },
+        dismissButton = { TextButton(onClick = { confirmingAlways = false }, modifier = Modifier.heightIn(min = 48.dp)) {
+            Text(stringResource(android.R.string.cancel)) } })
 }
 
 @Composable

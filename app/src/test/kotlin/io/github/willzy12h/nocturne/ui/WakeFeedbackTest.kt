@@ -98,7 +98,7 @@ class WakeFeedbackTest {
             look(theme, simple)
             waitFor(s(R.string.wake_origin_override))
             assertFalse("$theme simple=$simple", has(s(R.string.wake_origin_profile)))
-            assertFalse("$theme simple=$simple", has("No alarm set", substring = true))
+            assertFalse("$theme simple=$simple", has("No alarm found", substring = true))
         }
     }
 

@@ -1,0 +1,370 @@
+{
+    "schema": 3,
+    "createdAt": "2026-11-01T22:00:00Z",
+    "profiles": [
+        {
+            "id": "preset-summer",
+            "name": "Summer, cooler",
+            "season": "SUMMER",
+            "start": [
+                {
+                    "mode": "COOL",
+                    "temperature": 44,
+                    "fanPercent": 70,
+                    "minutes": 30
+                }
+            ],
+            "middle": {
+                "mode": "COOL",
+                "fanStart": 70,
+                "fanEnd": 30,
+                "tempStart": 46,
+                "tempEnd": 44,
+                "rampSteps": 3,
+                "quietFan": null
+            },
+            "wake": [
+                {
+                    "mode": "HEAT",
+                    "temperature": 60,
+                    "fanPercent": 30,
+                    "minutes": 20
+                }
+            ],
+            "afterWake": [
+                {
+                    "mode": "COOL",
+                    "temperature": 44,
+                    "fanPercent": 40,
+                    "minutes": 20
+                }
+            ],
+            "limits": {
+                "minFan": 5,
+                "maxFan": 100,
+                "minTemp": 38,
+                "maxTemp": 86
+            },
+            "wakeSource": {
+                "useAlarm": true,
+                "defaultWakeMinute": 420
+            },
+            "bedtimeMinute": 1350,
+            "days": [
+                6,
+                7
+            ],
+            "turboChain": "TURBO_THEN_HEAT"
+        },
+        {
+            "id": "preset-winter",
+            "name": "Winter Warm",
+            "season": "WINTER",
+            "start": [
+                {
+                    "mode": "TURBO",
+                    "temperature": 86,
+                    "fanPercent": 100,
+                    "minutes": 10
+                },
+                {
+                    "mode": "HEAT",
+                    "temperature": 70,
+                    "fanPercent": 50,
+                    "minutes": 30
+                }
+            ],
+            "middle": {
+                "mode": "EXTENDED_HEAT",
+                "fanStart": 30,
+                "fanEnd": 20,
+                "tempStart": 58,
+                "tempEnd": 54,
+                "rampSteps": 3,
+                "quietFan": null
+            },
+            "wake": [
+                {
+                    "mode": "HEAT",
+                    "temperature": 68,
+                    "fanPercent": 40,
+                    "minutes": 30
+                }
+            ],
+            "afterWake": [
+                {
+                    "mode": "HEAT",
+                    "temperature": 64,
+                    "fanPercent": 30,
+                    "minutes": 30
+                }
+            ],
+            "limits": {
+                "minFan": 5,
+                "maxFan": 100,
+                "minTemp": 38,
+                "maxTemp": 86
+            },
+            "wakeSource": {
+                "useAlarm": true,
+                "defaultWakeMinute": 420
+            },
+            "bedtimeMinute": 1350,
+            "days": [],
+            "turboChain": "TURBO_THEN_HEAT"
+        },
+        {
+            "id": "preset-spring-autumn",
+            "name": "Spring/Autumn",
+            "season": "SPRING_AUTUMN",
+            "start": [
+                {
+                    "mode": "HEAT",
+                    "temperature": 64,
+                    "fanPercent": 40,
+                    "minutes": 20
+                }
+            ],
+            "middle": {
+                "mode": "COOL",
+                "fanStart": 35,
+                "fanEnd": 20,
+                "tempStart": 44,
+                "tempEnd": 44,
+                "rampSteps": 3,
+                "quietFan": null
+            },
+            "wake": [
+                {
+                    "mode": "HEAT",
+                    "temperature": 64,
+                    "fanPercent": 35,
+                    "minutes": 25
+                }
+            ],
+            "afterWake": [],
+            "limits": {
+                "minFan": 5,
+                "maxFan": 100,
+                "minTemp": 38,
+                "maxTemp": 86
+            },
+            "wakeSource": {
+                "useAlarm": true,
+                "defaultWakeMinute": 420
+            },
+            "bedtimeMinute": 1350,
+            "days": [],
+            "turboChain": "TURBO_THEN_HEAT"
+        },
+        {
+            "id": "preset-hot-sleeper",
+            "name": "Hot Sleeper",
+            "season": "SUMMER",
+            "start": [
+                {
+                    "mode": "COOL",
+                    "temperature": 44,
+                    "fanPercent": 100,
+                    "minutes": 45
+                }
+            ],
+            "middle": {
+                "mode": "COOL",
+                "fanStart": 50,
+                "fanEnd": 45,
+                "tempStart": 44,
+                "tempEnd": 44,
+                "rampSteps": 3,
+                "quietFan": {
+                    "settle": 50,
+                    "settleMinutes": 30,
+                    "asleep": 25,
+                    "rise": 45,
+                    "riseMinutes": 40
+                }
+            },
+            "wake": [
+                {
+                    "mode": "COOL",
+                    "temperature": 44,
+                    "fanPercent": 30,
+                    "minutes": 20
+                }
+            ],
+            "afterWake": [
+                {
+                    "mode": "COOL",
+                    "temperature": 44,
+                    "fanPercent": 40,
+                    "minutes": 30
+                }
+            ],
+            "limits": {
+                "minFan": 5,
+                "maxFan": 100,
+                "minTemp": 38,
+                "maxTemp": 86
+            },
+            "wakeSource": {
+                "useAlarm": true,
+                "defaultWakeMinute": 420
+            },
+            "bedtimeMinute": 1350,
+            "days": [],
+            "turboChain": "TURBO_THEN_HEAT"
+        },
+        {
+            "id": "own-1",
+            "name": "My night",
+            "season": "WINTER",
+            "start": [
+                {
+                    "mode": "TURBO",
+                    "temperature": 86,
+                    "fanPercent": 100,
+                    "minutes": 10
+                },
+                {
+                    "mode": "HEAT",
+                    "temperature": 70,
+                    "fanPercent": 50,
+                    "minutes": 30
+                }
+            ],
+            "middle": {
+                "mode": "EXTENDED_HEAT",
+                "fanStart": 30,
+                "fanEnd": 20,
+                "tempStart": 58,
+                "tempEnd": 54,
+                "rampSteps": 3,
+                "quietFan": null
+            },
+            "wake": [
+                {
+                    "mode": "HEAT",
+                    "temperature": 68,
+                    "fanPercent": 40,
+                    "minutes": 30
+                }
+            ],
+            "afterWake": [
+                {
+                    "mode": "HEAT",
+                    "temperature": 64,
+                    "fanPercent": 30,
+                    "minutes": 30
+                }
+            ],
+            "limits": {
+                "minFan": 5,
+                "maxFan": 100,
+                "minTemp": 38,
+                "maxTemp": 86
+            },
+            "wakeSource": {
+                "useAlarm": true,
+                "defaultWakeMinute": 420
+            },
+            "bedtimeMinute": 1350,
+            "days": [
+                1,
+                2,
+                3
+            ],
+            "turboChain": "TURBO_THEN_HEAT"
+        }
+    ],
+    "settings": {
+        "workingSlot": 1,
+        "selectedProfileId": null,
+        "tonightChoice": null,
+        "tonightOverride": null,
+        "acceptUnknownAlarmSource": true,
+        "notificationActions": [
+            "SNOOZE_WARM",
+            "EXTEND_COOL",
+            "OFF"
+        ],
+        "snoozeWarm": {
+            "mode": "HEAT",
+            "temperature": 66,
+            "fanPercent": 40,
+            "minutes": 10
+        },
+        "snoozeCool": {
+            "mode": "COOL",
+            "temperature": 44,
+            "fanPercent": 50,
+            "minutes": 10
+        },
+        "extendWarm": {
+            "mode": "HEAT",
+            "temperature": 64,
+            "fanPercent": 30,
+            "minutes": 30
+        },
+        "extendCool": {
+            "mode": "COOL",
+            "temperature": 44,
+            "fanPercent": 40,
+            "minutes": 30
+        },
+        "boostMinutes": 15,
+        "fahrenheit": true,
+        "demoMode": false,
+        "targetDevice": null,
+        "rememberedBedJets": [],
+        "demoTargetMigrated": false,
+        "setupFanCheckedDevice": null,
+        "alarmPackages": [
+            "com.google.android.deskclock",
+            "com.sec.android.app.clockpackage"
+        ],
+        "alarmApps": "CLOCK_APPS",
+        "alarmAppsChosen": false,
+        "unnamedAlarms": "ALWAYS",
+        "themeMode": "SYSTEM",
+        "nightPalette": "MIDNIGHT_INK",
+        "dayPalette": "OVERCAST",
+        "scheduledDarkMinute": 1320,
+        "scheduledLightMinute": 420,
+        "simpleView": true,
+        "quickControlsCollapsed": false,
+        "quickDefaults": [],
+        "setupChecklistCompleted": false,
+        "setupDismissedOptional": [],
+        "collapsedTonightSections": [],
+        "tonightSectionOrder": [
+            "night",
+            "wake",
+            "connection"
+        ],
+        "quietNightNotification": false,
+        "sleepSectionOrder": [
+            "trend",
+            "nights",
+            "stages",
+            "figures",
+            "compare",
+            "noticed",
+            "timeline",
+            "history"
+        ],
+        "sleepRangeDays": 7,
+        "historyKeepDays": 90,
+        "cooldownOfferAnswered": false,
+        "platform": {
+            "bedtimeReminder": false,
+            "reminderMinutes": 30,
+            "chargerAutoStart": false,
+            "chargerDevice": null,
+            "healthSleepOverlay": false,
+            "healthSleepExport": false,
+            "autoStart": null
+        }
+    },
+    "slotBackups": [],
+    "history": []
+}

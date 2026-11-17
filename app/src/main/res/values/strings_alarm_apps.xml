@@ -27,6 +27,16 @@
     <string name="alarm_apps_fixed">Use a fixed wake time for %1$s</string>
     <string name="alarm_apps_tonight">Change tonight’s wake time</string>
     <string name="alarm_apps_done">Done</string>
+    <string name="alarm_apps_unnamed_header">Alarms from unnamed apps</string>
+    <string name="alarm_apps_unnamed_help">Android sometimes reports an alarm without saying which app set it. A calendar reminder can look like this too.</string>
+    <string name="alarm_apps_unnamed_ignore">Ignore them</string>
+    <string name="alarm_apps_unnamed_ask">Ask each night</string>
+    <string name="alarm_apps_unnamed_ask_help">Recommended. Tonight offers the alarm, and nothing changes until you tap it.</string>
+    <string name="alarm_apps_unnamed_always">Always use them</string>
+    <string name="alarm_apps_unnamed_always_help">Used like an alarm from a ticked app, if it’s 1 to 18 hours after the night starts.</string>
+    <string name="alarm_apps_unnamed_confirm_title">Always use unnamed alarms?</string>
+    <string name="alarm_apps_unnamed_confirm_body">A calendar reminder or another app’s alarm could then change your wake time, or when Auto-start begins a night. Only alarms 1 to 18 hours after the night starts are used.</string>
+    <string name="alarm_apps_unnamed_confirm">Always use</string>
     <!-- Settings row and Tonight. -->
     <string name="alarm_apps_row">Alarms from</string>
     <string name="alarm_apps_row_any">Any clock app</string>

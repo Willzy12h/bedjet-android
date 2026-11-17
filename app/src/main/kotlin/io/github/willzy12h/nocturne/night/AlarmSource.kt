@@ -57,6 +57,8 @@ object AlarmSource {
             put("matchesSavedWake", JsonPrimitive(explanation.matchesSavedWake))
             put("settingsTarget", JsonPrimitive(explanation.target.name))
             put("onlyNextAlarmExposed", JsonPrimitive(true))
+            put("unnamedAlarms", JsonPrimitive(settings.unnamedAlarms.name))
+            put("unnamedOffer", JsonPrimitive(explanation.unnamedOffer?.toString()))
         }
     }
 }

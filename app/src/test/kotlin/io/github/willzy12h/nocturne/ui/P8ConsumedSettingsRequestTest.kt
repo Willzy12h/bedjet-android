@@ -51,15 +51,18 @@ class P8ConsumedSettingsRequestTest {
     @get:Rule val rules = RuleChain.outerRule(timezone).around(ui.rules)
 
     @Test fun handledAlarmLinkDoesNotReopenWhenReturningToTonight() {
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").performScrollTo().assertIsDisplayed().performClick()
+        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performScrollTo().assertIsDisplayed().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
         ui.compose.onNodeWithText(ui.s(R.string.alarm_apps_done)).performClick()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertDoesNotExist()
         ui.tab(ui.s(R.string.tab_settings))
         ui.tab(ui.s(R.string.tab_tonight))
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertDoesNotExist()
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertDoesNotExist()
         ui.compose.activityRule.scenario.recreate()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertDoesNotExist()
+        ui.compose.onNodeWithTag("missing-alarm-dialog").assertDoesNotExist()
     }
     @Test fun handledSetupRequestDoesNotNavigateAgainAfterRecreation() {
         ui.tab("Settings")

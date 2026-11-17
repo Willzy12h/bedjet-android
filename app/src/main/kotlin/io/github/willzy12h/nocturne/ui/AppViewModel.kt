@@ -252,7 +252,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
         // Whether the next alarm counts depends on the alarm settings, so a change there is shown at once.
         viewModelScope.launch {
-            repo.settings.map { Triple(it.acceptUnknownAlarmSource, it.alarmPackages, it.alarmApps) }.distinctUntilChanged().collect { refreshAlarm() }
+            repo.settings.map { listOf(it.acceptUnknownAlarmSource, it.alarmPackages, it.alarmApps, it.unnamedAlarms) }.distinctUntilChanged().collect { refreshAlarm() }
         }
     }
 
@@ -678,6 +678,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun chooseAlarmApps(choice: AlarmApps, chosen: String? = null) = chooseAlarmApps(choice, setOfNotNull(chosen))
     fun chooseAlarmApps(choice: AlarmApps, chosen: Set<String>) = save {
         repo.updateSettings { ClockApps.choose(it, choice, _clockApps.value, chosen) }
+        if (activeNight.value != null) recheckAlarm() else refreshAlarm()
+    }
+    fun chooseUnnamedAlarms(choice: io.github.willzy12h.nocturne.core.store.UnnamedAlarms) = save {
+        repo.updateSettings { it.copy(unnamedAlarms = choice) }
         if (activeNight.value != null) recheckAlarm() else refreshAlarm()
     }
     fun snapshotNow(label: String) = save { repo.snapshotNow(label); _messages.tryEmit(text(R.string.runtime_snapshot_saved)) }

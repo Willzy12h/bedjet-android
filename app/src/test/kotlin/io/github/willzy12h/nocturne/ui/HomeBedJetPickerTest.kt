@@ -72,7 +72,7 @@ class HomeBedJetPickerTest {
     }
 
     @Test fun homePickerKeepsBothRememberedBedJetsAndCanSwitchBack() {
-        ui.compose.runOnIdle { runBlocking { ui.graph.actions.selectTarget("ble:AA:BB:CC:DD:EE:02", useRealDevice = true) } }
+        selectWithoutBlockingMain("ble:AA:BB:CC:DD:EE:02")
         clearTarget()
         val first = ui.compose.onNode(hasText("AA:BB:CC:DD:EE:01", substring = true) and hasClickAction())
         ui.checkControl(first, "Remembered BedJet").performClick()
@@ -91,6 +91,18 @@ class HomeBedJetPickerTest {
         assertEquals("ble:AA:BB:CC:DD:EE:01", ui.graph.repository.settings.value.targetDevice)
         clearTarget()
         ui.compose.onNodeWithText(ui.s(R.string.setup_find)).performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * Selects as the app does, from its main-thread scope, while the test keeps the main looper running. Blocking the
+     * main thread here would deadlock with the app's own connection, which also runs there and may hold the link's
+     * lock: it could then never resume to release it, and the selection would wait out its 90-second limit.
+     */
+    private fun selectWithoutBlockingMain(target: String) {
+        var outcome: io.github.willzy12h.nocturne.night.CommandOutcome? = null
+        ui.graph.scope.launch { outcome = ui.graph.actions.selectTarget(target, useRealDevice = true) }
+        ui.waitUntil { outcome != null }
+        assertTrue("$outcome", outcome!!.succeeded)
     }
 
     /** Removing the target brings the picker back to Home; the remembered BedJets stay listed in it. */
