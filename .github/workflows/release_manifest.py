@@ -35,6 +35,7 @@ POLICY_ROWS = [
     ("receiver", ".platform.AutomationCancelReceiver", False, None, "Immutable in-app notification PendingIntents only."),
     ("receiver", ".platform.AutoStartReceiver", False, None, "App-scheduled immutable automatic-start PendingIntent only; saved consent and target are checked before enqueueing."),
     ("receiver", ".platform.BedtimeReminderReceiver", False, None, "App-scheduled immutable reminder PendingIntent only."),
+    ("receiver", ".platform.UnnamedAlarmReceiver", False, None, "Immutable bedtime-reminder action PendingIntent only; the offered alarm is checked again before tonight's wake is set."),
     ("receiver", ".night.NightAlarmReceiver", False, None, "App-scheduled identity-bearing night/retry PendingIntents only."),
     ("receiver", ".night.BootReceiver", False, None, "System boot/package/clock/exact-alarm events remain deliverable; application action allowlist is additional validation."),
     ("receiver", ".night.AlarmChangedReceiver", False, None, "System next-alarm-change delivery remains available; no ordinary external sender is needed."),

@@ -52,6 +52,7 @@
         <receiver android:name=".platform.AutomationCancelReceiver" android:exported="false" />
         <receiver android:name=".platform.AutoStartReceiver" android:exported="false" />
         <receiver android:name=".platform.BedtimeReminderReceiver" android:exported="false" />
+        <receiver android:name=".platform.UnnamedAlarmReceiver" android:exported="false" />
         <receiver android:name=".night.NightAlarmReceiver" android:exported="false" />
         <receiver android:name=".night.BootReceiver" android:exported="false" />
         <receiver android:name=".night.AlarmChangedReceiver" android:exported="false" />
