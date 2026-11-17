@@ -45,7 +45,8 @@ import java.util.TimeZone
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class AlarmExplanationTest(private val scenario: Scenario) {
-    enum class Scenario(val expected: String, val expectedWake: String = "07:00") {
+    enum class Scenario(val expected: String, val expectedWake: String = "07:00",
+        /** Tonight's line, where it adds to the exported explanation. */ val shown: String = expected) {
         SAMSUNG("Next alarm 06:30 · Samsung Clock — used", "06:30"),
         NULL_DENIED("Alarm 06:30 ignored: source unknown — tap to change"),
         /** "From any app" was retired in 0.3.0-acceptance.3: asking for it no longer lets an unnamed alarm through. */
@@ -55,7 +56,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         TOO_LATE("Alarm 16:31 ignored: too late — beyond tonight’s 18 hours — tap to change"),
         MINIMUM_BOUNDARY("Next alarm 23:30 · Samsung Clock — used", "23:30"),
         MAXIMUM_BOUNDARY("Next alarm 16:30 · Samsung Clock — used", "16:30"),
-        NO_ALARM("No alarm set — profile wake 07:00"),
+        NO_ALARM("No alarm found — profile wake 07:00", shown = "No alarm found — profile wake 07:00 · Alarm in another app?"),
         PROFILE_ONLY("Alarm 06:30 ignored: alarms off for this profile — tap to change"),
         PROFILE_ONLY_NO_ALARM("Profile wake 07:00 — alarms off for this profile"),
         OVERRIDE("Tonight-only wake 06:45 — alarm not used", "06:45"),
@@ -168,7 +169,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             assertEquals(null, next.creator)
             assertFalse(next.counts)
         }
-        ui.compose.onNodeWithText(scenario.expected).assertExists().assertHasClickAction()
+        ui.compose.onNodeWithText(scenario.shown).assertExists().assertHasClickAction()
         val diagnostic = AlarmSource.diagnostics(ui.compose.activity, ui.graph.repository.settings.value,
             night?.let { ui.graph.repository.profile(it.profileId) } ?: ui.model.tonightsProfile(), night,
             ui.graph.repository.runtime.value, ui.model.nightStatus.value, ui.graph.now())

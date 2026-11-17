@@ -194,4 +194,18 @@ class AlarmExplanationRuntimeTest {
         assertEquals(AlarmSettingsTarget.ALARM_SOURCES, result.target)
         assertEquals("Saved wake 07:00 — BedJet wake unknown", result.description(RuntimeEnvironment.getApplication()))
     }
+
+    @Test fun aMissingAlarmOffersHelpWhileTheWakeCanStillChange() {
+        val night = saved().copy(wakeOrigin = WakeOrigin.PROFILE_DEFAULT, wakeFromAlarm = false)
+        assertEquals(AlarmSettingsTarget.MISSING_ALARM, explain(night, RuntimeState(), nextAlarm = null).target)
+        val unnamed = AlarmSource.NextAlarm(alarm.time, null, false)
+        val unnamedIgnored = AlarmExplanation.resolve(settings.copy(acceptUnknownAlarmSource = false), profile,
+            start.plusHours(2), unnamed, night, RuntimeState(), NightStatus(Confidence.CONFIRMED, null))
+        assertEquals(AlarmReason.UNKNOWN_SOURCE, unnamedIgnored.reason)
+        assertEquals(AlarmSettingsTarget.MISSING_ALARM, unnamedIgnored.target)
+        // While the BedJet's wake is uncertain it can't be changed, so the line keeps pointing at the settings.
+        val unknown = explain(night.copy(confidence = Confidence.UNKNOWN), RuntimeState(),
+            status = NightStatus(Confidence.UNKNOWN, null), nextAlarm = null)
+        assertEquals(AlarmSettingsTarget.PROFILE_WAKE, unknown.target)
+    }
 }

@@ -43,7 +43,7 @@ class AlarmAndShortTestSettingsTest {
         app.getSystemService(AlarmManager::class.java).cancel(fire)
         ui.control("Re-check alarm").performClick()
         ui.waitUntil { ui.model.nextAlarm.value == null }
-        ui.compose.onNodeWithTag("alarm-check-result").assertTextContains("No alarm set", substring = true)
+        ui.compose.onNodeWithTag("alarm-check-result").assertTextContains("No alarm found", substring = true)
     }
 
     @Test fun shortTestPreviewNamesTargetAndPhasesAndCancelDoesNotStart() {

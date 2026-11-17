@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.night.AlarmExplanation
 import io.github.willzy12h.nocturne.night.AlarmSettingsTarget
-import io.github.willzy12h.nocturne.night.description
+import io.github.willzy12h.nocturne.night.lineDescription
 
 /** A small, wrapping explanation with a full-width touch target, including in the simple timeline. */
 @Composable
@@ -24,8 +24,9 @@ fun AlarmExplanationLine(explanation: AlarmExplanation, onClick: () -> Unit) {
         AlarmSettingsTarget.ALARM_SOURCES -> R.string.alarm_source_open_sources
         AlarmSettingsTarget.PROFILE_WAKE -> R.string.alarm_source_open_profile
         AlarmSettingsTarget.TONIGHT_WAKE -> R.string.alarm_source_open_tonight
+        AlarmSettingsTarget.MISSING_ALARM -> R.string.alarm_source_open_missing
     })
-    Text(explanation.description(LocalContext.current),
+    Text(explanation.lineDescription(LocalContext.current),
         // Accent-coloured and underlined, so it reads as something to tap.
         style = MaterialTheme.typography.bodySmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline),
         color = MaterialTheme.colorScheme.primary,

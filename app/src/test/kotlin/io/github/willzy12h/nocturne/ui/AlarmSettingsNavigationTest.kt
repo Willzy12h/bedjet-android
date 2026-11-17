@@ -68,6 +68,7 @@ class AlarmSettingsNavigationTest {
     @Test fun anIgnoredUnknownAlarmOpensTheAlarmAppChoiceAndStaysIgnored() {
         ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change")
             .performScrollTo().assertIsDisplayed().performClick()
+        ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
         // There is no longer a way to accept alarms from an app Android doesn't name.
         ui.compose.onNodeWithText("Next known alarm, from any app").assertDoesNotExist()

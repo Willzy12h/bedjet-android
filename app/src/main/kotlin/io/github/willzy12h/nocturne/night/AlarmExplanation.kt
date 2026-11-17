@@ -19,7 +19,9 @@ enum class AlarmReason { ELIGIBLE, NO_ALARM, UNKNOWN_SOURCE, SOURCE_NOT_ALLOWED,
     /** "No alarms" is chosen in Settings: every profile uses its own wake time. */
     ALARMS_OFF }
 enum class WakeExplanationState { PREVIEW, SAVED, PENDING, FAILED, UNKNOWN, MANUAL }
-enum class AlarmSettingsTarget { ALARM_SOURCES, PROFILE_WAKE, TONIGHT_WAKE }
+enum class AlarmSettingsTarget { ALARM_SOURCES, PROFILE_WAKE, TONIGHT_WAKE,
+    /** Nocturne can't see the person's alarm: explain why, and offer tonight's wake or a fixed profile wake. */
+    MISSING_ALARM }
 
 /** One assessment supplies Tonight and diagnostics. Saved wake provenance never comes from a current alarm. */
 data class AlarmExplanation(
@@ -86,6 +88,8 @@ data class AlarmExplanation(
             val canChooseWake = state == WakeExplanationState.PREVIEW || state == WakeExplanationState.SAVED
             val target = when {
                 reason in setOf(AlarmReason.OVERRIDE, AlarmReason.OUTSIDE_WINDOW) && canChooseWake -> AlarmSettingsTarget.TONIGHT_WAKE
+                // Some apps' alarms never reach Android's next-alarm slot, or reach it unnamed (seen on Honor phones).
+                reason in setOf(AlarmReason.NO_ALARM, AlarmReason.UNKNOWN_SOURCE) && canChooseWake -> AlarmSettingsTarget.MISSING_ALARM
                 reason in setOf(AlarmReason.PROFILE_ALARMS_OFF, AlarmReason.NO_ALARM) -> AlarmSettingsTarget.PROFILE_WAKE
                 else -> AlarmSettingsTarget.ALARM_SOURCES
             }
@@ -176,6 +180,13 @@ fun AlarmExplanation.description(context: Context): String {
         else -> ignored()
     }
     return text(R.string.alarm_source_saved_and_current, saved, current)
+}
+
+/** Tonight's line: with no alarm in sight it also asks whether the alarm is in another app, as a tap opens that help. */
+fun AlarmExplanation.lineDescription(context: Context): String {
+    val text = description(context)
+    return if (target == AlarmSettingsTarget.MISSING_ALARM && reason == AlarmReason.NO_ALARM)
+        context.getString(R.string.alarm_source_other_app_question, text) else text
 }
 
 /** An explicit check always reports Android's current answer, even when the selected wake did not change. */
