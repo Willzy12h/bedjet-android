@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.willzy12h.nocturne.BuildConfig
@@ -280,14 +281,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _restoreOffer = MutableStateFlow(run {
         // Remembered, because the first launch writes settings, so the next launch no longer starts empty.
         if (repo.startedEmpty && !firstRun.contains(RESTORE_OFFER_PENDING))
-            firstRun.edit().putBoolean(RESTORE_OFFER_PENDING, true).commit()
+            firstRun.edit(commit = true) { putBoolean(RESTORE_OFFER_PENDING, true) }
         firstRun.getBoolean(RESTORE_OFFER_PENDING, false) && !firstRun.getBoolean(RESTORE_OFFER_DISMISSED, false)
     })
     /** Shown on Tonight after a fresh install, until it is dismissed or a backup is restored: restore a backup file. */
     val restoreOffer: StateFlow<Boolean> = _restoreOffer.asStateFlow()
     fun dismissRestoreOffer() {
         _restoreOffer.value = false
-        firstRun.edit().putBoolean(RESTORE_OFFER_DISMISSED, true).apply()
+        firstRun.edit { putBoolean(RESTORE_OFFER_DISMISSED, true) }
     }
 
     /** Built-in profiles back as they ship, keeping their nights; own profiles stay. A snapshot is saved first. */
