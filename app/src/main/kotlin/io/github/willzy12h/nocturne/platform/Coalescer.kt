@@ -22,12 +22,16 @@ class Coalescer {
     /** How many runs have started, for tests. */
     @Volatile var runsStarted = 0
         private set
+    /** How many callers have arrived, for tests. */
+    @Volatile var callers = 0
+        private set
 
     /** Runs [work], or waits for the already-waiting run. Returns true if this caller ran it. */
     suspend fun run(work: suspend () -> Unit): Boolean {
         val joined: CompletableDeferred<Unit>?
         val mine: CompletableDeferred<Unit>
         synchronized(guard) {
+            callers++
             joined = waiting
             mine = joined ?: CompletableDeferred<Unit>().also { waiting = it }
         }

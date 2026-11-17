@@ -39,6 +39,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -1436,22 +1437,21 @@ class RetimeNotificationTest {
     @Test fun aBurstOfFiveAlarmChangesLooksAtTheAlarmTwice() = runBlocking {
         pendingAfterConnectionFailure()
         val before = graph.alarmChanges.runsStarted
-        // A backup import holds every receiver at the door, so all five broadcasts are in hand before any runs.
-        val importing = checkNotNull(graph.repository.operationAdmission.tryImport()) { "Nothing should be running yet" }
-        val receiver = AlarmChangedReceiver()
-        app.registerReceiver(receiver, android.content.IntentFilter(AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED),
-            android.content.Context.RECEIVER_EXPORTED)
-        try {
-            repeat(5) { app.sendBroadcast(android.content.Intent(AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED)) }
-            shadowOf(android.os.Looper.getMainLooper()).idle()
-            assertEquals(before, graph.alarmChanges.runsStarted)
-            importing.close()
-            // Each run starts the service, whose place in the queue lasts until it runs, so wait for the runs instead.
-            until { graph.alarmChanges.runsStarted >= before + 2 }
-            shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
-            assertEquals("One running and one waiting; the other three joined", before + 2, graph.alarmChanges.runsStarted)
-            assertTrue(graph.actions.retimePending)
-        } finally { app.unregisterReceiver(receiver) }
+        // Hold a look at the alarm open, so all five broadcasts are in hand before it ends.
+        val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        val held = graph.scope.launch { graph.alarmChanges.run { entered.complete(Unit); release.await() } }
+        until { entered.isCompleted }
+        val callers = graph.alarmChanges.callers
+        // AlarmChangedReceiver is declared in the manifest, so each broadcast reaches it once.
+        repeat(5) { app.sendBroadcast(android.content.Intent(AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED)) }
+        until { graph.alarmChanges.callers == callers + 5 }
+        assertEquals(before + 1, graph.alarmChanges.runsStarted)
+        release.complete(Unit)
+        // Each run starts the service, whose place in the queue lasts until it runs, so wait for the runs instead.
+        until { held.isCompleted && graph.alarmChanges.runsStarted >= before + 2 }
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(1))
+        assertEquals("One held, then one more; the other four joined it", before + 2, graph.alarmChanges.runsStarted)
+        assertTrue(graph.actions.retimePending)
     }
 
     @Test fun anAlarmChangeWithALocalPersistenceFailureStaysQuietAndDurable() = runBlocking {

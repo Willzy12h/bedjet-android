@@ -1,8 +1,6 @@
 package io.github.willzy12h.nocturne.night
 
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Looper
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
@@ -48,18 +46,15 @@ class BroadcastBurstTest {
         val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
         val held = graph.scope.launch { graph.actions.exclusive { entered.complete(Unit); release.await() } }
         until { entered.isCompleted }
-        val receiver = BootReceiver()
-        app.registerReceiver(receiver, IntentFilter(Intent.ACTION_TIME_CHANGED), Context.RECEIVER_EXPORTED)
-        try {
-            repeat(5) { app.sendBroadcast(Intent(Intent.ACTION_TIME_CHANGED)) }
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals("One repair waits on the busy night; the rest share the next", 1, graph.repairs.runsStarted)
-            release.complete(Unit)
-            // Settled: no broadcast is still in flight or holding its place in the queue.
-            until { held.isCompleted && graph.repository.operationAdmission.isIdle() }
-            assertEquals(2, graph.repairs.runsStarted)
-        } finally {
-            app.unregisterReceiver(receiver)
-        }
+        // BootReceiver is declared in the manifest, so each broadcast reaches it once.
+        val callers = graph.repairs.callers
+        repeat(5) { app.sendBroadcast(Intent(Intent.ACTION_TIME_CHANGED)) }
+        // All five must be in hand before the busy night ends, or a late one would rightly get a run of its own.
+        until { graph.repairs.callers == callers + 5 }
+        assertEquals("One repair waits on the busy night; the rest share the next", 1, graph.repairs.runsStarted)
+        release.complete(Unit)
+        // Settled: no broadcast is still in flight or holding its place in the queue.
+        until { held.isCompleted && graph.repository.operationAdmission.isIdle() }
+        assertEquals(2, graph.repairs.runsStarted)
     }
 }
