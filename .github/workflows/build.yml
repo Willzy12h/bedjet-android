@@ -5,12 +5,9 @@ on:
     # A reviewed candidate can use the existing permanent TEST identity without a PR or merge.
     branches: [main, gpt/nocturne-independent-fixes]
     tags: ["v*"]
+  # Every pull request reports the "build" check, so it can be a required check. Docs-only changes (README, demo,
+  # policy text, images) cannot affect the app: their "build" passes without the Android jobs (see prepare).
   pull_request:
-    # Docs-only changes (README, demo, policy text, images) cannot affect the app, so they skip the Android gate.
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - "LICENSE"
 
 permissions:
   contents: read
@@ -28,16 +25,27 @@ defaults:
   run:
     shell: bash
 
+# The checks run as three jobs at the same time (gate, release-build, screenshots); "build" then confirms they all
+# passed. A merge into main that releases skips all three when a pull request already passed this exact tree, and
+# signs and publishes that pull request's unsigned APK (release_reuse.py).
 jobs:
-  # This entire job is independent of production signing secrets.
-  build:
+  # This job and the three check jobs are independent of production signing secrets.
+  prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     outputs:
       version-name: ${{ steps.version.outputs.name }}
       version-code: ${{ steps.version.outputs.code }}
       release: ${{ steps.version.outputs.release }}
+      candidate: ${{ steps.version.outputs.candidate }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      android: ${{ steps.changes.outputs.android }}
+      reuse-run-id: ${{ steps.reuse.outputs.reuse-run-id }}
+      reuse-artifact-attempt: ${{ steps.reuse.outputs.reuse-artifact-attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,10 +72,13 @@ jobs:
         id: version
         env:
           RELEASE_VERSION_CODE: ${{ vars.NOCTURNE_RELEASE_VERSION_CODE }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           GH_TOKEN: ${{ github.token }}
         run: |
           RELEASE=false
-          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+          CANDIDATE=false
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]] \
+            || [[ "$GITHUB_EVENT_NAME" == pull_request && "$PR_HEAD_REPOSITORY" == "$GITHUB_REPOSITORY" ]]; then
             # A merge into main publishes release.properties' version once, if its tag doesn't exist yet.
             FILE_NAME="$(sed -n 's/^versionName=//p' release.properties)"
             FILE_CODE="$(sed -n 's/^versionCode=//p' release.properties)"
@@ -77,12 +88,15 @@ jobs:
             fi
             TAGS="$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v$FILE_NAME" --jq '.[].ref')"
             if grep -qx "refs/tags/v$FILE_NAME" <<< "$TAGS"; then
-              echo "v$FILE_NAME is already tagged; this push builds without releasing."
-            else
+              echo "v$FILE_NAME is already tagged; this build doesn't release it."
+            elif [[ "$GITHUB_EVENT_NAME" == push ]]; then
               RELEASE=true
+            else
+              # This pull request would release: build the APK main would publish, so the merge can publish this one.
+              CANDIDATE=true
             fi
           fi
-          if [[ "$RELEASE" == true ]]; then
+          if [[ "$RELEASE" == true || "$CANDIDATE" == true ]]; then
             VERSION_NAME="$FILE_NAME"
             VERSION_CODE="$FILE_CODE"
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
@@ -105,7 +119,79 @@ jobs:
           printf 'VERSION_NAME=%s\nVERSION_CODE=%s\n' "$VERSION_NAME" "$VERSION_CODE" >> "$GITHUB_ENV"
           PRERELEASE=false
           if [[ "$VERSION_NAME" == *-* ]]; then PRERELEASE=true; fi
-          printf 'name=%s\ncode=%s\nrelease=%s\nprerelease=%s\n' "$VERSION_NAME" "$VERSION_CODE" "$RELEASE" "$PRERELEASE" >> "$GITHUB_OUTPUT"
+          printf 'name=%s\ncode=%s\nrelease=%s\ncandidate=%s\nprerelease=%s\n' "$VERSION_NAME" "$VERSION_CODE" "$RELEASE" "$CANDIDATE" "$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Release helper regression tests
+        run: |
+          python3 -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r .github/workflows/requirements-release.txt
+          python3 -B .github/workflows/test_release_artifacts.py
+          python3 -B .github/workflows/test_release_reuse.py
+          python3 -B .github/workflows/test_release_manifest.py
+          python3 -B .github/workflows/test_release_screenshots.py
+          python3 -B .github/workflows/test_permanent_test_signing.py
+          python3 -B .github/workflows/release-serialization-test.py
+
+      - name: Changed files
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ANDROID=true
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename' > "$RUNNER_TEMP/changed-files.txt"
+            # GitHub lists at most 3000 files; a longer list is treated as touching the app.
+            if python3 -B - "$RUNNER_TEMP/changed-files.txt" <<'PY'
+          import fnmatch, sys
+          files = open(sys.argv[1]).read().split()
+          docs = lambda name: name == "LICENSE" or name.startswith("docs/") or fnmatch.fnmatch(name, "*.md")
+          sys.exit(0 if files and len(files) < 3000 and all(map(docs, files)) else 1)
+          PY
+            then
+              ANDROID=false
+              echo "Docs-only change: the Android jobs are skipped."
+            fi
+          fi
+          echo "android=$ANDROID" >> "$GITHUB_OUTPUT"
+
+      - name: Reuse a pull request's checked APK
+        id: reuse
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B .github/workflows/release_reuse.py \
+            --repository "$GITHUB_REPOSITORY" --commit "$SOURCE_SHA" --tree "$(git rev-parse HEAD^{tree})" \
+            --version-name "$VERSION_NAME" --version-code "$VERSION_CODE" \
+            --report "$RUNNER_TEMP/nocturne-release/evidence/release-reuse.json" --github-output "$GITHUB_OUTPUT"
+
+      - name: Preserve preparation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nocturne-prepare-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/nocturne-release/evidence/
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Every test: core on the JVM, the app on Robolectric.
+  gate:
+    needs: prepare
+    if: needs.prepare.outputs.android == 'true' && needs.prepare.outputs.reuse-run-id == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VERSION_NAME: ${{ needs.prepare.outputs.version-name }}
+      VERSION_CODE: ${{ needs.prepare.outputs.version-code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
@@ -117,9 +203,13 @@ jobs:
           python-version: "3.12"
 
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        with:
+          # Branches in this repository keep their own build cache between pushes; forks only read.
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
 
       - name: Record runner Android SDK inventory
         run: |
+          mkdir -p "$RUNNER_TEMP/nocturne-release/evidence"
           python3 -B .github/workflows/android_sdk_profile.py before \
             --output "$RUNNER_TEMP/nocturne-release/evidence/android-sdk-before.json"
 
@@ -142,34 +232,24 @@ jobs:
           python3 -B .github/workflows/android_sdk_profile.py after \
             --output "$RUNNER_TEMP/nocturne-release/evidence/android-sdk-profile.json"
 
-      - name: Release helper regression tests
-        run: |
-          python3 -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r .github/workflows/requirements-release.txt
-          python3 -B .github/workflows/test_release_artifacts.py
-          python3 -B .github/workflows/test_release_manifest.py
-          python3 -B .github/workflows/test_release_screenshots.py
-          python3 -B .github/workflows/test_permanent_test_signing.py
-          python3 -B .github/workflows/release-serialization-test.py
-
-      - name: Required test, debug and lint gate
+      - name: Required tests
         id: gate
         run: |
           # Each app test class runs in its own JVM, three at a time (app/build.gradle.kts), so one class's leftover
           # background work cannot stall the classes after it.
           ./gradlew --no-daemon --max-workers=4 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
-            :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug \
+            :core:test :app:testDebugUnitTest \
             -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE" \
             2>&1 | tee "$RUNNER_TEMP/nocturne-release/evidence/required-gate.log"
 
-      - name: Record required gate counts before screenshot capture
+      - name: Record required test counts
         if: always()
         run: |
-          python3 -B .github/workflows/release_artifacts.py gate-summary \
+          python3 -B .github/workflows/release_artifacts.py gate-summary --part tests \
             --expected-source "$SOURCE_SHA" --output "$RUNNER_TEMP/nocturne-release/evidence/required-gate-summary.json" \
             2>&1 | tee -a "$RUNNER_TEMP/nocturne-release/evidence/required-gate.log"
 
-      # Capture the full suite before the optional screenshot task replaces its XML.
-      - name: Preserve full-gate evidence
+      - name: Preserve test evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -179,10 +259,78 @@ jobs:
             ${{ runner.temp }}/nocturne-release/evidence/
             core/build/test-results/test/
             app/build/test-results/testDebugUnitTest/
-            app/build/reports/lint-results-debug.*
             core/build/reports/tests/test/
             app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: warn
+
+  # Debug build and lint, then the shrunk release: unsigned, fail-closed signing probes and a throwaway test signature.
+  release-build:
+    needs: prepare
+    if: needs.prepare.outputs.android == 'true' && needs.prepare.outputs.reuse-run-id == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION_NAME: ${{ needs.prepare.outputs.version-name }}
+      VERSION_CODE: ${{ needs.prepare.outputs.version-code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - name: Record runner Android SDK inventory
+        run: |
+          mkdir -p "$RUNNER_TEMP/nocturne-release/evidence"
+          python3 -B .github/workflows/android_sdk_profile.py before \
+            --output "$RUNNER_TEMP/nocturne-release/evidence/android-sdk-before.json"
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        env:
+          ANDROID_SDK_ROOT: ${{ runner.temp }}/nocturne-android-sdk
+        with:
+          cmdline-tools-version: "15859902"
+          accept-android-sdk-licenses: false
+          packages: ''
+          log-accepted-android-sdk-licenses: false
+
+      - name: Android SDK packages
+        run: |
+          python3 -B .github/workflows/android_sdk_profile.py install \
+            --output "$RUNNER_TEMP/nocturne-release/evidence/android-sdk-install.json"
+
+      - name: Verify isolated Android SDK profile
+        run: |
+          python3 -B .github/workflows/android_sdk_profile.py after \
+            --output "$RUNNER_TEMP/nocturne-release/evidence/android-sdk-profile.json"
+
+      # One Gradle daemon serves every Gradle step in this job (same JVM arguments), instead of a fresh JVM per build.
+      - name: Debug build and lint
+        id: lint
+        run: |
+          ./gradlew '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' --max-workers=4 \
+            :app:assembleDebug :app:lintDebug \
+            -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE" \
+            2>&1 | tee "$RUNNER_TEMP/nocturne-release/evidence/debug-and-lint.log"
+
+      - name: Record lint findings
+        if: always()
+        run: |
+          python3 -B .github/workflows/release_artifacts.py gate-summary --part lint \
+            --expected-source "$SOURCE_SHA" --output "$RUNNER_TEMP/nocturne-release/evidence/lint-summary.json" \
+            2>&1 | tee -a "$RUNNER_TEMP/nocturne-release/evidence/debug-and-lint.log"
 
       - name: Unsigned, fail-closed and explicit test-signed release builds
         id: signing
@@ -216,9 +364,10 @@ jobs:
           path: ${{ runner.temp }}/nocturne-permanent-test/
           if-no-files-found: error
           retention-days: 30
+
       - name: Release serialization JVM fixture
         run: |
-          ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+          ./gradlew --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
             -I .github/workflows/release-serialization.init.gradle \
             :app:testReleaseUnitTest --tests io.github.willzy12h.nocturne.releasegate.ReleaseSerializationTest \
             :app:exportReleaseSerializationInputs \
@@ -250,29 +399,16 @@ jobs:
             --manifest app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml \
             --output app/build/reports/release-manifest
 
-      - name: Render fixed-clock after screens
-        id: screenshots
-        env:
-          SCREENSHOT_TAG: after
-        run: |
-          ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
-            :app:testDebugUnitTest --tests '*ScreenshotCapture*' --rerun-tasks \
-            -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE" \
-            2>&1 | tee "$RUNNER_TEMP/nocturne-release/evidence/screenshots.log"
-          python3 -B .github/workflows/release_screenshots.py \
-            --baseline docs/screenshots/baseline --after app/build/screenshots/after \
-            --output app/build/reports/release-screenshots
-
       - name: Record gate outcomes
         if: always()
         env:
-          REQUIRED_GATE: ${{ steps.gate.outcome }}
+          LINT_GATE: ${{ steps.lint.outcome }}
           SIGNING_GATE: ${{ steps.signing.outcome }}
           SERIALIZATION_RUNTIME_GATE: ${{ steps.serialization_runtime.outcome }}
           SERIALIZATION_GATE: ${{ steps.serialization.outcome }}
           MANIFEST_GATE: ${{ steps.manifest.outcome }}
-          SCREENSHOT_GATE: ${{ steps.screenshots.outcome }}
         run: |
+          ./gradlew --stop >/dev/null 2>&1 || true
           python3 -B - <<'PY'
           import json, os
           from pathlib import Path
@@ -280,10 +416,10 @@ jobs:
           output.parent.mkdir(parents=True, exist_ok=True)
           output.write_text(json.dumps({"source_commit": os.environ["SOURCE_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
-              "outcomes": {key: os.environ[key] for key in ("REQUIRED_GATE", "SIGNING_GATE", "SERIALIZATION_RUNTIME_GATE", "SERIALIZATION_GATE", "MANIFEST_GATE", "SCREENSHOT_GATE")}}, indent=2) + "\n")
+              "outcomes": {key: os.environ[key] for key in ("LINT_GATE", "SIGNING_GATE", "SERIALIZATION_RUNTIME_GATE", "SERIALIZATION_GATE", "MANIFEST_GATE")}}, indent=2) + "\n")
           PY
 
-      - name: Preserve release and screenshot evidence
+      - name: Preserve release evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -293,15 +429,12 @@ jobs:
             ${{ runner.temp }}/nocturne-release/unsigned/release-metadata.json
             ${{ runner.temp }}/nocturne-release/unsigned/signature.txt
             ${{ runner.temp }}/nocturne-release/unsigned/r8/
+            app/build/reports/lint-results-debug.*
             app/build/reports/release-serialization/inputs.json
             app/build/reports/release-manifest/
             app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml
             app/build/generated/manifests/generateReleaseSecurityManifest/AndroidManifest.xml
-            app/build/reports/release-screenshots/
-            app/build/screenshots/after/
-            docs/screenshots/baseline/
             app/build/test-results/testReleaseUnitTest/
-            app/build/test-results/testDebugUnitTest/TEST-*ScreenshotCapture*.xml
           if-no-files-found: warn
           retention-days: 30
 
@@ -314,25 +447,140 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # The production job signs this, from this run or, for a merge, from the pull request run that passed the same tree.
       - name: Transfer unsigned production input
-        if: steps.version.outputs.release == 'true'
+        if: needs.prepare.outputs.release == 'true' || needs.prepare.outputs.candidate == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nocturne-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/nocturne-release/unsigned/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
 
-  # Production credentials are never present in the test/build job or in PR runs.
+  # Fixed-clock screenshots of every screen, compared with the reference set (differences are reported, not fatal).
+  screenshots:
+    needs: prepare
+    if: needs.prepare.outputs.android == 'true' && needs.prepare.outputs.reuse-run-id == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERSION_NAME: ${{ needs.prepare.outputs.version-name }}
+      VERSION_CODE: ${{ needs.prepare.outputs.version-code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        env:
+          ANDROID_SDK_ROOT: ${{ runner.temp }}/nocturne-android-sdk
+        with:
+          cmdline-tools-version: "15859902"
+          accept-android-sdk-licenses: false
+          packages: ''
+          log-accepted-android-sdk-licenses: false
+
+      - name: Android SDK packages
+        run: |
+          mkdir -p "$RUNNER_TEMP/nocturne-release/evidence"
+          python3 -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r .github/workflows/requirements-release.txt
+          python3 -B .github/workflows/android_sdk_profile.py install \
+            --output "$RUNNER_TEMP/nocturne-release/evidence/android-sdk-install.json"
+
+      - name: Render fixed-clock after screens
+        id: screenshots
+        env:
+          SCREENSHOT_TAG: after
+        run: |
+          # --rerun runs only the capture tests again, even when a cached result exists; nothing else is rebuilt.
+          ./gradlew --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+            :app:testDebugUnitTest --tests '*ScreenshotCapture*' --rerun \
+            -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE" \
+            2>&1 | tee "$RUNNER_TEMP/nocturne-release/evidence/screenshots.log"
+          python3 -B .github/workflows/release_screenshots.py \
+            --baseline docs/screenshots/baseline --after app/build/screenshots/after \
+            --output app/build/reports/release-screenshots
+
+      - name: Preserve screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nocturne-screenshots-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/nocturne-release/evidence/
+            app/build/reports/release-screenshots/
+            app/build/screenshots/after/
+            docs/screenshots/baseline/
+            app/build/test-results/testDebugUnitTest/TEST-*ScreenshotCapture*.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+  # The one check to require: it passes only when every check job passed, the change is docs-only, or a merge reuses
+  # a pull request run that passed this exact tree.
+  build:
+    needs: [prepare, gate, release-build, screenshots]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      verified: ${{ steps.verdict.outputs.verified }}
+      unsigned-run-id: ${{ steps.verdict.outputs.unsigned-run-id }}
+      unsigned-attempt: ${{ steps.verdict.outputs.unsigned-attempt }}
+    steps:
+      - name: Verdict
+        id: verdict
+        env:
+          PREPARE: ${{ needs.prepare.result }}
+          GATE: ${{ needs.gate.result }}
+          RELEASE_BUILD: ${{ needs.release-build.result }}
+          SCREENSHOTS: ${{ needs.screenshots.result }}
+          ANDROID: ${{ needs.prepare.outputs.android }}
+          REUSE_RUN_ID: ${{ needs.prepare.outputs.reuse-run-id }}
+          REUSE_ATTEMPT: ${{ needs.prepare.outputs.reuse-artifact-attempt }}
+        run: |
+          echo "prepare=$PREPARE gate=$GATE release-build=$RELEASE_BUILD screenshots=$SCREENSHOTS android=$ANDROID reuse=${REUSE_RUN_ID:-none}"
+          test "$PREPARE" = success
+          if [[ "$ANDROID" != true ]]; then
+            [[ "$GATE/$RELEASE_BUILD/$SCREENSHOTS" == skipped/skipped/skipped ]]
+            echo "Docs-only change: no Android checks needed." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif [[ -n "$REUSE_RUN_ID" ]]; then
+            [[ "$GATE/$RELEASE_BUILD/$SCREENSHOTS" == skipped/skipped/skipped ]]
+            echo "Pull request run $REUSE_RUN_ID passed every check on this exact tree; its APK is used." | tee -a "$GITHUB_STEP_SUMMARY"
+            printf 'unsigned-run-id=%s\nunsigned-attempt=%s\n' "$REUSE_RUN_ID" "$REUSE_ATTEMPT" >> "$GITHUB_OUTPUT"
+          else
+            [[ "$GATE/$RELEASE_BUILD/$SCREENSHOTS" == success/success/success ]]
+            printf 'unsigned-run-id=%s\nunsigned-attempt=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+          fi
+          echo "verified=true" >> "$GITHUB_OUTPUT"
+
+  # Production credentials are never present in the check jobs or in PR runs.
   production:
-    needs: build
+    needs: [prepare, build]
     environment: production
-    if: github.event_name == 'push' && needs.build.outputs.release == 'true'
+    # !cancelled(): the check jobs this depends on through "build" are skipped when a pull request's APK is reused.
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.prepare.outputs.release == 'true' && needs.build.result == 'success' && needs.build.outputs.verified == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
     env:
-      VERSION_NAME: ${{ needs.build.outputs.version-name }}
-      VERSION_CODE: ${{ needs.build.outputs.version-code }}
+      VERSION_NAME: ${{ needs.prepare.outputs.version-name }}
+      VERSION_CODE: ${{ needs.prepare.outputs.version-code }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -352,7 +600,9 @@ jobs:
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: nocturne-unsigned-${{ github.run_id }}-${{ github.run_attempt }}
+          name: nocturne-unsigned-${{ needs.build.outputs.unsigned-run-id }}-${{ needs.build.outputs.unsigned-attempt }}
+          run-id: ${{ needs.build.outputs.unsigned-run-id }}
+          github-token: ${{ github.token }}
           path: ${{ runner.temp }}/nocturne-unsigned
 
       - name: Check expected signer and all published version codes
@@ -374,17 +624,24 @@ jobs:
 
       - name: Verify transferred unsigned artifact
         id: unsigned_input
+        env:
+          UNSIGNED_RUN_ID: ${{ needs.build.outputs.unsigned-run-id }}
         run: |
-          python3 -B - <<'PY'
+          # The APK was built from this exact source tree: in this run, or in the pull request run that was merged.
+          SOURCE_TREE="$(git rev-parse HEAD^{tree})" python3 -B - <<'PY'
           import json, os, sys
           from pathlib import Path
           sys.path.insert(0, ".github/workflows")
           from release_artifacts import sha256
           root = Path(os.environ["RUNNER_TEMP"]) / "nocturne-unsigned"
           metadata = json.loads((root / "release-metadata.json").read_text())
-          if (metadata["source_commit"] != os.environ["SOURCE_SHA"] or metadata["signing_identity"] != "unsigned"
+          same_run = os.environ["UNSIGNED_RUN_ID"] == os.environ["GITHUB_RUN_ID"]
+          if (metadata["source_tree"] != os.environ["SOURCE_TREE"]
+              or (same_run and metadata["source_commit"] != os.environ["SOURCE_SHA"])
+              or metadata["signing_identity"] != "unsigned"
               or metadata["signer_sha256"] is not None or metadata["apk_sha256"] != sha256(root / "app-release-unsigned.apk")):
               raise SystemExit("Unsigned artifact does not match its recorded source, identity or SHA-256")
+          print(f"Unsigned APK built from tree {metadata['source_tree']} (commit {metadata['source_commit']}, run {os.environ['UNSIGNED_RUN_ID']})")
           PY
           python3 -B .github/workflows/release_artifacts.py metadata \
             --apk "$RUNNER_TEMP/nocturne-unsigned/app-release-unsigned.apk" \
@@ -428,13 +685,14 @@ jobs:
           HISTORY_GATE: ${{ steps.history.outcome }}
           UNSIGNED_INPUT_GATE: ${{ steps.unsigned_input.outcome }}
           PRODUCTION_SIGNING_GATE: ${{ steps.production_signing.outcome }}
+          UNSIGNED_RUN_ID: ${{ needs.build.outputs.unsigned-run-id }}
         run: |
           python3 -B - <<'PY'
           import json, os
           from pathlib import Path
           output = Path(os.environ["RUNNER_TEMP"]) / "nocturne-production-evidence/gate-outcomes.json"
           output.parent.mkdir(parents=True, exist_ok=True)
-          output.write_text(json.dumps({"source_commit": os.environ["SOURCE_SHA"],
+          output.write_text(json.dumps({"source_commit": os.environ["SOURCE_SHA"], "unsigned_run_id": os.environ["UNSIGNED_RUN_ID"],
               "outcomes": {key: os.environ[key] for key in ("HISTORY_GATE", "UNSIGNED_INPUT_GATE", "PRODUCTION_SIGNING_GATE")}}, indent=2) + "\n")
           PY
 
@@ -459,13 +717,13 @@ jobs:
 
   # Only this job can write to the repository; it can download only the production package.
   release:
-    needs: [build, production]
-    if: github.event_name == 'push' && needs.build.outputs.release == 'true'
+    needs: [prepare, production]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.prepare.outputs.release == 'true' && needs.production.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      VERSION_NAME: ${{ needs.build.outputs.version-name }}
+      VERSION_NAME: ${{ needs.prepare.outputs.version-name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -487,10 +745,10 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          tag_name: v${{ needs.build.outputs.version-name }}
+          tag_name: v${{ needs.prepare.outputs.version-name }}
           target_commitish: ${{ env.SOURCE_SHA }}
-          name: Nocturne ${{ needs.build.outputs.version-name }}
-          prerelease: ${{ needs.build.outputs.prerelease == 'true' }}
+          name: Nocturne ${{ needs.prepare.outputs.version-name }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
           body_path: ${{ steps.notes.outputs.file }}
           files: |
             dist/nocturne-*.apk

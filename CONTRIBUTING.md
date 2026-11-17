@@ -18,7 +18,8 @@ has crashed, the last crash trace. It never contains your Health Connect data.
    ./gradlew :app:testDebugUnitTest
    ```
 
-   Both must pass before you open a pull request. CI runs the same tests, plus lint and the release checks.
+   Locally, running the tests your change affects is enough (`--tests '*SomeTest*'` narrows the app tests). CI runs
+   the full suite, plus lint and the release checks, on every pull request.
 3. Keep each pull request to one change, and describe what it changes for someone using the app.
 
 ## Conventions
