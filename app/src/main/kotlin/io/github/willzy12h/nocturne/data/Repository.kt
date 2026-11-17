@@ -118,6 +118,12 @@ class Repository(
     private val now: () -> ZonedDateTime = { ZonedDateTime.now() },
 ) {
     private val dir = context.filesDir
+    /**
+     * True when this start found neither saved profiles nor settings: a fresh install, or one whose data was wiped,
+     * as installing a release over a test build (signed with another key) needs. The app then offers to restore a
+     * backup file before anything is set up again.
+     */
+    val startedEmpty: Boolean = !File(dir, PROFILES).exists() && !File(dir, SETTINGS).exists()
     val snapshots = SnapshotStore(File(dir, "snapshots").toPath()) { now() }
     private val lock = Mutex()
     val operationAdmission = OperationAdmission()
@@ -694,6 +700,29 @@ class Repository(
         requireRealSession()
         snapshots.save(bundle(), label.ifBlank { context.getString(R.string.snapshot_label_manual) }, manual = true)
         _snapshotList.value = snapshots.list()
+    }
+
+    /**
+     * Saves a snapshot labelled "Before reset", so a reset to the defaults can be put back from Backups. The demo saves
+     * nothing, so it has nothing to keep.
+     */
+    suspend fun snapshotBeforeReset() = serially { snapshotBeforeResetLocked() }
+
+    private fun snapshotBeforeResetLocked() {
+        if (isDemoSession) return
+        snapshots.save(bundle(), context.getString(R.string.snapshot_label_before_reset), manual = true)
+        _snapshotList.value = snapshots.list()
+    }
+
+    /**
+     * Puts every built-in profile back as it ships, keeping the nights it is set for, and adds back any that were
+     * deleted. The person's own profiles stay as they are. A snapshot is saved first.
+     */
+    suspend fun restoreBuiltInProfiles() = serially {
+        snapshotBeforeResetLocked()
+        val profiles = Presets.restore(_profiles.value)
+        writeValue(PROFILES, ListSerializer(Profile.serializer()), profiles)
+        _profiles.value = profiles
     }
 
     suspend fun deleteSnapshot(id: String) = serially {

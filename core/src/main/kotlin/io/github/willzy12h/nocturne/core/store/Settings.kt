@@ -173,8 +173,8 @@ data class Settings(
             snoozeWarm = defaults.snoozeWarm, snoozeCool = defaults.snoozeCool,
             extendWarm = defaults.extendWarm, extendCool = defaults.extendCool,
             boostMinutes = defaults.boostMinutes,
-            // Explicit built-ins, so the Remote doesn't fall back to a customised Extend from before quick settings.
-            quickDefaults = QuickDefaults.modes.map(QuickDefaults::builtIn),
+            // As a new install has them: none saved, so each is its built-in (Extend is back to its default too).
+            quickDefaults = defaults.quickDefaults,
         )
     }
 

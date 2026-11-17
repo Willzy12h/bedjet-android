@@ -52,5 +52,6 @@ class PresetResetTest {
         assertEquals(Triple(true, 1, "ble:AA:BB:CC:DD:EE:FF"), Triple(reset.fahrenheit, reset.workingSlot, reset.targetDevice))
         assertFalse(custom.controlsAreDefault)
         assertTrue(reset.controlsAreDefault)
+        assertTrue(Settings().controlsAreDefault, "A new install's controls are already the defaults")
     }
 }

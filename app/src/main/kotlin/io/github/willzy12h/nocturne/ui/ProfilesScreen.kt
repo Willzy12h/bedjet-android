@@ -130,6 +130,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
     val importApplying by model.importApplying.collectAsStateWithLifecycle()
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::importProfiles) }
     var sharing by rememberSaveable { mutableStateOf<String?>(null) }
+    var confirmRestore by rememberSaveable { mutableStateOf(false) }
     val sharer = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         val request = sharing; sharing = null
         if (uri != null && request != null) model.shareProfile(uri, BackupCodec.json.decodeFromString<ProfileShareRequest>(request))
@@ -272,9 +273,24 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                 }
             }
             if (!settings.cooldownOfferAnswered) item { CooldownOfferCard(model, profiles, settings.fahrenheit) }
+            // Only when a built-in profile has been changed or deleted, so there is something to put back.
+            if (Presets.canRestore(profiles)) item(key = "restore-built-in") {
+                TextButton(onClick = { confirmRestore = true }, enabled = !importApplying) {
+                    Text(stringResource(R.string.profiles_restore_builtin))
+                }
+            }
             item { Box(Modifier.padding(8.dp)) }
         }
     }
+
+    if (confirmRestore) AlertDialog(
+        onDismissRequest = { confirmRestore = false },
+        title = { Text(stringResource(R.string.profiles_restore_builtin_title)) },
+        text = { Text(stringResource(R.string.profiles_restore_builtin_body)) },
+        confirmButton = { TextButton(onClick = { confirmRestore = false; model.restoreBuiltInProfiles() }) {
+            Text(stringResource(R.string.profiles_restore_builtin_confirm)) } },
+        dismissButton = { TextButton(onClick = { confirmRestore = false }) { Text(stringResource(R.string.reset_cancel)) } },
+    )
 
     importPreview?.let { preview ->
         key(preview) {

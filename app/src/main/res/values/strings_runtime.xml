@@ -153,6 +153,7 @@
     <string name="snapshot_label_manual">Manual snapshot</string>
     <string name="snapshot_label_before_import">Before import</string>
     <string name="snapshot_label_before_restore">Before restore</string>
+    <string name="snapshot_label_before_reset">Before reset</string>
     <!-- History details of an accepted morning suggestion. Each holds a bare % and is read with getString(id) and no
          format arguments; give it arguments and the % must become %%. -->
     <string name="history_accepted_more_fan">Accepted 10% more fan in Middle</string>
