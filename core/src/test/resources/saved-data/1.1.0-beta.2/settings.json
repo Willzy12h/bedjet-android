@@ -1,0 +1,88 @@
+{
+    "workingSlot": 1,
+    "selectedProfileId": null,
+    "tonightChoice": null,
+    "tonightOverride": null,
+    "acceptUnknownAlarmSource": true,
+    "notificationActions": [
+        "SNOOZE_WARM",
+        "EXTEND_COOL",
+        "OFF"
+    ],
+    "snoozeWarm": {
+        "mode": "HEAT",
+        "temperature": 66,
+        "fanPercent": 40,
+        "minutes": 10
+    },
+    "snoozeCool": {
+        "mode": "COOL",
+        "temperature": 44,
+        "fanPercent": 50,
+        "minutes": 10
+    },
+    "extendWarm": {
+        "mode": "HEAT",
+        "temperature": 64,
+        "fanPercent": 30,
+        "minutes": 30
+    },
+    "extendCool": {
+        "mode": "COOL",
+        "temperature": 44,
+        "fanPercent": 40,
+        "minutes": 30
+    },
+    "boostMinutes": 15,
+    "fahrenheit": true,
+    "demoMode": false,
+    "targetDevice": null,
+    "rememberedBedJets": [],
+    "demoTargetMigrated": false,
+    "setupFanCheckedDevice": null,
+    "alarmPackages": [
+        "com.google.android.deskclock",
+        "com.sec.android.app.clockpackage"
+    ],
+    "alarmApps": "CLOCK_APPS",
+    "alarmAppsChosen": false,
+    "themeMode": "SYSTEM",
+    "nightPalette": "MIDNIGHT_INK",
+    "dayPalette": "OVERCAST",
+    "scheduledDarkMinute": 1320,
+    "scheduledLightMinute": 420,
+    "simpleView": true,
+    "quickControlsCollapsed": false,
+    "quickDefaults": [],
+    "setupChecklistCompleted": false,
+    "setupDismissedOptional": [],
+    "collapsedTonightSections": [],
+    "tonightSectionOrder": [
+        "night",
+        "wake",
+        "connection"
+    ],
+    "quietNightNotification": false,
+    "sleepSectionOrder": [
+        "trend",
+        "nights",
+        "stages",
+        "figures",
+        "compare",
+        "noticed",
+        "timeline",
+        "history"
+    ],
+    "sleepRangeDays": 7,
+    "historyKeepDays": 90,
+    "cooldownOfferAnswered": false,
+    "platform": {
+        "bedtimeReminder": false,
+        "reminderMinutes": 30,
+        "chargerAutoStart": false,
+        "chargerDevice": null,
+        "healthSleepOverlay": false,
+        "healthSleepExport": false,
+        "autoStart": null
+    }
+}

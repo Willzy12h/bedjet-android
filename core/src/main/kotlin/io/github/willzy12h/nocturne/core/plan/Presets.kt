@@ -44,4 +44,23 @@ object Presets {
     )
 
     val all: List<Profile> = listOf(summerCool, winterWarm, springAutumn, hotSleeper, warmStartCoolNight)
+
+    /** The built-in profile with [id], or null for one the person made. */
+    fun byId(id: String): Profile? = all.firstOrNull { it.id == id }
+
+    /**
+     * [profile] with its built-in temperatures, fan speeds, timings and name put back; the days it is the default for
+     * stay. Null for a profile the person made, which has no default.
+     */
+    fun reset(profile: Profile): Profile? = byId(profile.id)?.copy(days = profile.days)
+
+    /** True for a built-in profile that differs from its default in anything [reset] would put back. */
+    fun isChanged(profile: Profile): Boolean = reset(profile)?.let { it != profile } ?: false
+
+    /** Every built-in profile reset and any deleted one added back at the end; the person's own profiles stay as they are. */
+    fun restore(profiles: List<Profile>): List<Profile> =
+        profiles.map { reset(it) ?: it } + all.filter { builtIn -> profiles.none { it.id == builtIn.id } }
+
+    /** True when [restore] would change [profiles]. */
+    fun canRestore(profiles: List<Profile>): Boolean = restore(profiles) != profiles
 }
