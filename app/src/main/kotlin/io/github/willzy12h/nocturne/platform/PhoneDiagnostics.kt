@@ -25,6 +25,7 @@ internal object PhoneDiagnostics {
     fun snapshot(context: Context): JsonObject = buildJsonObject {
         put("manufacturer", JsonPrimitive(Build.MANUFACTURER))
         put("brand", JsonPrimitive(Build.BRAND))
+        put("makerGuide", JsonPrimitive(PhoneMaker.of()?.name))
         put("model", JsonPrimitive(Build.MODEL))
         put("androidRelease", JsonPrimitive(Build.VERSION.RELEASE))
         put("sdk", JsonPrimitive(Build.VERSION.SDK_INT))

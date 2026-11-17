@@ -80,4 +80,23 @@ class SetupRouteTest {
         assertTrue(compose.onAllNodesWithText(s(R.string.setup_samsung_title)).fetchSemanticsNodes().isEmpty())
         assertTrue(compose.onAllNodesWithText("Samsung", substring = true).fetchSemanticsNodes().isEmpty())
     }
+
+    @Test fun anHonorPhoneGetsHonorStepsAndAnOpenSettingsButton() {
+        val maker = android.os.Build.MANUFACTURER
+        val brand = android.os.Build.BRAND
+        org.robolectric.util.ReflectionHelpers.setStaticField(android.os.Build::class.java, "MANUFACTURER", "HONOR")
+        org.robolectric.util.ReflectionHelpers.setStaticField(android.os.Build::class.java, "BRAND", "HONOR")
+        try {
+            compose.onAllNodesWithText("Settings")[0].performClick()
+            compose.openSettingsPage("permissions")
+            compose.onNodeWithText(s(R.string.setup_maker_honor_title)).performScrollTo().performClick()
+            compose.onNodeWithText(s(R.string.setup_maker_honor_help)).assertExists()
+            compose.onNodeWithTag("setup-maker-open").performScrollTo().performClick()
+            assertNotNull(shadowOf(compose.activity.application).nextStartedActivity)
+            assertTrue(compose.onAllNodesWithText(s(R.string.setup_samsung_title)).fetchSemanticsNodes().isEmpty())
+        } finally {
+            org.robolectric.util.ReflectionHelpers.setStaticField(android.os.Build::class.java, "MANUFACTURER", maker)
+            org.robolectric.util.ReflectionHelpers.setStaticField(android.os.Build::class.java, "BRAND", brand)
+        }
+    }
 }
