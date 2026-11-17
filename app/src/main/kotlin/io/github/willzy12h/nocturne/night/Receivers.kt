@@ -19,8 +19,11 @@ class NightAlarmReceiver : BroadcastReceiver() {
             }
             NightAlarms.ACTION_LOCAL_RETRY -> local(context) { graph.actions.drainLocalDeliveries() }
             NightAlarms.ACTION_RECONCILE_RETRY -> local(context, onTimeout = { NightAlarms.scheduleReconcileRetry(context) }) {
-                graph.actions.reconcile()
-                NightAlarms.cancelReconcileRetry(context)
+                // Inside the shared run, so a broadcast that joined a failed repair keeps its retry.
+                graph.repairs.run {
+                    graph.actions.reconcile()
+                    NightAlarms.cancelReconcileRetry(context)
+                }
             }
             NightAlarms.ACTION_RETRY -> {
                 if (!graph.actions.retimePending) return
@@ -36,8 +39,11 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action !in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED,
             Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_TIME_CHANGED, AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED)) return
         local(context, onTimeout = { NightAlarms.scheduleReconcileRetry(context) }) {
-            context.graph.actions.reconcile()
-            NightAlarms.cancelReconcileRetry(context)
+            // A burst of these (start-up often sends several) shares one repair rather than queueing one each.
+            context.graph.repairs.run {
+                context.graph.actions.reconcile()
+                NightAlarms.cancelReconcileRetry(context)
+            }
         }
     }
 }
@@ -46,8 +52,11 @@ class AlarmChangedReceiver : BroadcastReceiver() {
         if (intent.action != AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED || context.graph.repository.activeNight.value == null) return
         NightAlarms.scheduleObservation(context, context.graph.now())
         local(context, notifyFailures = false) {
-            context.graph.actions.submitAlarmChange()
-            if (context.graph.actions.retimePending) BedJetService.start(context, NightActions.Command.RETRY_RETIME, notifyFailures = false)
+            // Some phones send several of these for one alarm change; they share one look at the alarm.
+            context.graph.alarmChanges.run {
+                context.graph.actions.submitAlarmChange()
+                if (context.graph.actions.retimePending) BedJetService.start(context, NightActions.Command.RETRY_RETIME, notifyFailures = false)
+            }
         }
     }
 }

@@ -87,6 +87,10 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
     val sessions = LinkSessions(this)
     val actions = NightActions(this)
     val platform = io.github.willzy12h.nocturne.platform.PlatformRuntime(this)
+    /** Bursts of the same system broadcast share these runs instead of queueing one each (see Coalescer). */
+    val repairs = io.github.willzy12h.nocturne.platform.Coalescer()
+    val alarmChanges = io.github.willzy12h.nocturne.platform.Coalescer()
+    val widgetRedraws = io.github.willzy12h.nocturne.platform.Coalescer()
     /** When the chosen BedJet last reported in this process, for the widgets' "Read 2 min ago". */
     val statusReadAt = MutableStateFlow<ZonedDateTime?>(null)
 

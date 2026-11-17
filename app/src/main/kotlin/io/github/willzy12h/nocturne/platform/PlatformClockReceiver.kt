@@ -22,10 +22,14 @@ class PlatformClockReceiver:BroadcastReceiver() {
         val pending=goAsync()
         context.graph.scope.launch {
             try {withTimeout(8_000) {
+                // Quick and safe to repeat, so every broadcast re-arms straight away rather than wait on a redraw.
                 ChargerJobs.sync(context.graph)
                 BedtimeReminders.sync(context.graph)
-                QuickControlsWidget().updateAll(context)
-                SingleActionWidget().updateAll(context)
+                // A burst of these broadcasts shares one widget redraw rather than redrawing once each.
+                context.graph.widgetRedraws.run {
+                    QuickControlsWidget().updateAll(context)
+                    SingleActionWidget().updateAll(context)
+                }
             }} finally {pending.finish()}
         }
     }
