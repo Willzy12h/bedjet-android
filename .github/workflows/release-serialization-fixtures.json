@@ -140,6 +140,7 @@
         "$ref": "tonightOverride"
       },
       "acceptUnknownAlarmSource": false,
+      "unnamedAlarms": "ALWAYS",
       "notificationActions": [
         "SNOOZE_COOL",
         "EXTEND_WARM",
@@ -851,6 +852,11 @@
       "DARK",
       "LIGHT",
       "SCHEDULED"
+    ],
+    "io.github.willzy12h.nocturne.core.store.UnnamedAlarms": [
+      "IGNORE",
+      "ASK",
+      "ALWAYS"
     ],
     "io.github.willzy12h.nocturne.core.store.WakeAction": [
       "SNOOZE_WARM",
