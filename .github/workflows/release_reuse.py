@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Find the pull request run whose checked, unsigned release APK can be published for a merge into main.
+"""Find the pull request run that already passed every check on the exact tree merged into main.
 
-A merge into main that releases normally runs every check again and rebuilds the APK. When the merged code is
-byte-for-byte the tree that a pull request from this repository already passed, that run's unsigned APK is the same
-build, so the release can sign and publish it instead. Every condition below must hold; anything else, including an
+A merge into main normally runs every check again. When the merged code is byte-for-byte the tree that a pull request
+from this repository already passed, the merge doesn't repeat them; when it releases, it signs and publishes that
+run's unsigned APK, which is the same build (--require-apk). Every condition below must hold; anything else, including an
 error talking to GitHub, means "build it again here" and never skips a check without that evidence.
 """
 
@@ -42,10 +42,7 @@ class GitHub:
                         "--dir", str(destination)], check=True)
 
     def tree(self, commit):
-        # The checkout is shallow; fetch just the pull request's head commit to read its tree.
-        subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", commit], check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        return subprocess.check_output(["git", "rev-parse", f"{commit}^{{tree}}"], text=True).strip()
+        return self.get(f"git/commits/{commit}")["tree"]["sha"]
 
 
 def merged_pull_request(client, repository, commit):
@@ -92,14 +89,17 @@ def check_unsigned(directory, tree, version_name, code):
     return metadata
 
 
-def find(client, repository, commit, tree, version_name, code):
-    """Returns the reusable run and why, or None and why not. Never raises for a missing or unsuitable run."""
+def find(client, repository, commit, tree, version_name, code, require_apk=True):
+    """Returns the reusable run and why, or why not. Never raises for a missing or unsuitable run."""
     try:
         number, head = merged_pull_request(client, repository, commit)
         head_tree = client.tree(head)
         if head_tree != tree:
             raise LookupError(f"pull request #{number} was not up to date with main when it passed, so its tree differs")
         run_id, attempt = passed_run(client, repository, head)
+        if not require_apk:
+            return {"reuse": True, "pull_request": number, "head": head, "run_id": run_id, "artifact_attempt": attempt,
+                    "apk_sha256": None, "reason": f"pull request #{number} run {run_id} passed this exact tree"}
         metadata = None
         # A re-run of only some jobs keeps the APK from the attempt that built it, so look back through attempts.
         for built in range(attempt, 0, -1):
@@ -128,15 +128,18 @@ def main():
     parser.add_argument("--version-code", required=True)
     parser.add_argument("--report", required=True)
     parser.add_argument("--github-output", required=True)
+    parser.add_argument("--require-apk", action="store_true", help="this merge releases, so it needs the run's APK")
     args = parser.parse_args()
-    result = find(GitHub(args.repository), args.repository, args.commit, args.tree, args.version_name, args.version_code)
+    result = find(GitHub(args.repository), args.repository, args.commit, args.tree, args.version_name, args.version_code,
+                  args.require_apk)
     report = Path(args.report)
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(json.dumps(result, indent=2) + "\n")
     with open(args.github_output, "a") as output:
         output.write(f"reuse-run-id={result['run_id'] if result['reuse'] else ''}\n")
         output.write(f"reuse-artifact-attempt={result['artifact_attempt'] if result['reuse'] else ''}\n")
-    print(("Reusing: " if result["reuse"] else "Building here: ") + result["reason"])
+    # A warning, so a merge that never manages to reuse a pull request run is noticed.
+    print(("Reusing: " if result["reuse"] else "::warning::Checking and building here: ") + result["reason"])
 
 
 if __name__ == "__main__":

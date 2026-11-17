@@ -142,6 +142,11 @@ android {
             // ignores it and loops when a text-field dialog is measured above 320 dp (#8460).
             it.systemProperty("robolectric.windowManager.useRequestedSize", "true")
             it.systemProperty("nocturne.serializationFixtures", rootProject.file(".github/workflows/release-serialization-fixtures.json").absolutePath)
+            // Files the tests read by path, so a cached test result is never reused after one changes.
+            it.inputs.file(rootProject.file(".github/workflows/release-serialization-fixtures.json"))
+                .withPropertyName("serializationFixtures").withPathSensitivity(PathSensitivity.RELATIVE)
+            it.inputs.dir(rootProject.file("docs/licences")).withPropertyName("licences").withPathSensitivity(PathSensitivity.RELATIVE)
+            it.inputs.file(file("src/main/AndroidManifest.xml")).withPropertyName("sourceManifest").withPathSensitivity(PathSensitivity.RELATIVE)
         }
     }
     // This harness is test-only and cannot become an R8 root in the application APK.

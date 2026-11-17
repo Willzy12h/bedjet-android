@@ -123,6 +123,12 @@ class ReleaseReuseTest(unittest.TestCase):
             artifacts = {reuse.unsigned_artifact(50, 1): metadata(**{field: value})}
             self.assertBuildsHere(FakeGitHub(artifacts=artifacts), field)
 
+    def test_a_merge_that_does_not_release_needs_only_the_passed_checks(self):
+        result = reuse.find(FakeGitHub(artifacts={}), REPO, MERGE, TREE, "0.2.0-uat2-test.9", "20261036", require_apk=False)
+        self.assertTrue(result["reuse"], result)
+        self.assertEqual(result["run_id"], 50)
+        self.assertBuildsHere(FakeGitHub(tree="d" * 40), "not up to date")
+
     def test_a_github_error_builds_here(self):
         class Broken(FakeGitHub):
             def get(self, path):

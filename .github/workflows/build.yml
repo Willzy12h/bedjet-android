@@ -158,13 +158,17 @@ jobs:
           fi
           echo "android=$ANDROID" >> "$GITHUB_OUTPUT"
 
-      - name: Reuse a pull request's checked APK
+      # "Re-run all jobs" (attempt 2 or later) always checks and builds everything here again.
+      - name: Reuse the merged pull request's checks
         id: reuse
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.version.outputs.release == 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.run_attempt == 1
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ steps.version.outputs.release }}
         run: |
-          python3 -B .github/workflows/release_reuse.py \
+          APK=()
+          if [[ "$RELEASE" == true ]]; then APK=(--require-apk); fi
+          python3 -B .github/workflows/release_reuse.py "${APK[@]}" \
             --repository "$GITHUB_REPOSITORY" --commit "$SOURCE_SHA" --tree "$(git rev-parse HEAD^{tree})" \
             --version-name "$VERSION_NAME" --version-code "$VERSION_CODE" \
             --report "$RUNNER_TEMP/nocturne-release/evidence/release-reuse.json" --github-output "$GITHUB_OUTPUT"
@@ -272,6 +276,8 @@ jobs:
     env:
       VERSION_NAME: ${{ needs.prepare.outputs.version-name }}
       VERSION_CODE: ${{ needs.prepare.outputs.version-code }}
+      # An APK that may be published is built from scratch: no build cache and no Gradle home a pull request wrote.
+      PUBLISHABLE: ${{ needs.prepare.outputs.release == 'true' || needs.prepare.outputs.candidate == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -289,13 +295,15 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
-          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          cache-disabled: ${{ env.PUBLISHABLE == 'true' && github.event_name == 'pull_request' }}
+          cache-read-only: ${{ env.PUBLISHABLE == 'true' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
 
       - name: Record runner Android SDK inventory
         run: |
           mkdir -p "$RUNNER_TEMP/nocturne-release/evidence"
           python3 -B .github/workflows/android_sdk_profile.py before \
             --output "$RUNNER_TEMP/nocturne-release/evidence/android-sdk-before.json"
+          if [[ "$PUBLISHABLE" == true ]]; then echo "BUILD_CACHE=--no-build-cache" >> "$GITHUB_ENV"; else echo "BUILD_CACHE=--build-cache" >> "$GITHUB_ENV"; fi
 
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         env:
@@ -320,7 +328,7 @@ jobs:
       - name: Debug build and lint
         id: lint
         run: |
-          ./gradlew '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' --max-workers=4 \
+          ./gradlew "$BUILD_CACHE" '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' --max-workers=4 \
             :app:assembleDebug :app:lintDebug \
             -PversionName="$VERSION_NAME" -PversionCode="$VERSION_CODE" \
             2>&1 | tee "$RUNNER_TEMP/nocturne-release/evidence/debug-and-lint.log"
@@ -367,7 +375,7 @@ jobs:
 
       - name: Release serialization JVM fixture
         run: |
-          ./gradlew --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
+          ./gradlew "$BUILD_CACHE" --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8' \
             -I .github/workflows/release-serialization.init.gradle \
             :app:testReleaseUnitTest --tests io.github.willzy12h.nocturne.releasegate.ReleaseSerializationTest \
             :app:exportReleaseSerializationInputs \
@@ -559,7 +567,7 @@ jobs:
             echo "Docs-only change: no Android checks needed." | tee -a "$GITHUB_STEP_SUMMARY"
           elif [[ -n "$REUSE_RUN_ID" ]]; then
             [[ "$GATE/$RELEASE_BUILD/$SCREENSHOTS" == skipped/skipped/skipped ]]
-            echo "Pull request run $REUSE_RUN_ID passed every check on this exact tree; its APK is used." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "Pull request run $REUSE_RUN_ID passed every check on this exact tree, so they are not repeated." | tee -a "$GITHUB_STEP_SUMMARY"
             printf 'unsigned-run-id=%s\nunsigned-attempt=%s\n' "$REUSE_RUN_ID" "$REUSE_ATTEMPT" >> "$GITHUB_OUTPUT"
           else
             [[ "$GATE/$RELEASE_BUILD/$SCREENSHOTS" == success/success/success ]]
