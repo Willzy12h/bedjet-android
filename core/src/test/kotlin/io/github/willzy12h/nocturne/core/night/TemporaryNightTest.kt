@@ -21,7 +21,6 @@ class TemporaryNightTest {
         start = emptyList(), middle = Middle(Mode.COOL, 30, 15, 44, 40, 3),
         wake = listOf(Phase(Mode.HEAT, 64, 30, 20)),
         afterWake = listOf(Phase(Mode.COOL, 44, 20, 10)),
-        // Bedtime matches the 22:00 start, so a three-hour alarm night is allowed (see WakeResolver.earliestAlarm).
         bedtimeMinute = 22 * 60)
 
     private fun ready(preparation: Preparation): PreparedChange {

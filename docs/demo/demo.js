@@ -753,7 +753,7 @@ PAGES.settings_home = () => {
     ['notifications', 'bell', 'Notifications', `${S.settings.wakeButtons.length} wake-up buttons`],
     ['sleep', 'sleep', 'Sleep', `${S.nights.length} nights recorded`],
     ['health', 'heart', 'Health Connect', S.settings.hcRead ? 'On' : 'Off'],
-    ['about', 'info', 'Help and about', 'Version 1.1.0-beta.4'],
+    ['about', 'info', 'Help and about', 'Version 1.1.0-beta.5'],
   ];
   return `<h1 class="h-page">Settings</h1><div class="list">${rows.map(([k, ic, t, s]) => `<button class="listrow" data-a="settingsPage" data-v="${k}"><span class="ic">${svg(ic)}</span><span class="grow"><span class="t">${t}</span><br><span class="s">${esc(s)}</span></span><span class="chev">›</span></button>`).join('')}</div>`;
 };
@@ -843,11 +843,11 @@ PAGES.health = () => `${topbar('Settings')}<h1 class="h-page">Health Connect</h1
   <p class="small faint" style="margin:10px 2px 0">Nocturne only reads from Health Connect. It never writes or changes anything there.</p>`;
 
 PAGES.about = () => `${topbar('Settings')}<h1 class="h-page">Help and about</h1>
-  <div class="card"><div style="font:700 22px Bricolage,Figtree">Nocturne</div><div class="small muted">Version 1.1.0-beta.4</div>
+  <div class="card"><div style="font:700 22px Bricolage,Figtree">Nocturne</div><div class="small muted">Version 1.1.0-beta.5</div>
   <p class="small faint">A free, open-source app for the BedJet 3. Not affiliated with or endorsed by BedJet LLC.</p>
   <p class="small" style="color:var(--warn);margin-bottom:0">You're using the HTML demo. It imitates the app's main screens with a pretend BedJet.</p></div>
   <div class="list">
-    <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/releases" target="_blank" rel="noopener"><span class="grow"><span class="t">Check for a newer build</span><br><span class="s">Opens the releases in your browser, newest first, to compare with 1.1.0-beta.4 and download the APK</span></span><span class="chev">↗</span></a>
+    <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/releases" target="_blank" rel="noopener"><span class="grow"><span class="t">Check for a newer build</span><br><span class="s">Opens the releases in your browser, newest first, to compare with 1.1.0-beta.5 and download the APK</span></span><span class="chev">↗</span></a>
     <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android/blob/main/PRIVACY.md" target="_blank" rel="noopener"><span class="grow"><span class="t">Privacy</span><br><span class="s">No servers, accounts or analytics</span></span><span class="chev">↗</span></a>
     <a class="listrow" style="color:inherit;text-decoration:none" href="https://github.com/Willzy12h/bedjet-android#readme" target="_blank" rel="noopener"><span class="grow"><span class="t">Project page</span><br><span class="s">Source, licence and credits</span></span><span class="chev">↗</span></a>
   </div>`;

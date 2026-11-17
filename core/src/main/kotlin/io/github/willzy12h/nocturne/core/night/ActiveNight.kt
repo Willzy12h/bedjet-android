@@ -61,9 +61,9 @@ import java.time.ZonedDateTime
     /** Explicit short equipment test; never a real sleep session. */
     val isTestRun: Boolean = false,
     val temporary: TemporaryOverride? = null,
-    /** An auto-start whose wake-up the usual window would refuse (less than 3 hours after the later of the start
-     * and bedtime): the night length it agreed, in minutes. Later alarm changes are judged against this instead.
-     * Null for every other night. */
+    /** The night length, in minutes, an auto-start agreed when 1.1.0-beta.3 and beta.4 measured alarms from bedtime.
+     * Only nights saved by those versions carry it, and it is still read so a night running across the upgrade keeps
+     * its window (see AlarmPolicy.earliest). Null for every other night. */
     val shortAlarmNightMinutes: Int? = null,
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)

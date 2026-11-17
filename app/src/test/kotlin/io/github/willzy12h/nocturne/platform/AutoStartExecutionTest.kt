@@ -179,9 +179,9 @@ class AutoStartExecutionTest : PlatformGraphFixture() {
         assertNull(graph.repository.runtime.value.retime)
     }
 
-    @Test fun anEveningAutoStartBeforeBedtimeKeepsItsAgreedWindowWhenTheAlarmMoves() = runBlocking {
-        // Four hours before a 01:00 alarm starts at 21:00, ahead of a 22:30 bedtime, so the usual earliest alarm would
-        // be 01:30. The night keeps the window it agreed and still follows the alarm when it moves to 01:15.
+    @Test fun anEveningAutoStartBeforeBedtimeFollowsItsAlarmWhenItMoves() = runBlocking {
+        // Four hours before a 01:00 alarm starts at 21:00, ahead of a 22:30 bedtime. Alarms count from an hour after
+        // the start whatever the bedtime, so no agreed window is saved and the night follows the alarm to 01:15.
         val graph = setup()
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T21:00:00Z"), ZoneOffset.UTC)
         val profile = graph.repository.profiles.value.first()
@@ -194,7 +194,7 @@ class AutoStartExecutionTest : PlatformGraphFixture() {
         val night = graph.repository.activeNight.value
         assertNotNull(night)
         assertEquals(Instant.parse("2026-10-27T01:00:00Z"), java.time.ZonedDateTime.parse(night!!.wakeAt).toInstant())
-        assertEquals(240, night.shortAlarmNightMinutes)
+        assertNull(night.shortAlarmNightMinutes)
         alarm("2026-10-27T01:15:00Z")
         graph.actions.perform(Command.RETIME)
         assertEquals(Instant.parse("2026-10-27T01:15:00Z"),

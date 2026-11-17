@@ -60,7 +60,7 @@ data class AlarmExplanation(
                 alarm == null -> AlarmReason.NO_ALARM
                 sourceAccepted == false && alarm.creator == null -> AlarmReason.UNKNOWN_SOURCE
                 sourceAccepted == false -> AlarmReason.SOURCE_NOT_ALLOWED
-                !policy.accept(alarm.time, alarm.creator, start, effectiveProfile.bedtimeMinute, shortest) -> AlarmReason.OUTSIDE_WINDOW
+                !policy.accept(alarm.time, alarm.creator, start, shortest) -> AlarmReason.OUTSIDE_WINDOW
                 else -> AlarmReason.ELIGIBLE
             }
             val targetDevice = settings.deviceId()
@@ -90,7 +90,7 @@ data class AlarmExplanation(
                 else -> AlarmSettingsTarget.ALARM_SOURCES
             }
             return AlarmExplanation(reason, state, wake, origin, alarm, start,
-                policy.earliest(start, effectiveProfile?.bedtimeMinute, shortest),
+                policy.earliest(start, shortest),
                 (night?.pending?.requestedWake ?: pendingRetime?.requestedWakeAt ?: pendingRetime?.alarmAt)?.parseTime(), sourceAccepted,
                 state == WakeExplanationState.SAVED && origin == WakeOrigin.ALARM && alarm != null && wake != null &&
                     wake?.toInstant() == alarm?.time?.toInstant(), target)
