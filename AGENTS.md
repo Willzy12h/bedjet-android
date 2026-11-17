@@ -18,7 +18,9 @@ it needs no manual step.
 ## Conventions
 
 - User-facing text is in UK English.
-- Run `./gradlew :core:test` and `./gradlew :app:testDebugUnitTest` before pushing changes to app or core code.
+- Before pushing changes to app or core code, run the tests the change affects, for example
+  `./gradlew :core:test` for core or `./gradlew :app:testDebugUnitTest --tests '*AlarmRuleTest*'` for one area.
+  CI runs the full suite, lint and the release checks on every pull request.
 - Never commit signing keys or other secrets.
 - When you bump `release.properties`, add the new version's saved data under
   `core/src/test/resources/saved-data/<versionName>/`: a `profiles.json` with "Summer, cooler" edited (days 6 and 7,

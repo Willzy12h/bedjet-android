@@ -232,6 +232,8 @@ def main():
     summary = sub.add_parser("gate-summary")
     summary.add_argument("--expected-source", required=True)
     summary.add_argument("--output", required=True)
+    # The tests and lint run in separate jobs; each job checks its own part.
+    summary.add_argument("--part", choices=("tests", "lint", "all"), default="all")
     args = parser.parse_args()
     if args.action == "metadata":
         result = write_metadata(args.apk, args.tools, args.output, args.expected_source, args.identity,
@@ -257,18 +259,25 @@ def main():
             print(json.dumps(report, indent=2))
     else:
         report = provenance(args.expected_source)
-        report["core"] = junit_counts("core/build/test-results/test")
-        report["app"] = junit_counts("app/build/test-results/testDebugUnitTest")
-        lint = Path("app/build/reports/lint-results-debug.xml")
-        report["lint"] = ({"status": "produced", "by_severity": dict(sorted(Counter(
-            issue.get("severity", "Unknown") for issue in ET.parse(lint).getroot().findall("issue")).items()))}
-            if lint.is_file() else {"status": "not-produced"})
+        names = []
+        if args.part in ("tests", "all"):
+            report["core"] = junit_counts("core/build/test-results/test")
+            report["app"] = junit_counts("app/build/test-results/testDebugUnitTest")
+            names += ["core", "app"]
+        if args.part in ("lint", "all"):
+            lint = Path("app/build/reports/lint-results-debug.xml")
+            report["lint"] = ({"status": "produced", "by_severity": dict(sorted(Counter(
+                issue.get("severity", "Unknown") for issue in ET.parse(lint).getroot().findall("issue")).items()))}
+                if lint.is_file() else {"status": "not-produced"})
+            names.append("lint")
         output = Path(args.output)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(report, indent=2) + "\n")
         print("Required gate counts (before screenshot capture):")
-        for name in ("core", "app", "lint"):
+        for name in names:
             print(f"{name}: {json.dumps(report[name], sort_keys=True)}")
+        if "lint" not in report:
+            return
         # Preserve the report before refusing delivery, including on an earlier failed gate.
         if report["lint"]["status"] != "produced":
             raise ValueError("Required lint report was not produced")
