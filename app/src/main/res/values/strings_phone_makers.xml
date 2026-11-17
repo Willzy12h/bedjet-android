@@ -13,4 +13,12 @@
     <string name="setup_maker_vivo_help">vivo and iQOO phones can stop apps overnight even with unrestricted battery use. Open Settings › Battery › Background power consumption management and allow Nocturne, then turn on Autostart for Nocturne in Settings › Apps. Menu names vary between Funtouch OS and OriginOS versions, and Nocturne can\'t check these settings for you.</string>
     <string name="setup_maker_open">Open settings</string>
     <string name="setup_maker_open_help">Opens your phone\'s own setting if Nocturne can find it, or Nocturne\'s app page if not.</string>
+    <!-- Shown before Android's own "always run in background" prompt, which gives no reason. -->
+    <string name="battery_explain_title">Let Nocturne run overnight</string>
+    <string name="battery_explain_why">Your BedJet\'s overnight changes come from this phone. Android may pause Nocturne to save battery, and then a change can be missed.</string>
+    <string name="battery_explain_cost">Nocturne only does work in the background around your nights, so this shouldn\'t noticeably shorten your battery life.</string>
+    <string name="battery_explain_next">Android will ask next. Tap Allow.</string>
+    <string name="battery_explain_maker">Your phone also has its own battery controls:</string>
+    <string name="battery_explain_continue">Continue</string>
+    <string name="battery_explain_later">Not now</string>
 </resources>

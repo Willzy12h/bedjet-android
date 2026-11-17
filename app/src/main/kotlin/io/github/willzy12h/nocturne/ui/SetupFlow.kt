@@ -28,14 +28,10 @@ import io.github.willzy12h.nocturne.ui.NocturneOutlinedButton as OutlinedButton
 import androidx.compose.material3.Text
 import io.github.willzy12h.nocturne.ui.NocturneTextButton as TextButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.DeviceId
@@ -107,18 +103,7 @@ fun BedJetPicker(model: AppViewModel, compact: Boolean = false) {
             }
             // Some makers add their own battery and launch controls on top of Android's; Pixels and others do not.
             val maker = io.github.willzy12h.nocturne.platform.PhoneMaker.of()
-            if (!compact && maker != null) {
-                var open by rememberSaveable { mutableStateOf(false) }
-                TextButton(onClick = { open = !open }, modifier = Modifier.testTag("setup-maker-tips")) {
-                    Text(stringResource(maker.title))
-                }
-                if (open) {
-                    Text(stringResource(maker.help), style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(onClick = { io.github.willzy12h.nocturne.platform.PhoneMaker.open(context, maker) },
-                        modifier = Modifier.testTag("setup-maker-open")) { Text(stringResource(R.string.setup_maker_open)) }
-                    Text(stringResource(R.string.setup_maker_open_help), style = MaterialTheme.typography.bodySmall)
-                }
-            }
+            if (!compact && maker != null) MakerTips(maker)
           }
         }
     }

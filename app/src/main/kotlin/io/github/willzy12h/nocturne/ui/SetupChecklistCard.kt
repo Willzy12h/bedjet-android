@@ -132,6 +132,8 @@ internal fun SetupChecklistCard(model: AppViewModel) {
         try { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         catch (_: Exception) { note = context.getString(R.string.uat_setup_unavailable) }
     }
+    var explainingBattery by remember { mutableStateOf(false) }
+    if (explainingBattery) BatteryExplainDialog(onDismiss = { explainingBattery = false }, onContinue = { open(batteryIntent(context)) })
     val fix: (SetupItem) -> Unit = { item ->
         note = null
         when (item) {
@@ -151,13 +153,7 @@ internal fun SetupChecklistCard(model: AppViewModel) {
                     permission.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
                 else open(Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName))
             SetupItem.EXACT_ALARMS -> open(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, "package:${context.packageName}".toUri()))
-            SetupItem.BATTERY -> {
-                @Suppress("BatteryLife")
-                val intent = Intent(if (context.getSystemService(ActivityManager::class.java)?.isBackgroundRestricted == true)
-                    AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS else AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    "package:${context.packageName}".toUri())
-                open(intent)
-            }
+            SetupItem.BATTERY -> explainingBattery = true
             SetupItem.HEALTH -> if (HealthConnectAccess.available(context))
                     health.launch(setOf(HealthPermission.getReadPermission(SleepSessionRecord::class)))
                 else note = HealthConnectAccess.unavailableMessage(context)

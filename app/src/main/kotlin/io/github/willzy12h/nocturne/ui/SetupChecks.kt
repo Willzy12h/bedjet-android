@@ -39,10 +39,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.unit.dp
@@ -51,7 +53,7 @@ import io.github.willzy12h.nocturne.night.NightAlarms
 import io.github.willzy12h.nocturne.notify.Notifications
 
 /** Something the app needs from the phone to work overnight, and how to fix it. */
-data class SetupCheck(val title: String, val why: String, val ok: Boolean, val fix: () -> Unit)
+data class SetupCheck(val title: String, val why: String, val ok: Boolean, val tag: String = "", val fix: () -> Unit)
 
 /**
  * Permissions and settings that make nights reliable, especially on Samsung phones which stop background apps.
@@ -63,7 +65,11 @@ fun SetupChecks(showAll: Boolean = false) {
     var refresh by remember { mutableIntStateOf(0) }
     LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh++ }
-    val checks = remember(refresh) { checks(context) { permissions.launch(it) } }
+    var explainingBattery by remember { mutableStateOf(false) }
+    if (explainingBattery) BatteryExplainDialog(onDismiss = { explainingBattery = false }, onContinue = {
+        runCatching { context.startActivity(batteryIntent(context)) }
+    })
+    val checks = remember(refresh) { checks(context, explainBattery = { explainingBattery = true }) { permissions.launch(it) } }
     val shown = if (showAll) checks else checks.filterNot { it.ok }
     if (shown.isEmpty()) return
     val tokens = paletteTokens
@@ -85,7 +91,8 @@ fun SetupChecks(showAll: Boolean = false) {
                         Text(check.why, color = tokens.ink2, fontSize = 13.sp, lineHeight = 17.sp)
                     }
                     if (check.ok) Icon(painterResource(R.drawable.ic_nc_check), stringResource(R.string.parity_setup_allowed), Modifier.size(18.dp), tint = tokens.ink2)
-                    else Box(Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = check.fix), contentAlignment = Alignment.Center) {
+                    else Box(Modifier.heightIn(min = 48.dp).then(if (check.tag.isEmpty()) Modifier else Modifier.testTag(check.tag))
+                        .clickable(role = Role.Button, onClick = check.fix), contentAlignment = Alignment.Center) {
                         Text(stringResource(R.string.setup_checks_fix), Modifier.clip(RoundedCornerShape(50)).background(tokens.ink)
                             .padding(horizontal = 14.dp, vertical = 7.dp), color = tokens.ground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
@@ -95,7 +102,7 @@ fun SetupChecks(showAll: Boolean = false) {
     }
 }
 
-internal fun checks(context: Context, request: (Array<String>) -> Unit): List<SetupCheck> {
+internal fun checks(context: Context, explainBattery: (() -> Unit)? = null, request: (Array<String>) -> Unit): List<SetupCheck> {
     fun granted(permission: String) = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
     val bluetooth = io.github.willzy12h.nocturne.ble.BluetoothAvailability.permissions
     val power = context.getSystemService(PowerManager::class.java)
@@ -115,9 +122,9 @@ internal fun checks(context: Context, request: (Array<String>) -> Unit): List<Se
             context.getString(R.string.setup_checks_battery),
             context.getString(R.string.setup_checks_battery_why),
             power.isIgnoringBatteryOptimizations(context.packageName),
+            tag = "setup-check-fix-battery",
         ) {
-            @Suppress("BatteryLife")
-            context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, "package:${context.packageName}".toUri()))
+            explainBattery?.invoke() ?: context.startActivity(batteryIntent(context))
         },
     )
 }
