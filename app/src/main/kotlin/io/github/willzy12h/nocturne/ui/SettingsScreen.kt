@@ -149,6 +149,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     var snapshotLabel by remember { mutableStateOf("") }
     var quickDefaultsOpen by remember { mutableStateOf(false) }
     var licencesOpen by remember { mutableStateOf(false) }
+    var confirmResetControls by remember { mutableStateOf(false) }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
     val diagnostics = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::exportDiagnostics) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
@@ -191,6 +192,9 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             title = { Text(stringResource(R.string.uat_quick_defaults)) },
             text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 QuickDefaultsSection(model, settings)
+                if (!settings.controlsAreDefault) TextButton(onClick = { confirmResetControls = true }) {
+                    Text(stringResource(R.string.settings_reset_controls))
+                }
             } }, confirmButton = { TextButton(onClick = { quickDefaultsOpen = false }) { Text(stringResource(R.string.uat_setup_done)) } })
 
         if (page == "appearance") {
@@ -316,6 +320,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                 Text(stringResource(R.string.settings_boost_edit), color = paletteTokens.readableText(paletteTokens.accent, paletteTokens.surface), fontWeight = FontWeight.Bold)
             }
             if (editingBoost) BoostEditor(model, settings) { editingBoost = false }
+            if (!settings.controlsAreDefault) OutlinedButton(onClick = { confirmResetControls = true },
+                modifier = Modifier.testTag("settings-reset-controls")) { Text(stringResource(R.string.settings_reset_controls)) }
         }
 
         if (page == "night") Group(stringResource(R.string.settings_alarms), Modifier.bringIntoViewRequester(alarms)) {
@@ -384,6 +390,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             // The same calm banner as Tonight; the snapshots to restore from are listed just below it.
             UnreadableDataBanner(UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked),
                 onDismiss = model::dismissUnreadable, onRestore = null, onAcceptLoss = model::acceptLostOriginals)
+            if (model.testBuild) TestBuildBackupNote()
             Text(stringResource(R.string.settings_snapshots_help), style = MaterialTheme.typography.bodySmall)
             if (settings.demoMode) Text(stringResource(R.string.import_demo_unavailable), style = MaterialTheme.typography.bodySmall)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -422,6 +429,8 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             Text(stringResource(R.string.settings_installed, model.version), style = MaterialTheme.typography.bodyMedium)
             installedOn(context)?.let { Text(stringResource(R.string.settings_updated_on, it), style = MaterialTheme.typography.bodySmall) }
             Text(stringResource(R.string.settings_update_check_help), style = MaterialTheme.typography.bodySmall)
+            if (model.testBuild) TestBuildBackupNote(onExport = { exporter.launch("nocturne-backup-${model.now().toLocalDate()}.json") }
+                .takeIf { !settings.demoMode && !importApplying })
             Button(onClick = { uri.openUri("https://github.com/Willzy12h/bedjet-android/releases") }) {
                 Text(stringResource(R.string.settings_update_check))
             }
@@ -454,6 +463,13 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
             TextButton(onClick = { licencesOpen = true }) { Text(stringResource(R.string.settings_licences)) }
         }
     }
+
+    if (confirmResetControls) AlertDialog(onDismissRequest = { confirmResetControls = false },
+        title = { Text(stringResource(R.string.settings_reset_controls_title)) },
+        text = { Text(stringResource(R.string.settings_reset_controls_body)) },
+        confirmButton = { TextButton(onClick = { confirmResetControls = false; model.resetControls() },
+            modifier = Modifier.testTag("settings-reset-controls-confirm")) { Text(stringResource(R.string.settings_reset_controls_confirm)) } },
+        dismissButton = { TextButton(onClick = { confirmResetControls = false }) { Text(stringResource(R.string.reset_cancel)) } })
 
     if (licencesOpen) {
         val licences = stringResource(R.string.font_licences_text)

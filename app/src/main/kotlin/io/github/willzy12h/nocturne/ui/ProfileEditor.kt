@@ -100,6 +100,7 @@ import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
+import io.github.willzy12h.nocturne.core.plan.Presets
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.plan.ProfileLimits
 import io.github.willzy12h.nocturne.core.plan.Season
@@ -138,6 +139,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     val trackingTonight = night?.profileId == original.id
     var confirmDiscard by remember { mutableStateOf(false) }
     var applyTonightTo by remember { mutableStateOf<CommandRequest?>(null) }
+    var confirmReset by remember { mutableStateOf(false) }
     // Leaving with unsaved edits asks first, so a stray back swipe doesn't lose them.
     val leave = { if (profile != original) confirmDiscard = true else onDone() }
     BackHandler(onBack = leave)
@@ -149,6 +151,21 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
             text = { Text(stringResource(R.string.editor_discard_text, original.name)) },
             confirmButton = { TextButton(onClick = { confirmDiscard = false; onDone() }) { Text(stringResource(R.string.editor_discard)) } },
             dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(stringResource(R.string.editor_keep_editing)) } },
+        )
+    }
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text(stringResource(R.string.editor_builtin_reset_title)) },
+            text = { Text(stringResource(R.string.editor_builtin_reset_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = false
+                    // Only the draft changes: Save keeps it, leaving without saving keeps what was there.
+                    Presets.reset(profile)?.let { profile = it; fanShape = it.middle.fanShape }
+                }) { Text(stringResource(R.string.editor_builtin_reset_confirm)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.editor_keep_editing)) } },
         )
     }
     applyTonightTo?.let { request ->
@@ -390,6 +407,12 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     ) { profile = profile.copy(turboChain = if (it) TurboChain.REPEAT_TURBO else TurboChain.TURBO_THEN_HEAT) }
                     Text(stringResource(R.string.editor_repeat_turbo_help), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                if (Presets.isChanged(profile)) Section(stringResource(R.string.editor_builtin_title)) {
+                    Text(stringResource(R.string.editor_builtin_changed), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = { confirmReset = true }) { Text(stringResource(R.string.editor_builtin_reset)) }
                 }
             }
         }

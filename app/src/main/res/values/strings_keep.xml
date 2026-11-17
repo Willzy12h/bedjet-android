@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keeping your settings across installs, and putting things back to how they ship. -->
+<resources>
+    <!-- Profile editor: a built-in profile that has been changed. -->
+    <string name="editor_builtin_title">Built-in profile</string>
+    <string name="editor_builtin_changed">You\'ve changed this profile from how it ships with Nocturne.</string>
+    <string name="editor_builtin_reset">Reset to default</string>
+    <string name="editor_builtin_reset_title">Reset this profile?</string>
+    <string name="editor_builtin_reset_body">Its steps, timings, limits and name go back to how they ship. The nights it\'s set for stay. Nothing is saved until you tap Save.</string>
+    <string name="editor_builtin_reset_confirm">Reset</string>
+
+    <!-- Profiles screen. -->
+    <string name="profiles_restore_builtin">Restore built-in profiles</string>
+    <string name="profiles_restore_builtin_title">Restore built-in profiles?</string>
+    <string name="profiles_restore_builtin_body">Changed built-in profiles go back to how they ship, keeping the nights they\'re set for, and any you deleted come back. Your own profiles stay as they are. A snapshot is saved first, so you can undo this from Settings, Backups.</string>
+    <string name="profiles_restore_builtin_confirm">Restore</string>
+    <string name="reset_cancel">Cancel</string>
+    <string name="reset_profiles_done">Built-in profiles restored. A snapshot was saved first.</string>
+
+    <!-- Settings, Notifications: Boost, the Remote's quick settings and snooze or extend. -->
+    <string name="settings_reset_controls">Reset controls to defaults</string>
+    <string name="settings_reset_controls_title">Reset controls to defaults?</string>
+    <string name="settings_reset_controls_body">Boost, the Remote\'s quick settings, snooze, extend and the notification buttons go back to their defaults. Your profiles, alarms, theme and BedJet stay as they are. A snapshot is saved first, so you can undo this from Settings, Backups.</string>
+    <string name="settings_reset_controls_confirm">Reset</string>
+    <string name="reset_controls_done">Controls reset to defaults. A snapshot was saved first.</string>
+
+    <!-- A test build: a release install needs it removed, which deletes its data. -->
+    <string name="test_build_backup_title">Before you install a release</string>
+    <string name="test_build_backup_body">This is a test build. Installing a release means uninstalling it first, which deletes your profiles and settings. Export a backup file now, then restore it in the release.</string>
+
+    <!-- Tonight, after a fresh install. -->
+    <string name="restore_offer_title">Coming from another install?</string>
+    <string name="restore_offer_body">If you exported a backup file before uninstalling, restore it to get your profiles and settings back.</string>
+    <string name="restore_offer_restore">Restore from a backup file</string>
+    <string name="restore_offer_dismiss">Start fresh</string>
+</resources>

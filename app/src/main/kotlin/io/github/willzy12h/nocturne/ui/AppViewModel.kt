@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.willzy12h.nocturne.BuildConfig
@@ -270,6 +271,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val alarmCheck: StateFlow<String?> = _alarmCheck.asStateFlow()
 
     val version: String = BuildConfig.VERSION_NAME
+    /**
+     * A test build, signed with the test key. A release can't be installed over it without uninstalling it, which
+     * deletes its profiles and settings, so the app reminds the person to save a backup file first.
+     */
+    val testBuild: Boolean = version.contains("-test")
+
+    private val firstRun = application.getSharedPreferences("first-run", android.content.Context.MODE_PRIVATE)
+    private val _restoreOffer = MutableStateFlow(run {
+        // Remembered, because the first launch writes settings, so the next launch no longer starts empty.
+        if (repo.startedEmpty && !firstRun.contains(RESTORE_OFFER_PENDING))
+            firstRun.edit(commit = true) { putBoolean(RESTORE_OFFER_PENDING, true) }
+        firstRun.getBoolean(RESTORE_OFFER_PENDING, false) && !firstRun.getBoolean(RESTORE_OFFER_DISMISSED, false)
+    })
+    /** Shown on Tonight after a fresh install, until it is dismissed or a backup is restored: restore a backup file. */
+    val restoreOffer: StateFlow<Boolean> = _restoreOffer.asStateFlow()
+    fun dismissRestoreOffer() {
+        _restoreOffer.value = false
+        firstRun.edit { putBoolean(RESTORE_OFFER_DISMISSED, true) }
+    }
+
+    /** Built-in profiles back as they ship, keeping their nights; own profiles stay. A snapshot is saved first. */
+    fun restoreBuiltInProfiles() = save {
+        repo.restoreBuiltInProfiles()
+        _messages.tryEmit(text(R.string.reset_profiles_done))
+    }
+
+    /** Boost, the Remote's quick settings and snooze or extend back to their defaults. A snapshot is saved first. */
+    fun resetControls() = save {
+        repo.snapshotBeforeReset()
+        val outcome = graph.actions.updateSettings(Settings::withDefaultControls)
+        if (outcome.succeeded) _messages.tryEmit(text(R.string.reset_controls_done))
+        else withContext(Dispatchers.Main) { report(outcome) }
+    }
 
     /** The app clock's current time. */
     fun now(): ZonedDateTime = graph.now()
@@ -692,6 +726,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 repo.applyImport(preview)
                 _importPreview.value = null
                 _messages.tryEmit(text(if (preview.profilesOnly) R.string.parity_profiles_imported else R.string.runtime_backup_restored))
+                if (!preview.profilesOnly && _restoreOffer.value) dismissRestoreOffer()
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 if (e is BackupException && e.failure == BackupFailure.CHANGED) _importPreview.value = null
@@ -832,3 +867,6 @@ internal suspend fun snapshotRestoreMessage(
 /** What the screens show as the BedJet's status: only a report from [target] itself (or an unattributed one). */
 internal fun displayedStatus(report: io.github.willzy12h.nocturne.core.link.SourcedStatus?, target: String?): DeviceStatus? =
     report?.takeIf { it.isFrom(target) }?.status
+
+private const val RESTORE_OFFER_DISMISSED = "restoreOfferDismissed"
+private const val RESTORE_OFFER_PENDING = "restoreOfferPending"

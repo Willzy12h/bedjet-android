@@ -162,6 +162,24 @@ data class Settings(
         profiles.firstOrNull { it.id == resolveTonightChoice(at)?.profileId }
             ?: profiles.firstOrNull { at.dayOfWeek.value in it.days } ?: profiles.firstOrNull()
 
+    /**
+     * The controls back to how a new install has them: the wake notification's buttons, Snooze and Extend, Boost and
+     * every Remote quick setting. Theme, the BedJet, alarms and everything else stay as they are.
+     */
+    fun withDefaultControls(): Settings {
+        val defaults = Settings()
+        return copy(
+            notificationActions = defaults.notificationActions,
+            snoozeWarm = defaults.snoozeWarm, snoozeCool = defaults.snoozeCool,
+            extendWarm = defaults.extendWarm, extendCool = defaults.extendCool,
+            boostMinutes = defaults.boostMinutes,
+            // As a new install has them: none saved, so each is its built-in (Extend is back to its default too).
+            quickDefaults = defaults.quickDefaults,
+        )
+    }
+
+    /** True when [withDefaultControls] would change nothing. */
+    val controlsAreDefault: Boolean get() = withDefaultControls() == this
 }
 
 /** The BedJet commands go to: the demo unit, the chosen real one, or null when none is chosen yet. */
