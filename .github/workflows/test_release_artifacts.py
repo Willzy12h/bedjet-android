@@ -12,6 +12,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import release_artifacts as release
+
+ROOT = Path(__file__).resolve().parents[2]
 from release_signing import apk_payload
 
 
@@ -213,7 +215,7 @@ class ReleaseGateTest(unittest.TestCase):
 
 
 class LintGateAcceptanceTest(unittest.TestCase):
-    def gate_summary(self, lint_xml):
+    def gate_summary(self, lint_xml, part=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             output = root / "summary.json"
@@ -229,7 +231,8 @@ class LintGateAcceptanceTest(unittest.TestCase):
             error = None
             with chdir(root), patch.object(release, "provenance", return_value={"source_commit": "reviewed"}), \
                     patch("sys.argv", ["release_artifacts.py", "gate-summary", "--expected-source", "reviewed",
-                                       "--output", str(output)]), redirect_stdout(io.StringIO()):
+                                       "--output", str(output)] + (["--part", part] if part else [])), \
+                    redirect_stdout(io.StringIO()):
                 try:
                     release.main()
                 except ValueError as failure:
@@ -251,6 +254,20 @@ class LintGateAcceptanceTest(unittest.TestCase):
         self.assertIn("lint report was not produced", error)
         self.assertEqual(report["lint"], {"status": "not-produced"})
 
+    def test_test_part_counts_tests_without_a_lint_report(self):
+        report, error = self.gate_summary(None, "tests")
+        self.assertIsNone(error)
+        self.assertNotIn("lint", report)
+        self.assertEqual((report["core"]["passed"], report["app"]["passed"]), (1, 1))
+
+    def test_lint_part_still_rejects_findings_and_a_missing_report(self):
+        report, error = self.gate_summary('<issues><issue id="X" severity="Warning" message="m"/></issues>', "lint")
+        self.assertIn("lint report contains findings", error)
+        report, error = self.gate_summary(None, "lint")
+        self.assertIn("lint report was not produced", error)
+        report, error = self.gate_summary('<issues format="6"/>', "lint")
+        self.assertIsNone(error)
+
     def test_produced_empty_lint_report_accepts_delivery(self):
         report, error = self.gate_summary('<issues format="6"/>')
         self.assertIsNone(error)
@@ -258,7 +275,7 @@ class LintGateAcceptanceTest(unittest.TestCase):
 
 
 class TestVersionGateTest(unittest.TestCase):
-    def version(self, run_number, production=False):
+    def version(self, run_number, production=False, event=None, head_repository="", tags="", ref=None):
         # Exercise the actual workflow shell without inheriting credentials or changing signing.
         import os
         import subprocess
@@ -268,12 +285,22 @@ class TestVersionGateTest(unittest.TestCase):
         body = "\n".join(line[10:] for line in body.splitlines())
         with tempfile.TemporaryDirectory() as directory:
             envfile, outputs = Path(directory) / "env", Path(directory) / "outputs"
-            env = {"PATH": os.defpath, "GITHUB_RUN_NUMBER": str(run_number),
-                   "GITHUB_REF": "refs/tags/v1.2.3" if production else "refs/pull/4/merge",
+            # A stand-in for `gh api .../matching-refs/tags/...` that prints the given tag refs.
+            fake = Path(directory) / "bin"
+            fake.mkdir()
+            (fake / "gh").write_text(f"#!/bin/sh\nprintf '%s' '{tags}'\n")
+            (fake / "gh").chmod(0o755)
+            env = {"PATH": f"{fake}:{os.defpath}", "GITHUB_RUN_NUMBER": str(run_number),
+                   "GITHUB_EVENT_NAME": event or ("push" if production else "pull_request"),
+                   "GITHUB_REPOSITORY": "owner/app", "PR_HEAD_REPOSITORY": head_repository,
+                   "GITHUB_REF": ref or ("refs/tags/v1.2.3" if production else "refs/pull/4/merge"),
                    "GITHUB_REF_NAME": "v1.2.3", "RELEASE_VERSION_CODE": "42",
                    "GITHUB_ENV": str(envfile), "GITHUB_OUTPUT": str(outputs)}
-            subprocess.run(["/bin/bash", "-e", "-c", body], env=env, check=True, capture_output=True)
-            return dict(line.split("=", 1) for line in envfile.read_text().splitlines())
+            subprocess.run(["/bin/bash", "-e", "-c", body], env=env, check=True, capture_output=True, cwd=ROOT)
+            values = dict(line.split("=", 1) for line in envfile.read_text().splitlines())
+            values.update(("output_" + key, value) for key, value in
+                          (line.split("=", 1) for line in outputs.read_text().splitlines()))
+            return values
 
     def test_test_apk_version_exceeds_original_security_candidate_and_increases(self):
         first, later = self.version(1), self.version(40)
@@ -281,7 +308,32 @@ class TestVersionGateTest(unittest.TestCase):
         self.assertGreater(int(later["VERSION_CODE"]), int(first["VERSION_CODE"]))
 
     def test_production_version_remains_explicit_and_independent(self):
-        self.assertEqual({"VERSION_NAME": "1.2.3", "VERSION_CODE": "42"}, self.version(40, True))
+        version = self.version(40, True)
+        self.assertEqual(("1.2.3", "42"), (version["VERSION_NAME"], version["VERSION_CODE"]))
+
+    def release_file(self):
+        values = dict(line.split("=", 1) for line in (ROOT / "release.properties").read_text().splitlines() if "=" in line)
+        return values["versionName"], values["versionCode"]
+
+    def test_a_same_repository_pull_request_that_would_release_builds_the_release_version(self):
+        name, code = self.release_file()
+        version = self.version(40, head_repository="owner/app")
+        self.assertEqual((name, code, "true", "false"), (version["VERSION_NAME"], version["VERSION_CODE"],
+                                                         version["output_candidate"], version["output_release"]))
+
+    def test_an_already_released_version_or_a_fork_builds_a_test_version(self):
+        name, _ = self.release_file()
+        for version in (self.version(40, head_repository="owner/app", tags=f"refs/tags/v{name}"),
+                        self.version(40, head_repository="someone/app")):
+            self.assertEqual(("0.2.0-uat2-test.40", "false"), (version["VERSION_NAME"], version["output_candidate"]))
+
+    def test_a_merge_into_main_releases_an_untagged_version_once(self):
+        name, code = self.release_file()
+        version = self.version(40, event="push", ref="refs/heads/main")
+        self.assertEqual((name, code, "true", "false"), (version["VERSION_NAME"], version["VERSION_CODE"],
+                                                         version["output_release"], version["output_candidate"]))
+        version = self.version(40, event="push", ref="refs/heads/main", tags=f"refs/tags/v{name}")
+        self.assertEqual(("0.2.0-uat2-test.40", "false"), (version["VERSION_NAME"], version["output_release"]))
 
 
 if __name__ == "__main__":

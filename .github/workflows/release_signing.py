@@ -19,7 +19,8 @@ sys.dont_write_bytecode = True
 from release_artifacts import fingerprint, provenance, version_code, write_metadata
 
 SIGNING_KEYS = ("NOCTURNE_KEYSTORE", "NOCTURNE_KEYSTORE_PASSWORD", "NOCTURNE_KEY_ALIAS", "NOCTURNE_KEY_PASSWORD")
-GRADLE = ["./gradlew", "--no-daemon", "--max-workers=2", "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8"]
+# One Gradle daemon serves every build here (each passes its own environment); the APK never comes from the build cache.
+GRADLE = ["./gradlew", "--no-build-cache", "--max-workers=2", "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8"]
 
 
 def run_gradle(tasks, environment, log, expect_failure=False):

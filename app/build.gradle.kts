@@ -133,11 +133,20 @@ android {
             // time, and background work one class leaves behind cannot reach more than the few classes after it.
             it.maxParallelForks = 3
             it.forkEvery = 10
+            // Screenshot captures write images Gradle doesn't track, so a capture run is never up to date or cached.
+            val screenshotTag = providers.environmentVariable("SCREENSHOT_TAG").orElse("")
+            it.inputs.property("screenshotTag", screenshotTag)
+            it.outputs.doNotCacheIf("SCREENSHOT_TAG captures write untracked files") { screenshotTag.get().isNotBlank() }
             it.systemProperty("robolectric.dependency.repo.url", "https://maven-central.storage-download.googleapis.com/maven2")
             // Respect Android's requested dialog/window size. Robolectric's compatibility default
             // ignores it and loops when a text-field dialog is measured above 320 dp (#8460).
             it.systemProperty("robolectric.windowManager.useRequestedSize", "true")
             it.systemProperty("nocturne.serializationFixtures", rootProject.file(".github/workflows/release-serialization-fixtures.json").absolutePath)
+            // Files the tests read by path, so a cached test result is never reused after one changes.
+            it.inputs.file(rootProject.file(".github/workflows/release-serialization-fixtures.json"))
+                .withPropertyName("serializationFixtures").withPathSensitivity(PathSensitivity.RELATIVE)
+            it.inputs.dir(rootProject.file("docs/licences")).withPropertyName("licences").withPathSensitivity(PathSensitivity.RELATIVE)
+            it.inputs.file(file("src/main/AndroidManifest.xml")).withPropertyName("sourceManifest").withPathSensitivity(PathSensitivity.RELATIVE)
         }
     }
     // This harness is test-only and cannot become an R8 root in the application APK.
