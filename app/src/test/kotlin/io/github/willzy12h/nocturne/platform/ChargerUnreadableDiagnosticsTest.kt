@@ -305,6 +305,7 @@ class ChargerUnreadableDiagnosticsTest {
         assertEquals("The saved programme could not be checked.", diagnostics["runtimeReason"]?.jsonPrimitive?.content)
         assertEquals("UNKNOWN", diagnostics["nightConfidence"]?.jsonPrimitive?.content)
         assertEquals("UNKNOWN", diagnostics["activeNight"]?.jsonObject?.get("confidence")?.jsonPrimitive?.content)
+        assertTrue("The export says what the phone allows in the background", diagnostics["phone"]!!.jsonObject.containsKey("recentExits"))
 
         graph.repository.dismissUnreadable()
         val dismissed = Json.parseToJsonElement(graph.actions.diagnostics()).jsonObject
