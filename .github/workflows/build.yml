@@ -272,7 +272,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.android == 'true' && needs.prepare.outputs.reuse-run-id == ''
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       VERSION_NAME: ${{ needs.prepare.outputs.version-name }}
       VERSION_CODE: ${{ needs.prepare.outputs.version-code }}
@@ -470,7 +470,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.android == 'true' && needs.prepare.outputs.reuse-run-id == ''
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       VERSION_NAME: ${{ needs.prepare.outputs.version-name }}
       VERSION_CODE: ${{ needs.prepare.outputs.version-code }}
