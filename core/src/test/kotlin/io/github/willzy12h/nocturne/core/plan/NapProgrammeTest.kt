@@ -81,6 +81,30 @@ class NapProgrammeTest {
         assertNull(NapProgramme.validate(preset.copy(durationMinutes = 60, opening = emptyList(), untilWake = hot)))
     }
 
+    @Test fun confirmedFixedWakeKeepsItsDeviceClockButRecordsActualStartAfterBackup() = kotlinx.coroutines.test.runTest {
+        val minute = start.withSecond(0)
+        var now = minute
+        val link = DemoBedJet { now }
+        link.connect()
+        val runner = NightRunner(BedJetController(link) { now }) { now }
+        val wake = minute.plusMinutes(90)
+        val change = (runner.prepareNap("Quick nap", preset, wake, false, null, 2, "demo", null, null) as Preparation.Ready).change
+        var active: ActiveNight? = null
+        val sent = minute.plusSeconds(31)
+        val result = runner.apply(change, { active }, publish = { active = it }, beforeWrite = { now = sent }) as NightMutation.Applied
+        assertEquals(sent.toString(), result.night.startedAt)
+        assertEquals(wake.toString(), result.night.wakeAt)
+        assertEquals(wake.plusMinutes(10).toString(), result.night.endsAt)
+        assertEquals(change.intended.applied, result.night.applied)
+        assertTrue(change.matchesConfirmed(result.night))
+        val pendingRecord = NightRecord(result.night.recordId, result.night.profileId, "Quick nap", minute.toString(),
+            wake.toString(), false, steps = change.intended.applied.steps, isNap = true)
+        val settled = result.recordRevision(pendingRecord)
+        assertEquals(sent.toString(), settled.startedAt)
+        assertEquals(change.intended.applied.steps, settled.steps)
+        assertEquals(wake.toString(), settled.wakeAt)
+    }
+
     @Test fun fixedWakeCannotBeResumedAsAnUnanchoredDurationPlan() {
         val minute = start.withSecond(0)
         val runner = NightRunner(BedJetController(DemoBedJet { minute }) { minute }) { minute }

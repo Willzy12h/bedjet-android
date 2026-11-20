@@ -110,7 +110,7 @@ internal fun QuickNapControls(model: AppViewModel, settings: Settings, profile: 
                 val alarmProblem = accepted?.let { candidate ->
                     runCatching { NapProgramme.plan(settings.napPreset, model.now(), candidate.time, profile) }.exceptionOrNull()?.message
                 }
-                if (alarmProblem != null && accepted != null) Text(stringResource(R.string.nap_alarm_reason, Format.dayClock(accepted.time), alarmProblem))
+                if (alarmProblem != null) Text(stringResource(R.string.nap_alarm_reason, Format.dayClock(accepted.time), alarmProblem))
                 else if (accepted != null) NocturneOutlinedButton(onClick = { start(accepted.time, accepted) }) {
                     Text(stringResource(R.string.nap_accept_alarm, Format.dayClock(accepted.time)))
                 } else Text(stringResource(R.string.nap_alarm_unavailable))

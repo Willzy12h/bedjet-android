@@ -25,11 +25,19 @@ class QuickNapRuntimeTest {
     private val app = RuntimeEnvironment.getApplication() as App
     private lateinit var graph: Graph
     private var writes = 0
+    private var delayStartSeconds = 0L
     @Before fun setup() = runBlocking {
         val demo = DemoBedJet { graph.now() }
         graph = graphs.fresh { Graph(app, object : BedJetLink by demo {
             override suspend fun send(command: ByteArray) { writes++; demo.send(command) }
-            override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) { beforeWrite(); send(command) }
+            override suspend fun sendGuarded(command: ByteArray, beforeWrite: () -> Unit) {
+                if (delayStartSeconds > 0 && command.contentEquals(io.github.willzy12h.nocturne.core.protocol.Codec.startProgram(graph.repository.settings.value.workingSlot))) {
+                    graph.clock = Clock.offset(graph.clock, java.time.Duration.ofSeconds(delayStartSeconds))
+                    delayStartSeconds = 0
+                }
+                beforeWrite()
+                send(command)
+            }
         }) }
         org.robolectric.util.ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:30:00Z"), ZoneOffset.UTC)
@@ -75,7 +83,7 @@ class QuickNapRuntimeTest {
 
     @Test fun interruptedHistorySettlementRecoversTheActualStartAndItsSteps() = runBlocking {
         val start = graph.now()
-        val prep = graph.runner().prepareNap("Quick nap", graph.repository.settings.value.napPreset, null, false, null,
+        val prep = graph.runner().prepareNap("Quick nap", graph.repository.settings.value.napPreset, start.plusMinutes(90), false, null,
             2, DeviceId.DEMO, null, null) as io.github.willzy12h.nocturne.core.night.Preparation.Ready
         val planned = prep.change.intended
         val actual = prep.change.confirmedAt(start.plusSeconds(24))
@@ -121,11 +129,15 @@ class QuickNapRuntimeTest {
         assertEquals(OutcomeKind.STALE, graph.actions.startNap(first).kind)
         assertEquals(0, writes)
         val approved = AlarmSource.describe(app, graph.repository.settings.value)!!
+        val expectedStart = graph.now().plusSeconds(19)
+        delayStartSeconds = 19
         val result = graph.actions.startNap(graph.actions.captureNap(null, approved.time, approved))
         assertEquals(result.message, OutcomeKind.CONFIRMED, result.kind)
         val run = graph.repository.activeNight.value!!
         assertEquals(approved.time.toInstant(), java.time.ZonedDateTime.parse(run.wakeAt).toInstant())
         assertTrue(run.wakeFromAlarm)
+        assertEquals(expectedStart.toString(), run.startedAt)
+        assertEquals(run.startedAt, graph.repository.history.value.single().startedAt)
         assertEquals(approved.time.toInstant().toEpochMilli(), manager.nextAlarmClock.triggerTime)
         alarmAt(30)
         val before = writes

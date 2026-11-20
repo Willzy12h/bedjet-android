@@ -282,7 +282,11 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 Text(stringResource(R.string.tonight_chart_fan), color = tokens.ink2, fontSize = 12.sp)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     val tick = Modifier.weight(1f)
-                    Tick(if (night != null) Format.clock(p.start) else stringResource(R.string.parity_bed, Format.clock(p.start)), tick, TextAlign.Start)
+                    Tick(when {
+                            night?.isNap == true && confirmed -> Format.clock(night.startedAt)
+                            night != null -> Format.clock(p.start)
+                            else -> stringResource(R.string.parity_bed, Format.clock(p.start))
+                        }, tick, TextAlign.Start)
                     Tick(if (night != null && confirmed) stringResource(R.string.parity_now, Format.clock(now)) else summary.orEmpty(),
                         tick, TextAlign.Center)
                     // The wake source stays visible under the time: alarm, tonight-only or the profile's fallback.
@@ -292,6 +296,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 }
                 if (end == null && phoneAlarm != null && !phoneAlarm.isEqual(p.wake))
                     Note(stringResource(R.string.tonight_separate_phone_alarm, Format.clock(phoneAlarm)))
+                if (showDetail && night?.hasClockTimedNap == true && confirmed)
+                    Note(stringResource(R.string.nap_actual_start, Format.clock(night.startedAt)))
                 if (showDetail) PlanCard(p, settings, night?.wakeOrigin ?: preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT,
                     now = now.takeIf { night != null && confirmed }, end = end, middle = night?.profile?.middle ?: profile?.middle,
                     onEditPhase = if (profile == null) null else editPhase)

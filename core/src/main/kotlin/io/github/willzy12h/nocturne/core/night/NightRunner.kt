@@ -308,7 +308,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             validate()
             controller.startProgram(change.intended.slot, onStartAttempt = {
                 startMayHaveHappened = true
-                if (change.relativeNap) confirmed = change.confirmedAt(now())
+                if (change.startsNap) confirmed = change.confirmedAt(now())
             },
                 beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change); validate() }, onConfirmed = onConfirmed) {
                 checkOwnership()
