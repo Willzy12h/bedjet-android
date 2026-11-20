@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Keeping your settings across installs, and putting things back to how they ship. -->
 <resources>
-    <string name="profile_library_full">You can create up to %1$d profiles. You can still edit or share existing profiles. Share any profiles you want to keep before removing them.</string>
+    <string name="profile_library_full">Your profile library is full (limit %1$d). You can still edit or share existing profiles. Share any profiles you want to keep before removing them.</string>
     <string name="backup_unrestorable_library">A complete restorable backup could not be made. Your library is still on this phone. You can share individual profiles from Profiles and export a readable history from Sleep.</string>
     <!-- Profile editor: a built-in profile that has been changed. -->
     <string name="editor_builtin_title">Built-in profile</string>

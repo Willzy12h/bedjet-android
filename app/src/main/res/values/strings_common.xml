@@ -3,7 +3,6 @@
     <string name="ux_light_theme_warning">Switch to light theme? The screen will get much brighter.</string>
     <string name="ux_switch">Switch</string>
     <string name="ux_mode_max">max %1$s</string>
-    <string name="ux_unknown_time">--:--</string>
     <string name="ux_curve_phase_target">%1$s · %2$s–%3$s · target %4$s</string>
     <string name="ux_curve_phase_without_target">%1$s · %2$s–%3$s</string>
     <string name="ux_curve_details">Show step details</string>
