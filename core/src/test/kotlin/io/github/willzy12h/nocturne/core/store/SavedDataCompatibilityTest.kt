@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.core.plan.NapPreset
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -26,6 +27,10 @@ class SavedDataCompatibilityTest {
         val expected = ManualControls("ble:02:00:00:00:00:08", Mode.COOL, temperature = 46, fanStep = 11)
         assertEquals(expected, settings.manualFor(settings.targetDevice, Mode.COOL))
         assertEquals(expected, backup.settings.manualFor(backup.settings.targetDevice, Mode.COOL))
+        assertEquals(NapPreset(), settings.napPreset)
+        assertEquals(settings.napPreset, backup.settings.napPreset)
+        assertEquals(BackupCodec.SCHEMA, backup.schema)
+        assertTrue(backup.history.none { it.isNap })
     }
 
     @TestFactory fun `every released version's saved data still reads`(): List<DynamicTest> {
