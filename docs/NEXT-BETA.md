@@ -41,6 +41,10 @@ The archive validator also applies a 5 MiB limit, 200,000 JSON tokens, 2,048 cha
 
 At application revision `2b55392a9b79151b14305b2d4cf0629e2fe22682`, the API 36 emulator upgraded a re-signed copy of the public beta.7 APK to `1.1.0-beta.8-review` (20261120) with Android’s in-place installer. First install time was preserved. All 39 settings keys (72 values) and five profiles (167 values) matched after launch. This included the selected BedJet, edited fan steps and presets, display units, appearance and alarm configuration. The app’s package is `io.github.willzy12h.nocturne`.
 
+A second emulator check seeded three confirmed-setting records for two synthetic BedJets and two modes in the review app. Reinstalling the same signed APK in place retained all three, all 84 settings values and all five profiles. The controller tests cover recording settings after confirmation. A physical BedJet is required to verify the complete interaction.
+
+The release JVM fixture exercises 60 stored models across 139 cases. The full-archive validator found an old fixture slot name exceeded the BedJet limit. The replacement retains Unicode coverage at the real 15-byte limit.
+
 The release APK used R8 and resource shrinking. The 5,951,805-byte rehearsal APK has SHA-256 `de113b9163b5e3dfc6d015ec551299803b5e675dd2652b8d6d1e06216ecd1e4b`. Its disposable signing certificate has SHA-256 `7ad64c553302916ea1be9f32c8ca672c074473511ee3525e476147739314cc33`. The published beta.7 certificate has SHA-256 `fd5fa67050e21e2f7e4c6926623ba75ac8236c0f53b72d057fa15cba34f40d81`. A phone with public Nocturne needs the release-signed update to keep its installation.
 
 The fixed-clock Android capture contains 212 checked images, including 28 with historical references and 184 without. The BedJet chooser now opens a dialog, which adds one window in each of eight tested appearance/size combinations. The release checker validates dimensions, capture metadata and inventory. Physical testing is still required. [Rendered evidence](https://github.com/Willzy12h/bedjet-android/actions/runs/44648664287/artifacts/14588974457)
