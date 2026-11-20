@@ -80,7 +80,7 @@ fun AlarmExplanationLine(explanation: AlarmExplanation, wakeTimeShown: Boolean, 
     }
     if (details) AlertDialog(onDismissRequest = { details = false }, modifier = Modifier.testTag("alarm-row-details"),
         title = { Text(stringResource(R.string.alarm_row_details)) },
-        text = { Text(explanation.description(context), Modifier.verticalScroll(rememberScrollState())) },
+        text = { Text(explanation.description(context, includeActionHint = false), Modifier.verticalScroll(rememberScrollState())) },
         confirmButton = { NocturneTextButton(onClick = { details = false; onClick() },
             modifier = Modifier.testTag("alarm-row-open-settings")) { Text(action) } },
         dismissButton = { NocturneTextButton(onClick = { details = false }) { Text(stringResource(android.R.string.cancel)) } })

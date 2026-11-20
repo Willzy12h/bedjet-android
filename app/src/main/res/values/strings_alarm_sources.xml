@@ -4,6 +4,7 @@
     <string name="alarm_source_google_clock">Google Clock</string>
     <string name="alarm_source_used">Next alarm %1$s · %2$s — used</string>
     <string name="alarm_source_ignored">Alarm %1$s ignored: %2$s — tap to change</string>
+    <string name="alarm_source_ignored_details">Alarm %1$s ignored: %2$s</string>
     <string name="alarm_source_no_alarm">No alarm found — profile wake %1$s</string>
     <string name="alarm_source_profile_only">Profile wake %1$s — alarms off for this profile</string>
     <string name="alarm_source_override">Tonight-only wake %1$s — alarm not used</string>

@@ -462,7 +462,9 @@ internal fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Bool
             Text(label, Modifier.padding(top = 4.dp).testTag("editor-after-waking-heading").semantics { heading() },
                 color = tokens.readableText(tokens.accent), style = MaterialTheme.typography.titleMedium,
                 fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            if (phases.isEmpty()) Text(stringResource(R.string.editor_off_at_wake), color = tokens.ink2)
+            val summary = if (phases.isEmpty()) stringResource(R.string.editor_off_at_wake)
+                else stringResource(R.string.editor_after_wake_then_off, compactDuration(phases.sumOf { it.minutes }))
+            Text(summary, color = tokens.ink2)
         } else {
             EditorGroupHeader(label, phases.takeIf { it.isNotEmpty() }?.let { list -> compactDuration(list.sumOf { it.minutes }) })
         }
@@ -486,7 +488,7 @@ internal fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Bool
             }
             val subtitle = when {
                 phase.mode == Mode.TURBO -> stringResource(R.string.parity_turbo_sub)
-                lastOff -> stringResource(R.string.parity_then_off)
+                lastOff && !prominent -> stringResource(R.string.parity_then_off)
                 phase.mode.usesFan -> fan
                 else -> phaseStart?.let(Format::clock) ?: ""
             }

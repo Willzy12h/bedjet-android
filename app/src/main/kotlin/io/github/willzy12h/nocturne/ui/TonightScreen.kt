@@ -154,7 +154,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, night, runtime, nightStatus, previewWake = preview?.wake)
     val clockApps by model.clockApps.collectAsStateWithLifecycle()
     val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
-    val showAlarmRow = night?.isNap != true && !explanation.isStrayAlarm(clockApps, calendarApps)
+    val showAlarmRow = night?.isNap != true && night?.isTestRun != true && !explanation.isStrayAlarm(clockApps, calendarApps)
     var choosingAlarmApps by remember { mutableStateOf(false) }
     if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false }) {
         // The other way out of an unwanted alarm: this profile's own wake time, or a time for tonight only.
@@ -295,7 +295,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     val wakeLabel = if (night != null) wakeTime else stringResource(R.string.parity_wake, wakeTime)
                     val wakeTick = when {
                         end != null -> "${end.label} ${Format.clock(end.at)}"
-                        showAlarmRow && night == null -> wakeLabel
+                        showAlarmRow && night == null && explanation.unnamedOffer == null -> wakeLabel
                         else -> "$wakeLabel\n${stringResource(wakeSource)}"
                     }
                     Tick(wakeTick,

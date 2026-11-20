@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.app.TimePickerDialog
 import android.content.Intent
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -185,7 +186,10 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         when (scenario) {
             Scenario.SAMSUNG -> alarmRow.assertTextEquals("Using your next alarm")
             Scenario.NO_ALARM -> alarmRow.assertTextEquals("No alarm found · using your profile wake")
-            Scenario.NULL_ALLOWED -> alarmRow.assertTextEquals("Unnamed alarm at 06:30")
+            Scenario.NULL_ALLOWED -> {
+                alarmRow.assertTextEquals("Unnamed alarm at 06:30")
+                ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile wake time", substring = true)
+            }
             else -> Unit
         }
         val diagnostic = AlarmSource.diagnostics(ui.compose.activity, ui.graph.repository.settings.value,
@@ -223,7 +227,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
         } else {
             ui.compose.onNodeWithTag("alarm-row-details").assertExists()
-            ui.compose.onNodeWithText(scenario.expected).assertExists()
+            ui.compose.onNodeWithText(scenario.expected.removeSuffix(" — tap to change")).assertExists()
         }
         if (scenario in setOf(Scenario.TOO_SOON, Scenario.TOO_LATE, Scenario.OVERRIDE, Scenario.SAVED_OVERRIDE, Scenario.SAVED_OVERRIDE_NO_ALARM)) {
             ui.compose.onNodeWithTag("alarm-row-open-settings").performClick()

@@ -62,6 +62,7 @@
     <string name="parity_group_wake_alarm">Wake up · before alarm</string>
     <string name="parity_group_after">After waking</string>
     <string name="editor_off_at_wake">Switches off at wake</string>
+    <string name="editor_after_wake_then_off">%1$s total, then Off</string>
     <string name="parity_any_length">%1$s · any length</string>
     <string name="parity_add_hint">These are starting points. You set the exact temperature, fan and length next: anything from 1 minute to 12 hours. Turbo is always 10 minutes.</string>
     <string name="parity_add_next">Next: set it up</string>

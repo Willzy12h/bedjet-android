@@ -156,7 +156,7 @@ class AlarmExplanationActionTest {
     @Test fun profileAlarmOptOutOpensThatProfilesWakeSettings() {
         show(profileOnly = true)
         ui.compose.onNodeWithTag("tonight-alarm-row").performScrollTo().performClick()
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: alarms off for this profile — tap to change").assertExists()
+        ui.compose.onNodeWithText("Alarm 06:30 ignored: alarms off for this profile").assertExists()
         ui.compose.onNodeWithTag("alarm-row-open-settings").performClick()
         assertEquals(0, sourceRequests)
         assertEquals(listOf(ui.model.tonightsProfile()), profileRequests)

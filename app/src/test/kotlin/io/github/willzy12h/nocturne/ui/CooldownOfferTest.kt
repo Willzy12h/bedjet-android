@@ -82,6 +82,7 @@ class CooldownOfferTest {
         val preset = Presets.summerCool
         ui.compose.onNode(hasText(preset.name) and hasClickAction() and hasAnyAncestor(isDialog())).performScrollTo().performClick()
         ui.compose.onNodeWithTag("editor-after-waking-heading").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithText("20 min total, then Off").performScrollTo().assertIsDisplayed()
         ui.compose.onNodeWithTag("editor-phase-AFTER_WAKE-0").performScrollTo().assertTextContains("20 min", substring = true)
             .assertTextContains("40%", substring = true)
     }
