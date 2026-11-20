@@ -48,11 +48,17 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
         while (dir.resolve("$id.json").exists()) id += "x"
         val file = SnapshotFile(time.toString(), label, manual, bundle)
         val temp = dir.resolve("$id.json.tmp")
-        FileOutputStream(temp.toFile()).use { out ->
-            out.write(BackupCodec.json.encodeToString(SnapshotFile.serializer(), file).toByteArray())
-            out.fd.sync()
+        try {
+            FileOutputStream(temp.toFile()).use { out ->
+                out.write(BackupCodec.json.encodeToString(SnapshotFile.serializer(), file).toByteArray())
+                out.fd.sync()
+            }
+            // Import limits apply to the entire snapshot file, including the header.
+            BackupValidator.requireValid(readBundle(temp))
+            Files.move(temp, dir.resolve("$id.json"), StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            temp.deleteIfExists()
         }
-        Files.move(temp, dir.resolve("$id.json"), StandardCopyOption.ATOMIC_MOVE)
         syncDirectoryIfSupported()
         prune()
         return SnapshotInfo(id, file.createdAt, label, manual)
@@ -84,9 +90,13 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
         if (!validId(id)) return@runCatching null
         val path = dir.resolve("$id.json")
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return@runCatching null
-        val file = Files.newInputStream(path).use { BackupCodec.parseDocument(BackupValidator.readWithinLimit(it)) }
-        BackupCodec.decode(file.getValue("bundle").jsonObject)
+        readBundle(path)
     }.getOrNull()
+
+    private fun readBundle(path: Path): BackupBundle {
+        val file = Files.newInputStream(path).use { BackupCodec.parseDocument(BackupValidator.readWithinLimit(it)) }
+        return BackupCodec.decode(file.getValue("bundle").jsonObject)
+    }
 
     fun delete(id: String) {
         require(validId(id)) { "SNAPSHOT_ID_INVALID" }

@@ -407,7 +407,12 @@ class Repository(
         _settings.value.migrateTonightChoice(settingsLoadedAt).resolveProfile(_profiles.value, now)
 
     suspend fun saveProfile(profile: Profile) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list ->
-        if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it } else list + profile
+        if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it }
+        else {
+            if (list.size >= BackupValidator.PROFILE_CREATION_LIMIT)
+                throw IOException(context.getString(R.string.profile_library_full, BackupValidator.PROFILE_CREATION_LIMIT))
+            list + profile
+        }
     }
 
     suspend fun answerCooldownOffer(expected: Map<String, List<Phase>>, expectedSessionRevision: Long = sessionRevision.value): Boolean {
@@ -962,7 +967,7 @@ class Repository(
             requireRealSession()
             if (request.repositoryNonce != shareInstanceNonce || request.sessionRevision != sessionRevision.value)
                 throw IOException(context.getString(R.string.parity_profile_share_changed))
-            request.encodedProfile.toByteArray(Charsets.UTF_8)
+            BackupCodec.verifiedBytes(request.encodedProfile)
         }
         withContext(Dispatchers.IO) {
             ExportDestination.open(context, uri, openOutput).use { it.write(bytes) }
@@ -973,7 +978,7 @@ class Repository(
         ExportDestination.check(context, uri)
         val bytes = serially {
             requireRealSession()
-            BackupCodec.encode(bundle()).toByteArray(Charsets.UTF_8)
+            BackupCodec.verifiedBytes(BackupCodec.encode(bundle()))
         }
         // A document provider may wait indefinitely; only capturing the real data needs the night writer.
         withContext(Dispatchers.IO) {
@@ -1002,7 +1007,13 @@ class Repository(
         if (isDemoSession || startupMigrationBlocked) return@serially
         // Snapshots of the defaults standing in for an unreadable file would push the good ones out.
         if (_unreadable.value.isNotEmpty()) return@serially
-        if (snapshots.saveIfChanged(bundle())) _snapshotList.value = snapshots.list()
+        try {
+            if (snapshots.saveIfChanged(bundle())) _snapshotList.value = snapshots.list()
+        } catch (e: BackupException) {
+            // A legacy library may need repair. Keep the previous usable snapshot and avoid
+            // crashing the application from the background snapshot job.
+            Log.w(TAG, "Automatic snapshot could not be verified", e)
+        }
     }
 
     // Files

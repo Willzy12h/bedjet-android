@@ -1199,6 +1199,36 @@ class RepositoryTest {
     }
 
     @Test
+    fun exportDoesNotOpenDestinationForAnUnrestorableLibrary() = runBlocking {
+        var opens = 0
+        val repo = repository(openOutput = { opens++; java.io.ByteArrayOutputStream() })
+        repo.addRecord(NightRecord("bad", "profile", "Night", now.toString(), "broken time", false))
+        val result = runCatching { repo.exportTo(Uri.parse("content://test.documents/export.json")) }
+        assertTrue(result.exceptionOrNull() is BackupException)
+        assertEquals(0, opens)
+        val before = repo.profiles.value
+        assertTrue(runCatching { repo.restoreBuiltInProfiles() }.exceptionOrNull() is BackupException)
+        assertEquals(before, repo.profiles.value)
+    }
+
+    @Test
+    fun olderLibraryAboveTheCreationLimitRoundTripsInFull() = runBlocking {
+        val oldLibrary = List(129) { Presets.summerCool.copy(id = "p$it", name = "Profile $it") }
+        File(dir, "profiles.json").writeText(BackupCodec.json.encodeToString(ListSerializer(Profile.serializer()), oldLibrary))
+        val output = java.io.ByteArrayOutputStream()
+        val repo = repository(openOutput = { output })
+        repo.exportTo(Uri.parse("content://test.documents/export.json"))
+        val decoded = repo.importFrom(output.toByteArray().inputStream())
+        assertEquals(emptyList<String>(), BackupValidator.validate(decoded))
+        assertEquals(oldLibrary, decoded.profiles)
+        repo.restore(decoded)
+        assertEquals(oldLibrary, repo.profiles.value)
+        assertTrue(runCatching { repo.saveProfile(oldLibrary.first().copy(id = "new")) }.isFailure)
+        repo.saveProfile(oldLibrary.first().copy(name = "Still editable"))
+        assertEquals("Still editable", repo.profiles.value.first().name)
+    }
+
+    @Test
     fun exportsRefuseAPickerThatPointsAtPrivateStorage() = runBlocking {
         val repo = repository()
         val private = File(dir, "victim.json").apply { writeText("keep") }

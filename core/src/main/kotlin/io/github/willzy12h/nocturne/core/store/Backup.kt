@@ -79,6 +79,12 @@ object BackupCodec {
 
     fun encode(bundle: BackupBundle): String = json.encodeToString(BackupBundle.serializer(), bundle)
 
+    /** Validate the exact share/export payload through the importer's UTF-8, size, schema and field checks. */
+    fun verifiedBytes(encoded: String): ByteArray = encoded.toByteArray(Charsets.UTF_8).also { bytes ->
+        val decoded = decode(BackupValidator.readWithinLimit(bytes.inputStream()))
+        BackupValidator.requireValid(decoded)
+    }
+
     /** Decodes a bounded, strict document; schema 1 (including its absent version marker) is migrated. */
     fun decode(text: String): BackupBundle = decode(parseDocument(text))
 

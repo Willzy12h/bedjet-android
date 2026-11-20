@@ -4,6 +4,7 @@ import io.github.willzy12h.nocturne.core.plan.Presets
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
@@ -17,6 +18,31 @@ class SnapshotStoreTest {
     private var now = ZonedDateTime.of(2026, 10, 21, 22, 30, 0, 0, ZoneId.of("Europe/London"))
 
     private fun bundle() = BackupBundle(createdAt = now.toString(), profiles = listOf(Presets.summerCool), settings = Settings())
+
+    @Test
+    fun failedSnapshotCannotPublishOrPruneAUsableCopy(@TempDir dir: Path) {
+        val store = SnapshotStore(dir) { now }
+        repeat(SnapshotStore.KEEP_AUTOMATIC) {
+            store.save(bundle(), null, manual = false)
+            now = now.plusMinutes(1)
+        }
+        val previous = store.list()
+        val invalid = bundle().copy(profiles = listOf(Presets.summerCool.copy(name = "")))
+        assertThrows(BackupException::class.java) { store.save(invalid, null, manual = false) }
+        assertEquals(previous, store.list())
+        assertFalse(dir.listDirectoryEntries().any { it.name.endsWith(".tmp") })
+    }
+
+    @Test
+    fun snapshotBytesIncludeTheEnvelopeInTheRestoreLimit(@TempDir dir: Path) {
+        val store = SnapshotStore(dir) { now }
+        val event = HistoryEvent(now.toString(), EventKind.RETIMED, "x".repeat(2_000))
+        val night = NightRecord("record", "p", "P", now.toString(), now.toString(), false,
+            events = List(1_000) { event })
+        val tooLarge = bundle().copy(history = List(3) { night.copy(id = "night-$it") })
+        assertThrows(BackupException::class.java) { store.save(tooLarge, null, manual = true) }
+        assertTrue(store.list().isEmpty())
+    }
 
     @Test
     fun listingStopsAtTheHeader(@TempDir dir: Path) {

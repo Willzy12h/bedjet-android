@@ -77,8 +77,10 @@ class BackupTest {
     @Test
     fun snapshotFromANewerSchemaDoesNotLoad(@TempDir dir: Path) {
         val store = SnapshotStore(dir) { now }
-        val info = store.save(bundle().copy(schema = BackupCodec.SCHEMA + 1), "From the future", manual = true)
-        assertNull(store.load(info.id))
+        val future = BackupCodec.encode(bundle().copy(schema = BackupCodec.SCHEMA + 1))
+        dir.resolve("snap-1000-m.json").toFile().writeText(
+            """{"createdAt":"$now","label":"From the future","manual":true,"bundle":$future}""")
+        assertNull(store.load("snap-1000-m"))
         // It is still listed, so it can be seen and deleted.
         assertEquals("From the future", store.list().single().label)
     }
