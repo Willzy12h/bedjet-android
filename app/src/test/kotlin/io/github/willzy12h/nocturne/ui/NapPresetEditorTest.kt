@@ -27,10 +27,11 @@ class NapPresetEditorTest {
 
     @Test fun editsDurationIndependentlyOfAfterWakeAndPreventsZeroLength() {
         val now = ZonedDateTime.parse("2026-11-20T13:00:00Z")
+        val settings = ui.graph.repository.settings.value
         var saved: NapPreset? = null
         ui.compose.runOnUiThread {
             ui.compose.activity.setContent {
-                NocturneTheme(ui.graph.repository.settings.value, now) {
+                NocturneTheme(settings, now) {
                     NapPresetEditor(NapPreset(), selectedProfile = null, fahrenheit = false, now = now,
                         onSave = { saved = it }, onDismiss = {})
                 }
