@@ -620,6 +620,9 @@ internal fun SleepHistorySettings(model: AppViewModel, modifier: Modifier, onBac
     val tokens = paletteTokens
     val settings by model.settings.collectAsStateWithLifecycle()
     val history by model.history.collectAsStateWithLifecycle()
+    val snapshots by model.snapshots.collectAsStateWithLifecycle()
+    val active by model.activeNight.collectAsStateWithLifecycle()
+    val runtime by model.runtime.collectAsStateWithLifecycle()
     val importApplying by model.importApplying.collectAsStateWithLifecycle()
     val keep = History.keepDays(settings.historyKeepDays)
     var shrinkTo by remember { mutableStateOf<Int?>(null) }
@@ -679,12 +682,14 @@ internal fun SleepHistorySettings(model: AppViewModel, modifier: Modifier, onBac
                 tokens.ink, "sleep-health", onClick = onOpenHealth)
             HorizontalDivider(color = tokens.hairline)
             SettingsLine(stringResource(R.string.sleep_delete), "", tokens.readableText(tokens.bad, tokens.surface), "sleep-delete",
-                enabled = history.isNotEmpty() && !settings.demoMode) { deleting = true }
+                enabled = (history.isNotEmpty() || snapshots.isNotEmpty()) && !settings.demoMode) { deleting = true }
         }
     }
     shrinkTo?.let { days ->
         val cutoff = model.now().minusDays(days.toLong())
-        val lost = history.count { night -> runCatching { !ZonedDateTime.parse(night.startedAt).isAfter(cutoff) }.getOrDefault(true) }
+        val protected = setOfNotNull(active?.recordId, runtime.ending?.identity?.nightId)
+        val lost = history.count { night -> night.id !in protected &&
+            runCatching { !ZonedDateTime.parse(night.startedAt).isAfter(cutoff) }.getOrDefault(true) }
         AlertDialog(onDismissRequest = { shrinkTo = null },
             title = { Text(stringResource(R.string.sleep_shrink_title, stringResource(keepName(days)))) },
             text = { Text(pluralStringResource(R.plurals.sleep_shrink_body, lost, lost)) },

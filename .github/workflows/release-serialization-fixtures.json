@@ -899,6 +899,20 @@
         "repositoryNonce": null
       }
     ],
+    "io.github.willzy12h.nocturne.data.Repository$HistoryErasure": [
+      {
+        "protectedIds": ["running"],
+        "removeLiveIds": ["finished"],
+        "cutoff": "2026-11-15T20:00Z",
+        "keepDays": 7
+      },
+      {
+        "protectedIds": [],
+        "removeLiveIds": [],
+        "cutoff": null,
+        "keepDays": null
+      }
+    ],
     "io.github.willzy12h.nocturne.data.Repository$JournalWrite": [
       {
         "$ref": "journalWrite"

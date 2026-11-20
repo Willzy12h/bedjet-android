@@ -47,21 +47,26 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
         var id = "snap-${time.toInstant().toEpochMilli()}-${if (manual) "m" else "a"}"
         while (dir.resolve("$id.json").exists()) id += "x"
         val file = SnapshotFile(time.toString(), label, manual, bundle)
-        val temp = dir.resolve("$id.json.tmp")
+        publish(dir.resolve("$id.json"), file)
+        prune()
+        return SnapshotInfo(id, file.createdAt, label, manual)
+    }
+
+    private fun publish(path: Path, file: SnapshotFile) {
+        val temp = path.resolveSibling("${path.name}.tmp")
         try {
             FileOutputStream(temp.toFile()).use { out ->
                 out.write(BackupCodec.json.encodeToString(SnapshotFile.serializer(), file).toByteArray())
                 out.fd.sync()
             }
             // Import limits apply to the entire snapshot file, including the header.
+            check(temp.bufferedReader().use { HeaderReader(it).read() } == Header(file.createdAt, file.label, file.manual))
             BackupValidator.requireValid(readBundle(temp))
-            Files.move(temp, dir.resolve("$id.json"), StandardCopyOption.ATOMIC_MOVE)
+            Files.move(temp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } finally {
             temp.deleteIfExists()
         }
         syncDirectoryIfSupported()
-        prune()
-        return SnapshotInfo(id, file.createdAt, label, manual)
     }
 
     /** Saves an automatic snapshot unless nothing changed since the last one. Returns whether it saved. */
@@ -73,16 +78,41 @@ class SnapshotStore(private val dir: Path, private val now: () -> ZonedDateTime)
     }
 
     /** Newest first. Reads only each file's header, not the bundle after it. */
-    fun list(): List<SnapshotInfo> {
+    fun list(includeUnreadable: Boolean = false): List<SnapshotInfo> {
         if (!dir.exists()) return emptyList()
         return dir.listDirectoryEntries("snap-*.json")
             .filter { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }
             .mapNotNull { path ->
                 val id = path.name.removeSuffix(".json")
-                runCatching { path.bufferedReader().use { HeaderReader(it).read() } }
+                val info = runCatching { path.bufferedReader().use { HeaderReader(it).read() } }
                     .getOrNull()?.let { SnapshotInfo(id, it.createdAt, it.label, it.manual) }
+                info ?: if (includeUnreadable && validId(id)) {
+                    val millis = id.substringAfter("snap-").substringBefore('-').toLongOrNull()
+                    millis?.let { SnapshotInfo(id, java.time.Instant.ofEpochMilli(it).atZone(now().zone).toString(), null,
+                        id.substringAfterLast('-').startsWith("m")) }
+                } else null
             }
             .sortedByDescending { it.id.substringAfter("snap-").substringBefore("-").toLongOrNull() ?: 0 }
+    }
+
+    /** Rewrite each app-managed copy in place, retaining its label, time, manual flag and non-history data. */
+    fun redactHistory(keep: (NightRecord) -> Boolean) {
+        if (!dir.exists()) return
+        for (path in dir.listDirectoryEntries("snap-*.json")) {
+            val id = path.name.removeSuffix(".json")
+            if (!validId(id)) continue
+            try {
+                if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) throw IOException("Invalid snapshot file")
+                val header = path.bufferedReader().use { HeaderReader(it).read() } ?: throw IOException("Unreadable header")
+                val bundle = readBundle(path)
+                val remaining = bundle.history.filter(keep)
+                if (remaining.size != bundle.history.size) {
+                    publish(path, SnapshotFile(header.createdAt, header.label, header.manual, bundle.copy(history = remaining)))
+                }
+            } catch (e: Exception) {
+                throw IOException("History erasure is unfinished in snapshot $id. Retry, or remove that snapshot in Backups.", e)
+            }
+        }
     }
 
     /** Null when missing, unreadable, or written by a newer version than this one. Older ones are migrated. */

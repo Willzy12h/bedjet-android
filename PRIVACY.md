@@ -25,6 +25,11 @@ Stored in Nocturne's private app storage, which Android keeps away from other ap
   Settings (7, 30, 90 or 365 days), and an in-app log of the notifications it showed;
 - automatic and manual backup snapshots.
 
+Deleting sleep history also removes saved nights from Nocturne's own snapshots. A night still running or
+being ended is kept. Shortening retention removes older nights from these copies too. If deletion is interrupted,
+the app resumes it and pauses backup and restore until it finishes. Previously exported files remain under your
+control. Health Connect keeps its own records.
+
 Uninstalling Nocturne deletes all of this. You can also delete sleep history in Settings at any time.
 
 ## Information it reads

@@ -1176,6 +1176,90 @@ class RepositoryTest {
     }
 
     @Test
+    fun erasureCoversAutomaticAndManualSnapshotsAndPreservesProtectedOriginals() = runBlocking {
+        val repo = repository()
+        val device = "ble:AA:BB:CC:DD:EE:FF"
+        repo.recordOriginalSlot(device, 1, program)
+        val at = now.minusDays(1).toString()
+        listOf("finished", "running", "ending").forEach { repo.addRecord(NightRecord(it, "p", "P", at, at, false)) }
+        repo.setActiveNight(ActiveNight("running", "p", at, now.toString(), false, 2, at, now.toString()))
+        repo.updateRuntime { it.copy(ending = PendingEnd(NightIdentity("ending", 2), HistoryEvent(at, EventKind.ENDED, "Ended"))) }
+        val automatic = repo.snapshots.save(repo.bundle(), null, manual = false)
+        repo.snapshotNow("Manual")
+        val manual = repo.snapshotList.value.first { it.manual }
+        repo.deleteHistory()
+        val after = repository()
+        for (id in listOf(automatic.id, manual.id)) {
+            val snapshot = after.snapshots.load(id)!!
+            assertEquals(listOf("running", "ending"), snapshot.history.map { it.id })
+            assertEquals(program, snapshot.slotBackups.single().program)
+            assertTrue(after.restoreSnapshot(id))
+            assertEquals(setOf("running", "ending"), after.history.value.map { it.id }.toSet())
+        }
+    }
+
+    @Test
+    fun shorteningRetentionCleansOldNightsInPreviouslyRestorableSnapshots() = runBlocking {
+        val repo = repository()
+        for ((id, age) in listOf("month" to 20L, "week" to 3L)) {
+            val at = now.minusDays(age).toString()
+            repo.addRecord(NightRecord(id, "p", "P", at, at, false))
+        }
+        repo.snapshotNow("90-day backup")
+        val old = repo.snapshotList.value.single { it.manual }
+        repo.setHistoryKeepDays(7)
+        val after = repository()
+        assertEquals(listOf("week"), after.snapshots.load(old.id)!!.history.map { it.id })
+        assertTrue(after.restoreSnapshot(old.id))
+        assertEquals(listOf("week"), after.history.value.map { it.id })
+    }
+
+    @Test
+    fun alreadyOpenSnapshotReviewCannotBringErasedHistoryBack() = runBlocking {
+        val repo = repository()
+        val at = now.toString()
+        val onlyInSnapshot = NightRecord("old", "p", "P", at, at, false)
+        val snapshot = repo.snapshots.save(repo.bundle().copy(history = listOf(onlyInSnapshot)), "Old", true)
+        val preview = repo.previewSnapshot(snapshot.id)!!
+        repo.deleteHistory()
+        assertTrue(runCatching { repo.applyImport(preview) }.exceptionOrNull() is BackupException)
+        assertTrue(repo.history.value.isEmpty())
+    }
+
+    @Test
+    fun unreadableSnapshotStaysVisibleForRemovalUntilErasureFinishes() = runBlocking {
+        val repo = repository()
+        repo.snapshotNow("Invalid")
+        val bad = repo.snapshotList.value.single { it.manual }
+        File(dir, "snapshots/${bad.id}.json").writeText("unreadable")
+        assertTrue(runCatching { repo.deleteHistory() }.isFailure)
+        assertTrue(repo.snapshotList.value.any { it.id == bad.id })
+        assertTrue(runCatching { repo.snapshotNow("Blocked") }.isFailure)
+        repo.deleteSnapshot(bad.id)
+        repo.snapshotNow("Restored")
+        assertTrue(repo.snapshotList.value.any { it.label == "Restored" })
+    }
+
+    @Test
+    fun interruptedErasureResumesAndCannotRestoreOldSnapshotsInTheMeantime() = runBlocking {
+        var refuse = false
+        val repo = repository(writeFile = { file, bytes ->
+            if (refuse && file.name == "history.json") throw IOException("Disk full")
+            Repository.writeDurably(file, bytes)
+        })
+        val at = now.toString()
+        repo.addRecord(NightRecord("saved", "p", "P", at, at, false))
+        repo.snapshotNow("Manual")
+        val old = repo.snapshotList.value.single { it.manual }
+        refuse = true
+        assertTrue(runCatching { repo.deleteHistory() }.isFailure)
+        assertTrue(runCatching { repo.restoreSnapshot(old.id) }.isFailure)
+        val after = repository()
+        assertTrue(after.history.value.isEmpty())
+        assertTrue(after.snapshots.load(old.id)!!.history.isEmpty())
+    }
+
+    @Test
     fun deletingHistoryRemovesEveryFinishedNight() = runBlocking {
         val repo = repository()
         repo.addRecord(NightRecord("a", "p", "P", now.minusDays(3).toString(), now.minusDays(3).toString(), false))
