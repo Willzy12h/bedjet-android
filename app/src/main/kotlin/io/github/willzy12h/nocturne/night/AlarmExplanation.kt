@@ -192,13 +192,6 @@ fun AlarmExplanation.description(context: Context): String {
     return text(R.string.alarm_source_saved_and_current, saved, current)
 }
 
-/** Tonight's line: with no alarm in sight it also asks whether the alarm is in another app, as a tap opens that help. */
-fun AlarmExplanation.lineDescription(context: Context): String {
-    val text = description(context)
-    return if (target == AlarmSettingsTarget.MISSING_ALARM && reason == AlarmReason.NO_ALARM)
-        context.getString(R.string.alarm_source_other_app_question, text) else text
-}
-
 /** An explicit check always reports Android's current answer, even when the selected wake did not change. */
 fun AlarmExplanation.recheckDescription(context: Context): String {
     var result = description(context)

@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.contentDescription
@@ -371,7 +372,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                 PhaseList(Block.WAKE, stringResource(if (wake.fromAlarm) R.string.parity_group_wake_alarm else R.string.parity_group_wake), profile.wake, f,
                     preview.getOrNull(), focusedPhase, focusRequest, profile.limits, onAdd = { addingTo = Block.WAKE }) { profile = profile.copy(wake = it) }
                 PhaseList(Block.AFTER_WAKE, stringResource(R.string.parity_group_after), profile.afterWake, f, preview.getOrNull(), focusedPhase, focusRequest,
-                    profile.limits, onAdd = { addingTo = Block.AFTER_WAKE }) { profile = profile.copy(afterWake = it) }
+                    profile.limits, onAdd = { addingTo = Block.AFTER_WAKE }, prominent = true) { profile = profile.copy(afterWake = it) }
 
                 Section(stringResource(R.string.editor_limits)) {
                     Text(stringResource(R.string.editor_limits_help), style = MaterialTheme.typography.bodySmall)
@@ -422,7 +423,8 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 internal fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boolean, plan: Plan?,
-    focus: EditorPhaseSelection?, focusRequest: Int, limits: ProfileLimits, onAdd: () -> Unit, onChange: (List<Phase>) -> Unit) {
+    focus: EditorPhaseSelection?, focusRequest: Int, limits: ProfileLimits, onAdd: () -> Unit,
+    prominent: Boolean = false, onChange: (List<Phase>) -> Unit) {
     var open by remember(block) { mutableStateOf<Int?>(null) }
     val rowHeights = remember(block) { mutableMapOf<Int, Int>() }
     // Keep unchanged measurements across reorders: equal-height rows need not be measured again.
@@ -455,7 +457,15 @@ internal fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Bool
         Block.MIDDLE, Block.TEMPORARY -> null
     }
     Column(verticalArrangement = Arrangement.spacedBy(rowGap)) {
-        EditorGroupHeader(label, phases.takeIf { it.isNotEmpty() }?.let { list -> compactDuration(list.sumOf { it.minutes }) })
+        if (prominent) {
+            val tokens = paletteTokens
+            Text(label, Modifier.padding(top = 4.dp).testTag("editor-after-waking-heading").semantics { heading() },
+                color = tokens.readableText(tokens.accent), style = MaterialTheme.typography.titleMedium,
+                fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            if (phases.isEmpty()) Text(stringResource(R.string.editor_off_at_wake), color = tokens.ink2)
+        } else {
+            EditorGroupHeader(label, phases.takeIf { it.isNotEmpty() }?.let { list -> compactDuration(list.sumOf { it.minutes }) })
+        }
         phases.forEachIndexed { index, phase ->
             val requester = remember(block, index) { BringIntoViewRequester() }
             LaunchedEffect(requested, focusRequest) {

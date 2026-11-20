@@ -5,9 +5,11 @@ import android.app.PendingIntent
 import android.app.TimePickerDialog
 import android.content.Intent
 import androidx.compose.ui.test.assertHasClickAction
-import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.AppliedProgram
@@ -47,8 +49,7 @@ import java.util.TimeZone
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 class AlarmExplanationTest(private val scenario: Scenario) {
-    enum class Scenario(val expected: String, val expectedWake: String = "07:00",
-        /** Tonight's line, where it adds to the exported explanation. */ val shown: String = expected) {
+    enum class Scenario(val expected: String, val expectedWake: String = "07:00") {
         SAMSUNG("Next alarm 06:30 · Samsung Clock — used", "06:30"),
         /** "Ignore them" chosen for alarms from unnamed apps. */
         NULL_DENIED("Alarm 06:30 ignored: source unknown — tap to change"),
@@ -62,7 +63,7 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         TOO_LATE("Alarm 16:31 ignored: too late — beyond tonight’s 18 hours — tap to change"),
         MINIMUM_BOUNDARY("Next alarm 23:30 · Samsung Clock — used", "23:30"),
         MAXIMUM_BOUNDARY("Next alarm 16:30 · Samsung Clock — used", "16:30"),
-        NO_ALARM("No alarm found — profile wake 07:00", shown = "No alarm found — profile wake 07:00 · Alarm in another app?"),
+        NO_ALARM("No alarm found — profile wake 07:00"),
         PROFILE_ONLY("Alarm 06:30 ignored: alarms off for this profile — tap to change"),
         PROFILE_ONLY_NO_ALARM("Profile wake 07:00 — alarms off for this profile"),
         OVERRIDE("Tonight-only wake 06:45 — alarm not used", "06:45"),
@@ -180,7 +181,13 @@ class AlarmExplanationTest(private val scenario: Scenario) {
             assertEquals(null, next.creator)
             assertEquals(scenario == Scenario.NULL_ALWAYS, next.counts)
         }
-        ui.compose.onNodeWithText(scenario.shown).assertExists().assertHasClickAction()
+        val alarmRow = ui.compose.onNodeWithTag("tonight-alarm-row").assertExists().assertHasClickAction()
+        when (scenario) {
+            Scenario.SAMSUNG -> alarmRow.assertTextEquals("Using your next alarm")
+            Scenario.NO_ALARM -> alarmRow.assertTextEquals("No alarm found · using your profile wake")
+            Scenario.NULL_ALLOWED -> alarmRow.assertTextEquals("Unnamed alarm at 06:30")
+            else -> Unit
+        }
         val diagnostic = AlarmSource.diagnostics(ui.compose.activity, ui.graph.repository.settings.value,
             night?.let { ui.graph.repository.profile(it.profileId) } ?: ui.model.tonightsProfile(), night,
             ui.graph.repository.runtime.value, ui.model.nightStatus.value, ui.graph.now())
@@ -211,8 +218,15 @@ class AlarmExplanationTest(private val scenario: Scenario) {
         // Only "Ask each night" offers the unnamed alarm, and the export says so.
         assertEquals(if (scenario == Scenario.NULL_ALLOWED) Instant.parse("2026-10-23T06:30:00Z") else null,
             diagnostic["unnamedOffer"]?.jsonPrimitive?.contentOrNull?.let { ZonedDateTime.parse(it).toInstant() })
+        alarmRow.performScrollTo().performClick()
+        if (scenario in setOf(Scenario.NULL_DENIED, Scenario.NULL_ALLOWED, Scenario.NO_ALARM)) {
+            ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
+        } else {
+            ui.compose.onNodeWithTag("alarm-row-details").assertExists()
+            ui.compose.onNodeWithText(scenario.expected).assertExists()
+        }
         if (scenario in setOf(Scenario.TOO_SOON, Scenario.TOO_LATE, Scenario.OVERRIDE, Scenario.SAVED_OVERRIDE, Scenario.SAVED_OVERRIDE_NO_ALARM)) {
-            ui.compose.onNodeWithText(scenario.expected).assertIsDisplayed().performClick()
+            ui.compose.onNodeWithTag("alarm-row-open-settings").performClick()
             assertTrue("A wake choice must open the existing tonight-only picker", ShadowDialog.getLatestDialog() is TimePickerDialog)
         }
     }

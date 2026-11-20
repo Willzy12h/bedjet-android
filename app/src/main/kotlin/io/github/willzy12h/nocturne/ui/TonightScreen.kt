@@ -152,6 +152,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val needsWake = night == null && plan == null && preview?.durationProblem != null && overridable
     var nightWakeOffer by rememberSaveable { mutableStateOf(false) }
     val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, night, runtime, nightStatus, previewWake = preview?.wake)
+    val clockApps by model.clockApps.collectAsStateWithLifecycle()
+    val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
+    val showAlarmRow = night?.isNap != true && !explanation.isStrayAlarm(clockApps, calendarApps)
     var choosingAlarmApps by remember { mutableStateOf(false) }
     if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false }) {
         // The other way out of an unwanted alarm: this profile's own wake time, or a time for tonight only.
@@ -289,9 +292,13 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                         }, tick, TextAlign.Start)
                     Tick(if (night != null && confirmed) stringResource(R.string.parity_now, Format.clock(now)) else summary.orEmpty(),
                         tick, TextAlign.Center)
-                    // The wake source stays visible under the time: alarm, tonight-only or the profile's fallback.
-                    Tick(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: ((if (night != null) wakeTime else stringResource(R.string.parity_wake, wakeTime)) +
-                        "\n" + stringResource(wakeSource)),
+                    val wakeLabel = if (night != null) wakeTime else stringResource(R.string.parity_wake, wakeTime)
+                    val wakeTick = when {
+                        end != null -> "${end.label} ${Format.clock(end.at)}"
+                        showAlarmRow && night == null -> wakeLabel
+                        else -> "$wakeLabel\n${stringResource(wakeSource)}"
+                    }
+                    Tick(wakeTick,
                         tick.testTag("tonight-fixed-wake").then(if (overridable) Modifier.clickable(onClick = pickWake) else Modifier), TextAlign.End)
                 }
                 if (end == null && phoneAlarm != null && !phoneAlarm.isEqual(p.wake))
@@ -361,12 +368,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 if (model.startPreview(selected).plan != null) model.run(Command.START_NIGHT, selected.id)
             }
         }
-        // One line explains the wake; an alarm from a calendar app is simply ignored, without comment. Any other
-        // app's ignored alarm is named, with a tap to choose that app.
-        val clockApps by model.clockApps.collectAsStateWithLifecycle()
-        val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
-        if (night?.isNap != true && !explanation.isStrayAlarm(clockApps, calendarApps)) {
-            AlarmExplanationLine(explanation, openExplanation)
+        if (showAlarmRow) {
+            val displayedWake = explanation.wakeAt?.let { plan?.wake?.isEqual(it) } == true
+            AlarmExplanationLine(explanation, displayedWake, openExplanation)
         }
         wakeOverride?.takeUnless { night?.isNap == true }?.let { override ->
             runCatching { ZonedDateTime.parse(override.expiresAt) }.getOrNull()?.let { lapses ->

@@ -51,7 +51,7 @@ class P8ConsumedSettingsRequestTest {
     @get:Rule val rules = RuleChain.outerRule(timezone).around(ui.rules)
 
     @Test fun handledAlarmLinkDoesNotReopenWhenReturningToTonight() {
-        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performScrollTo().assertIsDisplayed().performClick()
+        ui.compose.onNodeWithText("Unnamed alarm at 06:30").performScrollTo().assertIsDisplayed().performClick()
         ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
         ui.compose.onNodeWithText(ui.s(R.string.alarm_apps_done)).performClick()
