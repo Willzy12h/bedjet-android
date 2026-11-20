@@ -484,7 +484,10 @@
       "wakeShown": {
         "$ref": "identity"
       },
-      "manualWakeShown": true
+      "manualWakeShown": true,
+      "releasedDevices": [
+        "ble:AA:BB:CC:DD:EE:01"
+      ]
     },
     "journalWrite": {
       "name": "settings.json",
