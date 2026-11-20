@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModelProvider
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.GraphLifecycle
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.link.BedJetLink
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.link.SourcedStatus
@@ -71,12 +72,12 @@ class RemoteReconnectPresentationTest {
 
     @Test fun appSwitchKeepsRemoteReadingsAndControlsVisibleWithTheConnectionIndicator() {
         openRemoteAndReconnect()
-        compose.onNodeWithText("Air 25°C · room 22°C").performScrollTo().assertIsDisplayed()
+        assertReadings("25°C")
         compose.onNodeWithText("Last reported").assertIsDisplayed()
-        compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
         assertEquals(LinkState.CONNECTING, model.linkState.value)
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsEnabled()
         compose.onNodeWithContentDescription("Temperature").performScrollTo().assertIsNotEnabled()
+        assertTonightConnection()
         compose.navTab("Settings")
         compose.onNodeWithTag("settings-page-bedjet").performScrollTo().performClick()
         switch("Lights").performScrollTo().assertIsDisplayed().assertIsOn().assertIsNotEnabled()
@@ -87,12 +88,12 @@ class RemoteReconnectPresentationTest {
         openRemoteAndReconnect()
         compose.runOnUiThread { link.readyWithoutStatus() }
         compose.waitForIdle()
-        compose.onNodeWithText("Air 25°C · room 22°C").performScrollTo().assertIsDisplayed()
+        assertReadings("25°C")
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsEnabled()
         compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("Last reported").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
         assertEquals(LinkState.READY, model.linkState.value)
+        assertTonightConnection()
         compose.navTab("Settings")
         compose.onNodeWithTag("settings-page-bedjet").performScrollTo().performClick()
         switch("Lights").performScrollTo().assertIsNotEnabled()
@@ -100,12 +101,9 @@ class RemoteReconnectPresentationTest {
         waitUntil { model.hasLiveStatus.value && model.status.value?.extra?.ledEnabled == false }
         switch("Lights").performScrollTo().assertIsOff().assertIsEnabled()
         compose.openRemote()
-        compose.onNodeWithText("Air 25°C · room 22°C").performScrollTo().assertIsDisplayed()
+        assertReadings("30°C")
         compose.onNodeWithText("Last reported").assertDoesNotExist()
         compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsEnabled()
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(30))
-        waitUntil { model.status.value?.actualTemperature == 60 }
-        compose.onNodeWithText("Air 30°C · room 22°C").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun cancelConnectingModeDoesNotReplayOnReconnect() {
@@ -218,9 +216,23 @@ class RemoteReconnectPresentationTest {
         assertSame(receipt, link.latestSourcedStatus())
     }
 
+    private fun assertReadings(air: String) {
+        val room = "22°C"
+        compose.onNodeWithTag("remote-temperature").performScrollTo().assertIsDisplayed().assertTextEquals(air)
+            .assertContentDescriptionEquals(compose.activity.getString(R.string.remote_air_room, air, room))
+        compose.onNodeWithTag("remote-room").assertIsDisplayed()
+            .assertTextEquals(compose.activity.getString(R.string.reading_room, room))
+    }
+
+    private fun assertTonightConnection() {
+        compose.navTab("Tonight")
+        compose.onNodeWithTag("status-connection").assertIsDisplayed()
+            .assertTextEquals(compose.activity.getString(R.string.parity_status_demo))
+    }
+
     private fun openRemoteAndReconnect() {
         compose.openRemote()
-        compose.onNodeWithText("Air 25°C · room 22°C").assertIsDisplayed()
+        assertReadings("25°C")
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         link.beginReconnect()
         compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
