@@ -2086,13 +2086,19 @@ class NightActions(private val graph: Graph) {
         return owned(text(R.string.runtime_release_label), repo.settings.value.deviceId()) {
             // Handover invalidates queued commands, but an existing recovery reason and
             // short-lived resume offer remain meaningful when this phone releases the link.
+            val device = repo.settings.value.takeUnless { it.demoMode }?.deviceId()
             repo.updateRuntime { it.copy(generation = it.generation + 1,
+                releasedDevices = if (device == null) it.releasedDevices else it.releasedDevices + device,
                 resumeOffer = validResumeOffer(it)?.copy(commandVersion = it.generation + 1)) }
-            graph.sessions.suspendAutoConnect(null).join()
+            if (device == null) graph.sessions.suspendAutoConnect(null).join()
+            else graph.sessions.disconnectReleased().join()
             CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_released))
         }
     }
     suspend fun takeBack(): CommandOutcome = owned(text(R.string.runtime_take_back), repo.settings.value.deviceId(), MIN_BUDGET_MS) {
+        repo.settings.value.deviceId()?.takeIf { it in repo.runtime.value.releasedDevices }?.let { target ->
+            repo.updateRuntime { it.copy(releasedDevices = it.releasedDevices - target) }
+        }
         graph.sessions.resumeAutoConnect()
         connected {
             val pendingEnd = repo.runtime.value.endRequested?.let { it == repo.activeNight.value?.identity } == true

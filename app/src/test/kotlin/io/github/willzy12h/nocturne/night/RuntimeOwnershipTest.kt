@@ -471,6 +471,23 @@ class RuntimeOwnershipTest {
         assertTrue(waited); assertTrue(notReleasedEarly); assertEquals(OutcomeKind.LOCAL, handover.await().kind)
         assertTrue(graph.sessions.released.value)
     }
+    @Test fun explicitReleaseSurvivesProcessRecreationAndIsScopedToOneRealBedJet() = runBlocking {
+        val chosen = "ble:AA:BB:CC:DD:EE:01"
+        val other = "ble:AA:BB:CC:DD:EE:02"
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = chosen) }
+        assertEquals(OutcomeKind.LOCAL, graph.actions.releaseForOtherPhone().kind)
+        val restarted = graphs.fresh { Graph(context, graph.link) }
+        assertTrue(restarted.sessions.released.value)
+        assertTrue(runCatching { restarted.sessions.withConnection { } }.exceptionOrNull() is BedJetError.NotConnected)
+        restarted.actions.selectTarget(other)
+        restarted.sessions.withConnection { }
+        restarted.actions.selectTarget(chosen)
+        assertTrue(runCatching { restarted.sessions.withConnection { } }.exceptionOrNull() is BedJetError.NotConnected)
+        restarted.actions.takeBack()
+        assertFalse(restarted.sessions.released.value)
+        assertFalse(graphs.fresh { Graph(context, graph.link) }.sessions.released.value)
+    }
+
     @Test fun handoverPreservesRecoveryReasonAndRebindsAUsableResumeOffer() = runBlocking {
         start()
         graph.actions.perform(NightActions.Command.OFF)

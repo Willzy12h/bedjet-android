@@ -25,6 +25,8 @@ import kotlinx.serialization.Serializable
     val reason: String? = null,
     val wakeShown: NightIdentity? = null,
     val manualWakeShown: Boolean = false,
+    /** Explicit hand-over belongs to this phone and survives process death. */
+    val releasedDevices: Set<String> = emptySet(),
 ) {
     /**
      * IR-06: the slot write still in question, PENDING (under way, or interrupted by a restart) or UNKNOWN (perhaps
