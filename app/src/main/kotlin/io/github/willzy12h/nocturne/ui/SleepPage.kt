@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -179,28 +180,31 @@ internal fun stepText(step: ProgramStep, fahrenheit: Boolean): String =
 private fun shortStepText(step: ProgramStep, fahrenheit: Boolean): String =
     if (step.mode.usesTemperature) tempText(step.temperature, fahrenheit) else modeName(step.mode)
 
-/** The weekly or monthly bars: hours asleep per night, stacked by stage; a tap opens that night. */
+/** Separate, date-aligned trends for tracker sleep and saved BedJet reports. */
 @Composable
 internal fun SleepTrendCard(days: List<SleepDay>, today: LocalDate, range: Int, selected: SleepDay?, zone: ZoneId,
     onSelect: (SleepDay) -> Unit) {
     val tokens = paletteTokens
-    val averages = remember(days) { SleepInsights.averages(days, zone) }
-    val byDate = remember(days, selected) { days.groupBy { it.date }.mapValues { (_, group) -> SleepInsights.representative(group, selected)!! } }
-    val slots = (range - 1 downTo 0).map { today.minusDays(it.toLong()) }
-    val figures = remember(days) { days.associateWith { day -> day.sleep?.let(SleepInsights::figures) } }
-    val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it?.stageMinutes?.values?.sum() ?: 0 } ?: 0)
+    val averages = remember(days, zone) { SleepInsights.averages(days, zone) }
+    val groups = remember(days) { days.groupBy { it.date } }
+    val byDate = remember(groups, selected) { groups.mapValues { (_, group) -> SleepInsights.representative(group, selected)!! } }
+    val slots = remember(today, range) { (range - 1 downTo 0).map { today.minusDays(it.toLong()) } }
+    val figures = remember(days) { days.mapNotNull { day ->
+        day.sleep?.takeIf(SleepNight::hasRecordedSleep)?.let { day to SleepInsights.figures(it) }
+    }.toMap() }
+    val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it.stageMinutes.values.sum() } ?: 0)
     val average = if (averages.nights > 0) durationText(averages.asleepMinutes) else stringResource(R.string.sleep_figure_none)
     val description = pluralStringResource(R.plurals.sleep_trend_accessibility, averages.nights, averages.nights, average)
     val measurer = rememberTextMeasurer()
     val labelStyle = TextStyle(color = tokens.ink3, fontSize = 12.sp)
-    val selectedStyle = TextStyle(color = tokens.ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     val guide = tokens.ink3.copy(alpha = .45f)
-    val dayFormat = remember(range) { DateTimeFormatter.ofPattern(if (range <= 7) "EEEEE" else "d") }
     Column(Modifier.sleepCard(tokens).testTag("sleep-trend"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.sleep_average_asleep), color = tokens.ink2, fontSize = 13.sp)
                 Text(average, color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text(if (averages.nights > 0) pluralStringResource(R.plurals.sleep_average_nights, averages.nights, averages.nights)
+                    else stringResource(R.string.sleep_trend_no_sleep), color = tokens.ink2, fontSize = 13.sp)
             }
             averages.usualBedtimeMinute?.let { minute ->
                 Column(horizontalAlignment = Alignment.End) {
@@ -209,58 +213,134 @@ internal fun SleepTrendCard(days: List<SleepDay>, today: LocalDate, range: Int, 
                 }
             }
         }
-        val eight = stringResource(R.string.sleep_trend_hours, 8)
-        Canvas(Modifier.fillMaxWidth().height(if (range <= 7) 128.dp else 112.dp).testTag("sleep-trend-bars")
-            .clearAndSetSemantics { contentDescription = description }
-            .pointerInput(slots, byDate) {
-                detectTapGestures { offset ->
-                    val index = (offset.x / size.width * slots.size).toInt().coerceIn(0, slots.lastIndex)
-                    byDate[slots[index]]?.let(onSelect)
-                }
-            }) {
-            val label = 18.dp.toPx()
-            val top = 4.dp.toPx()
-            val chart = size.height - label - top
-            val slot = size.width / slots.size
-            val gap = when { range <= 7 -> 10.dp.toPx(); range <= 30 -> 3.dp.toPx(); else -> 1.dp.toPx() }
-            val eightY = top + chart * (1 - 480f / maxMinutes)
-            drawLine(guide, Offset(0f, eightY), Offset(size.width, eightY), 1.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
-            val eightText = measurer.measure(eight, labelStyle)
-            drawText(eightText, topLeft = Offset(size.width - eightText.size.width, eightY - eightText.size.height - 1.dp.toPx()))
-            slots.forEachIndexed { i, date ->
-                val day = byDate[date]
-                val isSelected = day != null && day.date == selected?.date
-                val left = i * slot + gap / 2
-                val width = (slot - gap).coerceAtLeast(1f)
-                val figure = day?.let { figures[it] }
-                if (figure != null) {
+        if (figures.isNotEmpty()) {
+            val eight = stringResource(R.string.sleep_trend_hours, 8)
+            Canvas(Modifier.fillMaxWidth().height(if (range <= 7) 104.dp else 88.dp).testTag("sleep-trend-bars")
+                .clearAndSetSemantics { contentDescription = description }
+                .selectSleepDate(slots, byDate, onSelect)) {
+                val eightText = measurer.measure(eight, labelStyle)
+                val top = eightText.size.height + 3.dp.toPx()
+                val chart = (size.height - top - 3.dp.toPx()).coerceAtLeast(1f)
+                val slot = size.width / slots.size
+                val width = (slot - trendGap(range).toPx()).coerceAtLeast(1f)
+                val eightY = top + chart * (1 - 480f / maxMinutes)
+                drawLine(guide, Offset(0f, eightY), Offset(size.width, eightY), 1.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
+                drawText(eightText, topLeft = Offset(size.width - eightText.size.width, eightY - eightText.size.height - 1.dp.toPx()))
+                slots.forEachIndexed { i, date ->
+                    val figure = figures[byDate[date]] ?: return@forEachIndexed
+                    val isSelected = date == selected?.date
+                    val left = i * slot + (slot - width) / 2
                     var y = top + chart
                     val alpha = if (selected == null || isSelected) 1f else .6f
                     STACK.forEach { stage ->
                         val minutes = figure.stageMinutes[stage] ?: return@forEach
                         val height = chart * minutes / maxMinutes
-                        drawRoundRect(laneColour(stage).copy(alpha = alpha), Offset(left, y - height), Size(width, (height - 1).coerceAtLeast(1f)),
-                            CornerRadius(minOf(3.dp.toPx(), width / 2)))
+                        drawRoundRect(laneColour(stage).copy(alpha = alpha), Offset(left, y - height),
+                            Size(width, (height - 1).coerceAtLeast(1f)), CornerRadius(minOf(3.dp.toPx(), width / 2)))
                         y -= height
                     }
-                    if (isSelected) drawRoundRect(tokens.ink, Offset(left - 3.dp.toPx(), y - 3.dp.toPx()),
-                        Size(width + 6.dp.toPx(), top + chart - y + 6.dp.toPx()), CornerRadius(5.dp.toPx()),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-                } else if (day != null) {
-                    // A BedJet night with no sleep data: a short grey stub, so the night can still be opened.
-                    drawRoundRect(tokens.ink3.copy(alpha = if (isSelected) .9f else .45f), Offset(left, top + chart - 4.dp.toPx()),
-                        Size(width, 4.dp.toPx()), CornerRadius(2.dp.toPx()))
-                }
-                val showLabel = range <= 7 || i == 0 || i == slots.lastIndex || (range <= 30 && i % 7 == slots.lastIndex % 7)
-                if (showLabel) {
-                    val text = measurer.measure(date.format(dayFormat), if (isSelected) selectedStyle else labelStyle)
-                    val x = (i * slot + slot / 2 - text.size.width / 2f).coerceIn(0f, (size.width - text.size.width).coerceAtLeast(0f))
-                    drawText(text, topLeft = Offset(x, size.height - text.size.height))
+                    if (isSelected) drawRoundRect(tokens.ink, Offset(left, y - 2.dp.toPx()),
+                        Size(width, top + chart - y + 4.dp.toPx()), CornerRadius(3.dp.toPx()),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
                 }
             }
         }
+        val bedJetByDate = remember(groups, selected) {
+            groups.mapNotNull { (date, sessions) ->
+                val record = selected?.takeIf { it.date == date && it.record != null }
+                    ?: sessions.firstOrNull { it.record != null }
+                record?.let { date to it }
+            }.toMap()
+        }
+        BedJetTrendRow(slots, bedJetByDate, byDate, selected?.date, onSelect)
         if (days.isNotEmpty()) Text(stringResource(R.string.sleep_trend_hint), color = tokens.ink2, fontSize = 13.sp)
+    }
+}
+
+private fun trendGap(range: Int) = when {
+    range <= 7 -> 10.dp
+    range <= 30 -> 3.dp
+    else -> 1.dp
+}
+
+private fun Modifier.selectSleepDate(slots: List<LocalDate>, days: Map<LocalDate, SleepDay>, onSelect: (SleepDay) -> Unit) =
+    pointerInput(slots, days, onSelect) {
+        detectTapGestures { offset ->
+            val index = (offset.x / size.width * slots.size).toInt().coerceIn(0, slots.lastIndex)
+            days[slots[index]]?.let(onSelect)
+        }
+    }
+
+@Composable
+private fun BedJetTrendRow(slots: List<LocalDate>, bedJetByDate: Map<LocalDate, SleepDay>, byDate: Map<LocalDate, SleepDay>,
+    selected: LocalDate?, onSelect: (SleepDay) -> Unit) {
+    val tokens = paletteTokens
+    val range = slots.size
+    val evidence = remember(bedJetByDate) { bedJetByDate.mapValues { (_, day) -> SleepInsights.bedJetEvidence(requireNotNull(day.record)) } }
+    val maxMinutes = maxOf(8 * 60, evidence.values.mapNotNull { it.minutesBetweenReports }.maxOrNull() ?: 0)
+    val labelStyle = TextStyle(color = tokens.ink2, fontSize = 12.sp)
+    val selectedStyle = TextStyle(color = tokens.ink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+    val measurer = rememberTextMeasurer()
+    val dayFormat = remember(range) { DateTimeFormatter.ofPattern(if (range <= 7) "EEEEE" else "d") }
+    val colour = tokens.ink2
+    val heading = stringResource(R.string.sleep_bedjet_use)
+    val recorded = pluralStringResource(R.plurals.sleep_bedjet_dates, evidence.size, evidence.size)
+    val labelsHeight = with(LocalDensity.current) { 18.sp.toDp() } + 4.dp
+    val marksHeight = 26.dp
+    val earlier = stringResource(R.string.sleep_previous_bedjet_date)
+    val later = stringResource(R.string.sleep_next_bedjet_date)
+    val selectedSummary = selected?.let { date -> evidence[date]?.let { reading ->
+        val label = date.format(DateTimeFormatter.ofPattern("EEEE d MMMM"))
+        val detail = reading.minutesBetweenReports?.let {
+            stringResource(R.string.sleep_time_between_reports, durationText(it))
+        } ?: stringResource(R.string.sleep_bedjet_interval_unknown)
+        "$label. $detail"
+    } }
+    val previous = bedJetByDate.values.filter { selected == null || it.date < selected }.maxByOrNull { it.date }
+    val next = bedJetByDate.values.filter { selected == null || it.date > selected }.minByOrNull { it.date }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(heading, color = tokens.ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+        if (evidence.isEmpty()) Text(stringResource(R.string.sleep_no_saved_in_range), color = tokens.ink2, fontSize = 13.sp)
+        if (evidence.isNotEmpty() || byDate.isNotEmpty()) {
+            Canvas(Modifier.fillMaxWidth().height(marksHeight + labelsHeight).testTag("sleep-bedjet-use")
+                .clearAndSetSemantics {
+                    contentDescription = recorded
+                    selectedSummary?.let { stateDescription = it }
+                    customActions = listOfNotNull(
+                        previous?.let { CustomAccessibilityAction(earlier) { onSelect(it); true } },
+                        next?.let { CustomAccessibilityAction(later) { onSelect(it); true } },
+                    )
+                }.selectSleepDate(slots, byDate + bedJetByDate, onSelect)) {
+                val slot = size.width / range
+                val width = (slot - trendGap(range).toPx()).coerceAtLeast(1f)
+                val bottom = marksHeight.toPx()
+                val usableHeight = (bottom - 3.dp.toPx()).coerceAtLeast(1f)
+                slots.forEachIndexed { i, date ->
+                    val left = i * slot + (slot - width) / 2
+                    val reading = evidence[date]
+                    val minutes = reading?.minutesBetweenReports
+                    val tint = if (date == selected) tokens.ink else colour
+                    if (minutes != null) {
+                        val height = (usableHeight * minutes / maxMinutes).coerceAtLeast(2.dp.toPx())
+                        drawRoundRect(tint, Offset(left, bottom - height), Size(width, height), CornerRadius(minOf(width / 2, 2.dp.toPx())))
+                    } else if (reading != null) {
+                        // An incomplete interval gets a hollow marker with no duration encoded.
+                        val markHeight = 6.dp.toPx()
+                        drawRoundRect(tint, Offset(left, bottom - markHeight), Size(width, markHeight),
+                            CornerRadius(minOf(width / 2, 2.dp.toPx())), style = androidx.compose.ui.graphics.drawscope.Stroke(.75.dp.toPx()))
+                    }
+                    val showLabel = range <= 7 || i == 0 || i == slots.lastIndex || (range <= 30 && i % 7 == slots.lastIndex % 7)
+                    if (showLabel) {
+                        val label = measurer.measure(date.format(dayFormat), if (date == selected) selectedStyle else labelStyle)
+                        val x = (i * slot + (slot - label.size.width) / 2).coerceIn(0f, (size.width - label.size.width).coerceAtLeast(0f))
+                        drawText(label, topLeft = Offset(x, size.height - label.size.height))
+                    }
+                }
+            }
+            if (evidence.isNotEmpty()) Text(stringResource(if (evidence.values.any { it.minutesBetweenReports == null })
+                R.string.sleep_bedjet_use_partial else R.string.sleep_bedjet_use_duration), color = tokens.ink2, fontSize = 12.sp)
+        }
     }
 }
 
@@ -277,8 +357,8 @@ internal fun SleepNightPicker(day: SleepDay, zone: ZoneId, older: SleepDay?, new
             Text(day.date
                 .format(DateTimeFormatter.ofPattern("EEEE d MMMM")), color = tokens.ink, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
-            Text(if (day.sleep != null) stringResource(R.string.sleep_tracker_interval, Format.clock(day.start.atZone(zone)), Format.clock(day.end.atZone(zone)))
-                else stringResource(R.string.sleep_bedjet_start, Format.clock(day.start.atZone(zone))),
+            if (day.sleep != null) Text(stringResource(R.string.sleep_tracker_interval,
+                Format.clock(day.start.atZone(zone)), Format.clock(day.end.atZone(zone))),
                 color = tokens.ink2, fontSize = 13.sp, textAlign = TextAlign.Center)
             Text(detail, color = tokens.ink2, fontSize = 13.sp, textAlign = TextAlign.Center)
         }
@@ -309,7 +389,8 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
     val start = listOfNotNull(sleep?.start, plan?.start?.toInstant()).minOrNull() ?: day.start
     val end = listOfNotNull(sleep?.end, plan?.end?.toInstant()).maxOrNull()?.takeIf { it > start } ?: day.end
     val span = Duration.between(start, end).toMillis().coerceAtLeast(1).toFloat()
-    val lanes = if (sleep == null) emptyList() else SleepLane.entries.filter { (it != SleepLane.ASLEEP && it != SleepLane.UNKNOWN) || sleep.stages.any { s -> SleepLane.of(s.stage) == it } }
+    val lanes = if (sleep == null || sleep.stages.isEmpty()) emptyList()
+        else SleepLane.entries.filter { (it != SleepLane.ASLEEP && it != SleepLane.UNKNOWN) || sleep.stages.any { s -> SleepLane.of(s.stage) == it } }
     val steps = plan?.steps.orEmpty().filter { it.minutes > 0 }
     val stepLabels = steps.map { stepText(it.step, fahrenheit) }
     val missingPlan = stringResource(if (day.record == null) R.string.sleep_no_bedjet else R.string.sleep_no_plan_interval)
@@ -356,7 +437,7 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
                     .padding(horizontal = 12.dp, vertical = 6.dp).testTag("sleep-scrub"),
                 color = tokens.ink, fontSize = 13.sp)
         }
-        if (sleep == null && missing != null) Text(stringResource(when (missing) {
+        if (sleep?.stages?.isEmpty() == true || (sleep == null && missing != null)) Text(stringResource(when (missing) {
             SleepAvailability.ABSENT -> R.string.feature_health_absent
             SleepAvailability.PERMISSION -> R.string.feature_health_permission
             SleepAvailability.ERROR -> R.string.feature_health_error
@@ -478,14 +559,15 @@ internal fun BedJetEvidenceText(record: io.github.willzy12h.nocturne.core.store.
         evidence.lastReading != null -> stringResource(R.string.sleep_last_reading, Format.dayClock(evidence.lastReading.atZone(zone)))
         else -> stringResource(R.string.sleep_stop_unknown)
     }
-    val lines = mutableListOf<String>()
-    if (start != null) lines += stringResource(R.string.sleep_confirmed_start_time, Format.dayClock(start.atZone(zone)))
-    else if (record.bedJetRunConfirmed) lines += stringResource(R.string.sleep_confirmed_start)
-    lines += detail
-    if (start != null && standby != null && standby >= start) {
-        lines += stringResource(R.string.sleep_time_between_reports, durationText(Duration.between(start, standby).toMinutes().coerceAtMost(Int.MAX_VALUE.toLong()).toInt()))
+    val colour = paletteTokens.ink2
+    Column(Modifier.testTag("bedjet-recap"), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (start != null) Text(stringResource(R.string.sleep_confirmed_start_time, Format.dayClock(start.atZone(zone))), color = colour, fontSize = 13.sp)
+        else if (record.bedJetRunConfirmed) Text(stringResource(R.string.sleep_confirmed_start), color = colour, fontSize = 13.sp)
+        Text(detail, color = colour, fontSize = 13.sp)
+        evidence.minutesBetweenReports?.let {
+            Text(stringResource(R.string.sleep_time_between_reports, durationText(it)), color = colour, fontSize = 13.sp)
+        }
     }
-    Text(lines.joinToString(" "), color = paletteTokens.ink2, fontSize = 13.sp)
 }
 
 /** Asleep, fell asleep in, woke up and asleep in bed: one block of four. */
@@ -529,8 +611,10 @@ private fun FigureCell(label: String, value: String, note: String, modifier: Mod
 @Composable
 internal fun SleepCompareCard(day: SleepDay, all: List<SleepDay>, zone: ZoneId) {
     val tokens = paletteTokens
-    val rows = remember(day, all) { SleepInsights.compare(day, all, zone) }
-    val earlier = remember(day, all) { all.count { it.sleep != null && it.start < day.start }.coerceAtMost(SleepInsights.RECENT_NIGHTS) }
+    val rows = remember(day, all, zone) { SleepInsights.compare(day, all, zone) }
+    val earlier = remember(day, all) {
+        SleepInsights.trackedNights(all.filter { it.date < day.date }).size.coerceAtMost(SleepInsights.RECENT_NIGHTS)
+    }
     Column(Modifier.sleepCard(tokens).testTag("sleep-compare"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(pluralStringResource(R.plurals.sleep_compare_title, earlier.coerceAtLeast(1), earlier), color = tokens.ink, fontSize = 16.sp,
             fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
@@ -764,7 +848,7 @@ internal fun mergeSectionOrder(saved: List<String>, shown: List<String>): List<S
 
 /** The night that ended this morning (or yesterday morning), or null when Health Connect has no sleep for it. */
 internal fun lastNight(days: List<SleepDay>, today: LocalDate): SleepDay? {
-    val sessions = SleepInsights.inRange(days, today, 2).filter { it.sleep != null && it.record?.isNap != true }
+    val sessions = SleepInsights.inRange(days, today, 2).filter { it.sleep?.hasRecordedSleep == true && it.record?.isNap != true }
     val latestDate = sessions.maxOfOrNull { it.date }
     return SleepInsights.representative(sessions.filter { it.date == latestDate })
 }
@@ -785,7 +869,7 @@ internal fun LastNightCard(model: AppViewModel, onOpen: () -> Unit) {
     val tokens = paletteTokens
     val figures = remember(sleep) { SleepInsights.figures(sleep) }
     val week = remember(data.days, today) { SleepInsights.inRange(data.days, today, SleepInsights.RECENT_NIGHTS) }
-    val average = remember(week) { SleepInsights.averages(week, zone) }
+    val average = remember(week, zone) { SleepInsights.averages(week, zone) }
     val asleep = durationText(figures.asleepMinutes)
     val description = stringResource(R.string.last_night_accessibility, asleep)
     val stageLabels = (0..7).associateWith { stringResource(stageName(it)) }
@@ -807,7 +891,7 @@ internal fun LastNightCard(model: AppViewModel, onOpen: () -> Unit) {
         val span = Duration.between(sleep.start, sleep.end).toMillis().coerceAtLeast(1).toFloat()
         Canvas(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(7.dp)).testTag("last-night-strip")) {
             drawRect(tokens.surface2)
-            condensedStages(sleep.stages.ifEmpty { listOf(SleepStage(sleep.start, sleep.end, SleepInsights.SLEEPING)) }).forEach { stage ->
+            condensedStages(sleep.stages).forEach { stage ->
                 val left = size.width * Duration.between(sleep.start, stage.start).toMillis() / span
                 val right = size.width * Duration.between(sleep.start, stage.end).toMillis() / span
                 drawRect(laneColour(stage.stage), Offset(left, 0f), Size((right - left).coerceAtLeast(1f), size.height))
@@ -839,7 +923,7 @@ internal fun LastNightCard(model: AppViewModel, onOpen: () -> Unit) {
 private fun WeekBars(week: List<SleepDay>, today: LocalDate, last: SleepDay, modifier: Modifier) {
     val tokens = paletteTokens
     val byDate = remember(week) { week.groupBy { it.date }.mapValues { SleepInsights.representative(it.value)!! } }
-    val figures = remember(week) { week.associateWith { d -> d.sleep?.let(SleepInsights::figures) } }
+    val figures = remember(week) { week.associateWith { day -> day.sleep?.takeIf(SleepNight::hasRecordedSleep)?.let(SleepInsights::figures) } }
     val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it?.stageMinutes?.values?.sum() ?: 0 } ?: 0)
     Canvas(modifier.testTag("last-night-week")) {
         val slots = SleepInsights.RECENT_NIGHTS

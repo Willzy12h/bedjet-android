@@ -113,14 +113,18 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
         ?: SleepInsights.representative(inRange.takeWhile { it.date == latestDate })
     val position = selected?.let(inRange::indexOf) ?: -1
     val sleep = selected?.sleep
+    val hasRecordedSleep = sleep?.hasRecordedSleep == true
     val noticed = remember(selected, data.days) { selected?.let { SleepInsights.noticed(it, data.days) } }
     val averageEfficiency = remember(inRange) {
-        inRange.mapNotNull { it.sleep }.takeIf { it.isNotEmpty() }?.let { nights -> nights.sumOf { SleepInsights.figures(it).efficiencyPercent } / nights.size }
+        SleepInsights.trackedNights(inRange).takeIf { it.isNotEmpty() }?.let { nights ->
+            nights.sumOf { SleepInsights.figures(it).efficiencyPercent } / nights.size
+        }
     }
     val available = settings.normalisedSleepOrder().filter { id ->
         when (id) {
             "nights", "stages" -> selected != null
-            "figures", "compare", "timeline" -> sleep != null
+            "figures", "compare" -> hasRecordedSleep
+            "timeline" -> sleep?.stages?.isNotEmpty() == true
             "noticed" -> noticed != null
             else -> true
         }
@@ -305,17 +309,9 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                         if (issues > 0) HistoryPill(pluralStringResource(R.plurals.history_issues, issues, issues), tokens.warn,
                             Modifier.testTag("history-issues-${night.id}"))
                     }
-                    historyPlan(night)?.let { StepBar(it) }
-                    FlowRow(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(night.profileName, if (largeText) Modifier.fillMaxWidth() else Modifier.weight(1f),
-                            color = tokens.ink2, fontSize = 15.sp)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (night.wakeFromAlarm) Icon(painterResource(R.drawable.ic_nc_alarm), stringResource(R.string.parity_history_alarm),
-                                Modifier.padding(end = 6.dp).size(14.dp), tint = tokens.ink2)
-                            Text(stringResource(R.string.sleep_planned_interval, Format.clock(night.startedAt), Format.clock(night.wakeAt)), color = tokens.ink2, fontSize = 15.sp)
-                        }
-                    }
+                    Text(night.profileName, color = tokens.ink2, fontSize = 15.sp)
                     BedJetEvidenceText(night, model.now().zone)
+                    historyPlan(night)?.let { StepBar(it) }
                     HealthSleepOverlay(model.graph, night, historyPlan(night), open)
                     if (completed && !checkedIn && activeNight?.recordId != night.id) {
                         AccentLink(stringResource(R.string.checkin_button), { checkingIn = true }, fontSize = 14.sp)
@@ -324,6 +320,12 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                         AccentLink(stringResource(R.string.checkin_review), { showSuggestion = true }, fontSize = 14.sp)
                     }
                     if (open) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (night.wakeFromAlarm) Icon(painterResource(R.drawable.ic_nc_alarm), stringResource(R.string.parity_history_alarm),
+                                Modifier.padding(end = 6.dp).size(14.dp), tint = tokens.ink2)
+                            Text(stringResource(R.string.sleep_planned_interval, Format.clock(night.startedAt), Format.clock(night.wakeAt)),
+                                color = tokens.ink2, fontSize = 15.sp)
+                        }
                         night.events.forEach {
                             Text(stringResource(R.string.history_event, Format.clock(it.at), eventKindName(it.kind), it.detail), color = tokens.ink2, fontSize = 12.5.sp)
                         }

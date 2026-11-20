@@ -12,12 +12,19 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlin.math.roundToInt
 
-/** One sleep session from another app in Health Connect. A session with no stages is one "sleeping" stage. */
+/** A session window from Health Connect. Only reported stages establish time asleep. */
 data class SleepNight(val start: Instant, val end: Instant, val stages: List<SleepStage>, val sourceId: String? = null) {
+    val hasRecordedSleep: Boolean get() = stages.any {
+        SleepInsights.isAsleep(it.stage) && Duration.between(it.start, it.end).toMinutes() > 0
+    }
+
     companion object {
         fun of(start: Instant, end: Instant, stages: List<SleepStage>, sourceId: String? = null): SleepNight =
-            SleepNight(start, end, stages.filter { it.end > it.start }.sortedBy { it.start }
-                .ifEmpty { listOf(SleepStage(start, end, SleepInsights.SLEEPING)) }, sourceId)
+            SleepNight(start, end, stages.mapNotNull { stage ->
+                val from = maxOf(start, stage.start)
+                val to = minOf(end, stage.end)
+                if (to > from) stage.copy(start = from, end = to) else null
+            }.sortedBy { it.start }, sourceId)
     }
 }
 
@@ -154,31 +161,51 @@ object SleepInsights {
         return days.sortedWith(compareByDescending<SleepDay> { it.date }.thenByDescending { it.start })
     }
 
-    /** A date's bar shows the chosen tracker session, otherwise the longest tracker session on that date. */
+    /** A date's default is the longest session with sleep stages, then a tracker window or BedJet record. */
     fun representative(sessions: List<SleepDay>, selected: SleepDay? = null): SleepDay? =
-        selected?.takeIf { it.sleep != null && it in sessions }
-            ?: sessions.filter { it.sleep != null }.maxByOrNull { Duration.between(it.start, it.end) }
+        selected?.takeIf { it.sleep?.hasRecordedSleep == true && it in sessions }
+            ?: sessions.filter { it.sleep?.hasRecordedSleep == true }.maxByOrNull { Duration.between(it.start, it.end) }
+            ?: selected?.takeIf { it.sleep != null && it in sessions }
+            ?: sessions.firstOrNull { it.sleep != null }
             ?: sessions.firstOrNull()
 
-    data class BedJetEvidence(val confirmedStart: Instant?, val standby: Instant?, val lastRunning: Instant?, val lastReading: Instant?)
+    data class BedJetEvidence(val confirmedStart: Instant?, val standby: Instant?, val lastRunning: Instant?, val lastReading: Instant?) {
+        /** Time between device confirmations, which may differ from actual continuous running time. */
+        val minutesBetweenReports: Int? get() {
+            val start = confirmedStart ?: return null
+            val end = standby ?: return null
+            return Duration.between(start, end).toMinutes().takeIf { end >= start }?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt()
+        }
+    }
 
     fun bedJetEvidence(record: NightRecord): BedJetEvidence {
-        val confirmed = record.events.firstOrNull { it.kind == EventKind.STARTED && record.bedJetRunConfirmed }?.let { savedInstant(it.at) }
-        return BedJetEvidence(confirmed, savedInstant(record.standbyObservedAt), savedInstant(record.lastRunningObservedAt),
-            record.temperatures.mapNotNull { savedInstant(it.at) }.maxOrNull())
+        val confirmed = record.events.lastOrNull { it.kind == EventKind.STARTED && record.bedJetRunConfirmed }?.let { savedInstant(it.at) }
+        val lowerBound = confirmed ?: savedInstant(record.startedAt)
+        val running = savedInstant(record.lastRunningObservedAt)?.takeIf { lowerBound == null || it >= lowerBound }
+        val standby = savedInstant(record.standbyObservedAt)?.takeIf {
+            (lowerBound == null || it >= lowerBound) && (running == null || it >= running)
+        }
+        val reading = record.temperatures.mapNotNull { savedInstant(it.at) }
+            .filter { lowerBound == null || it >= lowerBound }.maxOrNull()
+        return BedJetEvidence(confirmed, standby, running, reading)
     }
 
     /** The nights whose wake date falls in the last [days] days up to [today]. */
     fun inRange(all: List<SleepDay>, today: LocalDate, days: Int): List<SleepDay> =
         all.filter { !it.date.isAfter(today) && it.date.isAfter(today.minusDays(days.toLong())) }
 
+    /** One usable tracker session per date, so naps and multiple trackers don't add extra nights. */
+    fun trackedNights(days: List<SleepDay>): List<SleepNight> =
+        days.groupBy { it.date }.values.mapNotNull { representative(it)?.sleep?.takeIf(SleepNight::hasRecordedSleep) }
+
     fun averages(days: List<SleepDay>, zone: ZoneId): SleepAverages {
-        val figures = days.mapNotNull { it.sleep }.map(::figures)
+        val nights = trackedNights(days)
+        val figures = nights.map(::figures)
         if (figures.isEmpty()) return SleepAverages(0, 0, null, emptyMap())
         val stages = figures.flatMap { it.stageMinutes.keys }.toSet()
             .associateWith { code -> (figures.sumOf { it.stageMinutes[code] ?: 0 } / figures.size.toFloat()).roundToInt() }
         // Bedtimes after noon count as the evening before, so 23:30 and 00:30 average to midnight, not noon.
-        val bedtimes = days.mapNotNull { it.sleep?.start?.atZone(zone) }.map { (it.hour * 60 + it.minute).let { m -> if (m < 12 * 60) m + 1440 else m } }
+        val bedtimes = nights.map { it.start.atZone(zone) }.map { (it.hour * 60 + it.minute).let { m -> if (m < 12 * 60) m + 1440 else m } }
         return SleepAverages(
             nights = figures.size,
             asleepMinutes = (figures.sumOf { it.asleepMinutes } / figures.size.toFloat()).roundToInt(),
@@ -189,10 +216,11 @@ object SleepInsights {
 
     /** [day]'s stages against the average of up to [RECENT_NIGHTS] other nights before it. */
     fun compare(day: SleepDay, all: List<SleepDay>, zone: ZoneId): List<StageComparison> {
-        val sleep = day.sleep ?: return emptyList()
-        val others = all.filter { it.sleep != null && it.start < day.start }.sortedByDescending { it.start }.take(RECENT_NIGHTS)
-        if (others.isEmpty()) return emptyList()
-        val average = averages(others, zone).stageMinutes
+        val sleep = day.sleep?.takeIf(SleepNight::hasRecordedSleep) ?: return emptyList()
+        val earlier = all.filter { it.date < day.date && it.sleep?.hasRecordedSleep == true }
+        val dates = earlier.map { it.date }.distinct().sortedDescending().take(RECENT_NIGHTS)
+        val average = averages(earlier.filter { it.date in dates }, zone).stageMinutes
+        if (average.isEmpty()) return emptyList()
         val mine = figures(sleep).stageMinutes
         return listOf(AWAKE, REM, LIGHT, SLEEPING, DEEP, UNKNOWN).filter { it in mine || it in average }
             .map { StageComparison(it, mine[it] ?: 0, average[it] ?: 0) }
