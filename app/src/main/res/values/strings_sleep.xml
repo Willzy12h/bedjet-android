@@ -137,7 +137,6 @@
     <string name="import_setting_history_keep">How long nights are kept</string>
     <string name="sleep_planned_bedjet">BedJet plan</string>
     <string name="sleep_confirmed_start">Programme start confirmed by the BedJet.</string>
-    <string name="sleep_session_interval">%1$s to %2$s</string>
     <string name="sleep_awake_in_bed">Awake in bed</string>
     <string name="sleep_planned_setting">Planned %1$s</string>
     <string name="sleep_previous_interval">Previous interval</string>

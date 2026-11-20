@@ -287,7 +287,6 @@
     <string name="profiles_middle_short">%1$s fan %2$d→%3$d%%</string>
     <!-- History (P6) -->
     <string name="history_title">Sleep</string>
-    <string name="history_empty">Nights you run appear here, with every change made during them.</string>
     <!-- A recorded step: time, block, mode, [temperature,] fan and length. -->
     <string name="history_step_temp">%1$s  %2$s: %3$s, %4$s, fan %5$d%%, %6$s</string>
     <string name="history_step">%1$s  %2$s: %3$s, fan %4$d%%, %5$s</string>
