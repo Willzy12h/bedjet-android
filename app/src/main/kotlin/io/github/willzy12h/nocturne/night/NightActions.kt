@@ -425,7 +425,7 @@ class NightActions(private val graph: Graph) {
         advanceGeneration(preserveOffer = command in TIMED_MANUAL || repo.activeNight.value?.trackingManual != false)
         return when (command) {
             Command.OFF, Command.END_NIGHT -> manualChange(text(R.string.runtime_off), endsNight = true, confirms = { it.mode == Mode.STANDBY },
-                allowCurrentStatus = true, unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
+                allowCurrentStatus = repo.activeNight.value == null, unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
             Command.TURBO -> quick(request.actionPreset ?: ActionPreset(Mode.TURBO, 86, 100, 10),
                 request.actionPreset?.let { capturedPresetMessage(context, it) } ?: text(R.string.runtime_turbo))
             Command.COOL -> quick(request.actionPreset ?: repo.settings.value.extendCool,
@@ -660,9 +660,10 @@ class NightActions(private val graph: Graph) {
      * prove a change took effect. Null [matches] confirms nothing.
      */
     private suspend fun sentAndConfirmed(matches: ((DeviceStatus) -> Boolean)?, allowCurrentStatus: Boolean = false,
+        requireProgress: Boolean = true,
         send: suspend () -> Unit): Boolean = coroutineScope {
         val target = repo.settings.value.deviceId()
-        val alreadyMatches = allowCurrentStatus && matches != null && graph.link.latestStatusFrom(target)?.let(matches) == true
+        graph.link.latestSourcedStatus() // Stamp a cached default-link receipt before the send boundary.
         val reports = Channel<SourcedStatus>(64, BufferOverflow.DROP_OLDEST)
         // Subscribe first, then capture the send boundary; delayed older reports retain their earlier receipt.
         val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -672,14 +673,19 @@ class NightActions(private val graph: Graph) {
             val sentAfter = StatusReceiptOrder.next()
             send()
             if (matches == null) false
-            else alreadyMatches || withTimeoutOrNull(confirmMs) {
-                reports.receiveAsFlow().first { it.receiptOrder > sentAfter && matches(it.status) }
-            } != null || freshlyShows(matches)
+            else {
+                fun currentMatches() = graph.link.latestSourcedStatus()?.let { latest ->
+                    latest.isFrom(target) && (allowCurrentStatus || latest.receiptOrder > sentAfter) && matches(latest.status)
+                } == true
+                currentMatches() || withTimeoutOrNull(confirmMs) {
+                    reports.receiveAsFlow().first { it.receiptOrder > sentAfter && matches(it.status) && currentMatches() }
+                } != null || (freshlyShows(requireProgress, matches) && currentMatches())
+            }
         } finally { watcher.cancel() }
     }
     /** One fresh read of the target; a read that fails confirms nothing. */
-    private suspend fun freshlyShows(matches: (DeviceStatus) -> Boolean): Boolean =
-        try { matches(freshStatus()) } catch (e: CancellationException) { throw e } catch (_: Exception) { false }
+    private suspend fun freshlyShows(requireProgress: Boolean = true, matches: (DeviceStatus) -> Boolean): Boolean =
+        try { matches(freshStatus(requireProgress)) } catch (e: CancellationException) { throw e } catch (_: Exception) { false }
     /** How long [sentAndConfirmed] waits for a matching report before reading the BedJet afresh; tests shorten it. */
     internal var confirmMs = 5_000L
     /**
@@ -712,7 +718,7 @@ class NightActions(private val graph: Graph) {
                     endRequestedSequence = requestedReceipt.sequence, retime = null, alarmInbox = null) }
                 NightAlarms.cancelRetry(context)
             }
-            val confirmed = sentAndConfirmed(confirms, allowCurrentStatus) {
+            val confirmed = sentAndConfirmed(confirms, allowCurrentStatus, requireProgress = !endsNight) {
                 writeMayHaveHappened = true
                 work()
             }

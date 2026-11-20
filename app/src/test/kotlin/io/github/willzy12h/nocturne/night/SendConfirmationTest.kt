@@ -44,7 +44,7 @@ class SendConfirmationTest {
     private var headsOnly = false
     private var reportStatus: (DeviceStatus) -> DeviceStatus = { it }
     private var disconnects = 0
-    private var afterSend: (ByteArray) -> Unit = {}
+    private var afterSend: suspend (ByteArray) -> Unit = {}
     private val link: BedJetLink by lazy {
         demo = DemoBedJet(now = { graph.now() })
         object : BedJetLink by demo {
@@ -129,6 +129,21 @@ class SendConfirmationTest {
         swallow = press(Mode.STANDBY)
         assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.END_NIGHT).kind)
         assertEquals(n.identity, graph.repository.activeNight.value?.identity)
+    }
+
+    @Test fun runningReportDuringOffOutweighsEarlierStandby() = runBlocking {
+        useRealHistory()
+        val night = start()
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        afterSend = { if (press(Mode.STANDBY)(it)) demo.send(Codec.setMode(Mode.COOL)!!) }
+
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        assertEquals(night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(0, events(night).count { it.kind == EventKind.STOPPED })
+
+        afterSend = {}
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
+        assertEquals(1, events(night).count { it.kind == EventKind.STOPPED })
     }
 
     @Test fun offWithNoNightSaysWhetherTheBedJetConfirmed() = runBlocking {
