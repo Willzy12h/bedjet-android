@@ -40,6 +40,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -386,8 +388,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     if (choosing) AlertDialog(onDismissRequest = { choosing = false },
         title = { Text(stringResource(R.string.parity_choose_profile)) },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                profiles.forEach { p ->
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                items(profiles, key = { it.id }) { p ->
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable {
                         chosen = p; model.updateSettings { it.chooseTonight(p.id, model.now()) }; choosing = false
                     }.testTag("tonight-choose-${p.id}"), verticalAlignment = Alignment.CenterVertically) {
