@@ -1,6 +1,5 @@
 package io.github.willzy12h.nocturne.ui
 
-import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.night.ActiveNight
 import io.github.willzy12h.nocturne.core.night.WakeOrigin
 import io.github.willzy12h.nocturne.core.plan.Presets
@@ -25,28 +24,27 @@ class ShortAutoStartWakeTextTest {
         profile = Presets.springAutumn, wakeOrigin = WakeOrigin.AUTO_START, shortAlarmNightMinutes = shortest)
 
     @Test fun aShortAutoStartShowsTheAlarmItWakesFor() {
-        val headline = tonightWakeHeadline(Settings(), Presets.springAutumn, now, alarm, night(shortest = 120))
-        assertEquals(alarm.time, headline.at)
-        assertEquals(R.string.gpt12_wake_next_alarm, headline.label)
+        val phone = acceptedPhoneAlarm(Settings(), now, alarm, night(shortest = 120))
+        assertEquals(alarm.time, phone)
     }
 
     @Test fun aStoredWindowNeverMakesAnAlarmTooSoon() {
         val moved = alarm.copy(time = startedAt.plusMinutes(75))
-        val headline = tonightWakeHeadline(Settings(), Presets.springAutumn, now, moved, night(shortest = 120))
-        assertEquals(R.string.gpt12_wake_next_alarm, headline.label)
+        val phone = acceptedPhoneAlarm(Settings(), now, moved, night(shortest = 120))
+        assertEquals(moved.time, phone)
     }
 
     @Test fun anAlarmUnderAnHourAfterTheStartIsStillTooSoon() {
         val early = alarm.copy(time = startedAt.plusMinutes(50))
-        val headline = tonightWakeHeadline(Settings(), Presets.springAutumn, now, early, night(shortest = 120))
-        assertEquals(R.string.gpt12_wake_profile_fallback, headline.label)
+        val phone = acceptedPhoneAlarm(Settings(), now, early, night(shortest = 120))
+        assertEquals(null, phone)
         val retimed = night(shortest = 120).copy(wakeOrigin = WakeOrigin.ALARM)
         assertEquals(AlarmReason.OUTSIDE_WINDOW, AlarmExplanation.resolve(Settings(), Presets.springAutumn, now, early, retimed).reason)
     }
 
     @Test fun anyOtherNightUsesTheUsualHour() {
-        val headline = tonightWakeHeadline(Settings(), Presets.springAutumn, now, alarm, night(shortest = null))
-        assertEquals(R.string.gpt12_wake_next_alarm, headline.label)
+        val phone = acceptedPhoneAlarm(Settings(), now, alarm, night(shortest = null))
+        assertEquals(alarm.time, phone)
     }
 
     @Test fun aRetimedShortAutoStartIsNotExplainedAsOutsideTheWindow() {

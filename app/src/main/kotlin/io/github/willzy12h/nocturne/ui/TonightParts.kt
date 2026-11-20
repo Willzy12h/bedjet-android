@@ -16,6 +16,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -149,7 +150,15 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (()
     }
 }
 
-private class BarSegment(val minutes: Long, val colours: List<Color>)
+internal data class BarSegment(val minutes: Long, val colours: List<Color>, val heightFraction: Float = 1f)
+
+/** Preserve each actual programme step, including fan-only changes through the Middle. */
+internal fun tonightBarSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> =
+    plan.steps.filter { it.minutes > 0 }.map { planned ->
+        val step = planned.step
+        val height = if (step.mode.usesFan) (step.fanStep + 1) / 20f else .025f
+        BarSegment(planned.minutes.toLong(), listOf(tokens.stepColor(step.mode, step.temperature)), height)
+    }
 
 private fun barSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> {
     val segments = mutableListOf<BarSegment>()
@@ -168,11 +177,11 @@ private fun barSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> {
     return segments.filter { it.minutes > 0 }
 }
 
-/** The design's segmented night: 2 dp gaps, round outer ends, a gradient across the Middle ramp, and a Now marker. */
+/** Compact profile thumbnails group the Middle; Tonight shows its individual fan levels on the same time axis. */
 @Composable
-internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp, minHeight: Dp = height) {
+internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp, minHeight: Dp = height, showFan: Boolean = false) {
     val tokens = paletteTokens
-    val segments = barSegments(plan, tokens)
+    val segments = if (showFan) tonightBarSegments(plan, tokens) else barSegments(plan, tokens)
     val total = segments.sumOf { it.minutes }.coerceAtLeast(1)
     val span = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1)
     val nowFraction = now?.let { (Duration.between(plan.start, it).toMinutes().toFloat() / span).coerceIn(0f, 1f) }
@@ -181,20 +190,22 @@ internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modi
         val gap = 2.dp.toPx()
         val outer = CornerRadius(minOf(10.dp.toPx(), size.height / 2))
         val inner = CornerRadius(minOf(3.dp.toPx(), size.height / 2))
-        val available = size.width - gap * (segments.size - 1).coerceAtLeast(0)
         var x = 0f
         segments.forEachIndexed { i, segment ->
-            val w = available * segment.minutes / total
+            val w = size.width * segment.minutes / total
+            val inset = minOf(gap / 2, w / 4)
+            val start = x + if (i == 0) 0f else inset
+            val end = x + w - if (i == segments.lastIndex) 0f else inset
             val left = if (i == 0) outer else inner
             val right = if (i == segments.lastIndex) outer else inner
             val path = Path().apply {
-                addRoundRect(RoundRect(x, 0f, x + w, size.height, topLeftCornerRadius = left, topRightCornerRadius = right,
+                addRoundRect(RoundRect(start, size.height * (1 - segment.heightFraction), end, size.height, topLeftCornerRadius = left, topRightCornerRadius = right,
                     bottomRightCornerRadius = right, bottomLeftCornerRadius = left))
             }
             val brush = if (segment.colours.size > 1) Brush.horizontalGradient(segment.colours, startX = x, endX = x + w)
                 else SolidColor(segment.colours.first())
             drawPath(path, brush)
-            x += w + gap
+            x += w
         }
         nowFraction?.let {
             val at = (size.width * it).coerceIn(1.5.dp.toPx(), size.width - 1.5.dp.toPx())
@@ -287,9 +298,10 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: Mutab
             AccentLink(stringResource(R.string.action_edit), onEdit, icon = R.drawable.ic_nc_edit)
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY).chunked(columns).forEach { row ->
+            listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY, Mode.EXTENDED_HEAT).chunked(columns).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f), onEditPreset, onEditBoost) }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }

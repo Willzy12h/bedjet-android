@@ -153,7 +153,7 @@ class UatLayoutAndSetupTest {
         assertFalse(model.setupChecklistOpen.value)
     }
 
-    @Test fun U5_sixQuickTargetsFitTwoColumnsAt320dpAndTwoHundredPercentText() {
+    @Test fun U5_sevenQuickTargetsFitTwoColumnsAt320dpAndTwoHundredPercentText() {
         val model = model(true)
         val settings = model.settings.value
         compose.setContent {
@@ -169,7 +169,7 @@ class UatLayoutAndSetupTest {
                 }
             }
         }
-        val modes = listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY)
+        val modes = listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY, Mode.EXTENDED_HEAT)
         modes.forEach { mode ->
             val tag = "quick-mode-${mode?.name ?: "BOOST"}"
             val node = compose.onNodeWithTag(tag)
@@ -196,6 +196,9 @@ class UatLayoutAndSetupTest {
         val right = compose.onNodeWithTag("quick-mode-HEAT").getUnclippedBoundsInRoot()
         assertEquals(left.top.value, right.top.value, .5f)
         assertEquals((left.right - left.left).value, (right.right - right.left).value, .5f)
+        val longHeat = compose.onNodeWithTag("quick-mode-EXTENDED_HEAT").getUnclippedBoundsInRoot()
+        assertEquals(left.left.value, longHeat.left.value, .5f)
+        assertEquals((left.right - left.left).value, (longHeat.right - longHeat.left).value, .5f)
         assertTrue(left.right < right.left)
     }
 

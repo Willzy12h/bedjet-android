@@ -30,4 +30,9 @@
     <string name="uat_quick_off_help">Off has no temperature, fan or duration. It always asks for confirmation during a tracked night.</string>
     <string name="uat_connecting">Connecting…</string>
     <string name="setup_health_optional">Optional. Shows your sleep stages beside the BedJet’s steps. You can dismiss this and turn it on later in Settings.</string>
+    <string name="first_run_title">Set up Nocturne</string>
+    <string name="first_run_connect">Connect a BedJet</string>
+    <string name="first_run_demo">Try demo</string>
+    <string name="first_run_nearby_access">Allow Nearby devices to find your BedJet, or try the demo.</string>
+    <string name="first_run_app_settings">Open app settings</string>
 </resources>

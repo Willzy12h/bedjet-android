@@ -99,7 +99,7 @@ class AlarmExplanationActionTest {
         show(noAlarm = true)
         ui.compose.onNodeWithText("No alarm found — profile wake 07:00 · Alarm in another app?").assertIsDisplayed().performClick()
         ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
-        ui.compose.onNodeWithText("Saved on your BedJet, so it still wakes you if your phone closes Nocturne.", substring = true)
+        ui.compose.onNodeWithText("Saved for tonight on this phone.", substring = true)
             .assertExists()
         ui.compose.onNodeWithTag("missing-alarm-sources").assertDoesNotExist()
         val profile = ui.model.tonightsProfile()!!
