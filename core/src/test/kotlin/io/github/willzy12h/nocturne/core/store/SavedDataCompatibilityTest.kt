@@ -1,10 +1,12 @@
 package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import java.io.File
 
@@ -16,6 +18,15 @@ import java.io.File
 class SavedDataCompatibilityTest {
     private val versions: List<File> = File(requireNotNull(javaClass.getResource("/saved-data")).toURI())
         .listFiles { file -> file.isDirectory }.orEmpty().sortedBy { it.name }
+
+    @Test fun `beta 8 keeps the remembered Cool settings in local data and backups`() {
+        val saved = versions.single { it.name == "1.1.0-beta.8" }
+        val settings = BackupCodec.json.decodeFromString(Settings.serializer(), File(saved, "settings.json").readText())
+        val backup = BackupCodec.decode(File(saved, "backup.json").readText())
+        val expected = ManualControls("ble:02:00:00:00:00:08", Mode.COOL, temperature = 46, fanStep = 11)
+        assertEquals(expected, settings.manualFor(settings.targetDevice, Mode.COOL))
+        assertEquals(expected, backup.settings.manualFor(backup.settings.targetDevice, Mode.COOL))
+    }
 
     @TestFactory fun `every released version's saved data still reads`(): List<DynamicTest> {
         assertTrue(versions.size >= 4, "saved-data holds a folder per released version")
