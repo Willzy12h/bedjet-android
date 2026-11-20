@@ -28,6 +28,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.core.store.deviceId
+import io.github.willzy12h.nocturne.night.ConnectingCommand
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -50,6 +53,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -108,7 +113,9 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (()
         settings.targetDevice == null -> stringResource(R.string.status_no_device)
         else -> selectedName ?: DeviceId.address(settings.targetDevice!!) ?: stringResource(R.string.settings_bedjet)
     }
-    val sending = owner.runningLabel != null
+    val tap by model.connectingCommand.collectAsStateWithLifecycle()
+    val tapPhase = tap?.phase?.collectAsStateWithLifecycle()?.value
+    val sending = owner.runningLabel != null && (tapPhase == null || tapPhase == ConnectingCommand.Phase.SENDING)
     val connectionText = when {
         connection == HeaderConnection.DEMO -> stringResource(R.string.parity_status_demo)
         connection == HeaderConnection.BLUETOOTH_OFF -> stringResource(R.string.status_bluetooth_off)
@@ -237,6 +244,40 @@ internal fun modeIcon(mode: Mode): Int = when (mode) {
 }
 
 /** The preset the person tapped, shown as "Heat… / Sending" until the BedJet has taken the command. */
+@Composable
+internal fun canRequestBedJet(model: AppViewModel): Boolean {
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val link by model.linkState.collectAsStateWithLifecycle()
+    val off by model.bluetoothOff.collectAsStateWithLifecycle()
+    val released by model.graph.sessions.released.collectAsStateWithLifecycle()
+    return settings.deviceId() != null && !off && !released &&
+        link != io.github.willzy12h.nocturne.core.link.LinkState.UNAUTHORIZED &&
+        link != io.github.willzy12h.nocturne.core.link.LinkState.BLUETOOTH_OFF
+}
+
+@Composable
+internal fun ConnectionActionStatus(model: AppViewModel) {
+    val active by model.connectingCommand.collectAsStateWithLifecycle()
+    val tap = active ?: return
+    val phase by tap.phase.collectAsStateWithLifecycle()
+    val label = when (phase) {
+        ConnectingCommand.Phase.CONNECTING -> R.string.runtime_connecting_action
+        ConnectingCommand.Phase.REPLACE -> R.string.runtime_replace_live_action
+        ConnectingCommand.Phase.SENDING -> R.string.runtime_sending_action
+        ConnectingCommand.Phase.CANCELLED -> return
+    }
+    Column(Modifier.fillMaxWidth().testTag("connecting-command")) {
+        Text(stringResource(label, tap.label), Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = paletteTokens.ink)
+        Row {
+            if (phase == ConnectingCommand.Phase.REPLACE)
+                TextButton(onClick = tap::replace) { Text(stringResource(R.string.runtime_replace_live_button)) }
+            if (phase != ConnectingCommand.Phase.SENDING)
+                TextButton(onClick = { tap.cancelWaiting() }) { Text(stringResource(android.R.string.cancel)) }
+        }
+    }
+}
+
+/** The preset awaiting a response from the BedJet. */
 internal class PresetSending(val key: String, val title: String, val color: Color)
 
 /** Each marker belongs to its submitted command, including time waiting in the existing owner's queue. */
@@ -263,7 +304,7 @@ private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?,
     description: String, tag: String, modifier: Modifier, sending: Boolean = false, onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null, onClick: () -> Unit) {
     StripeTile(stripe = stripe, title = if (sending) "$title…" else title,
-        subtitle = if (sending) stringResource(R.string.parity_sending) else detail ?: " ",
+        subtitle = if (sending) stringResource(R.string.parity_waiting_bedjet) else detail ?: " ",
         level = if (active || sending) TintLevel.ON else TintLevel.TILE, selectedBorder = if (active) stripe else null,
         titleFontWeight = FontWeight.Bold,
         icon = { Icon(painterResource(icon), null, Modifier.size(16.dp), tint = stripe) },
@@ -287,10 +328,8 @@ private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?,
 internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit,
     onEditPreset: (Mode) -> Unit = {}, onEditBoost: () -> Unit = {}) {
     val settings by model.settings.collectAsStateWithLifecycle()
-    val live by model.hasLiveStatus.collectAsStateWithLifecycle()
-    val link by model.linkState.collectAsStateWithLifecycle()
     val columns = if (LocalConfiguration.current.fontScale >= 1.5f) 2 else 3
-    val canControl = live && link == io.github.willzy12h.nocturne.core.link.LinkState.READY
+    val canControl = canRequestBedJet(model)
     val evidence = quickEvidence(model)
     Column(Modifier.testTag("quick-controls"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -332,7 +371,7 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
             val heat = settings.boostMinutes - io.github.willzy12h.nocturne.core.protocol.Limits.TURBO_MINUTES
             PresetTile(BoostColor, R.drawable.ic_nc_ramp, stringResource(R.string.shortcut_boost),
                 if (heat > 0) stringResource(R.string.boost_tile_detail, heat) else stringResource(R.string.boost_tile_turbo_only),
-                canControl && owner.runningLabel == null && owner.queuedCount == 0 && reportedQuickAction(
+                evidence != null && owner.runningLabel == null && owner.queuedCount == 0 && reportedQuickAction(
                     status, link, settings, night, runtime.slotWrite, limits) == Command.BOOST, canControl,
                 boostDescription(context, settings.boostMinutes), "quick-mode-BOOST", modifier,
                 sending.value?.key == "BOOST", onLongClick = onEditBoost,

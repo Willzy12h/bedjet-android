@@ -49,10 +49,10 @@ internal fun captureQuickAction(graph: Graph, request: CommandRequest): Captured
     )
 }
 
-internal fun captureRemoteTemporary(graph: Graph, mode: Mode, status: DeviceStatus): TemporaryChoice {
+internal fun captureRemoteTemporary(graph: Graph, mode: Mode, status: DeviceStatus?): TemporaryChoice {
     // Preparation owns clamping and typed refusals. A mode outside saved limits must never throw on the UI tap.
-    val preset = ActionPreset(mode,
-        if (mode == Mode.TURBO) 86 else status.targetTemperature, status.fanPercent, 10)
+    val preset = if (status == null) io.github.willzy12h.nocturne.core.store.QuickDefaults.resolve(graph.repository.settings.value, mode).copy(minutes = 10)
+        else ActionPreset(mode, if (mode == Mode.TURBO) 86 else status.targetTemperature, status.fanPercent, 10)
     return TemporaryChoice(graph.actions.captureTemporary(preset), if (mode == Mode.TURBO) 10 else 120, endPreset = null)
 }
 

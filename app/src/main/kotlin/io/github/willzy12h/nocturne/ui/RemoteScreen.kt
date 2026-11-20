@@ -100,6 +100,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     val tokens = paletteTokens
     val guard = rememberNightGuard(model)
     val canControl = state == LinkState.READY && hasLiveStatus
+    val canRequestMode = canRequestBedJet(model)
     val context = LocalContext.current
     val timerSet = stringResource(R.string.remote_timer_set)
     var finishError by remember(state, status?.mode) { mutableStateOf(false) }
@@ -119,6 +120,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = FeedbackClearance), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StatusLine(model, runningName = null)
         BluetoothBanner(model)
+        ConnectionActionStatus(model)
         Text(stringResource(R.string.remote_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() })
         // No BedJet chosen: the route to choosing one, as on Tonight.
@@ -127,15 +129,14 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             return@Column
         }
         val s = status
+        val motion = rememberMotionAllowed()
         if (s == null) {
             if (!bluetoothOff) Text(stringResource(R.string.remote_connect), color = tokens.ink2, fontSize = 15.sp)
-            return@Column
+        } else {
+            val accent by animateColorAsState(tokens.modeColor(if (s.isRunning) s.mode else Mode.STANDBY),
+                if (motion) tween(250) else snap(), label = "remote-accent")
+            RemoteStatusCard(model, s, canControl, accent, f)
         }
-        val motion = rememberMotionAllowed()
-        val accent by animateColorAsState(tokens.modeColor(if (s.isRunning) s.mode else Mode.STANDBY),
-            if (motion) tween(250) else snap(), label = "remote-accent")
-
-        RemoteStatusCard(model, s, canControl, accent, f)
 
         // Modes: a fixed three-by-two grid of tinted tiles, the selected one stronger and outlined.
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -144,10 +145,10 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                     row.forEach { mode ->
                         val name = modeName(mode)
                         val what = if (mode == Mode.STANDBY) stringResource(R.string.guard_turn_off) else stringResource(R.string.guard_switch_to, name)
-                        RemoteModeTile(mode, selected = s.mode == mode, enabled = canControl, fahrenheit = f,
+                        RemoteModeTile(mode, selected = canControl && s?.mode == mode, enabled = canRequestMode, fahrenheit = f,
                             modifier = Modifier.weight(1f).fillMaxHeight()) {
                             if (mode == Mode.STANDBY) guard.confirm(what) {
-                                model.remote(name, endsNight = true, confirms = { it.mode == mode }) { it.setMode(mode) }
+                                model.run(io.github.willzy12h.nocturne.night.NightActions.Command.OFF)
                             } else {
                                 val captured = captureRemoteTemporary(model.graph, mode, s)
                                 guard.confirm(what, captured) { model.remoteCaptured(name, captured.request, mode) }
@@ -158,6 +159,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             }
         }
 
+        if (s == null) return@Column
         val notRunning = stringResource(R.string.remote_choose_mode_first)
         // Temperature: always shown; disabled with a reason when the running mode has none.
         run {
@@ -296,7 +298,10 @@ private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturn
     val now = model.now()
     val local by model.busy.collectAsStateWithLifecycle()
     val owner by model.commandBusy.collectAsStateWithLifecycle()
-    val sending = if (local || owner.runningLabel != null || owner.queuedCount > 0) {
+    val tap by model.connectingCommand.collectAsStateWithLifecycle()
+    val tapPhase = tap?.phase?.collectAsStateWithLifecycle()?.value
+    val sending = if ((tapPhase == null || tapPhase == io.github.willzy12h.nocturne.night.ConnectingCommand.Phase.SENDING) &&
+        (local || owner.runningLabel != null || owner.queuedCount > 0)) {
         val label = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
         val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
         listOfNotNull(label, queued).joinToString(" · ")

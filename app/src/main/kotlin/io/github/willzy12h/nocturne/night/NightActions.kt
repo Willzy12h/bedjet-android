@@ -329,8 +329,13 @@ class NightActions(private val graph: Graph) {
         val radio = currentCoroutineContext()[BluetoothAdmission]
         if (radio != null) radio.admit()
         else io.github.willzy12h.nocturne.ble.BluetoothAvailability.requireEnabled(context)
-        return if (releaseAfterMs == null) graph.sessions.withConnection { work() }
-            else graph.sessions.withConnection(releaseAfterMs) { work() }
+        val tap = currentCoroutineContext()[ConnectingCommand]
+        suspend fun admitted(): T {
+            tap?.admit(graph)
+            return work()
+        }
+        return if (releaseAfterMs == null) graph.sessions.withConnection { admitted() }
+            else graph.sessions.withConnection(releaseAfterMs) { admitted() }
     }
     /** A newly displaced programme gets a new choice. Manual-only adjustments, including after tracking ended,
      * preserve its valid choice and expiry; programme replacement/reapply/resume and target changes supersede it. */
