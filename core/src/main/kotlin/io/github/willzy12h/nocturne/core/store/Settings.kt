@@ -6,6 +6,7 @@ import io.github.willzy12h.nocturne.core.plan.TonightChoice
 import io.github.willzy12h.nocturne.core.plan.TonightOverride
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import java.time.ZonedDateTime
+import io.github.willzy12h.nocturne.core.plan.NapPreset
 import kotlinx.serialization.Serializable
 
 /** A button on the wake-up notification. */
@@ -118,7 +119,7 @@ data class Settings(
     val historyKeepDays: Int = History.DEFAULT_KEEP_DAYS,
     val cooldownOfferAnswered: Boolean = false,
     val platform: PlatformSettings = PlatformSettings(),
-    val napPreset: io.github.willzy12h.nocturne.core.plan.NapPreset = io.github.willzy12h.nocturne.core.plan.NapPreset(),
+    val napPreset: NapPreset = NapPreset(),
 ) {
     fun normalisedRememberedBedJets(): List<String> = (listOfNotNull(targetDevice) + rememberedBedJets)
         .mapNotNull { id -> DeviceId.address(id)?.takeIf { it.matches(Regex("[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}")) }?.let(DeviceId::ble) }

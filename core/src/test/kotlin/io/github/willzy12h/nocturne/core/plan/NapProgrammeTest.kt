@@ -54,6 +54,29 @@ class NapProgrammeTest {
         assertEquals(start.plusMinutes(40), NapProgramme.plan(noFiller.copy(afterWake = emptyList()), start).end)
     }
 
+    @Test fun rejectsTurboSettingsThatMisdescribeTheUnitAndContinuousHotHeatBeyondItsLimit() {
+        val invalid = listOf(Phase(Mode.TURBO, 86, 80, 10), Phase(Mode.TURBO, 86, 100, 11),
+            Phase(Mode.TURBO, 80, 100, 10))
+        invalid.forEach { assertNotNull(NapProgramme.validate(preset.copy(opening = listOf(it)))) }
+        val hot = Phase(Mode.HEAT, 80, 100, 1)
+        assertNotNull(NapProgramme.validate(preset.copy(opening = emptyList(), untilWake = hot)))
+        assertNotNull(NapProgramme.validate(preset.copy(durationMinutes = 61, opening = listOf(hot.copy(minutes = 30)), untilWake = hot)))
+        assertNull(NapProgramme.validate(preset.copy(durationMinutes = 60, opening = emptyList(), untilWake = hot)))
+    }
+
+    @Test fun receiptTimesUseTheActualStartOfTheUploadedDurationProgramme() {
+        val runner = NightRunner(BedJetController(DemoBedJet { start }) { start }) { start }
+        val change = (runner.prepareNap("Quick nap", preset, null, false, null, 2, "demo", null, null) as Preparation.Ready).change
+        val actual = start.plusSeconds(38)
+        val anchored = change.confirmedAt(actual)
+        assertEquals(actual.toString(), anchored.startedAt)
+        assertEquals(actual.plusMinutes(90).toString(), anchored.wakeAt)
+        assertEquals(actual.plusMinutes(100).toString(), anchored.endsAt)
+        assertEquals(actual.toString(), anchored.applied.steps.first().startsAt)
+        assertTrue(change.matchesConfirmed(anchored))
+        assertFalse(change.matchesConfirmed(anchored.copy(slot = 1)))
+    }
+
     @Test fun backupRefusesInvalidNapAndPreservesEditedSettings() {
         val changed = preset.copy(durationMinutes = 225, afterWake = emptyList())
         val good = BackupBundle(createdAt = start.toString(), profiles = Presets.all, settings = Settings(napPreset = changed))

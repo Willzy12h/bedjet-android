@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.plan.NapProgramme
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.protocol.Limits
@@ -199,7 +200,7 @@ object BackupValidator {
         settings.tonightChoice?.let { bounded(it.profileId, "settings.tonightChoice.profileId", MAX_ID) }
         settings.targetDevice?.let { bounded(it, "settings.targetDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.targetDevice") }
         settings.setupFanCheckedDevice?.let { bounded(it, "settings.setupFanCheckedDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.setupFanCheckedDevice") }
-        if (io.github.willzy12h.nocturne.core.plan.NapProgramme.validate(settings.napPreset) != null) invalid("settings.napPreset")
+        if (NapProgramme.validate(settings.napPreset) != null) invalid("settings.napPreset")
         if (settings.manualControls.size > ManualControls.MAX_ENTRIES ||
             settings.manualControls.any { !it.valid() } ||
             settings.manualControls.distinctBy { it.device.uppercase(java.util.Locale.ROOT) to it.mode }.size != settings.manualControls.size)

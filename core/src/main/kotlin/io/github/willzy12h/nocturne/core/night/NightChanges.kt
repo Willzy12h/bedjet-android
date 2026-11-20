@@ -23,6 +23,18 @@ enum class TemporaryRefusal {
 /** No hardware work has happened. Persist [pendingNight] before executing this change. */
 data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previous: ActiveNight?, val request: PendingChange,
     val expectedCommand: Long? = null, val relativeNap: Boolean = false) {
+    /** Relative nap durations start when the transport sends START, after the slot backup and upload. */
+    fun confirmedAt(at: ZonedDateTime): ActiveNight {
+        if (!relativeNap) return intended
+        val shift = Duration.between(plan.start, at)
+        val actual = Plan(at, plan.wake.plus(shift), plan.steps.map { it.copy(startsAt = it.startsAt.plus(shift)) })
+        return intended.copy(startedAt = at.toString(), wakeAt = actual.wake.toString(), endsAt = actual.end.toString(),
+            wakeUpStart = actual.wakeUpStart.toString(), applied = AppliedProgram.from(actual, intended.revision))
+    }
+
+    fun matchesConfirmed(actual: ActiveNight): Boolean = actual == if (relativeNap && actual.identity == intended.identity)
+        confirmedAt(ZonedDateTime.parse(actual.startedAt)) else intended
+
     val pendingNight: ActiveNight get() = (previous ?: intended.copy(applied = AppliedProgram())).copy(
         confidence = Confidence.PENDING, pending = request.copy(intended = intended),
     )

@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.core.plan
 
 import io.github.willzy12h.nocturne.core.protocol.Limits
+import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.serialization.Serializable
 import java.time.Duration
@@ -39,6 +40,8 @@ object NapProgramme {
         if (preset.untilWake?.mode in setOf(Mode.TURBO, Mode.STANDBY, Mode.WAIT))
             throw PlanException("Choose Heat, Long heat, Cool or Dry for the stage that runs until wake.")
         for (phase in preset.opening + listOfNotNull(preset.untilWake) + preset.afterWake) {
+            if (phase.mode == Mode.TURBO && (phase.temperature != 86 || phase.fanPercent != 100 || phase.minutes > Limits.TURBO_MINUTES))
+                throw PlanException("Turbo runs at 43 °C and 100% fan for up to ten minutes.")
             if (phase.minutes !in 1..MAX_MINUTES || phase.fanPercent !in 5..100 || phase.fanPercent % 5 != 0 ||
                 phase.mode == Mode.STANDBY || (phase.mode.usesFan && phase.temperature !in phase.mode.temperatureRange) ||
                 (!phase.mode.usesFan && phase.temperature !in 38..86))
@@ -48,15 +51,30 @@ object NapProgramme {
 
     private fun compile(preset: NapPreset, start: ZonedDateTime, wake: ZonedDateTime?, selectedProfile: Profile?): Plan {
         val requestedWake = wake ?: start.plusMinutes(preset.durationMinutes.toLong())
-        val available = Duration.between(start, requestedWake).toMinutes()
+        val planStart = if (wake == null) start else start.minusNanos(Math.floorMod(
+            (start.second - wake.second) * 1_000_000_000L + start.nano - wake.nano,
+            60_000_000_000L))
+        if (wake != null && Duration.between(start, wake) < Duration.ofMinutes(1))
+            throw PlanException("Choose a nap wake time at least a minute ahead.")
+        val available = Duration.between(planStart, requestedWake).toMinutes()
         if (available !in 1..MAX_MINUTES.toLong()) throw PlanException("Choose a future nap wake time within the BedJet’s programme limits.")
         val profile = if (preset.useProfileOpening) selectedProfile ?: throw PlanException("Choose a regular profile with an opening stage.")
             else null
         val limits = profile?.limits ?: ProfileLimits()
         val chain = profile?.turboChain ?: TurboChain.TURBO_THEN_HEAT
-        var cursor = start
+        var cursor = planStart
         val steps = mutableListOf<PlannedStep>()
+        var previousHeat: Phase? = null
+        var heatMinutes = 0
         fun append(block: Block, phase: Phase) {
+            // A continuous nap Heat stage cannot bypass the cut-off by splitting into adjacent identical steps.
+            if (profile == null && phase.mode == Mode.HEAT) {
+                val sameControls = previousHeat?.let { it.fanPercent == phase.fanPercent && it.temperature == phase.temperature } == true
+                heatMinutes = if (sameControls) heatMinutes + phase.minutes else phase.minutes
+                if (heatMinutes > ProgramStep.longestMinutes(Mode.HEAT, phase.temperature, phase.fanPercent / 5 - 1))
+                    throw PlanException("Shorten the Heat stage or choose cooler air within the BedJet’s Heat time limit.")
+                previousHeat = phase
+            } else previousHeat = null
             if (phase.minutes !in 1..MAX_MINUTES) throw PlanException("A nap stage exceeds the BedJet’s programme limits.")
             for (step in PlanCompiler.phaseSteps(phase, limits, chain)) {
                 if (steps.size == Limits.STEPS_PER_PROGRAM) throw PlanException("A BedJet programme holds up to 32 steps.")
@@ -77,8 +95,13 @@ object NapProgramme {
         }
         if (steps.isEmpty()) throw PlanException("Add an opening or until-wake stage before starting this nap.")
         val actualWake = cursor
+        val last = steps.last()
+        if (wake != null && last.block == Block.MIDDLE && last.minutes > PlanCompiler.MIN_CLOCK_TIME_STEP) {
+            val clock = planStart.toLocalTime().plusMinutes(available)
+            steps[steps.lastIndex] = last.copy(step = last.step.copy(hours = clock.hour, minutes = clock.minute, endsAtClockTime = true))
+        }
         if (profile == null) preset.afterWake.forEach { append(Block.AFTER_WAKE, it) }
-        return Plan(start, actualWake, steps)
+        return Plan(planStart, actualWake, steps)
     }
 
     fun snapshot(name: String, preset: NapPreset, selectedProfile: Profile?): Profile {

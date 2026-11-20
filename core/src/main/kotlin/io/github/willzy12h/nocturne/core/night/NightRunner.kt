@@ -282,6 +282,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         val pending = change.pendingNight
         var writeMayHaveHappened = false
         var startMayHaveHappened = false
+        var confirmed = change.intended
         fun ownsPending(night: ActiveNight?): Boolean = night?.identity == pending.identity &&
             night.confidence == Confidence.PENDING && night.pending?.requestId == change.request.requestId
         fun checkOwnership() {
@@ -304,19 +305,22 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             checkOwnership()
             checkExecutionTime(change)
             validate()
-            controller.startProgram(change.intended.slot, onStartAttempt = { startMayHaveHappened = true },
+            controller.startProgram(change.intended.slot, onStartAttempt = {
+                startMayHaveHappened = true
+                if (change.relativeNap) confirmed = change.confirmedAt(now())
+            },
                 beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change); validate() }, onConfirmed = onConfirmed) {
                 checkOwnership()
                 checkExecutionTime(change)
                 validate()
             }
-            publish(change.intended)
-            return NightMutation.Applied(change.plan, change.intended)
+            publish(confirmed)
+            return NightMutation.Applied(if (change.relativeNap) confirmed.applied.plan()!! else change.plan, confirmed)
         } catch (e: Exception) {
             // A committed confirmation stays authoritative even when returning from its writer was cancelled.
-            if (current() == change.intended && change.intended.confidence == Confidence.CONFIRMED) {
+            if (current() == confirmed && confirmed.confidence == Confidence.CONFIRMED) {
                 if (e is CancellationException) throw e
-                return NightMutation.Applied(change.plan, change.intended)
+                return NightMutation.Applied(if (change.relativeNap) confirmed.applied.plan()!! else change.plan, confirmed)
             }
             // Restore a known pre-write state, otherwise retain this exact request's uncertain intention.
             val failed = if (!writeMayHaveHappened && before != null) before else pending.copy(confidence =
