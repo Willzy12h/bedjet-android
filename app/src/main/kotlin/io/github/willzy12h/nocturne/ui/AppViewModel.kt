@@ -106,6 +106,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             verified?.takeIf { it.first == target }?.second ?: displayed?.takeIf { it.first == target }?.second
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, bedJetName())
+    /** Keep the selected sleep session while moving between tabs and Settings pages. */
+    internal val selectedSleepSession = MutableStateFlow<String?>(null)
     val history = repo.history.map { records -> records.filterNot { it.isTestRun } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, repo.history.value.filterNot { it.isTestRun })
     fun morningCheckIn(nightId: String): MorningCheckIn? = repo.morningCheckIn(nightId)

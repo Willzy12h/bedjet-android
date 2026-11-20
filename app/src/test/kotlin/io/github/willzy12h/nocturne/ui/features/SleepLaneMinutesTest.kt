@@ -14,7 +14,8 @@ class SleepLaneMinutesTest {
         assertEquals(listOf(SleepLane.AWAKE to 20, SleepLane.REM to 25, SleepLane.LIGHT to 35, SleepLane.DEEP to 30), totals)
     }
 
-    @Test fun unknownStagesAndEmptyLanesAreLeftOut() {
-        assertEquals(emptyList<Pair<SleepLane, Int>>(), sleepLaneMinutes(listOf(stage(0, 30, 0), stage(30, 30, 4))))
+    @Test fun unknownAndFutureStagesRemainUnknownAndAwakeInBedIsAwake() {
+        assertEquals(listOf(SleepLane.AWAKE to 10, SleepLane.UNKNOWN to 35),
+            sleepLaneMinutes(listOf(stage(0, 30, 0), stage(30, 35, 99), stage(35, 45, 7), stage(45, 45, 4))))
     }
 }
