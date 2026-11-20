@@ -218,6 +218,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
 
     /** Resume is guarded by both no active night and the command version captured at stop/replacement. */
     fun resume(offer: ResumeOffer, now: ZonedDateTime, commandVersion: Long): Preparation {
+        if (offer.night.hasClockTimedNap) return Preparation.Refused("Start a new nap to choose a fresh wake time.")
         if (commandVersion != offer.commandVersion) return Preparation.Stale(offer.night.identity, null)
         if (!now.isBefore(ZonedDateTime.parse(offer.expiresAt)) || !now.isBefore(ZonedDateTime.parse(offer.night.wakeAt))) return Preparation.Refused("The resume offer has expired.")
         val profile = offer.night.profile ?: return Preparation.Refused("The saved profile is unavailable.")

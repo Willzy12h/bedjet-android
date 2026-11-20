@@ -68,6 +68,8 @@ import java.time.ZonedDateTime
     val isNap: Boolean = false,
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)
+    /** Resume rebuilds remaining steps as durations. A nap that depends on a fixed clock must retain its wake. */
+    val hasClockTimedNap: Boolean get() = isNap && (temporary?.base ?: applied).programSteps.any { it.endsAtClockTime }
     val usesLiveProfileFallback: Boolean get() = profile == null
     /** A kept, freshly checked manual run has a captured end. UNKNOWN adjustments retain only an old timestamp. */
     val hasPlannedManualEnd: Boolean get() = trackingManual && confidence == Confidence.CONFIRMED

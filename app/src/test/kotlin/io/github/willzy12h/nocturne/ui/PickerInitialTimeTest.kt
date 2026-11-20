@@ -132,7 +132,9 @@ class PickerInitialTimeTest {
         waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED }
         assertTrue(graph.repository.activeNight.value!!.isNap)
         compose.onNodeWithTag("tonight-fixed-wake").assertHasNoClickAction()
-        compose.onNodeWithTag("quick-nap-start").performScrollTo().performClick()
+        val viewModel = androidx.lifecycle.ViewModelProvider(compose.activity)[AppViewModel::class.java]
+        waitUntil { !viewModel.busy.value }
+        compose.onNodeWithTag("quick-nap-start").performScrollTo().assertIsEnabled().performClick()
         compose.onNodeWithText(s(R.string.guard_keep)).assertExists()
     }
 

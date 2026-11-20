@@ -5,7 +5,7 @@
     <string name="nap_started">%1$s started. Nap wake %2$s.</string>
     <string name="nap_fixed_wake">The running nap keeps its agreed wake time.</string>
     <string name="nap_wake">Nap wake</string>
-    <string name="nap_options_detail">Quick nap runs for your saved duration from the time the BedJet starts. You can choose a wake time for this nap. Nocturne controls airflow and leaves your phone alarm alone.</string>
+    <string name="nap_options_detail">Quick nap runs for your saved duration from the time the BedJet starts. You can choose a wake time for this nap. The BedJet clock uses whole minutes. Nocturne controls airflow and leaves your phone alarm alone.</string>
     <string name="nap_for_duration">Start for %1$s</string>
     <string name="nap_choose_time">Choose a nap wake time</string>
     <string name="nap_accept_alarm">Use next alarm · %1$s</string>
@@ -19,4 +19,6 @@
     <string name="nap_alarm_unavailable">No accepted phone alarm is available for this nap.</string>
     <string name="nap_end">End nap</string>
     <string name="nap_quiet">Quick nap · wake %1$s</string>
+    <string name="nap_alarm_reason">Next alarm · %1$s. %2$s</string>
+    <string name="nap_time_unavailable">Choose another nap wake time</string>
 </resources>

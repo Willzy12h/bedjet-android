@@ -25,11 +25,28 @@ class NapProgrammeTest {
     }
 
     @Test fun fixedWakeDoesNotSlideWhenConnectionTakesLonger() {
-        val wake = start.plusMinutes(60)
+        val wake = start.plusMinutes(60).withSecond(0)
         val plan = NapProgramme.plan(preset, start.plusMinutes(6), wake)
         assertEquals(wake, plan.wake)
         assertEquals(14, plan.steps.single { it.block == Block.MIDDLE }.minutes)
         assertThrows<PlanException> { NapProgramme.plan(preset, wake.plusMinutes(1), wake) }
+    }
+
+    @Test fun fixedChoicesRequireASafeClockDeadlineAndTheActualRequestedWake() {
+        val regular = Presets.springAutumn.copy(start = listOf(Phase(Mode.COOL, 44, 40, 12)))
+        val opening = preset.copy(useProfileOpening = true)
+        val minute = start.withSecond(0)
+        assertThrows<PlanException> { NapProgramme.plan(opening, minute, minute.plusMinutes(90), regular) }
+        assertThrows<PlanException> { NapProgramme.plan(preset, minute, minute.plusMinutes(8)) }
+        assertThrows<PlanException> { NapProgramme.plan(preset, minute, minute.plusMinutes(45)) }
+        assertThrows<PlanException> { NapProgramme.plan(preset, minute, minute.plusMinutes(60).plusSeconds(7)) }
+        val ending = NapProgramme.plan(opening, minute, minute.plusMinutes(12), regular)
+        assertTrue(ending.programSteps.last().endsAtClockTime)
+        assertEquals(minute.plusMinutes(12), ending.wake)
+        val clippedHeat = NapProgramme.plan(preset, minute.plusSeconds(25), minute.plusMinutes(35))
+        assertEquals(Mode.HEAT, clippedHeat.steps.last { it.block != Block.AFTER_WAKE }.step.mode)
+        assertTrue(clippedHeat.steps.last { it.block != Block.AFTER_WAKE }.step.endsAtClockTime)
+        assertEquals(minute.plusMinutes(35), clippedHeat.wake)
     }
 
     @Test fun shortAndLongNapsAreAdmittedOnlyWithRepresentableSteps() {
@@ -62,6 +79,19 @@ class NapProgrammeTest {
         assertNotNull(NapProgramme.validate(preset.copy(opening = emptyList(), untilWake = hot)))
         assertNotNull(NapProgramme.validate(preset.copy(durationMinutes = 61, opening = listOf(hot.copy(minutes = 30)), untilWake = hot)))
         assertNull(NapProgramme.validate(preset.copy(durationMinutes = 60, opening = emptyList(), untilWake = hot)))
+    }
+
+    @Test fun fixedWakeCannotBeResumedAsAnUnanchoredDurationPlan() {
+        val minute = start.withSecond(0)
+        val runner = NightRunner(BedJetController(DemoBedJet { minute }) { minute }) { minute }
+        val fixed = (runner.prepareNap("Quick nap", preset, minute.plusMinutes(90), false, null, 2, "demo", null, null)
+            as Preparation.Ready).change.intended
+        assertNull(stopTracking(fixed, "Stopped", minute.plusMinutes(3)).resumeOffer)
+        val obsolete = ResumeOffer(fixed, fixed.applied.steps, minute.toString(), minute.plusMinutes(15).toString(), 1)
+        assertTrue(runner.resume(obsolete, minute.plusMinutes(4), 1) is Preparation.Refused)
+        val relative = (runner.prepareNap("Quick nap", preset, null, false, null, 2, "demo", null, null)
+            as Preparation.Ready).change.intended
+        assertNotNull(stopTracking(relative, "Stopped", minute.plusMinutes(3)).resumeOffer)
     }
 
     @Test fun receiptTimesUseTheActualStartOfTheUploadedDurationProgramme() {

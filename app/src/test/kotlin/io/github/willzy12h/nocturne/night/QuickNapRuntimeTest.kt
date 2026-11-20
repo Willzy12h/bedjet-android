@@ -62,6 +62,34 @@ class QuickNapRuntimeTest {
         })
     }
 
+    @Test fun selectedRegularOpeningChangingWhileWaitingRefusesWithoutAWrite() = runBlocking {
+        val profiles = graph.repository.profiles.value
+        graph.repository.updateSettings { it.chooseTonight(profiles[0].id, graph.now())
+            .copy(napPreset = it.napPreset.copy(useProfileOpening = true)) }
+        val captured = graph.actions.captureNap(profiles[0])
+        graph.repository.updateSettings { it.chooseTonight(profiles[1].id, graph.now()) }
+        assertEquals(profiles[0], graph.repository.profile(profiles[0].id))
+        assertEquals(OutcomeKind.STALE, graph.actions.startNap(captured).kind)
+        assertEquals(0, writes)
+    }
+
+    @Test fun interruptedHistorySettlementRecoversTheActualStartAndItsSteps() = runBlocking {
+        val start = graph.now()
+        val prep = graph.runner().prepareNap("Quick nap", graph.repository.settings.value.napPreset, null, false, null,
+            2, DeviceId.DEMO, null, null) as io.github.willzy12h.nocturne.core.night.Preparation.Ready
+        val planned = prep.change.intended
+        val actual = prep.change.confirmedAt(start.plusSeconds(24))
+        graph.repository.addRecord(NightRecord(planned.recordId, planned.profileId, "Quick nap", planned.startedAt,
+            planned.wakeAt, false, planned.applied.steps, deviceId = DeviceId.DEMO, isNap = true))
+        graph.repository.setActiveNight(actual)
+        graph.actions.reconcile()
+        val record = graph.repository.history.value.single()
+        assertEquals(actual.startedAt, record.startedAt)
+        assertEquals(actual.wakeAt, record.wakeAt)
+        assertEquals(actual.applied.steps, record.steps)
+        assertEquals(actual.applied, record.revisions.single())
+    }
+
     @Test fun changedPresetOrSlotAndUnconfirmedReplacementDoNotSend() = runBlocking {
         val original = graph.actions.captureNap(null)
         graph.repository.updateSettings { it.copy(napPreset = it.napPreset.copy(durationMinutes = 55)) }
@@ -89,7 +117,7 @@ class QuickNapRuntimeTest {
         val consent = AlarmSource.describe(app, graph.repository.settings.value)!!
         assertTrue(consent.counts)
         val first = graph.actions.captureNap(null, consent.time, consent)
-        alarmAt(45)
+        alarmAt(60)
         assertEquals(OutcomeKind.STALE, graph.actions.startNap(first).kind)
         assertEquals(0, writes)
         val approved = AlarmSource.describe(app, graph.repository.settings.value)!!

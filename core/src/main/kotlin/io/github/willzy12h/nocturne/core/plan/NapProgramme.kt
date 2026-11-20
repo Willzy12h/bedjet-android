@@ -51,10 +51,9 @@ object NapProgramme {
 
     private fun compile(preset: NapPreset, start: ZonedDateTime, wake: ZonedDateTime?, selectedProfile: Profile?): Plan {
         val requestedWake = wake ?: start.plusMinutes(preset.durationMinutes.toLong())
-        // Absolute choices use the BedJet’s whole-minute clock. Relative durations keep the START seconds.
-        val planStart = if (wake == null) start else start.withSecond(wake.second).withNano(wake.nano).let {
-            if (it.isAfter(start)) it.minusMinutes(1) else it
-        }
+        if (wake != null && (wake.second != 0 || wake.nano != 0))
+            throw PlanException("The BedJet clock uses whole minutes. Choose a nap wake time, or start for the saved duration.")
+        val planStart = if (wake == null) start else start.withSecond(0).withNano(0)
         if (wake != null && Duration.between(start, wake) < Duration.ofMinutes(1))
             throw PlanException("Choose a nap wake time at least a minute ahead.")
         val available = Duration.between(planStart, requestedWake).toMinutes()
@@ -97,7 +96,11 @@ object NapProgramme {
         if (steps.isEmpty()) throw PlanException("Add an opening or until-wake stage before starting this nap.")
         val actualWake = cursor
         val last = steps.last()
-        if (wake != null && last.block == Block.MIDDLE && last.minutes > PlanCompiler.MIN_CLOCK_TIME_STEP) {
+        if (wake != null) {
+            if (!actualWake.isEqual(wake))
+                throw PlanException("The opening ends before that wake time. Choose an earlier time or start for the opening’s duration.")
+            if (last.minutes < PlanCompiler.MIN_CLOCK_TIME_STEP || !start.isBefore(wake.minusMinutes(PlanCompiler.MIN_CLOCK_TIME_STEP.toLong())))
+                throw PlanException("The final stage is too short for a timed wake. Choose another time or start for the saved duration.")
             val clock = planStart.toLocalTime().plusMinutes(available)
             steps[steps.lastIndex] = last.copy(step = last.step.copy(hours = clock.hour, minutes = clock.minute, endsAtClockTime = true))
         }

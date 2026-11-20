@@ -42,12 +42,17 @@ data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previou
 sealed interface NightMutation {
     data class Applied(val plan: Plan, val night: ActiveNight): NightMutation {
         /** Idempotent append; the original steps remain the first revision for old readers. */
-        fun recordRevision(record: NightRecord): NightRecord = record.copy(
-            revisions = record.revisions.ifEmpty {
-                if (record.steps.isEmpty()) emptyList() else listOf(AppliedProgram(record.steps, record.startedAt, record.wakeAt))
-            }.filterNot { it.revision == night.applied.revision } + night.applied,
-            wakeAt = night.wakeAt, wakeFromAlarm = night.wakeFromAlarm,
-        )
+        fun recordRevision(record: NightRecord): NightRecord {
+            // A fresh nap can start several seconds after its pre-write history row was persisted.
+            val initial = if (night.isNap && night.applied.revision == 0) record.copy(
+                startedAt = night.startedAt, steps = night.applied.steps, isNap = true) else record
+            return initial.copy(
+                revisions = initial.revisions.ifEmpty {
+                    if (initial.steps.isEmpty()) emptyList() else listOf(AppliedProgram(initial.steps, initial.startedAt, initial.wakeAt))
+                }.filterNot { it.revision == night.applied.revision } + night.applied,
+                wakeAt = night.wakeAt, wakeFromAlarm = night.wakeFromAlarm,
+            )
+        }
     }
     data class Stale(val expected: NightIdentity?, val actual: NightIdentity?): NightMutation
     data class Refused(val reason: String): NightMutation
@@ -95,7 +100,7 @@ fun stopTracking(night: ActiveNight, reason: String, at: ZonedDateTime, commandV
             else -> s
         }
     }.filter { it.minutes > 0 }
-    val offer = if (!night.isTestRun && night.profile != null && at.isBefore(ZonedDateTime.parse(night.wakeAt))) {
+    val offer = if (!night.isTestRun && !underlying.hasClockTimedNap && night.profile != null && at.isBefore(ZonedDateTime.parse(night.wakeAt))) {
         ResumeOffer(underlying, remaining, at.toString(), at.plusMinutes(15).toString(), commandVersion)
     } else null
     return LocalTransition(night.copy(actualEnd = at.toString(), pending = null), HistoryEvent(at.toString(), EventKind.STOPPED, reason), offer)

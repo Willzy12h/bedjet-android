@@ -84,7 +84,7 @@ class NightActions(private val graph: Graph) {
     internal fun napStillCurrent(nap: NapStart): Boolean {
         val settings = repo.settings.value
         if (settings.napPreset != nap.preset || settings.workingSlot != nap.slot) return false
-        if (nap.preset.useProfileOpening && (nap.profile == null || repo.profile(nap.profile.id) != nap.profile)) return false
+        if (nap.preset.useProfileOpening && (nap.profile == null || repo.tonightsProfile() != nap.profile)) return false
         return nap.alarm?.let { chosen ->
             val current = AlarmSource.describe(context, settings)
             chosen.counts && chosen.time == nap.wake && current?.counts == true && current.time.isEqual(chosen.time) &&
@@ -384,13 +384,13 @@ class NightActions(private val graph: Graph) {
                 ?.copy(commandVersion = it.generation + 1)) }
     }
     private fun validResumeOffer(runtime: RuntimeState): ResumeOffer? = runtime.resumeOffer?.takeIf {
-        it.commandVersion == runtime.generation && it.night.deviceId == repo.settings.value.deviceId() &&
+        !it.night.hasClockTimedNap && it.commandVersion == runtime.generation && it.night.deviceId == repo.settings.value.deviceId() &&
             graph.now().isBefore(ZonedDateTime.parse(it.expiresAt)) && graph.now().isBefore(ZonedDateTime.parse(it.night.wakeAt))
     }
     /** [night] leaves its programme for a manual run: offer to resume the programme, as Stop tracking would. A night
      * already manual keeps the offer it has, since its own steps are not a programme to resume. */
     private suspend fun offerProgrammeResume(night: ActiveNight) {
-        if (night.trackingManual) return
+        if (night.trackingManual || night.hasClockTimedNap) return
         val offer = io.github.willzy12h.nocturne.core.night.stopTracking(night, text(R.string.runtime_manual_tracking), graph.now(),
             repo.runtime.value.generation).resumeOffer
         // The newest programme actually displaced wins; its own 15-minute window starts at this adjustment.
@@ -470,7 +470,7 @@ class NightActions(private val graph: Graph) {
             advanceGeneration()
             return apply(graph.runner().reapply(night, profile, night.identity, repo.settings.value.resolveWakeOverride(graph.now())?.wakeAt?.let(ZonedDateTime::parse)), R.string.runtime_reapplied)
         }
-        advanceGeneration(preserveOffer = command in TIMED_MANUAL || repo.activeNight.value?.trackingManual != false)
+        advanceGeneration(preserveOffer = command in TIMED_MANUAL || repo.activeNight.value?.trackingManual != false || repo.activeNight.value?.hasClockTimedNap == true)
         return when (command) {
             Command.OFF, Command.END_NIGHT -> manualChange(text(R.string.runtime_off), endsNight = true, confirms = { it.mode == Mode.STANDBY },
                 unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
@@ -546,9 +546,7 @@ class NightActions(private val graph: Graph) {
         val existing = repo.history.value.firstOrNull { it.id == night.recordId }
         val record = existing ?: NightRecord(night.recordId, night.profileId, night.profile!!.name, night.startedAt,
             night.wakeAt, night.wakeFromAlarm, night.applied.steps, deviceId = night.deviceId, isTestRun = night.isTestRun, isNap = night.isNap)
-        val initial = if (night.isNap && change.request.kind == ChangeKind.START)
-            record.copy(startedAt = night.startedAt, wakeAt = night.wakeAt, steps = night.applied.steps) else record
-        val revised = NightMutation.Applied(change.plan, night).recordRevision(initial)
+        val revised = NightMutation.Applied(change.plan, night).recordRevision(record)
         val started = existing == null || change.request.kind == ChangeKind.START
         val events = if (night.applied in record.revisions) record.events else record.events +
             event(if (started) EventKind.STARTED else if (change.request.kind == ChangeKind.TEMPORARY) EventKind.TEMPORARY else EventKind.RETIMED,
@@ -873,7 +871,7 @@ class NightActions(private val graph: Graph) {
             endRequestedEpoch = null, endRequestedSequence = null,
             resumeOffer = when {
                 kind == EventKind.ENDED -> null
-                night.trackingManual -> validResumeOffer(it)
+                night.trackingManual || night.hasClockTimedNap -> validResumeOffer(it)
                 else -> transition.resumeOffer
             }, reason = null,
             wakeShown = null, manualWakeShown = false, slotWrite = it.slotWrite?.takeUnless { w -> w.belongsTo(night.recordId) }) }
@@ -907,7 +905,7 @@ class NightActions(private val graph: Graph) {
     }
     private suspend fun stopTrackingLocked(): CommandOutcome {
         val n = repo.activeNight.value ?: return refused(R.string.runtime_no_night)
-        advanceGeneration(preserveOffer = n.trackingManual)
+        advanceGeneration(preserveOffer = n.trackingManual || n.hasClockTimedNap)
         finishLocked(n, EventKind.STOPPED, text(R.string.runtime_stop_tracking))
         return CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_stop_tracking))
     }

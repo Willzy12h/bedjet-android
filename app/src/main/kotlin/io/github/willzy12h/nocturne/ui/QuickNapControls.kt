@@ -36,6 +36,7 @@ internal fun QuickNapControls(model: AppViewModel, settings: Settings, profile: 
     guard: NightGuard, busy: Boolean, nightWakeOffer: Boolean, closeNightOffer: () -> Unit, setNightWake: () -> Unit) {
     var options by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf(false) }
+    var problem by rememberSaveable { mutableStateOf<String?>(null) }
     val label = stringResource(R.string.nap_guard)
     val tokens = paletteTokens
     val context = LocalContext.current
@@ -49,6 +50,11 @@ internal fun QuickNapControls(model: AppViewModel, settings: Settings, profile: 
     val startLabel = if (duration == null) stringResource(R.string.nap_title)
         else stringResource(R.string.nap_duration_label, duration)
     fun start(wake: ZonedDateTime? = null, chosenAlarm: AlarmSource.NextAlarm? = null) {
+        val invalid = runCatching { NapProgramme.plan(settings.napPreset, model.now(), wake, profile) }.exceptionOrNull()
+        if (invalid != null) {
+            problem = invalid.message
+            return
+        }
         val captured = model.captureNap(profile, wake, chosenAlarm)
         options = false
         closeNightOffer()
@@ -100,15 +106,23 @@ internal fun QuickNapControls(model: AppViewModel, settings: Settings, profile: 
                         start(WakeResolver.nextOccurrence(hour * 60 + minute, model.now()))
                     }, initial.hour, initial.minute, Format.twentyFourHour).apply { show(); styleNativeDialog(this, tokens) }
                 }) { Text(stringResource(R.string.nap_choose_time)) }
-                val accepted = alarm?.takeIf {
-                    it.counts && runCatching { NapProgramme.plan(settings.napPreset, model.now(), it.time, profile) }.isSuccess
+                val accepted = alarm?.takeIf { it.counts && it.time.isAfter(model.now()) }
+                val alarmProblem = accepted?.let { candidate ->
+                    runCatching { NapProgramme.plan(settings.napPreset, model.now(), candidate.time, profile) }.exceptionOrNull()?.message
                 }
-                if (accepted != null) NocturneOutlinedButton(onClick = { start(accepted.time, accepted) }) {
+                if (alarmProblem != null && accepted != null) Text(stringResource(R.string.nap_alarm_reason, Format.dayClock(accepted.time), alarmProblem))
+                else if (accepted != null) NocturneOutlinedButton(onClick = { start(accepted.time, accepted) }) {
                     Text(stringResource(R.string.nap_accept_alarm, Format.dayClock(accepted.time)))
                 } else Text(stringResource(R.string.nap_alarm_unavailable))
                 NocturneTextButton(onClick = { options = false; editing = true }) { Text(stringResource(R.string.nap_edit)) }
             }
         }, confirmButton = { NocturneTextButton(onClick = { options = false }) { Text(stringResource(R.string.feature_cancel)) } })
+    problem?.let { detail ->
+        AlertDialog(onDismissRequest = { problem = null }, title = { Text(stringResource(R.string.nap_time_unavailable)) },
+            text = { Text(detail) }, confirmButton = { NocturneTextButton(onClick = { problem = null }) {
+                Text(stringResource(android.R.string.ok))
+            } })
+    }
     if (editing) NapPresetEditor(settings.napPreset, profile, settings.fahrenheit, model.now(),
         onSave = { preset -> model.updateSettings { it.copy(napPreset = preset) }; editing = false },
         onDismiss = { editing = false })
