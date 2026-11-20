@@ -103,10 +103,12 @@ class FinalRemoteLayoutTest {
             clock.autoAdvance = false
             ui.compose.runOnUiThread { ui.compose.activity.setContent {
                 NocturneTheme(settings.value, ui.graph.now()) {
-                    MeasuredTemperatures(report.value, settings.value, recent.value, "test") { }
+                    MeasuredTemperatures(report.value, settings.value, recent.value, "test")
                 }
             } }
             moves(true)
+            ui.compose.runOnUiThread { report.value = report.value.copy(mode = Mode.TURBO) }
+            moves(false)
             ui.compose.runOnUiThread { report.value = report.value.copy(mode = Mode.COOL) }
             moves(true)
             ui.compose.runOnUiThread { recent.value = false }

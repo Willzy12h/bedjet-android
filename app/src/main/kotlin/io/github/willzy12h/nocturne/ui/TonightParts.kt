@@ -94,7 +94,7 @@ internal fun AccentLink(text: String, onClick: () -> Unit, modifier: Modifier = 
 
 /** The design's status line: a dot and one short sentence, with Remote on the right. */
 @Composable
-internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (() -> Unit)? = null) {
+internal fun StatusLine(model: AppViewModel, onRemote: (() -> Unit)? = null) {
     val settings by model.settings.collectAsStateWithLifecycle()
     val state by model.linkState.collectAsStateWithLifecycle()
     val status by model.status.collectAsStateWithLifecycle()
@@ -117,7 +117,6 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (()
     val connectionText = when {
         connection == HeaderConnection.DEMO -> stringResource(R.string.parity_status_demo)
         connection == HeaderConnection.BLUETOOTH_OFF -> stringResource(R.string.status_bluetooth_off)
-        runningName != null && connection == HeaderConnection.CONNECTED -> stringResource(R.string.parity_status_running, runningName)
         else -> stringResource(R.string.parity_status_line, name, stringResource(when (connection) {
             HeaderConnection.CONNECTED -> R.string.parity_status_connected
             HeaderConnection.CONNECTING -> R.string.parity_status_connecting
@@ -140,7 +139,7 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (()
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Dot(dot, Modifier.testTag("status-symbol-${connection.name}"), sizeDp = 8)
             Box(Modifier.weight(1f)) {
-                // Keep targets below this line still when Sending replaces a wrapped device/profile name.
+                // Keep targets below this line still when Sending replaces a wrapped device name.
                 if (sending) Text(connectionText, Modifier.alpha(0f).clearAndSetSemantics { },
                     color = tokens.ink2, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
                 Text(text, Modifier.testTag("status-connection").semantics { contentDescription = "$description. $text" },

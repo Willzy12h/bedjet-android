@@ -6,6 +6,7 @@ import androidx.compose.ui.test.*
 import androidx.lifecycle.Lifecycle
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.ProfileLimits
 import io.github.willzy12h.nocturne.night.NightActions.Command
 import org.junit.Assert.*
@@ -107,6 +108,24 @@ class ActiveIndicatorTest {
         assertEquals(Command.BOOST, legacyAction())
         ui.compose.onNodeWithTag("quick-active-BOOST", useUnmergedTree = true).assertExists()
         ui.compose.onNodeWithTag("quick-active-TURBO", useUnmergedTree = true).assertDoesNotExist()
+        ui.compose.onNodeWithTag("home-run-status").performScrollTo().assertTextContains("Boost · Turbo", substring = true)
+    }
+
+    @Test fun tonightAndRemoteShowTheSameConfirmedUpcomingFanChange() {
+        val profile = requireNotNull(ui.model.tonightsProfile())
+        ui.compose.runOnUiThread { kotlinx.coroutines.runBlocking {
+            ui.graph.repository.saveProfile(profile.copy(limits = ProfileLimits(),
+                start = listOf(Phase(Mode.COOL, 44, 40, 10), Phase(Mode.COOL, 44, 80, 10))))
+        } }
+        ui.compose.onNodeWithText(ui.s(R.string.tonight_start_now)).performScrollTo().performClick()
+        ui.waitUntil { ui.model.nightStatus.value.confidence == io.github.willzy12h.nocturne.core.night.Confidence.CONFIRMED &&
+            ui.model.status.value?.extra?.programStep == 1 }
+        val home = ui.compose.onNodeWithTag("home-run-status").performScrollTo()
+        home.assertTextContains("Cooling now · 40% fan", substring = true)
+        home.assertTextContains("Fan rises to 80%", substring = true)
+        val headline = home.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].single().text
+        ui.compose.openRemote()
+        ui.compose.onNodeWithTag("remote-status").assertTextEquals(headline)
     }
 
     @Test fun aConfirmedSlotJournalDoesNotHideLaterManualReceiptsButUncertainWritesDo() {

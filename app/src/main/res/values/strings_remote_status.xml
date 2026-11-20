@@ -18,7 +18,18 @@
     <string name="remote_custom_temperature">The current temperature can\'t be kept when ending this programme. Change the temperature in Remote before setting a duration.</string>
     <string name="remote_custom_action">run for %1$s</string>
     <string name="remote_temporary_shorter">Temporary can last up to %1$s. Ending tonight uses your selected %2$s.</string>
-    <string name="remote_now_label">BedJet now</string>
-    <string name="remote_not_running_choose">Choose a mode below to start</string>
     <string name="remote_last_reported">Last reported</string>
+    <string name="run_status_cool">Cooling now</string>
+    <string name="run_status_heat">Heating now</string>
+    <string name="run_status_boost">Boost · %1$s</string>
+    <string name="run_status_with_fan">%1$s · %2$d%% fan</string>
+    <string name="run_status_last_cool">Last seen cooling</string>
+    <string name="run_status_last_idle">Last seen idle</string>
+    <string name="run_status_last_mode">Last seen: %1$s</string>
+    <string name="run_status_next">Planned %1$s at %2$s</string>
+    <string name="run_status_fan_rises">Fan rises to %1$d%% at %2$s</string>
+    <string name="run_status_fan_falls">Fan falls to %1$d%% at %2$s</string>
+    <string name="run_status_planned_off">Planned Off at %1$s</string>
+    <string name="run_status_manual_until">Runs until %1$s</string>
+    <string name="run_status_sending">Sending %1$s…</string>
 </resources>

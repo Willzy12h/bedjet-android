@@ -48,15 +48,11 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.willzy12h.nocturne.R
@@ -84,9 +80,7 @@ internal fun PaletteTokens.modeColor(mode: Mode): Color = when (mode) {
 /**
  * Direct control, like the BedJet's own remote. Changing the mode takes over from a running night.
  *
- * Every section is always laid out, so choosing a mode or sending a command never moves the controls:
- * a control that does not apply is shown disabled with the reason underneath, and progress appears
- * in the status card's reserved line instead of a banner above it.
+ * Every control remains laid out, with a reason shown underneath when it cannot be used.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -118,7 +112,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     }
 
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = FeedbackClearance), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        StatusLine(model, runningName = null)
+        StatusLine(model)
         BluetoothBanner(model)
         Text(stringResource(R.string.remote_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() })
@@ -132,7 +126,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         if (s == null) {
             if (!bluetoothOff) Text(stringResource(R.string.remote_connect), color = tokens.ink2, fontSize = 15.sp)
         } else {
-            RemoteStatusCard(model, s, canControl, settings)
+            BedJetReadings(model, settings, "remote")
         }
 
         // Modes: a fixed three-by-two grid of tinted tiles, the selected one stronger and outlined.
@@ -281,45 +275,6 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                 FilledTonalButton({ model.remote(reminderCleared, confirms = { it.extra?.notification == 0 }) { it.acknowledge() } }, enabled = canControl) { Text(stringResource(R.string.remote_clear_reminder)) }
             }
         }
-    }
-}
-
-/**
- * What the BedJet reports, as plain text rather than a card, so it reads as the current state and not as a button.
- * The mode buttons below change it. One line is reserved for progress.
- */
-@Composable
-private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturne.core.protocol.DeviceStatus, canControl: Boolean,
-    settings: io.github.willzy12h.nocturne.core.store.Settings) {
-    val recent by model.readingFresh.collectAsStateWithLifecycle()
-    val f = settings.fahrenheit
-    val tokens = paletteTokens
-    val now = model.now()
-    val local by model.busy.collectAsStateWithLifecycle()
-    val owner by model.commandBusy.collectAsStateWithLifecycle()
-    val tap by model.connectingCommand.collectAsStateWithLifecycle()
-    val tapPhase = tap?.phase?.collectAsStateWithLifecycle()?.value
-    val sending = if ((tapPhase == null || tapPhase == io.github.willzy12h.nocturne.night.ConnectingCommand.Phase.SENDING) &&
-        (local || owner.runningLabel != null || owner.queuedCount > 0)) {
-        val label = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
-        val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
-        listOfNotNull(label, queued).joinToString(" · ")
-    } else null
-    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(R.string.remote_now_label), color = tokens.ink2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        MeasuredTemperatures(s, settings, canControl && recent, "remote") {
-            Text(modeName(s.mode), color = tokens.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        }
-        Text(if (s.isRunning) stringResource(R.string.remote_running_until, tempText(s.targetTemperature, f), s.fanPercent,
-                durationText(s.remainingSeconds / 60), Format.clock(now.plusSeconds(s.remainingSeconds.toLong())))
-            else stringResource(R.string.remote_not_running_choose), modifier = Modifier.testTag("remote-status"),
-            color = tokens.ink2, fontSize = 14.sp)
-        // The reserved line: progress, then "Last reported", then a night's step; never a banner that pushes controls down.
-        val line = sending ?: if (!canControl) stringResource(R.string.remote_last_reported)
-            else s.extra?.takeIf { it.programStep > 0 }?.let { stringResource(R.string.remote_program_step, it.programStep) } ?: ""
-        Text(line, color = if (sending != null) tokens.readableText(tokens.warn, tokens.ground) else tokens.ink2, fontSize = 13.sp,
-            minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().testTag("remote-progress").semantics { liveRegion = LiveRegionMode.Polite })
     }
 }
 

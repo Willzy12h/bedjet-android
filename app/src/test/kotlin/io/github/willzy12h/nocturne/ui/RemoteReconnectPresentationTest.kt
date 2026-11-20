@@ -73,11 +73,12 @@ class RemoteReconnectPresentationTest {
     @Test fun appSwitchKeepsRemoteReadingsAndControlsVisibleWithTheConnectionIndicator() {
         openRemoteAndReconnect()
         assertReadings("25°C")
-        compose.onNodeWithText("Last reported").assertIsDisplayed()
+        assertLastSeenHeat("remote")
         assertEquals(LinkState.CONNECTING, model.linkState.value)
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsEnabled()
         compose.onNodeWithContentDescription("Temperature").performScrollTo().assertIsNotEnabled()
         assertTonightConnection()
+        assertLastSeenHeat("home")
         compose.navTab("Settings")
         compose.onNodeWithTag("settings-page-bedjet").performScrollTo().performClick()
         switch("Lights").performScrollTo().assertIsDisplayed().assertIsOn().assertIsNotEnabled()
@@ -91,7 +92,7 @@ class RemoteReconnectPresentationTest {
         assertReadings("25°C")
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsEnabled()
         compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText("Last reported").performScrollTo().assertIsDisplayed()
+        assertLastSeenHeat("remote")
         assertEquals(LinkState.READY, model.linkState.value)
         assertTonightConnection()
         compose.navTab("Settings")
@@ -102,7 +103,8 @@ class RemoteReconnectPresentationTest {
         switch("Lights").performScrollTo().assertIsOff().assertIsEnabled()
         compose.openRemote()
         assertReadings("30°C")
-        compose.onNodeWithText("Last reported").assertDoesNotExist()
+        compose.onNodeWithText("Last seen: Heat", substring = true).assertDoesNotExist()
+        compose.onNodeWithTag("remote-status").assertTextContains("Heating now", substring = true)
         compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsEnabled()
     }
 
@@ -214,6 +216,12 @@ class RemoteReconnectPresentationTest {
         waitUntil { outcomes.isNotEmpty() }
         assertEquals(OutcomeKind.CONFIRMED, outcomes.single().kind)
         assertSame(receipt, link.latestSourcedStatus())
+    }
+
+    private fun assertLastSeenHeat(screen: String) {
+        val status = if (screen == "remote") "remote-status" else "home-run-status"
+        compose.onNodeWithTag(status).performScrollTo().assertTextEquals("Last seen: Heat")
+        compose.onNodeWithText("Heating now", substring = true).assertDoesNotExist()
     }
 
     private fun assertReadings(air: String) {
