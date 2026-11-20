@@ -118,6 +118,7 @@ data class Settings(
     val historyKeepDays: Int = History.DEFAULT_KEEP_DAYS,
     val cooldownOfferAnswered: Boolean = false,
     val platform: PlatformSettings = PlatformSettings(),
+    val napPreset: io.github.willzy12h.nocturne.core.plan.NapPreset = io.github.willzy12h.nocturne.core.plan.NapPreset(),
 ) {
     fun normalisedRememberedBedJets(): List<String> = (listOfNotNull(targetDevice) + rememberedBedJets)
         .mapNotNull { id -> DeviceId.address(id)?.takeIf { it.matches(Regex("[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}")) }?.let(DeviceId::ble) }

@@ -22,7 +22,7 @@ enum class TemporaryRefusal {
 }
 /** No hardware work has happened. Persist [pendingNight] before executing this change. */
 data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previous: ActiveNight?, val request: PendingChange,
-    val expectedCommand: Long? = null) {
+    val expectedCommand: Long? = null, val relativeNap: Boolean = false) {
     val pendingNight: ActiveNight get() = (previous ?: intended.copy(applied = AppliedProgram())).copy(
         confidence = Confidence.PENDING, pending = request.copy(intended = intended),
     )
@@ -67,7 +67,7 @@ object Eligibility {
 @Serializable data class ResumeOffer(val night: ActiveNight, val remaining: List<RecordedStep>, val stoppedAt: String,
     val expiresAt: String, val commandVersion: Long)
 data class LocalTransition(val night: ActiveNight, val event: HistoryEvent, val resumeOffer: ResumeOffer?) {
-    fun settingsAfter(settings: Settings): Settings = if (night.isTestRun) settings else settings.clearWakeOverride()
+    fun settingsAfter(settings: Settings): Settings = if (night.isTestRun || night.isNap) settings else settings.clearWakeOverride()
 }
 /** Local only: callers persist this transition and the offer under the same command lock. */
 fun stopTracking(night: ActiveNight, reason: String, at: ZonedDateTime, commandVersion: Long = 0): LocalTransition {
