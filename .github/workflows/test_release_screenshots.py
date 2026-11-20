@@ -58,7 +58,7 @@ WINDOW_NAMES = {
     for scene in ("02c-step-editor", "02d-add-step")
 } | {
     f"gaps-{look}-{scene}-window1.png" for look in GAP_LOOK_FIXTURES
-    for scene in ("00-profile-menu", "01-slot-pin", "05-checkin-dialog", "06-checkin-suggestion")
+    for scene in ("00-profile-menu", "01-slot-pin", "05-checkin-dialog", "06-checkin-suggestion", "07-setup-chooser")
 }
 CURRENT_NAMES = LEGACY_NAMES | GAP_NAMES | REDESIGN_NAMES | WINDOW_NAMES
 
@@ -73,14 +73,14 @@ class ScreenshotEvidenceTest(unittest.TestCase):
         self.assertIn("features-01-manual-connection-release.png", expected)
         self.assertNotIn("features-01-idle-handover.png", expected)
 
-    def test_complete_current_inventory_accepts_204_captures_and_176_unbaselined_views(self):
+    def test_complete_current_inventory_accepts_212_captures_and_184_unbaselined_views(self):
         self.assertEqual(64, len(GAP_NAMES))
         self.assertEqual(GAP_NAMES, {path.name for path in (REPOSITORY / "docs/screenshots/gaps").glob("*.png")})
-        self.assertEqual(204, len(CURRENT_NAMES))
+        self.assertEqual(212, len(CURRENT_NAMES))
         self.assertEqual(CURRENT_NAMES, screenshots.EXPECTED)
-        self.assertEqual(204, len(screenshots.EXPECTED))
+        self.assertEqual(212, len(screenshots.EXPECTED))
         self.assertEqual(28, len(screenshots.EXPECTED_BASELINE))
-        self.assertEqual(176, len(screenshots.EXPECTED - screenshots.EXPECTED_BASELINE))
+        self.assertEqual(184, len(screenshots.EXPECTED - screenshots.EXPECTED_BASELINE))
         self.assertEqual([], screenshots.validate_inventory(CURRENT_NAMES, screenshots.EXPECTED_BASELINE))
 
     def test_inventory_accepts_the_independently_archived_producer_names(self):
@@ -89,7 +89,7 @@ class ScreenshotEvidenceTest(unittest.TestCase):
         with manifest.open() as stream:
             recorded = {row["file"] for row in csv.DictReader(stream)
                         if not row["file"].startswith(("p8-", "u06/"))}
-        self.assertEqual(204, len(recorded))
+        self.assertEqual(212, len(recorded))
         self.assertEqual(CURRENT_NAMES, recorded)
         self.assertEqual([], screenshots.validate_inventory(recorded, screenshots.EXPECTED_BASELINE))
 

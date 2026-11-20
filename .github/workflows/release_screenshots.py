@@ -31,7 +31,7 @@ GAP_SCREENS = (
     "05-checkin-dialog", "06-checkin-suggestion", "07-setup-title",
     "07-setup-chooser", "08-unreadable-banner",
 )
-# Explicit producer contract: 162 primary scenes and 42 separately drawn windows.
+# Explicit producer contract: 162 primary scenes and 50 separately drawn windows.
 # This must be reviewed when ScreenshotCapture changes, never inferred from candidate files.
 FULL_SIZE_WINDOWS = {
     f"{look}-{screen}-window1.png": f"{look}-{screen}.png"
@@ -40,7 +40,7 @@ FULL_SIZE_WINDOWS = {
 SECONDARY_WINDOWS = FULL_SIZE_WINDOWS | {
     f"gaps-{look}-{screen}-window1.png": f"gaps-{look}-{screen}.png"
     for look in GAP_LOOKS
-    for screen in ("00-profile-menu", "01-slot-pin", "05-checkin-dialog", "06-checkin-suggestion")
+    for screen in ("00-profile-menu", "01-slot-pin", "05-checkin-dialog", "06-checkin-suggestion", "07-setup-chooser")
 }
 EXPECTED = {f"{look}-{screen}.png" for look in LOOKS for screen in SCREENS + EDITOR_SCREENS + ("06a-feedback-bubble",)} | {
     f"{look}-{screen}.png" for look in LOOKS[:4] for screen in SETTINGS_SCREENS
