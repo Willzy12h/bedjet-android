@@ -1,0 +1,15 @@
+<resources>
+    <string name="allow_locked_off">Allow Off from the lock screen</string>
+    <string name="allow_locked_off_help">When Off is one of your wake buttons, anyone holding the locked phone can turn the BedJet off.</string>
+    <string name="wake_locked">Nocturne wake controls</string>
+    <string name="shortcut_target">BedJet: %1$s</string>
+    <string name="shortcut_no_target">None selected</string>
+    <string name="shortcut_profile">Start profile: %1$s</string>
+    <string name="shortcut_replaces">Replaces the running night: %1$s</string>
+    <string name="shortcut_changed">The selected BedJet, profile or night changed. Open the shortcut again to review it.</string>
+    <string name="manual_controls_title">Remembered Remote settings</string>
+    <string name="finish_time_button">Finish at…</string>
+    <string name="finish_time_result">Finish at about %1$s</string>
+    <string name="finish_time_invalid">That finish time is no longer within the available run time. Choose a new time.</string>
+    <string name="finish_time_limit">Choose a valid clock time within the next %1$s.</string>
+</resources>

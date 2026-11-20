@@ -585,4 +585,22 @@ class SendConfirmationTest {
         assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
         assertEquals(Confidence.UNKNOWN, graph.repository.runtime.value.slotWrite?.confidence)
     }
+    @Test fun manualRemoteRemembersOnlyConfirmedChoicesAndReappliesOnModeSelection() = runBlocking {
+        useRealHistory()
+        fun request() = graph.actions.capture(NightActions.Command.OFF, requireIdentity = true)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.selectRemoteMode("Cool", request(), Mode.COOL).kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.adjustRemoteControl("Fan", request(), Mode.COOL, null, 10).kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.adjustRemoteControl("Temperature", request(), Mode.COOL, 46, null).kind)
+        swallow = { it.contentEquals(Codec.setFan(11)) }
+        assertNotEquals(OutcomeKind.CONFIRMED, graph.actions.adjustRemoteControl("Fan", request(), Mode.COOL, null, 11).kind)
+        assertEquals(ManualControls(target, Mode.COOL, 46, 10), graph.repository.settings.value.manualFor(target, Mode.COOL))
+        swallow = { false }
+        graph.actions.selectRemoteMode("Heat", request(), Mode.HEAT)
+        val before = sent.size
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.selectRemoteMode("Cool", request(), Mode.COOL).kind)
+        assertTrue(sent.drop(before).any { it.contentEquals(Codec.setFan(10)) })
+        assertTrue(sent.drop(before).any { it.contentEquals(Codec.setTemperature(46)) })
+        assertEquals(Mode.COOL, graph.link.latestSourcedStatus()?.status?.mode)
+    }
+
 }

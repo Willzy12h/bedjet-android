@@ -41,8 +41,8 @@ class PhoneDiagnosticsTest {
         assertEquals("RESTRICTED", phone["standbyBucket"]!!.jsonPrimitive.content)
         val exit = phone["recentExits"]!!.jsonArray.single().jsonObject
         assertEquals("USER_REQUESTED", exit["reason"]!!.jsonPrimitive.content)
-        assertEquals("2025-11-17T23:00:00Z", exit["at"]!!.jsonPrimitive.content)
-        assertEquals("stop by power manager", exit["description"]!!.jsonPrimitive.content)
+        assertEquals(false, exit.containsKey("at"))
+        assertEquals(false, exit.containsKey("description"))
     }
 
     @Test fun namesUnknownReasonsAndBucketsRatherThanFailing() {

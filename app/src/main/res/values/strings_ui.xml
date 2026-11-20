@@ -24,7 +24,9 @@
     <string name="settings_quiet_title">Quiet night status</string>
     <string name="settings_quiet_help">While a confirmed night runs, a silent notification shows its wake time with a Stop night button.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
-    <string name="settings_diagnostics_help">Includes app version, phone model, connection state, settings (including BedJet addresses), next phone alarm time and source app package, the current night, the last 50 events and notifications, and the last crash if there was one. Nothing is sent; you choose where to save the file.</string>
+    <string name="settings_diagnostics_help">Includes phone and Bluetooth state, the next phone alarm source app package, relative timings, recent event types and crash code locations. Exact alarm times are optional. You choose where to save the file.</string>
+    <string name="diagnostics_times">Include exact alarm times</string>
+    <string name="diagnostics_times_help">Useful when investigating a wake-time issue.</string>
     <string name="settings_diagnostics_export">Export diagnostics</string>
     <string name="settings_diagnostics_saved">Diagnostics saved.</string>
     <string name="settings_diagnostics_failed">Couldn\'t save diagnostics: %1$s</string>

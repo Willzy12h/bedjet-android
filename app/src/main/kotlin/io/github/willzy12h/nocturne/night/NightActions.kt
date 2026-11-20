@@ -2106,13 +2106,19 @@ class NightActions(private val graph: Graph) {
         }
     }
     /** A reviewed runtime keeps its target/night through both dialogues and rechecks the live mode's limit. */
-    suspend fun remoteDuration(label: String, request: CommandRequest): CommandOutcome =
+    suspend fun remoteDuration(label: String, request: CommandRequest, finishAt: java.time.Instant? = null): CommandOutcome =
         owned(label, request.deviceId, MIN_BUDGET_MS, origin = request.origin) {
             if (request.expected != repo.activeNight.value?.identity) return@owned stale()
-            val preset = request.actionPreset ?: return@owned refused(R.string.remote_custom_invalid)
+            val selected = request.actionPreset ?: return@owned refused(R.string.remote_custom_invalid)
             connected {
                 val current = graph.link.latestSourcedStatus()?.takeIf { it.isFrom(request.deviceId) }?.status
                     ?: return@connected refused(R.string.remote_custom_changed)
+                val preset = if (finishAt == null) selected else {
+                    if (current.extra?.programStep != 0) return@connected refused(R.string.remote_custom_changed)
+                    val minutes = manualMinutesUntil(graph.now().toInstant(), finishAt, manualRuntimeMaximum(current))
+                        ?: return@connected refused(R.string.finish_time_invalid)
+                    selected.copy(minutes = minutes)
+                }
                 if (current.mode != preset.mode) return@connected refused(R.string.remote_custom_changed)
                 val leaveProgramme = request.expected != null || (current.extra?.programStep ?: 0) > 0
                 if (leaveProgramme && (current.targetTemperature != preset.temperature || current.fanPercent != preset.fanPercent))
@@ -2139,54 +2145,78 @@ class NightActions(private val graph: Graph) {
             }
         }
 
+    suspend fun selectRemoteMode(label: String, request: CommandRequest, mode: Mode): CommandOutcome {
+        val memory = repo.settings.value.manualFor(request.deviceId, mode)
+        var appliedTemperature: Int? = null
+        return remote(label, endsNight = true, target = request.deviceId, expected = request.expected,
+            confirms = { it.mode == mode && (request.expected == null || it.extra?.programStep == 0) &&
+                (appliedTemperature == null || it.targetTemperature == appliedTemperature) &&
+                (memory?.fanStep == null || it.fanStep == memory.fanStep) }) { controller ->
+            if (memory == null) controller.setMode(mode)
+            else {
+                if (!sentAndConfirmed({ it.mode == mode && it.extra?.programStep == 0 }) { controller.setMode(mode) })
+                    throw BedJetError.Timeout()
+                val live = graph.link.latestStatusFrom(request.deviceId) ?: throw BedJetError.NotConnected()
+                if (live.mode != mode) throw BedJetError.NotConnected()
+                memory.temperature?.let { saved ->
+                    val minimum = maxOf(mode.temperatureRange.first, live.minTemperature)
+                    val maximum = minOf(mode.temperatureRange.last, live.maxTemperature)
+                    if (minimum > maximum) throw BedJetError.InvalidProgram(text(R.string.remote_custom_temperature))
+                    appliedTemperature = saved.coerceIn(minimum, maximum)
+                    controller.setTemperature(saved.coerceIn(minimum, maximum))
+                }
+                memory.fanStep?.let { controller.setFan(it) }
+            }
+        }
+    }
+
+    suspend fun adjustRemoteControl(label: String, request: CommandRequest, mode: Mode,
+        temperature: Int?, fanStep: Int?): CommandOutcome {
+        val device = request.deviceId ?: return refused(R.string.remote_custom_changed)
+        return remote(label, affectsProgramme = true, target = device, expected = request.expected,
+            expectedMode = mode, confirms = { it.mode == mode && (temperature == null || it.targetTemperature == temperature) &&
+                (fanStep == null || it.fanStep == fanStep) },
+            remember = ManualControls(device, mode, temperature, fanStep), announceConfirmation = fanStep == null) { controller ->
+            temperature?.let { controller.setTemperature(it) }
+            fanStep?.let { controller.setFan(it) }
+        }
+    }
+
     /** A Remote-screen change. [confirms] says which BedJet report shows it took effect; without one it is only sent. */
     suspend fun remote(label: String, endsNight: Boolean = false, affectsProgramme: Boolean = false,
         target: String? = repo.settings.value.deviceId(), expected: NightIdentity? = repo.activeNight.value?.identity,
         confirms: ((DeviceStatus) -> Boolean)? = null,
-        announceConfirmation: Boolean = true,
+        announceConfirmation: Boolean = true, expectedMode: Mode? = null, remember: ManualControls? = null,
         work: suspend (BedJetController) -> Unit): CommandOutcome = owned(label, target, MIN_BUDGET_MS) {
         if (endsNight && confirms == null) return@owned refused(R.string.runtime_remote_confirmation_required)
         // The tap's night, captured then: a change queued behind a Start or re-time never converts another night (IR-09).
         if ((endsNight || affectsProgramme) && expected != repo.activeNight.value?.identity) return@owned stale()
         connected {
+            if (expectedMode != null && graph.link.latestStatusFrom(target)?.mode != expectedMode)
+                return@connected refused(R.string.remote_custom_changed)
             advanceGeneration(preserveOffer = !endsNight || repo.activeNight.value?.trackingManual != false)
             // Only lights, beeps and notice acknowledgement leave both the programme and tracking untouched.
             manualChange(label, endsNight, affectsProgramme, confirms, allowCurrentStatus = !endsNight && !affectsProgramme) {
                 work(graph.controller())
-            }.let { if (!announceConfirmation && it.kind == OutcomeKind.CONFIRMED) it.copy(announceInApp = false) else it }
+            }.let { outcome ->
+                if (outcome.kind == OutcomeKind.CONFIRMED && remember?.valid() == true)
+                    repo.updateSettings { it.rememberManual(remember) }
+                if (!announceConfirmation && outcome.kind == OutcomeKind.CONFIRMED) outcome.copy(announceInApp = false) else outcome
+            }
         }
     }
     /** [open] is how the file is opened; tests make it fail. A file that can't be opened throws, so nothing claims it saved. */
-    suspend fun exportDiagnostics(uri: android.net.Uri,
+    suspend fun exportDiagnostics(uri: android.net.Uri, includeAlarmTimes: Boolean = false,
         open: (android.net.Uri) -> java.io.OutputStream? = { context.contentResolver.openOutputStream(it, "wt") }) {
         io.github.willzy12h.nocturne.data.ExportDestination.check(context, uri)
-        val snapshot = diagnostics()
+        val snapshot = diagnostics(includeAlarmTimes)
         withContext(Dispatchers.IO) {
             io.github.willzy12h.nocturne.data.ExportDestination.check(context, uri)
             open(uri)?.use { it.write(snapshot.toByteArray()) }
                 ?: throw java.io.IOException(text(R.string.runtime_export_failed))
         }
     }
-    fun diagnostics(): String = kotlinx.serialization.json.buildJsonObject {
-        put("version", kotlinx.serialization.json.JsonPrimitive(io.github.willzy12h.nocturne.BuildConfig.VERSION_NAME))
-        put("deviceModel", kotlinx.serialization.json.JsonPrimitive(android.os.Build.MODEL))
-        put("phone", io.github.willzy12h.nocturne.platform.PhoneDiagnostics.snapshot(context))
-        put("linkState", kotlinx.serialization.json.JsonPrimitive(graph.link.state.value.name))
-        put("unreadable", kotlinx.serialization.json.JsonArray(repo.unreadable.value.map { kotlinx.serialization.json.JsonPrimitive(it) }))
-        put("originalsBlocked", kotlinx.serialization.json.JsonPrimitive(repo.originalsBlocked.value))
-        put("runtimeReason", kotlinx.serialization.json.JsonPrimitive(repo.runtime.value.reason))
-        put("nightConfidence", kotlinx.serialization.json.JsonPrimitive(repo.activeNight.value?.confidence?.name))
-        put("alarm", AlarmSource.diagnostics(context, repo.settings.value,
-            repo.activeNight.value?.let { repo.profile(it.profileId) } ?: repo.tonightsProfile(),
-            repo.activeNight.value, repo.runtime.value, status.value, graph.now()))
-        put("settings", BackupCodec.json.encodeToJsonElement(Settings.serializer(), repo.settings.value))
-        put("activeNight", repo.activeNight.value?.let { BackupCodec.json.encodeToJsonElement(ActiveNight.serializer(), it) } ?: kotlinx.serialization.json.JsonNull)
-        put("events", BackupCodec.json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(HistoryEvent.serializer()), repo.history.value.flatMap { it.events }.sortedByDescending { it.at }.take(50)))
-        put("notices", BackupCodec.json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(LoggedNotice.serializer()), repo.notices.value.take(50)))
-        put("lastCrash", io.github.willzy12h.nocturne.data.CrashLog.read(context.filesDir)?.let { kotlinx.serialization.json.JsonPrimitive(it) }
-            ?: kotlinx.serialization.json.JsonNull)
-    }.toString()
-
+    fun diagnostics(includeAlarmTimes: Boolean = false): String = supportDiagnostics(graph, includeAlarmTimes)
     private suspend fun publishNight(night: ActiveNight?) {
         repo.setActiveNight(night)
         // A refused/pre-write-failed replacement keeps the same night and its ending intention. A different

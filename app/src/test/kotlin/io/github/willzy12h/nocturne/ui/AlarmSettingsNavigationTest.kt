@@ -100,7 +100,7 @@ class AlarmSettingsNavigationTest {
         val alarm = saved["alarm"]?.jsonObject
         assertNotNull("Diagnostics export must include the alarm selection decision", alarm)
         assertEquals("UNKNOWN_SOURCE", alarm!!["reason"]?.jsonPrimitive?.content)
-        assertEquals("Alarm 06:30 from an unnamed app — tap to use it tonight", alarm["explanation"]?.jsonPrimitive?.content)
+        assertEquals(false, alarm.containsKey("explanation"))
         assertEquals("ASK", alarm["unnamedAlarms"]?.jsonPrimitive?.content)
     }
 }

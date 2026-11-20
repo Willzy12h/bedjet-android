@@ -302,7 +302,7 @@ class ChargerUnreadableDiagnosticsTest {
             setOf("profiles.json", "slot-backups.json"),
             diagnostics["unreadable"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet())
         assertEquals(true, diagnostics["originalsBlocked"]?.jsonPrimitive?.boolean)
-        assertEquals("The saved programme could not be checked.", diagnostics["runtimeReason"]?.jsonPrimitive?.content)
+        assertEquals(true, diagnostics["hasRuntimeReason"]?.jsonPrimitive?.boolean)
         assertEquals("UNKNOWN", diagnostics["nightConfidence"]?.jsonPrimitive?.content)
         assertEquals("UNKNOWN", diagnostics["activeNight"]?.jsonObject?.get("confidence")?.jsonPrimitive?.content)
         assertTrue("The export says what the phone allows in the background", diagnostics["phone"]!!.jsonObject.containsKey("recentExits"))

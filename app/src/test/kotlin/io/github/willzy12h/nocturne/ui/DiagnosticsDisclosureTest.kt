@@ -55,7 +55,10 @@ class DiagnosticsDisclosureTest {
         // No crash yet, so the field is there and empty; the explanation names it either way.
         assertEquals(JsonNull, saved.getValue("lastCrash"))
         val alarm = saved.getValue("alarm").jsonObject
-        assertEquals(ALARM_AT, ZonedDateTime.parse(alarm.getValue("alarmAt").jsonPrimitive.content).toInstant())
+        assertTrue("Precise alarm times are opt-in", "alarmAt" !in alarm)
+        val detailed = Json.parseToJsonElement(ui.graph.actions.diagnostics(includeAlarmTimes = true)).jsonObject
+        assertEquals(ALARM_AT, ZonedDateTime.parse(detailed.getValue("alarm").jsonObject.getValue("alarmAt").jsonPrimitive.content).toInstant())
+        assertTrue(saved.getValue("settings").jsonObject.keys.none { it in setOf("targetDevice", "rememberedBedJets", "manualControls") })
         assertEquals(ALARM_SOURCE, alarm.getValue("creatorPackage").jsonPrimitive.content)
 
         ui.tab(ui.s(R.string.tab_settings))

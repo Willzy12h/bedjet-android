@@ -45,15 +45,12 @@ Uninstalling Nocturne deletes all of this. You can also delete sleep history in 
 - **Companion device presence (optional)**: if you allow it, Android tells Nocturne when your BedJet is in range so
   the widget can reconnect. This is handled by Android and nothing is recorded beyond the setting.
 - **The last crash**: if Nocturne crashes, it saves the error's technical trace (the time, the app version and the
-  code that failed) in its own storage, replacing any earlier one. It contains no personal data, isn't backed up, and
-  only leaves the phone inside a diagnostics file you save yourself.
+  code that failed) in its own storage, replacing any earlier one. It stays in app storage and is excluded from backups. The diagnostics export selects only Nocturne code locations from this trace.
 
 ## Files you export
 
 Backups, history exports and diagnostics are only written when you ask, to a location you pick. Once saved, those
-files are under your control. A diagnostics file contains the phone model, app settings (including the chosen
-BedJet), tonight's state, your next alarm time and which app set it, recent night events and notices, and the last
-crash trace if there is one. It contains no Health Connect data. Nothing is sent anywhere unless you share the file yourself.
+files are under your control. A diagnostics file contains phone and Bluetooth state, numbered device labels, programme confidence, the alarm source package, relative timings, event types and Nocturne crash code locations. You can include exact alarm times for a timing investigation. It contains no Health Connect data. Nothing is sent anywhere unless you share the file yourself.
 
 ## Children
 

@@ -12,7 +12,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import java.time.Instant
 
 /**
  * For the diagnostics export: what the phone allows the app to do in the background, and why Android last closed it.
@@ -47,10 +46,8 @@ internal object PhoneDiagnostics {
         runCatching { activity?.getHistoricalProcessExitReasons(packageName, 0, EXITS).orEmpty() }.getOrDefault(emptyList())
             .map { exit ->
                 buildJsonObject {
-                    put("at", JsonPrimitive(Instant.ofEpochMilli(exit.timestamp).toString()))
                     put("reason", JsonPrimitive(reasonName(exit.reason)))
                     put("importance", JsonPrimitive(exit.importance))
-                    put("description", exit.description?.let(::JsonPrimitive) ?: JsonNull)
                 }
             }
 

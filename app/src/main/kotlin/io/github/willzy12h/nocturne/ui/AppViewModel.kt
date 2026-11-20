@@ -472,12 +472,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     internal fun remoteCaptured(label: String, request: io.github.willzy12h.nocturne.night.CommandRequest,
         mode: io.github.willzy12h.nocturne.core.protocol.Mode) {
-        act { graph.actions.remote(label, endsNight = true, target = request.deviceId, expected = request.expected,
-            confirms = { it.mode == mode && (request.expected == null || it.extra?.programStep == 0) }) { it.setMode(mode) } }
+        act { graph.actions.selectRemoteMode(label, request, mode) }
     }
 
-    internal fun remoteDuration(label: String, request: CommandRequest) = act {
-        graph.actions.remoteDuration(label, request.copy(origin = CommandOrigin.APP))
+    internal fun adjustRemoteControl(label: String, mode: io.github.willzy12h.nocturne.core.protocol.Mode,
+        temperature: Int? = null, fanStep: Int? = null, onFinished: () -> Unit) {
+        val captured = graph.actions.capture(NightActions.Command.OFF)
+        act(onFinished = onFinished) { graph.actions.adjustRemoteControl(label, captured, mode, temperature, fanStep) }
+    }
+
+    internal fun remoteDuration(label: String, request: CommandRequest, finishAt: java.time.Instant? = null) = act {
+        graph.actions.remoteDuration(label, request.copy(origin = CommandOrigin.APP), finishAt)
     }
 
     /** A Remote control: sent straight to the BedJet. */
@@ -773,11 +778,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Writes the diagnostics file the person chose (NightActions.diagnostics: no private preferences). */
-    fun exportDiagnostics(uri: android.net.Uri,
+    fun exportDiagnostics(uri: android.net.Uri, includeAlarmTimes: Boolean = false,
         open: ((android.net.Uri) -> java.io.OutputStream?)? = null) {
         val app = getApplication<Application>()
         graph.scope.launch {
-            runCatching { if (open == null) graph.actions.exportDiagnostics(uri) else graph.actions.exportDiagnostics(uri, open) }
+            runCatching { if (open == null) graph.actions.exportDiagnostics(uri, includeAlarmTimes) else graph.actions.exportDiagnostics(uri, includeAlarmTimes, open) }
                 .onSuccess { _messages.tryEmit(app.getString(R.string.settings_diagnostics_saved)) }
                 .onFailure { if (it is CancellationException) throw it
                     _messages.tryEmit(app.getString(R.string.settings_diagnostics_failed, it.message.orEmpty())) }

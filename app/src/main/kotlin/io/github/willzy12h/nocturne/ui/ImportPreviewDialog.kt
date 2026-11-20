@@ -188,6 +188,8 @@ private fun readableImportTime(value: String): String = runCatching {
     "quickControlsCollapsed" -> R.string.import_setting_quick_collapsed
     "collapsedTonightSections" -> R.string.import_setting_sections_collapsed
     "tonightSectionOrder" -> R.string.import_setting_section_order
+    "allowLockedOff" -> R.string.allow_locked_off
+    "manualControls" -> R.string.manual_controls_title
     "quietNightNotification" -> R.string.import_setting_quiet_notification
     "sleepSectionOrder", "sleepRangeDays" -> R.string.import_setting_sleep_page
     "historyKeepDays" -> R.string.import_setting_history_keep
