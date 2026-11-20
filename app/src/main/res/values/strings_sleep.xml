@@ -14,13 +14,12 @@
     <string name="sleep_loading">Reading sleep sessions…</string>
     <string name="sleep_no_saved_in_range">No saved BedJet records in this range.</string>
     <string name="sleep_tracker_interval">Tracker session %1$s to %2$s</string>
-    <string name="sleep_bedjet_start">BedJet record started at %1$s</string>
     <string name="sleep_planned_interval">Planned %1$s to %2$s</string>
     <string name="sleep_nap_date">Nap · %1$s</string>
     <string name="sleep_standby_event">BedJet reported standby.</string>
-    <string name="sleep_observed_standby">BedJet reported standby at %1$s.</string>
+    <string name="sleep_observed_standby">Standby observed at %1$s.</string>
     <string name="sleep_last_reading">Last BedJet reading at %1$s. Stop time unknown.</string>
-    <string name="sleep_last_running">Last recorded running at %1$s. Stop time unknown.</string>
+    <string name="sleep_last_running">Last seen running at %1$s. Stop time unknown.</string>
     <string name="sleep_confirmed_start_time">Start confirmed at %1$s.</string>
     <string name="sleep_time_between_reports">%1$s between the start and standby reports.</string>
     <string name="sleep_stop_unknown">BedJet stop time unknown.</string>
@@ -33,12 +32,27 @@
     <string name="sleep_move_down">Move section down</string>
     <string name="sleep_average_asleep">Average asleep</string>
     <string name="sleep_usual_bedtime">Usual bedtime</string>
-    <string name="sleep_trend_hint">Each bar shows the selected or longest tracker session on that date. Tap a date, then use the arrows to browse sessions.</string>
+    <string name="sleep_trend_hint">Tap a date, then use the arrows to browse sessions.</string>
     <string name="sleep_trend_none">Health Connect returned no tracker sessions for these dates.</string>
-    <plurals name="sleep_trend_accessibility">
-        <item quantity="one">%1$d tracker session. Average asleep %2$s.</item>
-        <item quantity="other">%1$d tracker sessions. Average asleep %2$s.</item>
+    <string name="sleep_trend_no_sleep">No tracker sleep stages in this range.</string>
+    <plurals name="sleep_average_nights">
+        <item quantity="one">From %1$d tracked night</item>
+        <item quantity="other">From %1$d tracked nights</item>
     </plurals>
+    <plurals name="sleep_trend_accessibility">
+        <item quantity="one">%1$d tracked night. Average asleep %2$s.</item>
+        <item quantity="other">%1$d tracked nights. Average asleep %2$s.</item>
+    </plurals>
+    <string name="sleep_bedjet_use">BedJet use</string>
+    <string name="sleep_bedjet_use_duration">Bars show time between the start and standby reports.</string>
+    <string name="sleep_bedjet_use_partial">Bars show time between start and standby reports. Outlines mark incomplete records.</string>
+    <plurals name="sleep_bedjet_dates">
+        <item quantity="one">BedJet use. %1$d date with a saved record.</item>
+        <item quantity="other">BedJet use. %1$d dates with saved records.</item>
+    </plurals>
+    <string name="sleep_bedjet_interval_unknown">Incomplete BedJet record.</string>
+    <string name="sleep_previous_bedjet_date">Previous BedJet date</string>
+    <string name="sleep_next_bedjet_date">Next BedJet date</string>
     <string name="sleep_trend_hours">%1$d h</string>
     <string name="sleep_previous_night">Previous session</string>
     <string name="sleep_next_night">Next session</string>

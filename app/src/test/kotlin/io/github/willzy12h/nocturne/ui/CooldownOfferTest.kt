@@ -81,8 +81,22 @@ class CooldownOfferTest {
         ui.compose.onNodeWithTag("profiles-new").performClick()
         val preset = Presets.summerCool
         ui.compose.onNode(hasText(preset.name) and hasClickAction() and hasAnyAncestor(isDialog())).performScrollTo().performClick()
+        ui.compose.onNodeWithTag("editor-after-waking-heading").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithText("20 min total, then Off").performScrollTo().assertIsDisplayed()
         ui.compose.onNodeWithTag("editor-phase-AFTER_WAKE-0").performScrollTo().assertTextContains("20 min", substring = true)
             .assertTextContains("40%", substring = true)
+    }
+
+    @Test fun existingProfileWithNoAfterWakeShowsWhenItSwitchesOff() {
+        profiles()
+        val more = "profile-more-${empty.id}"
+        ui.compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasTestTag(more))
+        ui.compose.onNodeWithTag(more).performClick()
+        ui.compose.onNodeWithText(ui.s(R.string.action_edit)).performClick()
+        ui.compose.onNodeWithTag("editor-after-waking-heading").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithText("Switches off at wake").performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithTag("editor-add-AFTER_WAKE").performScrollTo().assertHasClickAction()
+        assertEquals(empty.afterWake, ui.graph.repository.profiles.value.single { it.id == empty.id }.afterWake)
     }
 
     @Test fun newProfileFromPresetWithoutAfterWakeStartsWithCooldown() {

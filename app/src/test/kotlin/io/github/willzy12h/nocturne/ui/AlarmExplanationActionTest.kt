@@ -85,7 +85,7 @@ class AlarmExplanationActionTest {
 
     @Test fun unknownSourceExplainsTheMissingAlarmAndStillOffersTheAlarmAppChoice() {
         show(unknown = true)
-        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performScrollTo().assertIsDisplayed().performClick()
+        ui.compose.onNodeWithText("Unnamed alarm at 06:30").performScrollTo().assertIsDisplayed().performClick()
         ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
         ui.compose.onNodeWithTag("missing-alarm-tonight").assertExists()
         ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
@@ -97,7 +97,7 @@ class AlarmExplanationActionTest {
 
     @Test fun noAlarmAsksWhetherTheAlarmIsInAnotherApp() {
         show(noAlarm = true)
-        ui.compose.onNodeWithText("No alarm found — profile wake 07:00 · Alarm in another app?").assertIsDisplayed().performClick()
+        ui.compose.onNodeWithText("No alarm found · using your profile wake").assertIsDisplayed().performClick()
         ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
         ui.compose.onNodeWithText("Saved for tonight on this phone.", substring = true)
             .assertExists()
@@ -110,7 +110,7 @@ class AlarmExplanationActionTest {
 
     @Test fun setTonightsWakeFromTheMissingAlarmDialogOpensTheTimePicker() {
         show(noAlarm = true)
-        ui.compose.onNodeWithText("No alarm found — profile wake 07:00 · Alarm in another app?").performClick()
+        ui.compose.onNodeWithText("No alarm found · using your profile wake").performClick()
         ui.compose.onNodeWithTag("missing-alarm-tonight").performScrollTo().performClick()
         ui.compose.onNodeWithTag("missing-alarm-dialog").assertDoesNotExist()
         ui.compose.waitForIdle()
@@ -122,7 +122,7 @@ class AlarmExplanationActionTest {
         show(unknown = true)
         // Not used by itself: tonight still ends at the profile's wake time until the person taps.
         assertEquals("07:00", Format.clock(ui.model.startPreview(ui.model.tonightsProfile()!!).wake.time))
-        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performScrollTo().performClick()
+        ui.compose.onNodeWithText("Unnamed alarm at 06:30").performScrollTo().performClick()
         ui.compose.onNodeWithTag("missing-alarm-use-unnamed").performScrollTo().assertIsDisplayed().performClick()
         ui.compose.onNodeWithTag("missing-alarm-dialog").assertDoesNotExist()
         ui.waitUntil { ui.graph.repository.settings.value.tonightOverride != null }
@@ -134,14 +134,14 @@ class AlarmExplanationActionTest {
     @Test fun ignoringUnnamedAlarmsOffersNoOneTapUse() {
         ui.compose.runOnIdle { runBlocking { ui.graph.repository.updateSettings { it.copy(unnamedAlarms = UnnamedAlarms.IGNORE) } } }
         show(unknown = true)
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: source unknown — tap to change").performScrollTo().performClick()
+        ui.compose.onNodeWithTag("tonight-alarm-row").performScrollTo().performClick()
         ui.compose.onNodeWithTag("missing-alarm-dialog").assertExists()
         ui.compose.onNodeWithTag("missing-alarm-use-unnamed").assertDoesNotExist()
     }
 
     @Test fun alwaysUsingUnnamedAlarmsIsConfirmedFirst() {
         show(unknown = true)
-        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performScrollTo().performClick()
+        ui.compose.onNodeWithText("Unnamed alarm at 06:30").performScrollTo().performClick()
         ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
         ui.compose.onNodeWithTag("unnamed-alarms-ask").performScrollTo().assertIsDisplayed()
         ui.compose.onNodeWithTag("unnamed-alarms-always").performScrollTo().performClick()
@@ -155,14 +155,18 @@ class AlarmExplanationActionTest {
 
     @Test fun profileAlarmOptOutOpensThatProfilesWakeSettings() {
         show(profileOnly = true)
-        ui.compose.onNodeWithText("Alarm 06:30 ignored: alarms off for this profile — tap to change").assertIsDisplayed().performClick()
+        ui.compose.onNodeWithTag("tonight-alarm-row").performScrollTo().performClick()
+        ui.compose.onNodeWithText("Alarm 06:30 ignored: alarms off for this profile").assertExists()
+        ui.compose.onNodeWithTag("alarm-row-open-settings").performClick()
         assertEquals(0, sourceRequests)
         assertEquals(listOf(ui.model.tonightsProfile()), profileRequests)
     }
 
     @Test fun changedAlarmOnASavedWakeOpensTheAlarmAppChoiceWithoutImplyingAProfileEditAppliesTonight() {
         show(savedWake = true)
-        ui.compose.onNodeWithText("Saved alarm wake 07:00 · Next alarm 06:30 from Samsung Clock not applied").assertIsDisplayed().performClick()
+        ui.compose.onNodeWithTag("tonight-alarm-row").performScrollTo().performClick()
+        ui.compose.onNodeWithText("Saved alarm wake 07:00 · Next alarm 06:30 from Samsung Clock not applied").assertExists()
+        ui.compose.onNodeWithTag("alarm-row-open-settings").performClick()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()
         assertEquals(0, sourceRequests)
         assertEquals(emptyList<Profile>(), profileRequests)
@@ -171,7 +175,7 @@ class AlarmExplanationActionTest {
 
     @Test fun theAlarmAppChoiceOffersAFixedWakeTimeForTonightsProfile() {
         show(unknown = true)
-        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight").performClick()
+        ui.compose.onNodeWithText("Unnamed alarm at 06:30").performClick()
         ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
         val profile = ui.model.tonightsProfile()!!
         ui.compose.onNodeWithText("Use a fixed wake time for ${profile.name}").performScrollTo().performClick()

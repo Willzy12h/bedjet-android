@@ -5,6 +5,8 @@ import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.plan.PlannedStep
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
+import io.github.willzy12h.nocturne.core.store.EventKind
+import io.github.willzy12h.nocturne.core.store.HistoryEvent
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.platform.SleepStage
 import io.github.willzy12h.nocturne.sleep.SleepInsights.AWAKE
@@ -54,13 +56,41 @@ class SleepInsightsTest {
         assertEquals(mapOf(AWAKE to 42, LIGHT to 60, DEEP to 60, REM to 30), figures.stageMinutes)
     }
 
-    @Test fun aSessionWithoutStagesIsOneSleepingStage() {
-        val night = SleepNight.of(bed.toInstant(), bed.plusHours(7).toInstant(), emptyList())
-        val figures = SleepInsights.figures(night)
-        assertEquals(420, figures.asleepMinutes)
-        assertEquals(0, figures.fellAsleepMinutes)
-        assertEquals(0, figures.wakeCount)
-        assertEquals(mapOf(SLEEPING to 420), figures.stageMinutes)
+    @Test fun stageLessSessionsAndUnknownStagesCannotCountTowardsAverageSleep() {
+        val window = SleepNight.of(bed.toInstant(), bed.plusHours(7).toInstant(), emptyList())
+        val unknown = night(bed.minusDays(1), SleepInsights.UNKNOWN to 120)
+        val confirmed = night(bed.minusDays(2), SLEEPING to 360)
+        val napOnConfirmedDate = night(bed.minusDays(2).minusHours(8), LIGHT to 45)
+        val days = listOf(window, unknown, confirmed, napOnConfirmedDate)
+            .map { SleepDay(it.start.atZone(zone).toLocalDate(), it, null, null) }
+        assertEquals(emptyList<SleepStage>(), window.stages)
+        assertEquals(420, SleepInsights.figures(window).inBedMinutes)
+        assertNull(SleepInsights.figures(window).fellAsleepMinutes)
+        assertEquals(0, SleepInsights.averages(days.take(2), zone).nights)
+        val average = SleepInsights.averages(days, zone)
+        assertEquals(1, average.nights)
+        assertEquals(360, average.asleepMinutes)
+    }
+
+    @Test fun reportedStagesOutsideTheWindowCannotInflateTrackerSleep() {
+        val start = bed.toInstant()
+        val end = start.plusSeconds(3600)
+        val night = SleepNight.of(start, end, listOf(SleepStage(start.minusSeconds(900), end.plusSeconds(900), LIGHT)))
+        assertEquals(60, SleepInsights.figures(night).asleepMinutes)
+    }
+
+    @Test fun onlyAnObservedStandbyAfterTheLatestStartAndRunningReportGivesDuration() {
+        val restart = bed.plusHours(2)
+        val resumed = record("resume", bed, bed.plusHours(8)).copy(bedJetRunConfirmed = true,
+            events = listOf(bed, restart).map { HistoryEvent(it.toString(), EventKind.STARTED, "Confirmed") },
+            lastRunningObservedAt = restart.plusMinutes(20).toString(),
+            standbyObservedAt = restart.plusMinutes(10).toString(), confirmedCompletionAt = bed.plusHours(8).toString())
+        val contradicted = SleepInsights.bedJetEvidence(resumed)
+        assertEquals(restart.toInstant(), contradicted.confirmedStart)
+        assertEquals(restart.plusMinutes(20).toInstant(), contradicted.lastRunning)
+        assertNull(contradicted.standby)
+        assertNull(contradicted.minutesBetweenReports)
+        assertEquals(25, SleepInsights.bedJetEvidence(resumed.copy(standbyObservedAt = restart.plusMinutes(25).toString())).minutesBetweenReports)
     }
 
     @Test fun aNightWithNoSleepHasNoFellAsleepTime() {

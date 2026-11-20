@@ -210,7 +210,6 @@
     <string name="reading_demo">Demo reading</string>
     <string name="reading_recent">Recent BedJet reading</string>
     <string name="remote_air_room">Air %1$s · room %2$s</string>
-    <string name="remote_program_step">Running step %1$d of a night</string>
     <string name="remote_temperature_set">Temperature set</string>
     <string name="remote_fan_set">Fan set</string>
     <string name="remote_run_for">Run for</string>

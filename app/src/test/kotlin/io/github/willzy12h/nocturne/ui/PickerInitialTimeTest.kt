@@ -151,6 +151,29 @@ class PickerInitialTimeTest {
         assertEquals(before, graph.repository.settings.value.tonightOverride)
     }
 
+    @Test fun napOptionsApplyACustomDurationToThisRunOnly() {
+        val before = graph.repository.settings.value.napPreset
+        compose.onNodeWithTag("quick-nap-options").performScrollTo().performClick()
+        val start = compose.onNodeWithTag("nap-start-duration")
+        compose.onNodeWithTag("nap-for-30").performScrollTo().performClick()
+        start.assertTextContains("Start 30-minute nap")
+        val custom = compose.onNodeWithTag("nap-custom-duration")
+        custom.performScrollTo().performTextReplacement("0")
+        start.assertIsNotEnabled()
+        custom.performTextReplacement("1.5")
+        start.assertIsNotEnabled()
+        custom.performTextReplacement("105")
+        start.assertIsEnabled().assertTextContains("Start 105-minute nap").performClick()
+
+        waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED }
+        val active = graph.repository.activeNight.value!!
+        assertTrue(active.isNap)
+        assertFalse(active.wakeFromAlarm)
+        assertEquals(graph.now().plusMinutes(105).toString(), active.wakeAt)
+        assertEquals(graph.now().plusMinutes(115).toString(), active.endsAt)
+        assertEquals(before, graph.repository.settings.value.napPreset)
+    }
+
     @Test fun outOfRangeWakeStartsTheNightOnceAFittingWakeIsChosen() {
         val now = graph.now()
         save { updateSettings { it.setWakeOverride(now.plusMinutes(20), now) } }

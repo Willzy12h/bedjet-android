@@ -61,14 +61,24 @@ class SleepPageTest {
         } }
         ui.tab("Sleep")
         ui.compose.onNodeWithText("1 BedJet record").assertExists()
+        fun verifyRow(count: Int) {
+            ui.compose.onNodeWithTag("sleep-list").performScrollToKey("trend")
+            ui.compose.onNodeWithText("No tracker sleep stages in this range.").assertExists()
+            ui.compose.onNodeWithTag("sleep-trend-bars").assertDoesNotExist()
+            val label = if (count == 1) "1 date with a saved record." else "$count dates with saved records."
+            ui.compose.onNodeWithTag("sleep-bedjet-use").assertContentDescriptionEquals("BedJet use. $label")
+        }
+        verifyRow(1)
         for ((range, count) in listOf(30 to 2, 90 to 3)) {
+            ui.compose.onNodeWithTag("sleep-list").performScrollToKey("header")
             ui.compose.onNode(hasText("$range days") and hasClickAction() and hasAnyAncestor(hasTestTag("sleep-range"))).performClick()
             ui.waitUntil { ui.graph.repository.settings.value.sleepRangeDays == range }
             ui.compose.onNodeWithText("$count BedJet records").assertExists()
+            verifyRow(count)
         }
         ui.compose.onNodeWithTag("sleep-list").performScrollToKey("history")
-        ui.compose.onNodeWithText("Start confirmed at ${Format.dayClock(start)}. BedJet reported standby at ${Format.dayClock(standby)}.",
-            substring = true, useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithText("Start confirmed at ${Format.dayClock(start)}.", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+        ui.compose.onNodeWithText("Standby observed at ${Format.dayClock(standby)}.", useUnmergedTree = true).assertExists()
     }
 
     @Test fun movingASectionWithTheAccessibilityActionSavesTheOrder() {
@@ -148,7 +158,10 @@ class SleepPageTest {
     @Test fun lastNightIsOnlyTheNightThatEndedThisMorningOrYesterday() {
         val today = java.time.LocalDate.of(2026, 10, 30)
         val zone = java.time.ZoneId.of("Europe/London")
-        val night = io.github.willzy12h.nocturne.sleep.SleepNight(today.atStartOfDay(zone).toInstant(), today.atStartOfDay(zone).plusHours(7).toInstant(), emptyList())
+        val start = today.atStartOfDay(zone).toInstant()
+        val end = today.atStartOfDay(zone).plusHours(7).toInstant()
+        val night = io.github.willzy12h.nocturne.sleep.SleepNight.of(start, end, listOf(
+            io.github.willzy12h.nocturne.platform.SleepStage(start, end, io.github.willzy12h.nocturne.sleep.SleepInsights.SLEEPING)))
         fun day(date: java.time.LocalDate) = io.github.willzy12h.nocturne.sleep.SleepDay(date, night, null, null)
         assertEquals(today, lastNight(listOf(day(today), day(today.minusDays(1))), today)?.date)
         assertEquals(today.minusDays(1), lastNight(listOf(day(today.minusDays(1))), today)?.date)
@@ -156,5 +169,6 @@ class SleepPageTest {
         val nap = day(today).copy(record = NightRecord("nap", "p", "Quick nap", night.start.toString(), night.end.toString(), false, isNap = true))
         assertNull(lastNight(listOf(nap), today))
         assertEquals(day(today.minusDays(1)), lastNight(listOf(nap, day(today.minusDays(1))), today))
+        assertNull(lastNight(listOf(day(today).copy(sleep = night.copy(stages = emptyList()))), today))
     }
 }

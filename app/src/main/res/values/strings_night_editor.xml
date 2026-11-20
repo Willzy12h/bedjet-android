@@ -5,7 +5,6 @@
     <string name="parity_status_connected">connected</string>
     <string name="parity_status_connecting">connecting…</string>
     <string name="parity_status_offline">offline</string>
-    <string name="parity_status_running">%1$s · running</string>
     <string name="parity_status_sending">Sending…</string>
     <string name="parity_status_demo">Demo · no BedJet connected</string>
     <string name="parity_remote_link">Remote ›</string>
@@ -20,8 +19,6 @@
     <string name="parity_summary_single">%1$s %2$s</string>
     <string name="tonight_start_at">Start at %1$s</string>
     <string name="parity_quick_presets">Quick presets</string>
-    <string name="parity_fan_step">Fan %1$d%% · step %2$d of %3$d</string>
-    <string name="parity_next">Next: %1$s %2$s at %3$s</string>
     <string name="parity_change_wake">Change wake</string>
     <string name="parity_end_night">End night</string>
     <string name="parity_show_detail">Show the night in detail</string>
@@ -61,6 +58,8 @@
     <string name="parity_group_wake">Wake up</string>
     <string name="parity_group_wake_alarm">Wake up · before alarm</string>
     <string name="parity_group_after">After waking</string>
+    <string name="editor_off_at_wake">Switches off at wake</string>
+    <string name="editor_after_wake_then_off">%1$s total, then Off</string>
     <string name="parity_any_length">%1$s · any length</string>
     <string name="parity_add_hint">These are starting points. You set the exact temperature, fan and length next: anything from 1 minute to 12 hours. Turbo is always 10 minutes.</string>
     <string name="parity_add_next">Next: set it up</string>

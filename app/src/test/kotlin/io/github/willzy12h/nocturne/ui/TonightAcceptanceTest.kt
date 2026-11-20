@@ -150,25 +150,22 @@ class TonightAcceptanceTest {
 
     @Test fun noAlarmShowsTheProfileWakeTimeWithOneExplanation() {
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile wake time", substring = true)
-        ui.checkLayout(ui.compose.onNodeWithText("alarms off for this profile", substring = true), "Wake explanation")
+        ui.checkLayout(ui.compose.onNodeWithTag("tonight-alarm-row"), "Wake explanation").assertTextContains("Using your profile wake", substring = true)
     }
 
     @Test fun explicitTonightOverrideWinsOverAnAcceptedPhoneAlarm() {
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:45", substring = true)
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Tonight-only wake", substring = true)
+        ui.compose.onNodeWithTag("tonight-alarm-row").assertTextContains("Tonight-only wake", substring = true)
     }
 
     @Test fun tooSoonPhoneAlarmShowsTheWindowFallback() {
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile wake time", substring = true)
-        ui.checkLayout(ui.compose.onNodeWithText("alarms off for this profile", substring = true), "Wake explanation")
+        ui.checkLayout(ui.compose.onNodeWithTag("tonight-alarm-row"), "Wake explanation").assertTextContains("Using your profile wake", substring = true)
     }
 
     @Test fun tooLatePhoneAlarmShowsTheWindowFallback() {
         ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Profile wake time", substring = true)
-        ui.checkLayout(ui.compose.onNodeWithText("alarms off for this profile", substring = true), "Wake explanation")
+        ui.checkLayout(ui.compose.onNodeWithTag("tonight-alarm-row"), "Wake explanation").assertTextContains("Using your profile wake", substring = true)
     }
 
     @Test fun profilesUseTheReadableSimpleTimelineEvenWhenTheCurveStyleIsSaved() {

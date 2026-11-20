@@ -81,7 +81,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.night.ChangeKind
@@ -152,6 +151,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val needsWake = night == null && plan == null && preview?.durationProblem != null && overridable
     var nightWakeOffer by rememberSaveable { mutableStateOf(false) }
     val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, night, runtime, nightStatus, previewWake = preview?.wake)
+    val clockApps by model.clockApps.collectAsStateWithLifecycle()
+    val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
+    val showAlarmRow = night?.isNap != true && night?.isTestRun != true && !explanation.isStrayAlarm(clockApps, calendarApps)
     var choosingAlarmApps by remember { mutableStateOf(false) }
     if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false }) {
         // The other way out of an unwanted alarm: this profile's own wake time, or a time for tonight only.
@@ -204,7 +206,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val originalsBlocked by model.originalsBlocked.collectAsStateWithLifecycle()
     val firstRun = restoreOffered && !settings.demoMode && settings.targetDevice == null && night == null &&
         settings.rememberedBedJets.isEmpty() && !fullSetup && unreadable.isEmpty() && !restoreUnfinished && !originalsBlocked
-    val current = if (confirmed) plan?.stepAt(now) else null
     val profileName = profile?.name ?: night?.profile?.name ?: stringResource(R.string.tonights_night)
 
     Box(modifier.fillMaxSize()) {
@@ -215,9 +216,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             RestoreOfferCard(model)
             return@Column
         }
-        StatusLine(model, runningName = profileName.takeIf { confirmed && night?.trackingManual == false }, onRemote = onOpenRemote)
+        StatusLine(model, onRemote = onOpenRemote)
         BluetoothBanner(model)
-        HomeReading(model, settings, current?.let { (index, step) -> Triple(step, index + 1, plan?.steps?.size ?: 0) }, sending.value)
+        BedJetReadings(model, settings, "home", keepTemperaturesWhileDisconnected = false, sending = sending.value)
         RestoreOfferCard(model)
         SetupChecklistCard(model)
 
@@ -231,8 +232,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     Modifier.testTag("tonight-change"))
             }
             if (night != null) {
-                if (settings.demoMode || !confirmed || night.trackingManual || night.isTestRun || night.isNap)
-                    Text(profileName, color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(profileName, color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 if (!confirmed || night.trackingManual) {
                     val state = stringResource(when (nightStatus.confidence ?: night.confidence) {
                         Confidence.PENDING -> R.string.tonight_state_pending
@@ -289,9 +289,13 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                         }, tick, TextAlign.Start)
                     Tick(if (night != null && confirmed) stringResource(R.string.parity_now, Format.clock(now)) else summary.orEmpty(),
                         tick, TextAlign.Center)
-                    // The wake source stays visible under the time: alarm, tonight-only or the profile's fallback.
-                    Tick(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: ((if (night != null) wakeTime else stringResource(R.string.parity_wake, wakeTime)) +
-                        "\n" + stringResource(wakeSource)),
+                    val wakeLabel = if (night != null) wakeTime else stringResource(R.string.parity_wake, wakeTime)
+                    val wakeTick = when {
+                        end != null -> "${end.label} ${Format.clock(end.at)}"
+                        showAlarmRow && night == null && explanation.unnamedOffer == null -> wakeLabel
+                        else -> "$wakeLabel\n${stringResource(wakeSource)}"
+                    }
+                    Tick(wakeTick,
                         tick.testTag("tonight-fixed-wake").then(if (overridable) Modifier.clickable(onClick = pickWake) else Modifier), TextAlign.End)
                 }
                 if (end == null && phoneAlarm != null && !phoneAlarm.isEqual(p.wake))
@@ -315,17 +319,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                         if (needsWake) nightWakeOffer = true else model.run(Command.START_NIGHT, selected.id)
                     })
             } else {
-                plan?.steps?.getOrNull((current?.first ?: -1) + 1)?.takeIf { confirmed }?.let { next ->
-                    val stripe = tokens.stepColor(next.step.mode, next.step.temperature)
-                    StripeTile(stripe = stripe, title = stringResource(R.string.parity_next, modeName(next.step.mode),
-                            if (next.step.mode.usesTemperature) tempText(next.step.temperature, settings.fahrenheit) else "",
-                            Format.clock(next.startsAt)).trimEnd(), subtitle = null,
-                        titleFontWeight = FontWeight.Bold, level = TintLevel.ON, modifier = Modifier.fillMaxWidth().testTag("tonight-next"),
-                        icon = { Box(Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(stripe.copy(alpha = .22f)),
-                            contentAlignment = Alignment.Center) {
-                            Icon(painterResource(modeIcon(next.step.mode)), null, Modifier.size(16.dp), tint = stripe)
-                        } })
-                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val pill = ButtonDefaults.buttonColors(containerColor = tokens.surface2, contentColor = tokens.ink)
                     if (overridable) Button(onClick = pickWake, colors = pill, shape = RoundedCornerShape(16.dp),
@@ -361,12 +354,9 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                 if (model.startPreview(selected).plan != null) model.run(Command.START_NIGHT, selected.id)
             }
         }
-        // One line explains the wake; an alarm from a calendar app is simply ignored, without comment. Any other
-        // app's ignored alarm is named, with a tap to choose that app.
-        val clockApps by model.clockApps.collectAsStateWithLifecycle()
-        val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
-        if (night?.isNap != true && !explanation.isStrayAlarm(clockApps, calendarApps)) {
-            AlarmExplanationLine(explanation, openExplanation)
+        if (showAlarmRow) {
+            val displayedWake = explanation.wakeAt?.let { plan?.wake?.isEqual(it) } == true
+            AlarmExplanationLine(explanation, displayedWake, openExplanation)
         }
         wakeOverride?.takeUnless { night?.isNap == true }?.let { override ->
             runCatching { ZonedDateTime.parse(override.expiresAt) }.getOrNull()?.let { lapses ->
@@ -438,39 +428,6 @@ private fun Tick(text: String, modifier: Modifier, align: TextAlign) {
         TextAlign.End -> Alignment.CenterEnd
         else -> Alignment.Center
     }) { Text(text, color = paletteTokens.ink2, fontSize = 12.sp, textAlign = align) }
-}
-
-/** The large reading and its context are based only on the current BedJet receipt; a running night adds its step. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun HomeReading(model: AppViewModel, settings: Settings,
-    step: Triple<io.github.willzy12h.nocturne.core.plan.PlannedStep, Int, Int>? = null, sending: PresetSending? = null) {
-    val status by model.status.collectAsStateWithLifecycle()
-    val live by model.hasLiveStatus.collectAsStateWithLifecycle()
-    val link by model.linkState.collectAsStateWithLifecycle()
-    val tokens = paletteTokens
-    val recent by model.readingFresh.collectAsStateWithLifecycle()
-    val reading = status.takeIf { live && link == LinkState.READY }
-    if (reading == null) {
-        Text(stringResource(R.string.home_reading_unavailable),
-            modifier = Modifier.testTag("home-reading-context"), color = tokens.ink2,
-            style = MaterialTheme.typography.bodyMedium)
-    } else {
-        MeasuredTemperatures(reading, settings, recent, "home") {
-            if (sending != null) {
-                Text("${sending.title}…", modifier = Modifier.testTag("home-sending"), color = tokens.readableText(sending.color),
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text(stringResource(R.string.parity_waiting_bedjet), color = tokens.ink2, fontSize = 12.sp)
-            } else if (reading.mode == Mode.STANDBY) Text(stringResource(R.string.home_idle), color = tokens.ink2,
-                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            else Text(modeName(reading.mode) + if (reading.mode.usesTemperature) " " + tempText(reading.targetTemperature, settings.fahrenheit) else "",
-                color = tokens.readableText(tokens.stepColor(reading.mode, reading.targetTemperature)), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            if (sending == null && step != null) Text(stringResource(R.string.parity_fan_step, reading.fanPercent, step.second, step.third),
-                color = tokens.ink2, fontSize = 12.sp)
-            else if (sending == null && reading.mode.usesFan) Text(stringResource(R.string.timeline_fan, reading.fanPercent),
-                color = tokens.ink2, fontSize = 12.sp)
-        }
-    }
 }
 
 /** Where a wake label sits: the dark headline, the light palette tile, or simple view's final timeline row. */

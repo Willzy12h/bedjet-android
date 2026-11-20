@@ -78,8 +78,8 @@ class WakeFeedbackTest {
     @Test fun theNoAlarmNoteDoesNotContradictATonightOnlyWake() {
         waitFor("Start night now")
         setOverride(graph.now().plusHours(8))
-        waitFor(s(R.string.gpt12_wake_override), substring = true)
-        assertFalse(has("No alarm set, so the profile's wake time is used."))
+        waitFor(s(R.string.alarm_row_tonight))
+        assertFalse(has(s(R.string.alarm_row_missing)))
     }
 
     @Test fun theTonightOnlyWakeSaysWhenItLapses() {

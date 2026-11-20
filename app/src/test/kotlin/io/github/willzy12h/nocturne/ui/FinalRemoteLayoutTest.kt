@@ -70,14 +70,21 @@ class FinalRemoteLayoutTest {
     @Test fun remoteDisplaysBothMeasuredTemperaturesAtLargeText() {
         ui.tab("Remote")
         ui.waitUntil { ui.model.hasLiveStatus.value && ui.model.status.value != null }
-        val state = ui.model.status.value!!
-        val air = Format.temp(state.actualTemperature, false)
-        val room = Format.temp(state.ambientTemperature, false)
         val value = ui.compose.onNodeWithTag("remote-temperature", useUnmergedTree = true).performScrollTo()
         ui.checkLayout(value, "Measured air")
-        value.assertTextEquals(air).assertContentDescriptionEquals(ui.s(R.string.remote_air_room, air, room))
+        // The simulated air warms while the test scrolls. Compare the rendered text and its TalkBack label
+        // with the same current report, allowing a frame for the screen to collect the ViewModel update.
+        ui.waitUntil {
+            val state = ui.model.status.value ?: return@waitUntil false
+            val air = Format.temp(state.actualTemperature, false)
+            val room = Format.temp(state.ambientTemperature, false)
+            val semantics = value.fetchSemanticsNode().config
+            semantics[SemanticsProperties.Text].map { it.text } == listOf(air) &&
+                semantics[SemanticsProperties.ContentDescription] == listOf(ui.s(R.string.remote_air_room, air, room))
+        }
         val ambient = ui.compose.onNodeWithTag("remote-room", useUnmergedTree = true).performScrollTo()
         ui.checkLayout(ambient, "Measured room")
+        val room = Format.temp(ui.model.status.value!!.ambientTemperature, false)
         ambient.assertTextEquals(ui.s(R.string.reading_room, room))
     }
 
@@ -92,21 +99,27 @@ class FinalRemoteLayoutTest {
         fun iconBounds() = ui.compose.onNodeWithTag("reading-mode-icon", useUnmergedTree = true)
             .fetchSemanticsNode().boundsInRoot
         fun moves(expected: Boolean) {
-            clock.advanceTimeBy(32)
+            // Give the new layout and its animation frame clock time to settle after a mode change.
+            clock.advanceTimeBy(96)
             val first = iconBounds()
-            clock.advanceTimeBy(456)
+            val changed = (1..8).map {
+                clock.advanceTimeBy(176)
+                first != iconBounds()
+            }.any { it }
             assertEquals("Mode ${report.value.mode}, recent=${recent.value}, simple=${settings.value.simpleView}",
-                expected, first != iconBounds())
+                expected, changed)
         }
         try {
             AndroidSettings.Global.putFloat(resolver, scale, 1f)
             clock.autoAdvance = false
             ui.compose.runOnUiThread { ui.compose.activity.setContent {
                 NocturneTheme(settings.value, ui.graph.now()) {
-                    MeasuredTemperatures(report.value, settings.value, recent.value, "test") { }
+                    MeasuredTemperatures(report.value, settings.value, recent.value, "test")
                 }
             } }
             moves(true)
+            ui.compose.runOnUiThread { report.value = report.value.copy(mode = Mode.TURBO) }
+            moves(false)
             ui.compose.runOnUiThread { report.value = report.value.copy(mode = Mode.COOL) }
             moves(true)
             ui.compose.runOnUiThread { recent.value = false }

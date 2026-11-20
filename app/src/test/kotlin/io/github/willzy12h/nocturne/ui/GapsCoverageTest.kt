@@ -142,7 +142,7 @@ class GapsCoverageTest {
         assertEquals(alarm.toInstant(), model.nextAlarm.value!!.time.toInstant())
         assertTrue("The 07:00 alarm must qualify before the tonight-only wake takes precedence", model.nextAlarm.value!!.counts)
         compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:00", substring = true)
-            .assertTextContains(s(R.string.gpt12_wake_override), substring = true)
+        compose.onNodeWithTag("tonight-alarm-row").assertTextEquals(s(R.string.alarm_row_tonight))
         compose.onNodeWithText(s(R.string.tonight_start_now)).performScrollTo().performClick()
         waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED }
         val running = graph.repository.activeNight.value!!

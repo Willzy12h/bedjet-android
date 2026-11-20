@@ -73,12 +73,17 @@ class NightActions(private val graph: Graph) {
             origin = defaultCommandOrigin(command))
 
     internal data class NapStart(val request: CommandRequest, val preset: NapPreset, val slot: Int,
-        val profile: Profile?, val wake: ZonedDateTime?, val alarm: AlarmSource.NextAlarm?)
+        val profile: Profile?, val wake: ZonedDateTime?, val alarm: AlarmSource.NextAlarm?, val durationOverride: Int?) {
+        val programmePreset: NapPreset
+            get() = durationOverride?.let { preset.copy(durationMinutes = it) } ?: preset
+    }
 
-    internal fun captureNap(selectedProfile: Profile?, wake: ZonedDateTime? = null, alarm: AlarmSource.NextAlarm? = null): NapStart {
+    internal fun captureNap(selectedProfile: Profile?, wake: ZonedDateTime? = null, alarm: AlarmSource.NextAlarm? = null,
+        durationOverride: Int? = null): NapStart {
+        require(durationOverride == null || (wake == null && alarm == null))
         val settings = repo.settings.value
         return NapStart(capture(Command.START_NIGHT, requireIdentity = true), settings.napPreset, settings.workingSlot,
-            selectedProfile.takeIf { settings.napPreset.useProfileOpening }, wake, alarm)
+            selectedProfile.takeIf { settings.napPreset.useProfileOpening }, wake, alarm, durationOverride)
     }
 
     internal fun napStillCurrent(nap: NapStart): Boolean {
@@ -102,7 +107,7 @@ class NightActions(private val graph: Graph) {
             slotBackupsRefusal(nap.slot)?.let { return@owned it }
             connected {
                 if (!napStillCurrent(nap)) return@connected stale()
-                val prepared = graph.runner().prepareNap(text(R.string.nap_title), nap.preset, nap.wake, nap.alarm != null,
+                val prepared = graph.runner().prepareNap(text(R.string.nap_title), nap.programmePreset, nap.wake, nap.alarm != null,
                     nap.profile, nap.slot, target, request.expected, repo.activeNight.value)
                 if (prepared is Preparation.Ready) advanceGeneration()
                 apply(prepared, R.string.nap_started, validate = {

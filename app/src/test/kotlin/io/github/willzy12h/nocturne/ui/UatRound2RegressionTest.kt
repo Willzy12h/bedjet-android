@@ -70,7 +70,7 @@ class UatRound2RegressionTest {
 
     @Test fun U1_readyWithoutACurrentSelectedReportMustNotSayConnected() {
         val model = model(target = "ble:AA:BB:CC:DD:EE:01")
-        compose.setContent { MaterialTheme { StatusLine(model, runningName = null, onRemote = {}) } }
+        compose.setContent { MaterialTheme { StatusLine(model, onRemote = {}) } }
         compose.onNodeWithTag("status-connection").assertTextContains("connecting", substring = true)
     }
 

@@ -133,14 +133,14 @@ fun alarmSourceName(context: Context, creator: String?): String = when (creator)
     }.getOrDefault(creator)
 }
 
-fun AlarmExplanation.description(context: Context): String {
+fun AlarmExplanation.description(context: Context, includeActionHint: Boolean = true): String {
     fun text(id: Int, vararg args: Any) = context.getString(id, *args)
     val wake = wakeAt.clock()
     val next = alarm?.time.clock()
     val source = alarmSourceName(context, alarm?.identifiedCreator)
     // "Ask each night": the unnamed alarm isn't ignored outright, it waits for a tap.
     fun ignored(): String = if (unnamedOffer != null) text(R.string.alarm_source_unnamed_offer, next)
-        else text(R.string.alarm_source_ignored, next, when (reason) {
+        else text(if (includeActionHint) R.string.alarm_source_ignored else R.string.alarm_source_ignored_details, next, when (reason) {
         AlarmReason.UNKNOWN_SOURCE -> text(R.string.alarm_source_reason_unknown)
         // Name the app, so a stray alarm from a calendar or reminder app is easy to place.
         AlarmReason.SOURCE_NOT_ALLOWED -> text(R.string.alarm_source_reason_other_app, source)
@@ -190,13 +190,6 @@ fun AlarmExplanation.description(context: Context): String {
         else -> ignored()
     }
     return text(R.string.alarm_source_saved_and_current, saved, current)
-}
-
-/** Tonight's line: with no alarm in sight it also asks whether the alarm is in another app, as a tap opens that help. */
-fun AlarmExplanation.lineDescription(context: Context): String {
-    val text = description(context)
-    return if (target == AlarmSettingsTarget.MISSING_ALARM && reason == AlarmReason.NO_ALARM)
-        context.getString(R.string.alarm_source_other_app_question, text) else text
 }
 
 /** An explicit check always reports Android's current answer, even when the selected wake did not change. */

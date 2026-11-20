@@ -54,7 +54,7 @@ class SleepEvidenceTest {
         } }
         compose.onNodeWithText("BedJet nap", substring = true).assertExists()
         compose.onNodeWithText("Tracker session ${Format.clock(start.atZone(zone))} to ${Format.clock(tracker.end.atZone(zone))}").assertExists()
-        compose.onNodeWithText("BedJet reported standby at ${Format.dayClock(start.plusSeconds(900).atZone(zone))}.").assertExists()
+        compose.onNodeWithText("Standby observed at ${Format.dayClock(start.plusSeconds(900).atZone(zone))}.").assertExists()
     }
 
     @Test fun plannedCompletionWithoutAStandbyReportOnlyShowsTheLastReading() {
@@ -67,7 +67,26 @@ class SleepEvidenceTest {
         val day = SleepDay(start.atZone(zone).toLocalDate(), null, record, null)
         compose.setContent { NocturneTheme { SleepNightChart(day, zone, false, null) } }
         compose.onNodeWithText("Last BedJet reading at ${Format.dayClock(reading.atZone(zone))}. Stop time unknown.").assertExists()
-        compose.onNodeWithText("BedJet reported standby", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Standby observed", substring = true).assertDoesNotExist()
+    }
+
+    @Test fun theBedJetRowOpensItsOwnRecordOnTheSameDateAsASeparateTrackerSession() {
+        val zone = ZoneOffset.UTC
+        val date = start.atZone(zone).toLocalDate()
+        val tracker = SleepNight.of(start, start.plusSeconds(3600), listOf(SleepStage(start, start.plusSeconds(3600), SleepInsights.LIGHT)))
+        val overnight = SleepDay(date, tracker, null, null)
+        val run = io.github.willzy12h.nocturne.core.store.NightRecord("nap", "p", "Quick nap",
+            start.plusSeconds(7200).toString(), start.plusSeconds(10800).toString(), false, isNap = true,
+            lastRunningObservedAt = start.plusSeconds(9000).toString())
+        val bedJet = SleepDay(date, null, run, null)
+        var chosen: SleepDay? = null
+        compose.setContent { NocturneTheme { SleepTrendCard(listOf(overnight, bedJet), date, 7, overnight, zone) { chosen = it } } }
+        compose.onNodeWithText("From 1 tracked night").assertExists()
+        compose.onNodeWithTag("sleep-trend-bars").performTouchInput { click(androidx.compose.ui.geometry.Offset(width - 2f, centerY)) }
+        compose.runOnIdle { assertEquals(overnight, chosen) }
+        compose.onNodeWithTag("sleep-bedjet-use").performTouchInput { click(androidx.compose.ui.geometry.Offset(width - 2f, centerY)) }
+        compose.runOnIdle { assertEquals(bedJet, chosen) }
+        compose.onNodeWithText("Outlines mark incomplete records.", substring = true).assertExists()
     }
 
     @Test fun selectionSurvivesRefreshAndDistinguishesSessionsOnOneDate() {

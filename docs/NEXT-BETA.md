@@ -1,5 +1,16 @@
 # Next beta engineering handover
 
+## Beta.10 acceptance checks
+
+The Android branch starts at public beta.9, commit `a1a9eebe78517c5cf0ede32a6c1a900d3ddf27c8`. Beta.10 uses Android build `20261122`. Keep Nocturne installed when updating so the phone retains saved data. The compatibility fixtures include the edited nap and observed history from beta.9.
+
+- Compare 24°C and 24.5°C on Tonight and Remote, then repeat in Fahrenheit. Check the fixed position of the room reading and mode icon, including large text. Try Turbo, Boost and Dry while connected, then interrupt Bluetooth during an active programme and compare both status displays.
+- Check the Quiet alarm row against the time in Tonight’s plan. Tap for details with an eligible alarm, a profile wake and a tonight-only wake. Check the moon and Soft shade in Daylight, Midnight Ink and Simple view.
+- Start a one-off 30-minute nap, then check that the next Quick nap still shows the saved duration. Confirm the airflow changes after wake and the physical BedJet switches off. Check an edited profile with and without an after-wake step.
+- Compare BedJet-only history and a night with tracker data across 7, 30 and 90 days. For a run that lost Bluetooth, check whether the recap identifies the last observation or an observed standby.
+
+Physical BedJet 3 and live Health Connect acceptance remain outstanding.
+
 ## Android changes after beta.8
 
 The integration branch `codex/nb9-android` starts at the [published beta.8](https://github.com/Willzy12h/bedjet-android/releases/tag/v1.1.0-beta.8), commit `0ffdcc2c9aa8cb4cfb7f4aa40996ff1f58a8d6b0`.

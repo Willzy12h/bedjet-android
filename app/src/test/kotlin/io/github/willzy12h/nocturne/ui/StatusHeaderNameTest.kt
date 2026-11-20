@@ -36,7 +36,7 @@ class StatusHeaderNameTest {
         val target = "ble:AA:BB:CC:DD:EE:01"
         runBlocking { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = target) } }
         val model = AppViewModel(app).also { models.put("header", it) }
-        compose.setContent { MaterialTheme { StatusLine(model, runningName = null, onRemote = {}) } }
+        compose.setContent { MaterialTheme { StatusLine(model, onRemote = {}) } }
         compose.onNodeWithTag("status-connection").assertTextContains("AA:BB:CC:DD:EE:01", substring = true)
         // Invoke the same target-bound name callback used by the live GATT adapter; no status or settings change.
         val names = ReflectionHelpers.getField<DeviceNames>(graph.bleLink, "names")

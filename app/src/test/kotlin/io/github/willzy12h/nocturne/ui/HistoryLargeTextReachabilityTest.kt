@@ -47,6 +47,8 @@ class HistoryLargeTextReachabilityTest(private val look: U06Look) {
     @Test fun completeProfileAndTimesRemainReadableAtLargeText() {
         val times = show(false)
         ui.checkLayout(ui.compose.onNodeWithText("Warm Start, Cool Night", useUnmergedTree = true), "History profile")
+        ui.compose.onNodeWithText("BedJet stop time unknown.", useUnmergedTree = true).assertExists()
+        ui.compose.onNodeWithText("Warm Start, Cool Night").performScrollTo().performClick()
         ui.checkLayout(ui.compose.onNodeWithText(times, useUnmergedTree = true), "History times")
     }
 

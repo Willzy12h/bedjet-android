@@ -67,7 +67,7 @@ class AlarmSettingsNavigationTest {
     @get:Rule val rules: TestRule = RuleChain.outerRule(timezone).around(ui.rules)
 
     @Test fun anUnnamedAlarmOpensTheAlarmAppChoiceAndIsOnlyOfferedWhileAskIsChosen() {
-        ui.compose.onNodeWithText("Alarm 06:30 from an unnamed app — tap to use it tonight")
+        ui.compose.onNodeWithText("Unnamed alarm at 06:30")
             .performScrollTo().assertIsDisplayed().performClick()
         ui.compose.onNodeWithTag("missing-alarm-sources").performScrollTo().performClick()
         ui.compose.onNodeWithTag("alarm-apps-dialog").assertExists()

@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.ui
 
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onNodeWithTag
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,7 +18,8 @@ class AlarmExplanationLayoutTest(private val look: U06Look) {
     @get:Rule val rules = ui.rules
 
     @Test fun sourceExplanationRemainsCompleteAndActionableAt320DpAnd200Percent() {
-        ui.checkControl(ui.compose.onNodeWithText("No alarm found — profile wake 07:00 · Alarm in another app?"), "Wake source explanation")
+        ui.checkControl(ui.compose.onNodeWithTag("tonight-alarm-row"), "Wake source explanation")
+            .assertTextEquals("No alarm found · using your profile wake")
     }
 
     companion object {
