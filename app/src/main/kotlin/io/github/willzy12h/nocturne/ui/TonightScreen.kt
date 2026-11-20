@@ -439,39 +439,26 @@ private fun HomeReading(model: AppViewModel, settings: Settings,
     val live by model.hasLiveStatus.collectAsStateWithLifecycle()
     val link by model.linkState.collectAsStateWithLifecycle()
     val tokens = paletteTokens
-    val large = LocalConfiguration.current.fontScale >= 1.5f
+    val recent by model.readingFresh.collectAsStateWithLifecycle()
     val reading = status.takeIf { live && link == LinkState.READY }
     if (reading == null) {
         Text(stringResource(R.string.home_reading_unavailable),
             modifier = Modifier.testTag("home-reading-context"), color = tokens.ink2,
             style = MaterialTheme.typography.bodyMedium)
     } else {
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(tempText(reading.actualTemperature, settings.fahrenheit),
-                modifier = Modifier.testTag("home-temperature"), style = MaterialTheme.typography.displayLarge,
-                fontSize = if (large) 40.sp else 64.sp, lineHeight = if (large) 48.sp else 68.sp,
-                fontWeight = FontWeight.Bold, color = tokens.ink)
-            Column(Modifier.align(Alignment.CenterVertically)) {
-                Text(stringResource(R.string.home_air_from_bedjet), modifier = Modifier.testTag("home-reading-context"),
-                    color = tokens.ink2, fontSize = 12.sp)
-                if (sending != null) {
-                    Text("${sending.title}…", modifier = Modifier.testTag("home-sending"), color = tokens.readableText(sending.color),
-                        fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(stringResource(R.string.parity_waiting_bedjet), color = tokens.ink2, fontSize = 12.sp)
-                } else if (reading.mode == Mode.STANDBY) Text(stringResource(R.string.home_idle), color = tokens.ink2,
-                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(painterResource(modeIcon(reading.mode)), null, Modifier.size(16.dp),
-                        tint = paletteTokens.stepColor(reading.mode, reading.targetTemperature))
-                    Text(modeName(reading.mode) + if (reading.mode.usesTemperature) " " + tempText(reading.targetTemperature, settings.fahrenheit) else "",
-                    color = tokens.readableText(tokens.stepColor(reading.mode, reading.targetTemperature)), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-                if (sending == null && step != null) Text(stringResource(R.string.parity_fan_step, reading.fanPercent, step.second, step.third),
-                    color = tokens.ink2, fontSize = 12.sp)
-                else if (sending == null && reading.mode.usesFan) Text(stringResource(R.string.timeline_fan, reading.fanPercent),
-                    color = tokens.ink2, fontSize = 12.sp)
-            }
+        MeasuredTemperatures(reading, settings, recent, "home") {
+            if (sending != null) {
+                Text("${sending.title}…", modifier = Modifier.testTag("home-sending"), color = tokens.readableText(sending.color),
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.parity_waiting_bedjet), color = tokens.ink2, fontSize = 12.sp)
+            } else if (reading.mode == Mode.STANDBY) Text(stringResource(R.string.home_idle), color = tokens.ink2,
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            else Text(modeName(reading.mode) + if (reading.mode.usesTemperature) " " + tempText(reading.targetTemperature, settings.fahrenheit) else "",
+                color = tokens.readableText(tokens.stepColor(reading.mode, reading.targetTemperature)), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            if (sending == null && step != null) Text(stringResource(R.string.parity_fan_step, reading.fanPercent, step.second, step.third),
+                color = tokens.ink2, fontSize = 12.sp)
+            else if (sending == null && reading.mode.usesFan) Text(stringResource(R.string.timeline_fan, reading.fanPercent),
+                color = tokens.ink2, fontSize = 12.sp)
         }
     }
 }

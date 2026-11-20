@@ -132,9 +132,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         if (s == null) {
             if (!bluetoothOff) Text(stringResource(R.string.remote_connect), color = tokens.ink2, fontSize = 15.sp)
         } else {
-            val accent by animateColorAsState(tokens.modeColor(if (s.isRunning) s.mode else Mode.STANDBY),
-                if (motion) tween(250) else snap(), label = "remote-accent")
-            RemoteStatusCard(model, s, canControl, accent, f)
+            RemoteStatusCard(model, s, canControl, settings)
         }
 
         // Modes: a fixed three-by-two grid of tinted tiles, the selected one stronger and outlined.
@@ -292,7 +290,9 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
  */
 @Composable
 private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturne.core.protocol.DeviceStatus, canControl: Boolean,
-    accent: Color, f: Boolean) {
+    settings: io.github.willzy12h.nocturne.core.store.Settings) {
+    val recent by model.readingFresh.collectAsStateWithLifecycle()
+    val f = settings.fahrenheit
     val tokens = paletteTokens
     val now = model.now()
     val local by model.busy.collectAsStateWithLifecycle()
@@ -305,20 +305,15 @@ private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturn
         val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
         listOfNotNull(label, queued).joinToString(" · ")
     } else null
-    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { }
-        .testTag("remote-status").padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(R.string.remote_now_label), color = tokens.ink2, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(painterResource(modeIcon(s.mode)), null, Modifier.size(20.dp), tint = tokens.readableText(accent, tokens.ground, 3f))
-            Column(Modifier.weight(1f)) {
-                Text(modeName(s.mode), color = tokens.ink, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(stringResource(R.string.remote_air_room, tempText(s.actualTemperature, f), tempText(s.ambientTemperature, f)),
-                    color = tokens.ink2, fontSize = 14.sp)
-            }
+        MeasuredTemperatures(s, settings, canControl && recent, "remote") {
+            Text(modeName(s.mode), color = tokens.ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
         Text(if (s.isRunning) stringResource(R.string.remote_running_until, tempText(s.targetTemperature, f), s.fanPercent,
                 durationText(s.remainingSeconds / 60), Format.clock(now.plusSeconds(s.remainingSeconds.toLong())))
-            else stringResource(R.string.remote_not_running_choose), color = tokens.ink2, fontSize = 14.sp)
+            else stringResource(R.string.remote_not_running_choose), modifier = Modifier.testTag("remote-status"),
+            color = tokens.ink2, fontSize = 14.sp)
         // The reserved line: progress, then "Last reported", then a night's step; never a banner that pushes controls down.
         val line = sending ?: if (!canControl) stringResource(R.string.remote_last_reported)
             else s.extra?.takeIf { it.programStep > 0 }?.let { stringResource(R.string.remote_program_step, it.programStep) } ?: ""

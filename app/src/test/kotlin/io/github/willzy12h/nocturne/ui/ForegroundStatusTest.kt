@@ -69,7 +69,7 @@ class ForegroundStatusTest {
         assertNull("Hidden activities must not publish full live status", model.status.value)
     }
 
-    @Test fun hidingStopsUpdatesAndReturningKeepsTheThirtySecondSensorCadence() {
+    @Test fun hidingStopsUpdatesAndReturningShowsTheCurrentReadingImmediately() {
         visible()
         model.onScreenHidden()
         idle()
@@ -79,9 +79,7 @@ class ForegroundStatusTest {
         assertEquals("Hidden raw updates must not repaint the retained snapshot", 50, model.status.value?.actualTemperature)
         model.onScreenVisible()
         idle()
-        assertEquals("Returning cannot bypass the sensor cadence", 50, model.status.value?.actualTemperature)
-        idle(28_000)
-        assertEquals(64, model.status.value?.actualTemperature)
+        assertEquals("Returning publishes the selected unit’s current reading", 64, model.status.value?.actualTemperature)
     }
 
     @Test fun returningDuringReconnectKeepsTheControlsSnapshotUntilFreshStatusArrives() {
@@ -100,9 +98,7 @@ class ForegroundStatusTest {
         link.receive(temperature = 64)
         val fresh = link.latestSourcedStatus()
         idle()
-        assertEquals(50, model.status.value?.actualTemperature)
-        idle(30_000)
-        assertEquals(64, model.status.value?.actualTemperature)
+        assertEquals("The first sensor pair after reconnect is immediate", 64, model.status.value?.actualTemperature)
         assertSame(fresh, link.latestSourcedStatus())
     }
 
@@ -113,11 +109,41 @@ class ForegroundStatusTest {
         link.retire()
         idle()
         assertFalse("A raw disconnect must invalidate freshness before the sensor timer expires", model.hasLiveStatus.value)
-        idle(30_000)
+        idle(1_000)
         assertEquals(LinkState.SEARCHING, model.linkState.value)
         assertEquals(50, model.status.value?.actualTemperature)
         assertFalse("A queued sensor update cannot restore a retired connection's freshness", model.hasLiveStatus.value)
         assertNull(link.latestSourcedStatus())
+    }
+
+    @Test fun quietOrReplayedReportsBecomeStaleAndOnlyANewMeasurementRestoresFreshness() = runBlocking {
+        val unit = DeviceId.ble("02:00:00:00:00:01")
+        graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = unit) }
+        val collection = graph.scope.launch { model.readingFresh.collect() }
+        model.onScreenVisible()
+        idle()
+        fun measure() = SourcedStatus(unit, ReportsLink.sample(54), measuredAtElapsedMs = SystemClock.elapsedRealtime())
+        val head = measure()
+        link.sourcedStatus.value = head
+        idle()
+        assertTrue(model.readingFresh.value)
+        idle(9_500)
+        link.sourcedStatus.value = head.copy(status = head.status.copy(extra = null))
+        idle(500)
+        assertFalse("A supplementary status fragment cannot renew the measured temperature", model.readingFresh.value)
+        assertTrue("Quiet-link age does not change command ownership", model.hasLiveStatus.value)
+        model.onScreenHidden()
+        idle()
+        model.onScreenVisible()
+        idle()
+        assertFalse("Replaying a cached receipt on resume cannot make it recent", model.readingFresh.value)
+        link.sourcedStatus.value = measure()
+        idle()
+        assertTrue("A genuine equal-valued measurement renews freshness", model.readingFresh.value)
+        link.retire()
+        idle()
+        assertFalse(model.readingFresh.value)
+        collection.cancel()
     }
 
     @Test fun changingTargetWhileHiddenClearsThePreviousUnitsSnapshot() = runBlocking {
@@ -138,7 +164,7 @@ class ForegroundStatusTest {
         assertEquals(62, model.status.value?.actualTemperature)
     }
 
-    @Test fun temperaturesUpdateAtMostOncePerThirtySecondsWithoutThrottlingRawReceipts() {
+    @Test fun temperaturesPublishTheLatestPairWithinOneSecondWithoutThrottlingRawReceipts() {
         visible()
         val displayed = mutableListOf<Pair<Long, Int>>()
         graph.scope.launch { model.status.collect { s ->
@@ -152,11 +178,11 @@ class ForegroundStatusTest {
         assertEquals("All raw readings remain available to commands", 59, lastRaw.status.actualTemperature)
         assertTrue(lastRaw.receiptOrder > initialReceipt)
         assertEquals("A burst must not repaint every incoming temperature", listOf(50), displayed.map { it.second })
-        idle(29_099)
+        idle(99)
         assertEquals(listOf(50), displayed.map { it.second })
         idle(1)
         assertEquals(listOf(50, 59), displayed.map { it.second })
-        assertTrue(displayed[1].first - displayed[0].first >= 30_000)
+        assertTrue(displayed[1].first - displayed[0].first >= 1_000)
         assertSame("Displaying status must not stamp a new command receipt", lastRaw, link.latestSourcedStatus())
     }
 
@@ -189,7 +215,7 @@ class ForegroundStatusTest {
             latest.copy(actualTemperature = previous.actualTemperature, ambientTemperature = previous.ambientTemperature),
             model.status.value)
         assertNull(model.status.value?.extra)
-        idle(29_899)
+        idle(899)
         assertEquals(previous.actualTemperature, model.status.value?.actualTemperature)
         assertEquals(previous.ambientTemperature, model.status.value?.ambientTemperature)
         idle(1)
@@ -219,7 +245,7 @@ class ForegroundStatusTest {
             assertEquals("Control changes must not bypass the sensor cadence", 50, model.status.value?.actualTemperature)
             assertEquals(44, model.status.value?.ambientTemperature)
         }
-        idle(29_600)
+        idle(600)
         assertEquals(63, model.status.value?.actualTemperature)
         assertEquals(51, model.status.value?.ambientTemperature)
         assertEquals("The sensor update must retain the latest control values", 71, model.status.value?.targetTemperature)
@@ -237,7 +263,7 @@ class ForegroundStatusTest {
             idle(100)
         }
         assertEquals("Sensor-only input must not repaint equal presentation values", 1, displayed.size)
-        idle(29_100)
+        idle(100)
         assertEquals(2, displayed.size)
         assertEquals(59, displayed.last().actualTemperature)
         assertEquals(53, displayed.last().ambientTemperature)
@@ -282,14 +308,14 @@ class ForegroundStatusTest {
         idle()
         // The protocol represents sensors in half-degrees; an unchanged unit is below the display threshold.
         link.receive(ReportsLink.sample(50).copy(fanStep = 3))
-        idle(30_000)
+        idle(1_000)
         assertEquals(listOf(50 to 44), displayed)
         assertEquals(3, model.status.value?.fanStep)
         link.receive(ReportsLink.sample(51).copy(ambientTemperature = 44))
         idle()
         assertEquals(listOf(50 to 44, 51 to 44), displayed)
         link.receive(ReportsLink.sample(51).copy(ambientTemperature = 45))
-        idle(29_999)
+        idle(999)
         assertEquals(listOf(50 to 44, 51 to 44), displayed)
         idle(1)
         assertEquals(listOf(50 to 44, 51 to 44, 51 to 45), displayed)

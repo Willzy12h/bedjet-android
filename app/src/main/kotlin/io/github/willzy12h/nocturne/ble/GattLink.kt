@@ -40,7 +40,7 @@ class GattLink(
     private val radio: GattRadio,
     private val target: () -> String?,
     private val timings: Timings = Timings(),
-    private val clock: () -> Long = System::currentTimeMillis,
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000L },
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val onName: (String, String) -> Unit = { _, _ -> },
     private val onVerifiedName: (String, String?) -> Unit = { _, _ -> },
@@ -289,7 +289,12 @@ class GattLink(
      */
     private fun publish(session: Session?, value: DeviceStatus?, receiptOrder: Long = StatusReceiptOrder.next()) {
         val shown = value?.takeIf { session != null }
-        _sourcedStatus.value = if (session == null || shown == null) null else SourcedStatus(DeviceId.ble(session.address), shown, receiptOrder)
+        _sourcedStatus.value = if (session == null || shown == null) null else {
+            // Adding accessory data to the previous head is not a new sensor measurement.
+            val previous = _sourcedStatus.value
+            val measuredAt = if (previous?.receiptOrder == receiptOrder) previous.measuredAtElapsedMs else clock()
+            SourcedStatus(DeviceId.ble(session.address), shown, receiptOrder, measuredAt)
+        }
         _status.value = shown
     }
 
