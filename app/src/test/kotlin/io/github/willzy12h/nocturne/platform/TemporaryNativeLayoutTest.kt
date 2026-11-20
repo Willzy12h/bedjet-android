@@ -360,11 +360,14 @@ class TemporaryNativeLayoutTest : PlatformGraphFixture() {
                             try { assertCompleteText(label) }
                             catch (failure: AssertionError) { failures += "$route ${failure.message}" }
                         }
-                    val rectangles = listOf(AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE).map { id ->
-                        val button = dialog.getButton(id)
+                    val buttons = listOf(dialog.getButton(AlertDialog.BUTTON_POSITIVE), dialog.getButton(AlertDialog.BUTTON_NEGATIVE))
+                    buttons.forEach { button ->
                         assertTrue("$route ${button.text} must be enabled", button.isEnabled)
                         try { assertTarget(button, 48, button.text.toString()) }
                         catch (failure: AssertionError) { failures += "$route ${failure.message}" }
+                    }
+                    // assertTarget scrolls the real window. Compare both rectangles at the same scroll offset.
+                    val rectangles = buttons.map { button ->
                         val at = IntArray(2).also(button::getLocationInWindow)
                         Rect(at[0], at[1], at[0] + button.width, at[1] + button.height)
                     }

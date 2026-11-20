@@ -22,7 +22,9 @@ class FinalRemoteLayoutTest {
             f.graph.actions.confirmMs = 20
             assertEquals(OutcomeKind.CONFIRMED, f.graph.actions.execute(f.graph.actions.capture(Command.WARM)).kind)
             if (description.methodName.contains("NoTarget")) {
-                f.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = null) }
+                // Returning to selection after removing the active target still shows the ordinary header.
+                f.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = null,
+                    rememberedBedJets = listOf("ble:00:11:22:33:44:55")) }
                 f.graph.context.getSharedPreferences("ble", android.content.Context.MODE_PRIVATE)
                     .edit().putString("name", "Previous BedJet").remove("nameDevice").apply()
             }
@@ -62,15 +64,16 @@ class FinalRemoteLayoutTest {
 
     @Test fun fanScaleLabelsFitAndItsAccessibleValueCannotSendZero() {
         ui.tab("Remote")
-        listOf("0%", "50%", "100%").forEachIndexed { index, text ->
+        listOf("5%", "50%", "100%").forEachIndexed { index, text ->
             val tick = ui.compose.onNodeWithTag("fan-tick-$index")
             tick.assertTextEquals(text)
             ui.checkLayout(tick, text)
         }
         val slider = ui.compose.onNodeWithContentDescription("Fan")
-        slider.performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(0f) }
-        ui.compose.waitForIdle()
-        assertTrue("The minimum running fan speed remains 5%", ui.graph.link.status.value!!.fanPercent >= 5)
+        slider.performScrollTo()
+        assertEquals(5f..100f, slider.fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo].range)
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(0f) }
+        ui.waitUntil { ui.graph.link.status.value?.fanPercent == 5 }
         assertTrue(slider.fetchSemanticsNode().config[SemanticsProperties.StateDescription].contains("5"))
     }
 
