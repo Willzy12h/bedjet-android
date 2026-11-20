@@ -163,7 +163,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             Eligibility.Allowed -> Unit
         }
         val length = Duration.between(ZonedDateTime.parse(night.startedAt), wake)
-        val minimum = night.shortAlarmNightMinutes?.let { Duration.ofMinutes(it.toLong()) } ?: WakeResolver.MIN_NIGHT
+        val minimum = night.shortAlarmNightMinutes?.takeIf { it > 0 }
+            ?.let { minOf(WakeResolver.MIN_NIGHT, Duration.ofMinutes(it.toLong())) } ?: WakeResolver.MIN_NIGHT
         if (length < minimum || length > WakeResolver.MAX_NIGHT || !wake.isAfter(time))
             return Preparation.Refused(NightDurationProblem.OUTSIDE_WINDOW.name, durationProblem = NightDurationProblem.OUTSIDE_WINDOW)
         return try {
