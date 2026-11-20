@@ -14,13 +14,39 @@ Integration branch `codex/nocturne-next-beta` starts at published beta.7, `18705
 | 16–18 | Keep clock picker policy. Restrict changes to diagnostics privacy to the exported file and its disclosure. Verify build inputs. |
 | 19–23 | First run, sleep coverage labels, separate same-day sessions, skip one scheduled start with Undo, and finish a manual run at a chosen time. |
 
-## Review and release
+## Behaviour to peer-review
 
-Check each commit against the affected tests. Exercise timeout, retry, process death and stale device reports in the controller. In storage, test exact exported bytes, semantic validation and interrupted erasure. For UI review, compare the same fixed-clock programme at normal and enlarged font sizes.
+| Item | Behaviour and acceptance check |
+| --- | --- |
+| 01 | Off waits for a new standby report from the selected BedJet. Challenge it with a cached standby report, a newer running report and an interrupted connection. |
+| 02 | Full backup and snapshot creation pass their encoded bytes through the restore validator before writing. At 128 profiles, existing profiles remain editable. Older valid libraries up to 1,024 can round-trip subject to the same byte, token and field limits. |
+| 03 | Deleting a night or clearing history removes it from app-managed recovery snapshots. Interrupted erasure is journalled. Previously exported copies and Health Connect belong to their respective owners. |
+| 04 | The Remote remembers confirmed temperature and fan changes for each BedJet and mode. On returning to a mode, the controller checks the combined settings against current limits. |
+| 05 | The public update path uses Nocturne’s existing Android application ID, signing certificate and an increasing version code. Saved-data fixtures cover old formats and release serialisation. |
+| 06 | A deliberate disconnected Start or preset tap can wait for the selected unit. Cancel is available before sending, repeated taps do not multiply writes and Off takes precedence. A newly discovered running programme requires a replacement decision. |
+| 07 | Width represents the duration of each Tonight step, height its fan speed and colour its mode. Text explains the fan scale and identifies the wake source. |
+| 08 | Long heat is a single, editable bottom-left quick preset. |
+| 09–10 | Sleep maps Health Connect stage values explicitly. Tonight distinguishes an accepted phone alarm, a manual override and a profile wake time. |
+| 11–12 | A late scheduled start rechecks its occurrence and wake deadline. Releasing a unit persists across process restart until an explicit reconnect. |
+| 13–14 | Lock-screen appliance actions require local opt-in. Disabling the setting revokes the posted action. An externally requested Start displays its target and rejects a profile edited after consent. |
+| 15–16 | Public beta signing follows the protected Nocturne release path. The clock-app picker keeps its existing behaviour. |
+| 17–18 | Diagnostics export uses an allowlist, local unit aliases and relative times. Exact alarm times are optional. Gradle verifies the wrapper and resolved artefacts against pinned checksums. |
+| 19–21 | First run offers connection or demo. Sleep identifies missing BedJet observations and lets the reader distinguish separate same-day sleep sessions. |
+| 22 | Tonight can skip one scheduled occurrence and undo the skip. The scheduler and UI share the eligibility check. |
+| 23 | Manual Finish at captures an absolute deadline and checks it against the device timer limit immediately before sending. Confirmation requires a matching manual countdown. |
 
-Before public release, upgrade a populated previous public Nocturne installation in place using the same Nocturne application ID, approved release certificate and a higher version code. Verify settings, saved profiles, device selection, quick controls and ordinary launch. Check the signed APK certificate and content digest. A disposable test key can validate an upgrade between two test builds but cannot update the public beta.
+The archive validator also applies a 5 MiB limit, 200,000 JSON tokens, 2,048 characters per string and 32 nesting levels. A larger legacy installation can keep its local library, share individual valid profiles and export Sleep CSV. Those files cannot reconstruct every setting, original slot and history record. Android’s document provider controls file creation and can fail during its write.
 
-Hardware acceptance is pending until recorded on a real BedJet 3. Check Off with a delayed status, connect then cancel a preset, change Cool and fan across modes, release the connection across process death, and exercise timers with the phone disconnected.
+## Physical acceptance — NOT RUN
+
+Use a BedJet 3 and a phone with the current public Nocturne installed. Record phone/Android and BedJet firmware, the prior and candidate versions, and the result of each step.
+
+1. Install a release-signed, higher-version beta over the public build. Check the selected unit, customised profiles, quick presets, units and appearance before touching any controls.
+2. Change Cool temperature and fan, switch modes, return to Cool and restart the app. Compare the settings shown by Nocturne with the appliance. Repeat on another saved unit if available.
+3. Disconnect, tap a preset twice and cancel while connecting. Confirm no appliance change. Repeat once, let it connect, and confirm exactly one action. Try changing the run with the physical remote before reconnecting.
+4. Issue Off while running and briefly interrupt Bluetooth. Check that the UI reports uncertainty until the selected BedJet actually reports standby.
+5. Release the connection, force-stop and reopen Nocturne. Confirm intentional hand-over survives and that explicit reconnect works.
+6. Set Finish at on a manual run, verify the appliance timer and disconnect the phone. Check that it finishes within the selected minute. Check a scheduled skip, Undo and its normal alarm-triggered start independently.
 
 ## Signing and build changes
 
