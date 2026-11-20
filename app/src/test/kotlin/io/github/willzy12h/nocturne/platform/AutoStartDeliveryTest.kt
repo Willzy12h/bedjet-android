@@ -162,6 +162,10 @@ class AutoStartDeliveryTest : PlatformGraphFixture() {
         val graph = setup(); acceptedAlarm(graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:31:00Z"), ZoneOffset.UTC)
         ChargerJobs.sync(graph)
+        assertEquals("During the delivery window the original accepted alarm remains due",
+            Instant.parse("2026-10-26T22:30:00Z").toEpochMilli(), alarms().single().triggerAtMs)
+        graph.clock = Clock.fixed(Instant.parse("2026-10-26T22:45:00Z"), ZoneOffset.UTC)
+        ChargerJobs.sync(graph)
         assertEquals("The next alarm belongs to the following night, not a second wake choice tonight",
             Instant.parse("2026-10-27T23:00:00Z").toEpochMilli(), alarms().single().triggerAtMs)
     }

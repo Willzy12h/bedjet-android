@@ -3,6 +3,7 @@ package io.github.willzy12h.nocturne.night
 import android.app.*
 import android.bluetooth.BluetoothManager
 import android.content.*
+import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.core.night.*
 import io.github.willzy12h.nocturne.core.store.*
@@ -23,6 +24,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 import org.robolectric.shadows.ShadowAlertDialog
 import java.time.*
 
@@ -206,14 +208,25 @@ class RuntimeDeliveryTest {
         shadowOf(android.os.Looper.getMainLooper()).idle()
         assertTrue(activity.isFinishing)
         assertEquals(current.identity, graph.repository.activeNight.value!!.identity)
+        // Capture a valid approval before the revision changes, then delay service delivery.
+        action.send()
+        val validActivity = Robolectric.buildActivity(ShortcutActivity::class.java,
+            shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity).setup().get()
+        ShadowAlertDialog.getLatestAlertDialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        val serviceIntent = requireNotNull(shadowOf(RuntimeEnvironment.getApplication()).nextStartedService)
+        assertEquals(current.identity, NightAlarms.identity(serviceIntent))
+        assertTrue(validActivity.isFinishing)
+
         graph.repository.setActiveNight(current.copy(revision = current.revision + 1))
         action.send()
         val staleActivity = Robolectric.buildActivity(ShortcutActivity::class.java,
             shadowOf(RuntimeEnvironment.getApplication()).nextStartedActivity).setup().get()
         ShadowAlertDialog.getLatestAlertDialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick()
         shadowOf(android.os.Looper.getMainLooper()).idle()
-        val serviceIntent = shadowOf(RuntimeEnvironment.getApplication()).nextStartedService
-        assertEquals(current.identity, NightAlarms.identity(serviceIntent))
+        assertNull("A stale notification approval must not start the service",
+            shadowOf(RuntimeEnvironment.getApplication()).nextStartedService)
+        assertEquals(context.getString(R.string.shortcut_changed), ShadowToast.getTextOfLatestToast())
         val service = Robolectric.buildService(BedJetService::class.java).create().get()
         service.onStartCommand(serviceIntent, 0, 1)
         shadowOf(android.os.Looper.getMainLooper()).idle()
