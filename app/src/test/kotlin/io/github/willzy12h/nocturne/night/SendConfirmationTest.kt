@@ -94,6 +94,20 @@ class SendConfirmationTest {
 
     // Off and End night
 
+    @Test fun stoppingANapRecordsStandbyAndPreservesTonightsWakeChoice() = runBlocking {
+        useRealHistory()
+        graph.repository.updateSettings { it.setWakeOverride(graph.now().plusHours(8), graph.now()) }
+        val savedWake = graph.repository.settings.value.tonightOverride
+        assertNotNull(savedWake)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.startNap(graph.actions.captureNap(null)).kind)
+        advance(12)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
+        val record = graph.repository.history.value.single()
+        assertTrue(record.isNap)
+        assertEquals(graph.now().toString(), record.standbyObservedAt)
+        assertEquals(savedWake, graph.repository.settings.value.tonightOverride)
+    }
+
     @Test fun offTheBedJetReportsEndsTheNight() = runBlocking {
         useRealHistory()
         val n = start(); advance(30)
