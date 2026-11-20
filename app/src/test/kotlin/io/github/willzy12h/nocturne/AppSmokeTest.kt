@@ -160,7 +160,7 @@ class AppSmokeTest {
                 (hasText(s(R.string.mode_cool)) and hasClickAction())).fetchSemanticsNodes().isNotEmpty()
         }
         compose.navTab("History")
-        compose.onNodeWithText("Nights you run appear here, with every change made during them.").assertIsDisplayed()
+        compose.onNodeWithText(s(R.string.sleep_no_saved_in_range)).assertIsDisplayed()
         compose.onNodeWithText("Settings").performClick()
         compose.openSettingsPage("backups")
         compose.onNodeWithText("Profiles and backups").assertIsDisplayed()
