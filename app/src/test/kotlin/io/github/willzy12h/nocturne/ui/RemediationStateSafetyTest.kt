@@ -1,5 +1,8 @@
 package io.github.willzy12h.nocturne.ui
 
+import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import androidx.compose.ui.test.*
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
@@ -20,6 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 
@@ -65,12 +69,21 @@ class RemediationStateSafetyTest {
         ui.compose.onAllNodes(hasTestTag("status-connection") and hasText("running", substring = true)).assertCountEquals(0)
     }
 
-    @Test fun quickPresetsWithoutAFreshReportAreSemanticallyDisabled() {
+    @Test fun quickPresetsWithoutAFreshReportOfferACancellableRequest() {
+        val app = ui.compose.activity.application
+        shadowOf(app).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
+        shadowOf(app.getSystemService(BluetoothManager::class.java).adapter).setState(BluetoothAdapter.STATE_ON)
+        ui.compose.runOnIdle { ui.model.refreshBluetooth() }
         assertFalse(ui.model.hasLiveStatus.value)
         listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST", "STANDBY").forEach { mode ->
-            ui.compose.onNodeWithTag("quick-mode-$mode").performScrollTo().assertIsNotEnabled()
+            ui.compose.onNodeWithTag("quick-mode-$mode").performScrollTo().assertIsEnabled()
         }
-        assertTrue("A disabled control cannot issue any transport write", link.writes.isEmpty())
+        ui.compose.onNodeWithTag("quick-mode-COOL").performScrollTo().performClick()
+        val pending = requireNotNull(ui.model.connectingCommand.value)
+        ui.compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
+        ui.compose.runOnIdle { assertEquals(io.github.willzy12h.nocturne.night.ConnectingCommand.Phase.CANCELLED, pending.phase.value) }
+        ui.waitUntil { ui.model.connectingCommand.value == null }
+        assertTrue("A cancelled preset cannot issue a transport write", link.writes.isEmpty())
     }
 
     @Test fun settingsWithoutAFreshReportDoesNotClaimAConfirmedConnection() {

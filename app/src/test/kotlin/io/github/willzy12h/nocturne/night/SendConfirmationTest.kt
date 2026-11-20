@@ -44,7 +44,7 @@ class SendConfirmationTest {
     private var headsOnly = false
     private var reportStatus: (DeviceStatus) -> DeviceStatus = { it }
     private var disconnects = 0
-    private var afterSend: (ByteArray) -> Unit = {}
+    private var afterSend: suspend (ByteArray) -> Unit = {}
     private val link: BedJetLink by lazy {
         demo = DemoBedJet(now = { graph.now() })
         object : BedJetLink by demo {
@@ -131,6 +131,21 @@ class SendConfirmationTest {
         assertEquals(n.identity, graph.repository.activeNight.value?.identity)
     }
 
+    @Test fun runningReportDuringOffOutweighsEarlierStandby() = runBlocking {
+        useRealHistory()
+        val night = start()
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        afterSend = { if (press(Mode.STANDBY)(it)) demo.send(Codec.setMode(Mode.COOL)!!) }
+
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        assertEquals(night.identity, graph.repository.activeNight.value?.identity)
+        assertEquals(0, events(night).count { it.kind == EventKind.STOPPED })
+
+        afterSend = {}
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
+        assertEquals(1, events(night).count { it.kind == EventKind.STOPPED })
+    }
+
     @Test fun offWithNoNightSaysWhetherTheBedJetConfirmed() = runBlocking {
         demo.connect()
         demo.send(Codec.setMode(Mode.COOL)!!)
@@ -142,14 +157,17 @@ class SendConfirmationTest {
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
     }
 
-    @Test fun offAlreadyInStandbyIsStillSentAndConfirmedWithoutAFreshRead() = runBlocking {
+    @Test fun untimedOffWithOnlyAPreviousStandbyReportRemainsUnconfirmed() = runBlocking {
         demo.connect()
         swallow = press(Mode.STANDBY)
 
-        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
-        assertEquals(1, sent.size)
+        // Keep replaying the same selected-unit receipt, including after the attempted fresh read.
+        foreign = demo.latestSourcedStatus()
+        val outcome = run(NightActions.Command.OFF)
+        assertEquals(OutcomeKind.ACCEPTED, outcome.kind)
+        assertEquals(text(R.string.runtime_off_unconfirmed), outcome.message)
         assertTrue(sent.single().contentEquals(Codec.setMode(Mode.STANDBY)!!))
-        assertEquals(0, disconnects)
+        assertEquals(1, disconnects)
     }
 
     @Test fun aLateStandbyReportClosesAnUnconfirmedOffAsStoppedWithoutAnotherWrite() = runBlocking {
@@ -166,6 +184,19 @@ class SendConfirmationTest {
         assertTrue(events(n).none { it.kind == EventKind.ENDED })
         graph.actions.observeStatus(demo.status.value!!, target)
         assertEquals("repeated reports cannot duplicate the end", 1, events(n).count { it.kind == EventKind.STOPPED })
+    }
+
+    @Test fun delayedStandbyCannotFinishAnUnconfirmedOffAfterANewerRunningReport() = runBlocking {
+        useRealHistory()
+        val n = start()
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        val standby = demo.latestSourcedStatus()!!
+        demo.send(Codec.setMode(Mode.COOL)!!)
+        graph.actions.observeStatus(standby, target)
+        assertEquals(n.identity, graph.repository.activeNight.value?.identity)
+        assertTrue(events(n).none { it.kind == EventKind.STOPPED })
     }
 
     @Test fun lateOffConfirmationNeedsTheTargetButNotProgrammeProgress() = runBlocking {
@@ -585,4 +616,43 @@ class SendConfirmationTest {
         assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
         assertEquals(Confidence.UNKNOWN, graph.repository.runtime.value.slotWrite?.confidence)
     }
+    @Test fun manualRemoteRemembersOnlyConfirmedChoicesAndReappliesOnModeSelection() = runBlocking {
+        useRealHistory()
+        fun request() = graph.actions.capture(NightActions.Command.OFF, requireIdentity = true)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.selectRemoteMode("Cool", request(), Mode.COOL).kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.adjustRemoteControl("Fan", request(), Mode.COOL, null, 10).kind)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.adjustRemoteControl("Temperature", request(), Mode.COOL, 46, null).kind)
+        swallow = { it.contentEquals(Codec.setFan(11)) }
+        assertNotEquals(OutcomeKind.CONFIRMED, graph.actions.adjustRemoteControl("Fan", request(), Mode.COOL, null, 11).kind)
+        assertEquals(ManualControls(target, Mode.COOL, 46, 10), graph.repository.settings.value.manualFor(target, Mode.COOL))
+        swallow = { false }
+        graph.actions.selectRemoteMode("Heat", request(), Mode.HEAT)
+        val before = sent.size
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.selectRemoteMode("Cool", request(), Mode.COOL).kind)
+        assertTrue(sent.drop(before).any { it.contentEquals(Codec.setFan(10)) })
+        assertTrue(sent.drop(before).any { it.contentEquals(Codec.setTemperature(46)) })
+        assertEquals(Mode.COOL, graph.link.latestSourcedStatus()?.status?.mode)
+    }
+
+    @Test fun externalStartCannotUseAnEditedProfileAfterConsent() = runBlocking {
+        val profile = graph.repository.tonightsProfile()!!
+        val request = graph.actions.capture(NightActions.Command.START_NIGHT, profile.id, requireIdentity = true)
+            .copy(reviewedProfileHash = reviewedProfileHash(profile), replacementConfirmed = true)
+        graph.repository.saveProfile(profile.copy(name = "Changed since approval"))
+        val result = graph.actions.execute(request)
+        assertEquals(OutcomeKind.STALE, result.kind)
+        assertTrue(sent.none { it.contentEquals(Codec.startProgram(2)) })
+    }
+
+    @Test fun restoringHeatChecksTheCombinedFanAndTemperatureBeforeEitherWrite() = runBlocking {
+        useRealHistory()
+        graph.repository.updateSettings { it.rememberManual(ManualControls(target, Mode.HEAT, 72, 19)) }
+        reportStatus = { it.copy(remainingSeconds = 6 * 3600, targetTemperature = 60, fanStep = 0,
+            minTemperature = 45, maxTemperature = 80) }
+        val start = sent.size
+        val result = graph.actions.selectRemoteMode("Heat", graph.actions.capture(NightActions.Command.OFF), Mode.HEAT)
+        assertNotEquals(OutcomeKind.CONFIRMED, result.kind)
+        assertTrue(sent.drop(start).none { it.contentEquals(Codec.setTemperature(72)) || it.contentEquals(Codec.setFan(19)) })
+    }
+
 }

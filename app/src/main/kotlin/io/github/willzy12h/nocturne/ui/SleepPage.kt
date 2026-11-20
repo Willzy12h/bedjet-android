@@ -58,6 +58,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -144,18 +147,19 @@ internal fun Modifier.sleepCard(tokens: PaletteTokens): Modifier = fillMaxWidth(
     .padding(16.dp)
 
 /** The lane a Health Connect stage code is drawn in; awake and out of bed share Awake. */
-internal fun laneColour(stage: Int): Color = (SleepLane.of(stage) ?: SleepLane.ASLEEP).colour
+internal fun laneColour(stage: Int): Color = SleepLane.of(stage).colour
 
 /** Dark text on the lighter lane colours, white on Deep. */
 internal fun onLane(colour: Color): Color = if (colour.luminance() < .25f) Color.White else Color(0xFF12152A)
 
 /** Bottom to top in a stacked bar: deepest sleep at the base, awake on top. */
-private val STACK = listOf(SleepInsights.DEEP, SleepInsights.LIGHT, SleepInsights.SLEEPING, SleepInsights.REM, SleepInsights.AWAKE)
+private val STACK = listOf(SleepInsights.DEEP, SleepInsights.LIGHT, SleepInsights.SLEEPING, SleepInsights.REM, SleepInsights.AWAKE, SleepInsights.UNKNOWN)
 
 @StringRes
 internal fun stageName(stage: Int): Int = when (stage) {
     SleepInsights.AWAKE -> R.string.feature_stage_awake
     SleepInsights.SLEEPING -> R.string.feature_stage_sleeping
+    SleepInsights.AWAKE_IN_BED -> R.string.sleep_awake_in_bed
     SleepInsights.OUT_OF_BED -> R.string.feature_stage_out
     SleepInsights.LIGHT -> R.string.feature_stage_light
     SleepInsights.DEEP -> R.string.feature_stage_deep
@@ -180,10 +184,10 @@ internal fun SleepTrendCard(days: List<SleepDay>, today: LocalDate, range: Int, 
     onSelect: (SleepDay) -> Unit) {
     val tokens = paletteTokens
     val averages = remember(days) { SleepInsights.averages(days, zone) }
-    val byDate = remember(days) { days.groupBy { it.date }.mapValues { it.value.first() } }
+    val byDate = remember(days, selected) { days.groupBy { it.date }.mapValues { (_, group) -> group.firstOrNull { it == selected } ?: group.first() } }
     val slots = (range - 1 downTo 0).map { today.minusDays(it.toLong()) }
     val figures = remember(days) { days.associateWith { day -> day.sleep?.let(SleepInsights::figures) } }
-    val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it?.asleepMinutes ?: 0 } ?: 0)
+    val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it?.stageMinutes?.values?.sum() ?: 0 } ?: 0)
     val average = if (averages.nights > 0) durationText(averages.asleepMinutes) else stringResource(R.string.sleep_figure_none)
     val description = pluralStringResource(R.plurals.sleep_trend_accessibility, averages.nights, averages.nights, average)
     val measurer = rememberTextMeasurer()
@@ -250,7 +254,7 @@ internal fun SleepTrendCard(days: List<SleepDay>, today: LocalDate, range: Int, 
                 val showLabel = range <= 7 || i == 0 || i == slots.lastIndex || (range <= 30 && i % 7 == slots.lastIndex % 7)
                 if (showLabel) {
                     val text = measurer.measure(date.format(dayFormat), if (isSelected) selectedStyle else labelStyle)
-                    val x = (i * slot + slot / 2 - text.size.width / 2f).coerceIn(0f, size.width - text.size.width)
+                    val x = (i * slot + slot / 2 - text.size.width / 2f).coerceIn(0f, (size.width - text.size.width).coerceAtLeast(0f))
                     drawText(text, topLeft = Offset(x, size.height - text.size.height))
                 }
             }
@@ -269,9 +273,11 @@ internal fun SleepNightPicker(day: SleepDay, zone: ZoneId, older: SleepDay?, new
     Row(Modifier.fillMaxWidth().testTag("sleep-night-picker"), verticalAlignment = Alignment.CenterVertically) {
         RoundArrow("‹", stringResource(R.string.sleep_previous_night), older != null, "sleep-older") { older?.let(onSelect) }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(day.end.atZone(zone).toLocalDate().minusDays(if (day.sleep != null || day.record != null) 1 else 0)
+            Text(day.start.atZone(zone).toLocalDate()
                 .format(DateTimeFormatter.ofPattern("EEEE d MMMM")), color = tokens.ink, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
+            Text(stringResource(R.string.sleep_session_interval, Format.clock(day.start.atZone(zone)), Format.clock(day.end.atZone(zone))),
+                color = tokens.ink2, fontSize = 13.sp, textAlign = TextAlign.Center)
             Text(detail, color = tokens.ink2, fontSize = 13.sp, textAlign = TextAlign.Center)
         }
         RoundArrow("›", stringResource(R.string.sleep_next_night), newer != null, "sleep-newer") { newer?.let(onSelect) }
@@ -289,7 +295,7 @@ private fun RoundArrow(text: String, description: String, enabled: Boolean, tag:
 
 /**
  * One night's sleep stages in 32 dp lanes over the BedJet's steps, on one time axis. Dragging across it shows
- * the stage and the BedJet step at that moment. A night with no BedJet run draws a grey strip marked Off; one with
+ * the stage and the BedJet step at that moment. A night with no planned steps draws a neutral strip; one with
  * no Health Connect sleep draws only the strip.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -301,11 +307,11 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
     val start = listOfNotNull(sleep?.start, plan?.start?.toInstant()).minOrNull() ?: day.start
     val end = listOfNotNull(sleep?.end, plan?.end?.toInstant()).maxOrNull()?.takeIf { it > start } ?: day.end
     val span = Duration.between(start, end).toMillis().coerceAtLeast(1).toFloat()
-    val lanes = if (sleep == null) emptyList() else SleepLane.entries.filter { it != SleepLane.ASLEEP || sleep.stages.any { s -> SleepLane.of(s.stage) == it } }
-    val steps = plan?.steps.orEmpty().filter { it.minutes > 0 && it.step.mode != Mode.WAIT }
+    val lanes = if (sleep == null) emptyList() else SleepLane.entries.filter { (it != SleepLane.ASLEEP && it != SleepLane.UNKNOWN) || sleep.stages.any { s -> SleepLane.of(s.stage) == it } }
+    val steps = plan?.steps.orEmpty().filter { it.minutes > 0 }
     val stepLabels = steps.map { stepText(it.step, fahrenheit) }
-    val off = stringResource(R.string.sleep_bedjet_off)
-    val stageLabels = (1..6).associateWith { stringResource(stageName(it)) }
+    val missingPlan = stringResource(if (day.record == null) R.string.sleep_no_bedjet else R.string.sleep_no_plan_interval)
+    val stageLabels = (0..7).associateWith { stringResource(stageName(it)) }
     var at by remember(day) { mutableStateOf<Float?>(null) }
     val laneHeight = 32.dp
     val stripHeight = 30.dp
@@ -318,20 +324,32 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
     val totals = sleep?.let { SleepInsights.figures(it) }
     val summary = buildString {
         totals?.stageMinutes?.forEach { (stage, minutes) -> append(stageLabels[stage]).append(' ').append(Format.duration(minutes)).append(", ") }
-        append(stringResource(R.string.feature_stage_bedjet)).append(' ')
-        append(if (steps.isEmpty()) off else stepLabels.distinct().joinToString(", "))
+        append(stringResource(R.string.sleep_planned_bedjet)).append(' ')
+        append(if (steps.isEmpty()) missingPlan else stepLabels.distinct().joinToString(", "))
     }
     fun instantAt(fraction: Float): Instant = start.plusMillis((span * fraction).toLong())
+    val intervals = remember(day, start, end) {
+        (listOf(start, end) + sleep?.stages.orEmpty().flatMap { listOf(it.start, it.end) } +
+            steps.flatMap { listOf(it.startsAt.toInstant(), it.endsAt.toInstant()) }).distinct().sorted()
+            .zipWithNext { from, to ->
+                (Duration.between(start, from).toMillis() + Duration.between(from, to).toMillis() / 2) / span
+            }
+    }
+    val nextInterval = stringResource(R.string.sleep_next_interval)
+    val previousInterval = stringResource(R.string.sleep_previous_interval)
+    val shown = at
+    val selection = shown?.let {
+        val moment = instantAt(it)
+        val stage = sleep?.stages?.firstOrNull { interval -> !moment.isBefore(interval.start) && moment.isBefore(interval.end) }
+        val step = plan?.stepAt(moment.atZone(plan.start.zone))?.second
+        val bedJet = step?.let { planned -> stringResource(R.string.sleep_planned_setting, stepText(planned.step, fahrenheit)) } ?: missingPlan
+        val clock = Format.clock(moment.atZone(zone))
+        if (stage == null) stringResource(R.string.sleep_scrub_bedjet, clock, bedJet)
+        else stringResource(R.string.sleep_scrub_sleep_bedjet, clock, stringResource(stageName(stage.stage)), bedJet)
+    }
     Column(Modifier.sleepCard(tokens).testTag("sleep-chart"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        val shown = at
-        if (shown != null) {
-            val moment = instantAt(shown)
-            val stage = sleep?.stages?.firstOrNull { !moment.isBefore(it.start) && moment.isBefore(it.end) }?.stage
-            val step = plan?.stepAt(moment.atZone(plan.start.zone))?.second?.takeIf { it.step.mode != Mode.WAIT }
-            val bedJet = step?.let { stepText(it.step, fahrenheit) } ?: off
-            val clock = Format.clock(moment.atZone(zone))
-            Text(if (stage != null) stringResource(R.string.sleep_scrub_sleep_bedjet, clock, stageLabels.getValue(stage), bedJet)
-                else stringResource(R.string.sleep_scrub_bedjet, clock, bedJet),
+        if (selection != null) {
+            Text(selection,
                 Modifier.align(Alignment.CenterHorizontally).clip(RoundedCornerShape(12.dp)).background(tokens.surface2)
                     .padding(horizontal = 12.dp, vertical = 6.dp).testTag("sleep-scrub"),
                 color = tokens.ink, fontSize = 13.sp)
@@ -342,7 +360,18 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
             SleepAvailability.ERROR -> R.string.feature_health_error
             else -> R.string.sleep_no_stages
         }), color = tokens.ink2, fontSize = 14.sp)
-        Row(Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = summary }) {
+        Row(Modifier.fillMaxWidth().testTag("sleep-chart-intervals").clearAndSetSemantics {
+            contentDescription = summary
+            selection?.let { stateDescription = it }
+            customActions = listOfNotNull(
+                intervals.lastOrNull { shown != null && it < shown }?.let { previous ->
+                    CustomAccessibilityAction(previousInterval) { at = previous; true }
+                },
+                intervals.firstOrNull { shown == null || it > shown }?.let { next ->
+                    CustomAccessibilityAction(nextInterval) { at = next; true }
+                },
+            )
+        }) {
             Column(Modifier.width(56.dp)) {
                 lanes.forEach { lane ->
                     Box(Modifier.height(laneHeight), contentAlignment = Alignment.CenterStart) {
@@ -350,7 +379,7 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
                     }
                 }
                 Box(Modifier.padding(top = if (lanes.isEmpty()) 0.dp else stripGap).height(stripHeight), contentAlignment = Alignment.CenterStart) {
-                    Text(stringResource(R.string.feature_stage_bedjet), color = tokens.ink2, fontSize = 13.sp, maxLines = 1)
+                    Text(stringResource(R.string.sleep_planned_bedjet), color = tokens.ink2, fontSize = 13.sp, maxLines = 1)
                 }
             }
             val guide = tokens.ink3.copy(alpha = .3f)
@@ -368,7 +397,7 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
                 lanes.indices.forEach { i -> drawLine(guide, Offset(0f, lane * i + lane / 2), Offset(size.width, lane * i + lane / 2), 1f) }
                 val block = 22.dp.toPx()
                 sleep?.stages?.forEach { stage ->
-                    val row = SleepLane.of(stage.stage)?.let(lanes::indexOf)?.takeIf { it >= 0 } ?: return@forEach
+                    val row = lanes.indexOf(SleepLane.of(stage.stage)).takeIf { it >= 0 } ?: return@forEach
                     val left = x(stage.start)
                     val right = maxOf(x(stage.end) - 1f, left + 1.5f)
                     drawRoundRect(lanes[row].colour, Offset(left, lane * row + (lane - block) / 2), Size(right - left, block), CornerRadius(5.dp.toPx()))
@@ -377,7 +406,7 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
                 val strip = stripHeight.toPx()
                 if (steps.isEmpty()) {
                     drawRoundRect(tokens.ink3.copy(alpha = .22f), Offset(0f, stripTop), Size(size.width, strip), CornerRadius(6.dp.toPx()))
-                    val text = measurer.measure(off, offStyle)
+                    val text = measurer.measure(missingPlan, offStyle)
                     drawText(text, topLeft = Offset((size.width - text.size.width) / 2, stripTop + (strip - text.size.height) / 2))
                 } else steps.forEachIndexed { i, step ->
                     val from = step.startsAt.toInstant()
@@ -398,7 +427,7 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
                     if (tick.hour % every == 0) {
                         val text = measurer.measure(Format.clock(tick), axisStyle)
                         val cx = x(tick.toInstant())
-                        val left = (cx - text.size.width / 2).coerceIn(0f, size.width - text.size.width)
+                        val left = (cx - text.size.width / 2).coerceIn(0f, (size.width - text.size.width).coerceAtLeast(0f))
                         drawText(text, topLeft = Offset(left, size.height - text.size.height))
                     }
                     tick = tick.plusHours(1)
@@ -429,6 +458,9 @@ internal fun SleepNightChart(day: SleepDay, zone: ZoneId, fahrenheit: Boolean, m
                     Text(stepLabels[i], color = tokens.ink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
+        }
+        if (day.record?.bedJetRunConfirmed == true) {
+            Text(stringResource(R.string.sleep_confirmed_start), color = tokens.ink2, fontSize = 13.sp)
         }
         Text(stringResource(R.string.sleep_scrub_hint), color = tokens.ink2, fontSize = 13.sp)
     }
@@ -492,7 +524,7 @@ internal fun SleepCompareCard(day: SleepDay, all: List<SleepDay>, zone: ZoneId) 
             Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.size(10.dp).clip(CircleShape).background(colour))
-                    Text(stringResource((SleepLane.of(row.stage) ?: SleepLane.ASLEEP).label), Modifier.weight(1f), color = tokens.ink, fontSize = 14.sp)
+                    Text(stringResource(SleepLane.of(row.stage).label), Modifier.weight(1f), color = tokens.ink, fontSize = 14.sp)
                     Text(durationText(row.minutes), color = tokens.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text(delta, Modifier.width(78.dp), color = tokens.ink2, fontSize = 13.sp, textAlign = TextAlign.End)
                 }
@@ -527,7 +559,7 @@ internal fun SleepNoticedCard(noticed: io.github.willzy12h.nocturne.sleep.SleepN
 /** Touching stages in the same lane drawn as one row; the timeline lists rows, not every Health Connect record. */
 internal fun condensedStages(stages: List<SleepStage>): List<SleepStage> = stages.sortedBy { it.start }.fold(mutableListOf()) { rows, stage ->
     val last = rows.lastOrNull()
-    if (last != null && SleepLane.of(last.stage) == SleepLane.of(stage.stage) && Duration.between(last.end, stage.start).toMinutes() < 1)
+    if (last != null && stageName(last.stage) == stageName(stage.stage) && Duration.between(last.end, stage.start).toMinutes() < 1)
         rows[rows.lastIndex] = last.copy(end = maxOf(last.end, stage.end))
     else rows += stage
     rows
@@ -541,35 +573,35 @@ internal fun condensedStages(stages: List<SleepStage>): List<SleepStage> = stage
 internal fun SleepTimelineCard(sleep: SleepNight, plan: Plan?, zone: ZoneId, fahrenheit: Boolean) {
     val tokens = paletteTokens
     val rows = remember(sleep) { condensedStages(sleep.stages) }
-    val off = stringResource(R.string.sleep_bedjet_off)
     Column(Modifier.sleepCard(tokens).testTag("sleep-timeline"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Text(stringResource(R.string.sleep_timeline), Modifier.weight(1f).semantics { heading() }, color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.feature_stage_bedjet), color = tokens.ink2, fontSize = 13.sp)
+            Text(stringResource(R.string.sleep_planned_bedjet), color = tokens.ink2, fontSize = 13.sp)
         }
         Row(Modifier.fillMaxWidth().padding(start = 50.dp, end = 58.dp).clearAndSetSemantics { }) {
             Text(stringResource(R.string.sleep_timeline_awake), Modifier.weight(1f), color = tokens.ink3, fontSize = 12.sp)
             Text(stringResource(R.string.sleep_timeline_deeper), color = tokens.ink3, fontSize = 12.sp)
         }
+        if (plan == null) Text(stringResource(R.string.sleep_no_bedjet), color = tokens.ink2, fontSize = 13.sp)
         var shownStep: Any? = Unit
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             rows.forEach { stage ->
-                val lane = SleepLane.of(stage.stage) ?: SleepLane.ASLEEP
+                val lane = SleepLane.of(stage.stage)
                 val minutes = Duration.between(stage.start, stage.end).toMinutes().toInt()
-                val step = plan?.stepAt(stage.start.atZone(plan.start.zone))?.second?.takeIf { it.step.mode != Mode.WAIT }
+                val step = plan?.stepAt(stage.start.atZone(plan.start.zone))?.second
                 val first = step?.startsAt != shownStep
                 shownStep = step?.startsAt
                 val rail = step?.let { tokens.stepColor(it.step.mode, it.step.temperature) } ?: tokens.ink3.copy(alpha = .3f)
-                val indent = when (lane) { SleepLane.AWAKE -> 0.dp; SleepLane.REM -> 18.dp; SleepLane.LIGHT, SleepLane.ASLEEP -> 36.dp; SleepLane.DEEP -> 54.dp }
+                val indent = when (lane) { SleepLane.AWAKE, SleepLane.UNKNOWN -> 0.dp; SleepLane.REM -> 18.dp; SleepLane.LIGHT, SleepLane.ASLEEP -> 36.dp; SleepLane.DEEP -> 54.dp }
                 Row(Modifier.fillMaxWidth().height((minutes * .4f).dp.coerceIn(28.dp, 64.dp)), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(Format.clock(stage.start.atZone(zone)), Modifier.width(42.dp).padding(top = 5.dp), color = tokens.ink3, fontSize = 12.sp)
                     Row(Modifier.weight(1f).fillMaxHeight().padding(start = indent).clip(RoundedCornerShape(9.dp)).background(lane.colour)
                         .padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(lane.label), Modifier.weight(1f), color = onLane(lane.colour), fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(stringResource(stageName(stage.stage)), Modifier.weight(1f), color = onLane(lane.colour), fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         Text(durationText(minutes), color = onLane(lane.colour), fontSize = 13.sp, maxLines = 1)
                     }
                     Box(Modifier.width(8.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(rail))
-                    Text(if (first) step?.let { shortStepText(it.step, fahrenheit) } ?: off else "", Modifier.width(42.dp).padding(top = 5.dp),
+                    Text(if (first) step?.let { shortStepText(it.step, fahrenheit) }.orEmpty() else "", Modifier.width(42.dp).padding(top = 5.dp),
                         color = if (step != null) tokens.visible(rail, tokens.surface) else tokens.ink3, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
@@ -588,6 +620,10 @@ internal fun SleepHistorySettings(model: AppViewModel, modifier: Modifier, onBac
     val tokens = paletteTokens
     val settings by model.settings.collectAsStateWithLifecycle()
     val history by model.history.collectAsStateWithLifecycle()
+    val snapshots by model.snapshots.collectAsStateWithLifecycle()
+    val erasurePending by model.graph.repository.historyErasurePending.collectAsStateWithLifecycle()
+    val active by model.activeNight.collectAsStateWithLifecycle()
+    val runtime by model.runtime.collectAsStateWithLifecycle()
     val importApplying by model.importApplying.collectAsStateWithLifecycle()
     val keep = History.keepDays(settings.historyKeepDays)
     var shrinkTo by remember { mutableStateOf<Int?>(null) }
@@ -646,13 +682,20 @@ internal fun SleepHistorySettings(model: AppViewModel, modifier: Modifier, onBac
             SettingsLine(stringResource(R.string.sleep_health), stringResource(if (health) R.string.sleep_health_on else R.string.sleep_health_off_short),
                 tokens.ink, "sleep-health", onClick = onOpenHealth)
             HorizontalDivider(color = tokens.hairline)
-            SettingsLine(stringResource(R.string.sleep_delete), "", tokens.readableText(tokens.bad, tokens.surface), "sleep-delete",
-                enabled = history.isNotEmpty() && !settings.demoMode) { deleting = true }
+            if (erasurePending && !settings.demoMode) {
+                SettingsLine(stringResource(R.string.history_erasure_retry), stringResource(R.string.history_erasure_pending),
+                    tokens.ink, "sleep-retry-erasure") { model.retryHistoryErasure() }
+            } else {
+                SettingsLine(stringResource(R.string.sleep_delete), "", tokens.readableText(tokens.bad, tokens.surface), "sleep-delete",
+                    enabled = (history.isNotEmpty() || snapshots.isNotEmpty()) && !settings.demoMode) { deleting = true }
+            }
         }
     }
     shrinkTo?.let { days ->
         val cutoff = model.now().minusDays(days.toLong())
-        val lost = history.count { night -> runCatching { !ZonedDateTime.parse(night.startedAt).isAfter(cutoff) }.getOrDefault(true) }
+        val protected = setOfNotNull(active?.recordId, runtime.ending?.identity?.nightId)
+        val lost = history.count { night -> night.id !in protected &&
+            runCatching { !ZonedDateTime.parse(night.startedAt).isAfter(cutoff) }.getOrDefault(true) }
         AlertDialog(onDismissRequest = { shrinkTo = null },
             title = { Text(stringResource(R.string.sleep_shrink_title, stringResource(keepName(days)))) },
             text = { Text(pluralStringResource(R.plurals.sleep_shrink_body, lost, lost)) },
@@ -720,7 +763,7 @@ internal fun LastNightCard(model: AppViewModel, onOpen: () -> Unit) {
     val average = remember(week) { SleepInsights.averages(week, zone) }
     val asleep = durationText(figures.asleepMinutes)
     val description = stringResource(R.string.last_night_accessibility, asleep)
-    val stageLabels = (1..6).associateWith { stringResource(stageName(it)) }
+    val stageLabels = (0..7).associateWith { stringResource(stageName(it)) }
     Column(Modifier.sleepCard(tokens).testTag("last-night")
         .clickable(role = Role.Button, onClick = onOpen)
         .clearAndSetSemantics { contentDescription = description },
@@ -772,7 +815,7 @@ private fun WeekBars(week: List<SleepDay>, today: LocalDate, last: SleepDay, mod
     val tokens = paletteTokens
     val byDate = remember(week) { week.groupBy { it.date }.mapValues { it.value.first() } }
     val figures = remember(week) { week.associateWith { d -> d.sleep?.let(SleepInsights::figures) } }
-    val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it?.asleepMinutes ?: 0 } ?: 0)
+    val maxMinutes = maxOf(8 * 60, figures.values.maxOfOrNull { it?.stageMinutes?.values?.sum() ?: 0 } ?: 0)
     Canvas(modifier.testTag("last-night-week")) {
         val slots = SleepInsights.RECENT_NIGHTS
         val slot = size.width / slots

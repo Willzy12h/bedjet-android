@@ -36,6 +36,7 @@ class RemoteDurationReceiptTest : PlatformGraphFixture() {
     private lateinit var graph: Graph
     private var elapsed = 0L
     private var receiptDelaySeconds = 0
+    private var programmeReceiptAtWrite = Int.MAX_VALUE
     private var runtimeWrites = 0
     private val reports = MutableStateFlow<SourcedStatus?>(null)
     private val statuses = MutableStateFlow<DeviceStatus?>(null)
@@ -43,8 +44,11 @@ class RemoteDurationReceiptTest : PlatformGraphFixture() {
     @Before fun setup() = runBlocking {
         val demo = DemoBedJet(now = { graph.now() })
         fun receive(report: SourcedStatus?) {
-            reports.value = report
-            statuses.value = report?.status
+            val received = if (runtimeWrites >= programmeReceiptAtWrite && report != null) {
+                report.copy(status = report.status.copy(extra = report.status.extra?.copy(programStep = 1)))
+            } else report
+            reports.value = received
+            statuses.value = received?.status
         }
         val transport = object : BedJetLink by demo {
             override val sourcedStatus = reports
@@ -101,6 +105,25 @@ class RemoteDurationReceiptTest : PlatformGraphFixture() {
             assertEquals("The receipt proves that the manual run replaced the programme", 0, receipt.status.extra?.programStep)
             assertNull("Only this matching receipt may finalise End tonight", graph.repository.activeNight.value)
         }
+    }
+
+    @Test fun expiredFinishTimeCannotWriteToTheAppliance() = runBlocking {
+        val request = captureDuration(graph, graph.link.latestSourcedStatus()!!.status, 10).request
+        val writesBefore = runtimeWrites
+        val outcome = graph.actions.remoteDuration("Finish at", request, graph.now().toInstant().minusSeconds(1))
+        assertEquals(OutcomeKind.REFUSED, outcome.kind)
+        assertEquals(writesBefore, runtimeWrites)
+    }
+
+    @Test fun finishTimeRequiresAManualCountdownReceipt() = runBlocking {
+        val request = captureDuration(graph, graph.link.latestSourcedStatus()!!.status, 10).request
+        val finish = graph.now().toInstant().plusSeconds(10 * 60L)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.remoteDuration("Finish at", request, finish).kind)
+        val writesBefore = runtimeWrites
+        programmeReceiptAtWrite = writesBefore + 1
+        val outcome = graph.actions.remoteDuration("Finish at", request, finish.plusSeconds(60))
+        assertEquals(writesBefore + 1, runtimeWrites)
+        assertEquals(OutcomeKind.UNKNOWN, outcome.kind)
     }
 
     @Test fun aNewCountdownReceiptAfterSixSecondsConfirmsTheCustomDuration() = runBlocking { setDuration(tracked = false) }

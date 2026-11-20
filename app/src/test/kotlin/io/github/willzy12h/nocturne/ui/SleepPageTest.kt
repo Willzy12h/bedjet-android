@@ -71,6 +71,30 @@ class SleepPageTest {
         assertEquals(7, ui.graph.repository.settings.value.historyKeepDays)
     }
 
+    @Test fun twoNightsWithOneWakeDateCanBothBeSelectedAfterNavigation() {
+        val morning = ui.graph.now().minusDays(1).withHour(7).withMinute(0)
+        ui.compose.runOnUiThread { runBlocking {
+            ui.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:11") }
+            ui.graph.repository.addRecord(NightRecord("overnight", "p", "Overnight", morning.minusHours(8).toString(),
+                morning.toString(), false))
+            ui.graph.repository.addRecord(NightRecord("nap", "p", "Afternoon nap", morning.plusHours(6).toString(),
+                morning.plusHours(7).toString(), false))
+        } }
+        fun pickerHas(name: String) {
+            ui.compose.onNodeWithTag("sleep-list").performScrollToKey("nights")
+            ui.compose.onNodeWithTag("sleep-night-picker").assert(hasAnyDescendant(hasText(name)))
+        }
+        ui.tab("Sleep")
+        pickerHas("Afternoon nap")
+        ui.compose.onNodeWithTag("sleep-older").performClick()
+        pickerHas("Overnight")
+        ui.tab("Tonight")
+        ui.tab("Sleep")
+        pickerHas("Overnight")
+        ui.compose.onNodeWithTag("sleep-newer").performClick()
+        pickerHas("Afternoon nap")
+    }
+
     @Test fun deletingSleepHistoryAsksFirst() {
         val now = ui.graph.now()
         ui.compose.runOnUiThread { runBlocking {

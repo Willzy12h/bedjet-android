@@ -1,4 +1,10 @@
 <resources>
+    <string name="runtime_connecting_action">Connecting to your BedJet for %1$s…</string>
+    <string name="runtime_sending_action">Sending %1$s…</string>
+    <string name="runtime_replace_live_action">Your BedJet is already running. Replace that run with %1$s?</string>
+    <string name="runtime_replace_live_button">Replace run</string>
+    <string name="runtime_connection_no_report">No current report from your BedJet. Nothing was sent.</string>
+    <string name="runtime_connection_changed">The BedJet or plan changed. Review it and try again. Nothing was sent.</string>
     <string name="runtime_ineligible">This action is no longer eligible.</string>
     <string name="runtime_target_changed">The selected BedJet changed. Try again.</string>
     <string name="runtime_stale">This action belongs to an older night. Open Nocturne for current controls.</string>

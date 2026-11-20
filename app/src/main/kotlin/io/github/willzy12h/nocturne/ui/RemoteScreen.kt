@@ -100,8 +100,10 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     val tokens = paletteTokens
     val guard = rememberNightGuard(model)
     val canControl = state == LinkState.READY && hasLiveStatus
+    val canRequestMode = canRequestBedJet(model)
     val context = LocalContext.current
     val timerSet = stringResource(R.string.remote_timer_set)
+    var finishError by remember(state, status?.mode) { mutableStateOf(false) }
     var customDuration by remember { mutableStateOf<CapturedDuration?>(null) }
     fun runDuration(captured: CapturedDuration) {
         val words = Format.Words { id, args -> context.getString(id, *args) }
@@ -126,15 +128,14 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             return@Column
         }
         val s = status
+        val motion = rememberMotionAllowed()
         if (s == null) {
             if (!bluetoothOff) Text(stringResource(R.string.remote_connect), color = tokens.ink2, fontSize = 15.sp)
-            return@Column
+        } else {
+            val accent by animateColorAsState(tokens.modeColor(if (s.isRunning) s.mode else Mode.STANDBY),
+                if (motion) tween(250) else snap(), label = "remote-accent")
+            RemoteStatusCard(model, s, canControl, accent, f)
         }
-        val motion = rememberMotionAllowed()
-        val accent by animateColorAsState(tokens.modeColor(if (s.isRunning) s.mode else Mode.STANDBY),
-            if (motion) tween(250) else snap(), label = "remote-accent")
-
-        RemoteStatusCard(model, s, canControl, accent, f)
 
         // Modes: a fixed three-by-two grid of tinted tiles, the selected one stronger and outlined.
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -143,10 +144,10 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                     row.forEach { mode ->
                         val name = modeName(mode)
                         val what = if (mode == Mode.STANDBY) stringResource(R.string.guard_turn_off) else stringResource(R.string.guard_switch_to, name)
-                        RemoteModeTile(mode, selected = s.mode == mode, enabled = canControl, fahrenheit = f,
+                        RemoteModeTile(mode, selected = canControl && s?.mode == mode, enabled = canRequestMode, fahrenheit = f,
                             modifier = Modifier.weight(1f).fillMaxHeight()) {
                             if (mode == Mode.STANDBY) guard.confirm(what) {
-                                model.remote(name, endsNight = true, confirms = { it.mode == mode }) { it.setMode(mode) }
+                                model.run(io.github.willzy12h.nocturne.night.NightActions.Command.OFF)
                             } else {
                                 val captured = captureRemoteTemporary(model.graph, mode, s)
                                 guard.confirm(what, captured) { model.remoteCaptured(name, captured.request, mode) }
@@ -157,6 +158,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             }
         }
 
+        if (s == null) return@Column
         val notRunning = stringResource(R.string.remote_choose_mode_first)
         // Temperature: always shown; disabled with a reason when the running mode has none.
         run {
@@ -166,7 +168,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
             val scale = if (s.mode.usesTemperature) s.mode.temperatureRange else REMOTE_IDLE_SCALE
             val allowed = maxOf(s.minTemperature, scale.first)..minOf(s.maxTemperature, scale.last)
             var dragging by remember { mutableStateOf(false) }
-            var temp by remember { mutableFloatStateOf(s.targetTemperature.toFloat()) }
+            var temp by remember(s.mode, settings.targetDevice) { mutableFloatStateOf(s.targetTemperature.toFloat()) }
             // A report arriving mid-drag must not pull the thumb from under the finger.
             LaunchedEffect(s.targetTemperature) { if (!dragging) temp = s.targetTemperature.toFloat() }
             var limitedTo by remember(s.mode) { mutableStateOf<Int?>(null) }
@@ -198,7 +200,9 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                         val t = if (allowed.isEmpty()) wanted else wanted.coerceIn(allowed)
                         limitedTo = t.takeIf { it != wanted }
                         temp = t.toFloat()
-                        model.remote(temperatureSet, affectsProgramme = true, confirms = { it.targetTemperature == t }) { it.setTemperature(t) } },
+                        model.adjustRemoteControl(temperatureSet, s.mode, temperature = t) {
+                            if (!dragging) model.status.value?.let { temp = it.targetTemperature.toFloat() }
+                        } },
                     colors = sliderColors(colour),
                 )
             }
@@ -207,7 +211,7 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
         run {
             val usable = s.isRunning && s.mode.usesFan
             var fanDragging by remember { mutableStateOf(false) }
-            var fan by remember { mutableFloatStateOf(s.fanPercent.toFloat()) }
+            var fan by remember(s.mode, settings.targetDevice) { mutableFloatStateOf(s.fanPercent.toFloat()) }
             LaunchedEffect(s.fanStep) { if (!fanDragging) fan = s.fanPercent.toFloat() }
             val shown = ((fan / 5).roundToInt() * 5).coerceIn(5, 100)
             val colour by animateColorAsState(if (usable) tokens.modeColor(s.mode) else tokens.ink3,
@@ -217,15 +221,17 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                 // The "choose a mode" hint is said once, on Temperature; the fan note stays true either way.
                 note = stringResource(R.string.remote_fan_minimum)) {
                 ScaledSlider(
-                    fan, { fanDragging = true; fan = it.coerceAtLeast(5f) }, range = 0f..100f, steps = 0,
+                    fan, { fanDragging = true; fan = it.coerceAtLeast(5f) }, range = 5f..100f, steps = 0,
                     enabled = canControl && usable,
                     modifier = Modifier.sliderSemantics(stringResource(R.string.slider_fan), spokenPercent(shown)),
-                    ticks = listOf(0, 50, 100).map { it.toFloat() to stringResource(R.string.remote_percent_tick, it) }, tag = "fan",
+                    ticks = listOf(5, 50, 100).map { it.toFloat() to stringResource(R.string.remote_percent_tick, it) }, tag = "fan",
                     // Read the slider's latest value here, not this composition's rounded copy, which is a frame behind.
                     onValueChangeFinished = { fanDragging = false
                         val percent = ((fan / 5).roundToInt() * 5).coerceIn(5, 100); val step = percent / 5 - 1
                         fan = percent.toFloat()
-                        model.remote(fanSet, affectsProgramme = true, confirms = { it.fanStep == step }, announceConfirmation = false) { it.setFan(step) } },
+                        model.adjustRemoteControl(fanSet, s.mode, fanStep = step) {
+                            if (!fanDragging) model.status.value?.let { fan = it.fanPercent.toFloat() }
+                        } },
                     colors = sliderColors(colour),
                 )
             }
@@ -245,10 +251,30 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
                         { runDuration(captureDuration(model.graph, s, maximumMinutes)) }, enabled = canControl,
                         label = { Text(stringResource(R.string.remote_run_max, durationText(spokenMaximum(maximumMinutes)))) },
                         modifier = Modifier.testTag("remote-run-max"))
+                    AssistChip(onClick = {
+                        val now = model.now()
+                        val proposed = now.plusSeconds(s.remainingSeconds.toLong())
+                        val captured = captureDuration(model.graph, s, 1)
+                        val themed = android.view.ContextThemeWrapper(context, if (tokens.dark)
+                            android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
+                        android.app.TimePickerDialog(themed, { _, hour, minute ->
+                            val end = io.github.willzy12h.nocturne.night.nextManualFinish(model.now(), java.time.LocalTime.of(hour, minute))
+                            finishError = end == null || io.github.willzy12h.nocturne.night.manualMinutesUntil(
+                                model.now().toInstant(), end, captured.maximumMinutes) == null
+                            if (!finishError && end != null) {
+                                val label = context.getString(R.string.finish_time_result, Format.clock(end.atZone(now.zone)))
+                                guard.confirm(label) { model.remoteDuration(label, captured.request, end) }
+                            }
+                        }, proposed.hour, proposed.minute, Format.twentyFourHour).apply { show(); styleNativeDialog(this, tokens) }
+                    }, enabled = canControl && maximumMinutes > 0 && s.extra?.programStep == 0,
+                        label = { Text(stringResource(R.string.finish_time_button)) })
                     AssistChip({ customDuration = captureDuration(model.graph, s,
                         ((s.remainingSeconds + 59) / 60).coerceIn(1, maximumMinutes)) }, enabled = canControl && maximumMinutes > 0,
                         label = { Text(stringResource(R.string.remote_custom)) })
                 }
+                if (finishError) Text(stringResource(R.string.finish_time_limit, durationText(maximumMinutes)),
+                    color = MaterialTheme.colorScheme.error)
+
             }
         }
         s.extra?.let { extra ->
@@ -271,7 +297,10 @@ private fun RemoteStatusCard(model: AppViewModel, s: io.github.willzy12h.nocturn
     val now = model.now()
     val local by model.busy.collectAsStateWithLifecycle()
     val owner by model.commandBusy.collectAsStateWithLifecycle()
-    val sending = if (local || owner.runningLabel != null || owner.queuedCount > 0) {
+    val tap by model.connectingCommand.collectAsStateWithLifecycle()
+    val tapPhase = tap?.phase?.collectAsStateWithLifecycle()?.value
+    val sending = if ((tapPhase == null || tapPhase == io.github.willzy12h.nocturne.night.ConnectingCommand.Phase.SENDING) &&
+        (local || owner.runningLabel != null || owner.queuedCount > 0)) {
         val label = owner.runningLabel?.let { stringResource(R.string.busy_running, it) } ?: stringResource(R.string.busy_waiting)
         val queued = owner.queuedCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.busy_queued, it, it) }
         listOfNotNull(label, queued).joinToString(" · ")

@@ -76,7 +76,7 @@ class BackupStrictValidationTest {
     }
 
     @Test fun rejectsOversizedCollectionsEvenWithinTheFileByteLimit() {
-        rejected(good.copy(profiles = List(129) { profile.copy(id = "p$it") }))
+        rejected(good.copy(profiles = List(BackupValidator.MAX_PROFILES + 1) { profile.copy(id = "p$it") }))
         rejected(good.copy(profiles = listOf(profile.copy(start = List(65) { profile.start.first() }))))
         rejected(good.copy(history = List(2049) { night.copy(id = "n$it") }))
         val originals = List(385) { index ->

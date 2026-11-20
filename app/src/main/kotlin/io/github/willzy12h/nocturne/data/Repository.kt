@@ -42,6 +42,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -186,8 +187,6 @@ class Repository(
     internal val sessionRevision: StateFlow<Long> = _sessionRevision.asStateFlow()
     // Activity recreation keeps this instance; a new process/repository must invalidate every pending Share.
     private val shareInstanceNonce = UUID.randomUUID().toString()
-    private val _history = MutableStateFlow(History.prune(load(HISTORY, Migrations::decodeHistory).orEmpty(), now(), _settings.value.historyKeepDays))
-    val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     private val _slotBackups = MutableStateFlow(load(SLOT_BACKUPS, Migrations::decodeSlotBackups).orEmpty())
     /** What each device's slots held before the app first wrote them. See [recordOriginalSlot]. */
     val slotBackups: StateFlow<List<SlotBackup>> = _slotBackups.asStateFlow()
@@ -198,9 +197,18 @@ class Repository(
     val notices: StateFlow<List<LoggedNotice>> = _notices.asStateFlow()
     private val _snapshotList = MutableStateFlow(snapshots.list())
     val snapshotList: StateFlow<List<SnapshotInfo>> = _snapshotList.asStateFlow()
+    private val _historyErasurePending = MutableStateFlow(hasPendingErasure())
+    val historyErasurePending = _historyErasurePending.asStateFlow()
 
     private val _runtime = MutableStateFlow(load(RUNTIME) { decode(RuntimeState.serializer(), it) } ?: RuntimeState())
     val runtime: StateFlow<RuntimeState> = _runtime.asStateFlow()
+    private fun protectedHistoryIds() = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
+
+    private var expiredOnDisk = false
+    private val _history = MutableStateFlow(load(HISTORY, Migrations::decodeHistory).orEmpty().let { records ->
+        records.filter(retainCurrentHistory(now())).also { expiredOnDisk = it.size != records.size }
+    })
+    val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     suspend fun updateRuntime(change: (RuntimeState) -> RuntimeState) = update(_runtime, RUNTIME, RuntimeState.serializer(), change)
 
     private val _automation = MutableStateFlow(load(AUTOMATION) {
@@ -380,6 +388,16 @@ class Repository(
         // Moving the unreadable files aside and saving the report are writes, so they wait for the writer. Every
         // later write queues behind this one, so nothing can be written over an unreadable file before it is moved.
         if (toSetAside.isNotEmpty()) scope.launch(writer) { serially { setAsidePending() } }
+        if (hasPendingErasure()) scope.launch(writer) {
+            try {
+                serially { if (!isDemoSession) finishHistoryErasure() }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Log.w(TAG, "History erasure still needs attention", e)
+                addNotice(LoggedNotice(now().toString(), NoticeKind.PROBLEM,
+                    context.getString(R.string.history_erasure_title), context.getString(R.string.history_erasure_pending)))
+            }
+        }
         if (journalStuck) scope.launch {
             runCatching {
                 addNotice(LoggedNotice(now().toString(), NoticeKind.PROBLEM, context.getString(R.string.restore_unfinished_title),
@@ -393,8 +411,10 @@ class Repository(
             combine(_profiles, _settings) { _, _ -> }.drop(1).debounce(30_000).collect { autoSnapshot() }
         }
         scope.launch {
-            val latest = snapshots.list().firstOrNull { !it.manual }?.createdAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
-            if (latest == null || latest.isBefore(now().minusDays(1))) autoSnapshot()
+            while (true) {
+                autoSnapshot(pruneExpired = true)
+                delay(java.time.Duration.ofDays(1).toMillis())
+            }
         }
     }
 
@@ -407,7 +427,12 @@ class Repository(
         _settings.value.migrateTonightChoice(settingsLoadedAt).resolveProfile(_profiles.value, now)
 
     suspend fun saveProfile(profile: Profile) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list ->
-        if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it } else list + profile
+        if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it }
+        else {
+            if (list.size >= BackupValidator.PROFILE_CREATION_LIMIT)
+                throw IOException(context.getString(R.string.profile_library_full, BackupValidator.PROFILE_CREATION_LIMIT))
+            list + profile
+        }
     }
 
     suspend fun answerCooldownOffer(expected: Map<String, List<Phase>>, expectedSessionRevision: Long = sessionRevision.value): Boolean {
@@ -459,20 +484,78 @@ class Repository(
     suspend fun setActiveNight(night: ActiveNight?) = update(_activeNight, ACTIVE_NIGHT, ActiveNight.serializer().nullable) { night }
 
     suspend fun addRecord(record: NightRecord) = update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { list ->
-        History.prune(list.filterNot { it.id == record.id } + record, now(), _settings.value.historyKeepDays)
+        (list.filterNot { it.id == record.id } + record).filter(retainCurrentHistory(now()))
     }
 
     /** Keeps [days] of nights from now on; a shorter period deletes the older nights straight away. */
-    suspend fun setHistoryKeepDays(days: Int) {
+    suspend fun setHistoryKeepDays(days: Int) = serially {
         val keep = History.keepDays(days)
-        updateSettings { it.copy(historyKeepDays = keep) }
-        update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { History.prune(it, now(), keep) }
+        if (isDemoSession) {
+            _settings.value = _settings.value.copy(historyKeepDays = keep)
+            _settingsPublication.value += 1
+            return@serially
+        }
+        beginHistoryErasure(keep)
     }
 
     /** Deletes every saved night except one still running or being ended. Health Connect keeps its own copy. */
-    suspend fun deleteHistory() {
-        val tonight = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
-        update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { list -> list.filter { it.id in tonight } }
+    suspend fun deleteHistory() = serially { if (!isDemoSession) beginHistoryErasure(null) }
+    suspend fun retryHistoryErasure() = serially { if (!isDemoSession) finishHistoryErasure() }
+
+    @Serializable private data class HistoryErasure(
+        val protectedIds: Set<String>, val removeLiveIds: Set<String>, val cutoff: String?, val keepDays: Int?,
+    )
+
+    private fun hasPendingErasure() =
+        File(dir, HISTORY_ERASURE).exists() || File(dir, "$HISTORY_ERASURE.bak").exists()
+
+    private fun beginHistoryErasure(days: Int?) {
+        if (hasPendingErasure()) finishHistoryErasure()
+        finishJournalBefore(SETTINGS, HISTORY)
+        val protected = protectedHistoryIds()
+        val cutoff = days?.let { now().minusDays(minOf(it, History.keepDays(_settings.value.historyKeepDays)).toLong()) }
+        val remove = _history.value.filterNot { it.id in protected || withinRetention(it, cutoff) }.map { it.id }.toSet()
+        writeValue(HISTORY_ERASURE, HistoryErasure.serializer(), HistoryErasure(protected, remove, cutoff?.toString(), days))
+        _historyErasurePending.value = true
+        finishHistoryErasure()
+    }
+
+    private fun withinRetention(record: NightRecord, cutoff: ZonedDateTime?): Boolean =
+        cutoff != null && runCatching { ZonedDateTime.parse(record.startedAt).isAfter(cutoff) }.getOrDefault(false)
+
+    private fun retainCurrentHistory(at: ZonedDateTime): (NightRecord) -> Boolean {
+        val cutoff = at.minusDays(History.keepDays(_settings.value.historyKeepDays).toLong())
+        val protected = protectedHistoryIds()
+        return { it.id in protected || withinRetention(it, cutoff) }
+    }
+
+    /** The marker contains IDs and a fixed cut-off, never a copy of the records being removed. */
+    private fun finishHistoryErasure() {
+        if (!hasPendingErasure()) return
+        val file = File(dir, HISTORY_ERASURE)
+        try {
+            val request = decode(HistoryErasure.serializer(), AtomicFile(file).readFully().decodeToString())
+            val cutoff = request.cutoff?.let(ZonedDateTime::parse)
+            val protected = request.protectedIds + protectedHistoryIds()
+            // Commands may have created a new night since a failed attempt. Never delete it on replay.
+            val remaining = _history.value.filter { it.id !in request.removeLiveIds || it.id in protected }
+            writeValue(HISTORY, ListSerializer(NightRecord.serializer()), remaining)
+            _history.value = remaining
+            request.keepDays?.takeIf { it != _settings.value.historyKeepDays }?.let { days ->
+                val updated = _settings.value.copy(historyKeepDays = days)
+                writeValue(SETTINGS, Settings.serializer(), updated)
+                _settings.value = updated
+                _settingsPublication.value += 1
+            }
+            snapshots.redactHistory { it.id in protected || withinRetention(it, cutoff) }
+            deleteFile(file)
+            if (hasPendingErasure()) throw IOException(context.getString(R.string.history_erasure_pending))
+            syncDirectory(dir)
+        } finally {
+            // An unreadable snapshot must remain selectable for deletion rather than trapping the user.
+            _historyErasurePending.value = hasPendingErasure()
+            _snapshotList.value = snapshots.list(includeUnreadable = _historyErasurePending.value)
+        }
     }
 
     suspend fun addEvent(recordId: String, event: HistoryEvent) =
@@ -687,14 +770,18 @@ class Repository(
     /** Everything a real-session backup holds; private preferences are excluded. */
     fun bundle(): BackupBundle {
         requireRealSession()
+        if (hasPendingErasure()) throw IOException(context.getString(R.string.history_erasure_pending))
+        val at = now()
         return BackupBundle(
-        createdAt = now().toString(),
-        profiles = _profiles.value,
-        settings = _settings.value,
-        slotBackups = _slotBackups.value,
-        history = _history.value,
+            createdAt = at.toString(),
+            profiles = _profiles.value,
+            settings = _settings.value,
+            slotBackups = _slotBackups.value,
+            history = _history.value.filter(retainCurrentHistory(at)),
         )
     }
+
+    suspend fun historyForExport(): List<NightRecord> = serially { bundle().history }
 
     suspend fun snapshotNow(label: String) = serially {
         requireRealSession()
@@ -728,7 +815,7 @@ class Repository(
     suspend fun deleteSnapshot(id: String) = serially {
         requireRealSession()
         snapshots.delete(id)
-        _snapshotList.value = snapshots.list()
+        if (hasPendingErasure()) finishHistoryErasure() else _snapshotList.value = snapshots.list()
     }
 
     /**
@@ -763,6 +850,7 @@ class Repository(
 
     /** A durable pending intention survives process queues; an already scheduled future alarm is not pending work. */
     private fun requireImportIdle() {
+        if (hasPendingErasure()) throw IOException(context.getString(R.string.history_erasure_pending))
         val runtime = _runtime.value
         val night = _activeNight.value
         val pendingJob = context.getSystemService(android.app.job.JobScheduler::class.java)
@@ -781,7 +869,7 @@ class Repository(
         // app's own is, so it becomes tonight's choice only when there is none (IR-30).
         val importedSettings = bundle.settings.copy(tonightChoice = current.tonightChoice, tonightOverride = current.tonightOverride)
             .migrateTonightChoice(restoreAt)
-        val settings = importedSettings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
+        val settings = importedSettings.copy(allowLockedOff = current.allowLockedOff, demoMode = current.demoMode, targetDevice = current.targetDevice,
             rememberedBedJets = current.rememberedBedJets, demoTargetMigrated = current.demoTargetMigrated,
             setupFanCheckedDevice = current.setupFanCheckedDevice,
             platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null, healthSleepExport = false,
@@ -816,9 +904,15 @@ class Repository(
         deviceId = canonicalImportDevice(night.deviceId), bedJetRunConfirmed = false, confirmedCompletionAt = null,
         healthExportVersion = 0, healthExportedVersion = 0)
 
+    /** Locally protected originals and nights may take a valid incoming archive beyond the reader's limits. */
+    private fun requireRestorableProjection(projected: BackupBundle) {
+        BackupCodec.verifiedBytes(BackupCodec.encode(projected))
+    }
+
     /** Called only with exclusive import admission and the repository writer held. */
     private fun restoreLocked(bundle: BackupBundle, label: String, projected: BackupBundle = restoreProjection(bundle, now())) {
         requireRealSession()
+        requireRestorableProjection(projected)
         val profiles = projected.profiles
         val settings = projected.settings
         val history = projected.history
@@ -846,7 +940,8 @@ class Repository(
 
     /** Build a read-only review. No snapshot or repository file is written until the person applies it. */
     suspend fun previewImport(bundle: BackupBundle,
-        label: String = context.getString(R.string.snapshot_label_before_import), profilesOnly: Boolean = false): ImportPreview {
+        label: String = context.getString(R.string.snapshot_label_before_import), profilesOnly: Boolean = false,
+        sourceSnapshotId: String? = null): ImportPreview {
         val admission = operationAdmission.tryImport() ?: throw importBusy()
         try { return serially {
             requireImportIdle()
@@ -859,9 +954,12 @@ class Repository(
             val finalErrors = BackupValidator.validate(checked)
             if (finalErrors.isNotEmpty()) throw BackupException(finalErrors)
             val projected = if (profilesOnly) profileImportProjection(checked) else restoreProjection(checked, now())
-            val projectedErrors = if (profilesOnly) BackupValidator.validate(projected) else emptyList()
-            if (projectedErrors.isNotEmpty()) return@serially ImportPreview("", "", label, checked.createdAt,
-                ImportArea.entries.map { ImportSection(it, emptyList()) }, emptySet(), emptyList(), projectedErrors.size, profilesOnly)
+            try {
+                requireRestorableProjection(projected)
+            } catch (e: BackupException) {
+                return@serially ImportPreview("", "", label, checked.createdAt,
+                    ImportArea.entries.map { ImportSection(it, emptyList()) }, emptySet(), emptyList(), e.errors.size, profilesOnly)
+            }
             val sections = importSections(current, if (profilesOnly) projected else checked, projected)
             if (profilesOnly) return@serially ImportPreview(encoded, importFingerprint(projected), label, checked.createdAt,
                 sections, emptySet(), emptyList(), 0, profilesOnly = true)
@@ -886,7 +984,8 @@ class Repository(
                     checked.settings.platform.healthSleepExport || current.settings.platform.healthSleepExport)
                     add(ImportWarning.AUTOMATIC_ACTIONS_DISABLED)
             }
-            ImportPreview(encoded, importFingerprint(projected), label, checked.createdAt, sections, warnings, devices, 0)
+            ImportPreview(encoded, importFingerprint(projected), label, checked.createdAt, sections, warnings, devices, 0,
+                sourceSnapshotId = sourceSnapshotId)
         } } finally { admission.close() }
     }
 
@@ -901,9 +1000,9 @@ class Repository(
     suspend fun previewSnapshot(id: String): ImportPreview? {
         val bundle = serially {
             bundle() // Enforce the real-session boundary before reading a saved snapshot, under the writer.
-            snapshots.load(id)
+            retainedSnapshot(id)
         } ?: return null
-        return previewImport(bundle, context.getString(R.string.snapshot_label_before_restore))
+        return previewImport(bundle, context.getString(R.string.snapshot_label_before_restore), sourceSnapshotId = id)
     }
 
     /** Compare the data and protection state as well as the projected result, including time-based retention. */
@@ -927,14 +1026,15 @@ class Repository(
         try { serially {
             requireImportIdle()
             val checked = BackupCodec.decode(preview.encodedInput)
+            if (preview.sourceSnapshotId != null && retainedSnapshot(preview.sourceSnapshotId) != checked)
+                throw BackupException(context.getString(R.string.import_preview_changed), failure = BackupFailure.CHANGED)
             val errors = BackupValidator.validate(checked)
             if (errors.isNotEmpty()) throw BackupException(errors)
             val projected = if (preview.profilesOnly) profileImportProjection(checked) else restoreProjection(checked, now())
-            val projectedErrors = if (preview.profilesOnly) BackupValidator.validate(projected) else emptyList()
-            if (projectedErrors.isNotEmpty()) throw BackupException(projectedErrors)
             if (importFingerprint(projected) != preview.expectedState)
                 throw BackupException(context.getString(R.string.import_preview_changed), failure = BackupFailure.CHANGED)
             if (preview.profilesOnly) {
+                requireRestorableProjection(projected)
                 snapshots.save(bundle(), preview.snapshotLabel, manual = true)
                 _snapshotList.value = snapshots.list()
                 writeAllOrNone(listOf(Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value),
@@ -945,9 +1045,15 @@ class Repository(
 
     /** Restores a snapshot; false when it couldn't be read. */
     suspend fun restoreSnapshot(id: String): Boolean {
-        val bundle = serially { requireRealSession(); snapshots.load(id) } ?: return false
-        restore(bundle, context.getString(R.string.snapshot_label_before_restore))
+        val preview = previewSnapshot(id) ?: return false
+        applyImport(preview)
         return true
+    }
+
+    /** A snapshot's old retention setting cannot bring back nights that aged out while the app was closed. */
+    private fun retainedSnapshot(id: String): BackupBundle? {
+        val snapshot = snapshots.load(id) ?: return null
+        return snapshot.copy(history = snapshot.history.filter(retainCurrentHistory(now())))
     }
 
     /** Capture the exact selected profile, with default settings only, in the existing backup format. */
@@ -962,7 +1068,7 @@ class Repository(
             requireRealSession()
             if (request.repositoryNonce != shareInstanceNonce || request.sessionRevision != sessionRevision.value)
                 throw IOException(context.getString(R.string.parity_profile_share_changed))
-            request.encodedProfile.toByteArray(Charsets.UTF_8)
+            BackupCodec.verifiedBytes(request.encodedProfile)
         }
         withContext(Dispatchers.IO) {
             ExportDestination.open(context, uri, openOutput).use { it.write(bytes) }
@@ -973,7 +1079,7 @@ class Repository(
         ExportDestination.check(context, uri)
         val bytes = serially {
             requireRealSession()
-            BackupCodec.encode(bundle()).toByteArray(Charsets.UTF_8)
+            BackupCodec.verifiedBytes(BackupCodec.encode(bundle()))
         }
         // A document provider may wait indefinitely; only capturing the real data needs the night writer.
         withContext(Dispatchers.IO) {
@@ -998,11 +1104,37 @@ class Repository(
         return BackupCodec.decode(BackupValidator.readWithinLimit(input))
     }
 
-    private suspend fun autoSnapshot() = serially {
-        if (isDemoSession || startupMigrationBlocked) return@serially
+    private suspend fun autoSnapshot(pruneExpired: Boolean = false) = serially {
+        if (isDemoSession || startupMigrationBlocked || hasPendingErasure()) return@serially
         // Snapshots of the defaults standing in for an unreadable file would push the good ones out.
         if (_unreadable.value.isNotEmpty()) return@serially
-        if (snapshots.saveIfChanged(bundle())) _snapshotList.value = snapshots.list()
+        if (pruneExpired) {
+            val at = now()
+            val keep = retainCurrentHistory(at)
+            try {
+                val retained = _history.value.filter(keep)
+                if (expiredOnDisk || retained.size != _history.value.size) {
+                    writeValue(HISTORY, ListSerializer(NightRecord.serializer()), retained)
+                    _history.value = retained
+                    expiredOnDisk = false
+                }
+                snapshots.redactHistory(keep)
+            } catch (e: IOException) {
+                // Manual erasure surfaces unreadable snapshots and is resumable. A maintenance
+                // failure must not prevent access to other backups. Restore also checks the cut-off.
+                Log.w(TAG, "Could not finish routine snapshot retention", e)
+            }
+            val latest = snapshots.list().firstOrNull { !it.manual }?.createdAt
+                ?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
+            if (latest != null && !latest.isBefore(at.minusDays(1))) return@serially
+        }
+        try {
+            if (snapshots.saveIfChanged(bundle())) _snapshotList.value = snapshots.list()
+        } catch (e: BackupException) {
+            // A legacy library may need repair. Keep the previous usable snapshot and avoid
+            // crashing the application from the background snapshot job.
+            Log.w(TAG, "Automatic snapshot could not be verified (${e.failure.name})")
+        }
     }
 
     // Files
@@ -1257,6 +1389,7 @@ class Repository(
         private const val PROFILES = "profiles.json"
         private const val SETTINGS = "settings.json"
         private const val HISTORY = "history.json"
+        private const val HISTORY_ERASURE = "history-erasure-pending.json"
         private const val SLOT_BACKUPS = "slot-backups.json"
         private const val SLOT_BACKUPS_BLOCK = "slot-backups-integrity.json"
         /**

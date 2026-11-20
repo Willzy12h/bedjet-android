@@ -56,6 +56,25 @@ class ManualWakeTitleTest {
 
     private fun title() = notification().extras.getString(Notification.EXTRA_TITLE)
 
+    @Test fun lockedWakeShowsOnlyAnExplicitlyEnabledOffAction() {
+        val actions = listOf(io.github.willzy12h.nocturne.core.store.WakeAction.EXTEND_WARM,
+            io.github.willzy12h.nocturne.core.store.WakeAction.OFF)
+        Notifications.showWakeUp(app, night, Settings(notificationActions = actions), logNotice = false)
+        assertEquals(Notification.VISIBILITY_PRIVATE, notification().visibility)
+        assertTrue(notification().actions.all { it.isAuthenticationRequired })
+        assertTrue(notification().publicVersion.actions.isNullOrEmpty())
+        Notifications.showWakeUp(app, night, Settings(notificationActions = actions, allowLockedOff = true), logNotice = false)
+        assertTrue(notification().actions.first().isAuthenticationRequired)
+        assertFalse(notification().publicVersion.actions.single().isAuthenticationRequired)
+        val shown = title()
+        val offIntent = notification().actions.last().actionIntent
+        Notifications.refreshWakePrivacy(app, false)
+        assertTrue(notification().actions.all { it.isAuthenticationRequired })
+        assertTrue(notification().publicVersion.actions.isNullOrEmpty())
+        assertEquals(shown, title())
+        assertEquals(offIntent, notification().actions.last().actionIntent)
+    }
+
     @Test fun anUnknownManualRunDoesNotClaimItsUnconfirmedEnd() {
         val unknown = night.copy(trackingManual = true, confidence = Confidence.UNKNOWN, endsAt = "2026-10-23T06:45Z")
         val status = app.getString(R.string.runtime_sent_unconfirmed, app.getString(R.string.runtime_snooze_warm))

@@ -22,7 +22,10 @@ object BackupValidator {
     const val MAX_BYTES = 5 * 1024 * 1024
     const val MAX_PHASE_MINUTES = 720
     const val MAX_RAMP_STEPS = 8
-    const val MAX_PROFILES = 128
+    const val PROFILE_CREATION_LIMIT = 128
+    // Older releases did not cap their own library. Allow those archives to round-trip under
+    // the existing byte, token and per-profile limits, with an independent allocation bound.
+    const val MAX_PROFILES = 1_024
     const val MAX_HISTORY = 2_048
     const val MAX_ORIGINALS = 384
     private const val MAX_ID = 128
@@ -68,6 +71,11 @@ object BackupValidator {
         } catch (_: CharacterCodingException) {
             throw BackupException("BACKUP_UTF8_INVALID", failure = BackupFailure.DAMAGED)
         }
+    }
+
+    fun requireValid(bundle: BackupBundle) {
+        val errors = validate(bundle)
+        if (errors.isNotEmpty()) throw BackupException(errors)
     }
 
     /** Every problem with [bundle]; empty when it is safe to restore. */
@@ -191,6 +199,10 @@ object BackupValidator {
         settings.tonightChoice?.let { bounded(it.profileId, "settings.tonightChoice.profileId", MAX_ID) }
         settings.targetDevice?.let { bounded(it, "settings.targetDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.targetDevice") }
         settings.setupFanCheckedDevice?.let { bounded(it, "settings.setupFanCheckedDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.setupFanCheckedDevice") }
+        if (settings.manualControls.size > ManualControls.MAX_ENTRIES ||
+            settings.manualControls.any { !it.valid() } ||
+            settings.manualControls.distinctBy { it.device.uppercase(java.util.Locale.ROOT) to it.mode }.size != settings.manualControls.size)
+            invalid("settings.manualControls")
         count(settings.alarmPackages.size, 128, "settings.alarmPackages")
         settings.alarmPackages.take(129).forEach { bounded(it, "settings.alarmPackages", 255) }
         count(settings.tonightSectionOrder.size, 64, "settings.tonightSectionOrder")

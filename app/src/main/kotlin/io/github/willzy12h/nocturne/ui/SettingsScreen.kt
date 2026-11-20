@@ -151,7 +151,6 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
     var licencesOpen by remember { mutableStateOf(false) }
     var confirmResetControls by remember { mutableStateOf(false) }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::export) }
-    val diagnostics = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> uri?.let(model::exportDiagnostics) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::import) }
 
     pendingTheme?.let { requested ->
@@ -302,6 +301,9 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
                     )
                 }
             }
+            SwitchRow(stringResource(R.string.allow_locked_off), stringResource(R.string.allow_locked_off_help), settings.allowLockedOff) { enabled ->
+                model.updateSettings { it.copy(allowLockedOff = enabled) }
+            }
             SwitchRow(stringResource(R.string.settings_quiet_title), stringResource(R.string.settings_quiet_help), settings.quietNightNotification) { on ->
                 model.updateSettings { it.copy(quietNightNotification = on) }
             }
@@ -417,10 +419,7 @@ fun SettingsScreen(model: AppViewModel, modifier: Modifier, backupsRequest: Int 
         }
 
         if (page == "about") Group(stringResource(R.string.settings_diagnostics_title)) {
-            Text(stringResource(R.string.settings_diagnostics_help), style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { diagnostics.launch("nocturne-diagnostics-${model.now().toLocalDate()}.json") }) {
-                Text(stringResource(R.string.settings_diagnostics_export))
-            }
+            DiagnosticsExport(model)
         }
 
         if (page == "about") Group(stringResource(R.string.settings_updates)) {

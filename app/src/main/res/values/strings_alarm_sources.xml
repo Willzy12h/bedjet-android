@@ -35,9 +35,10 @@
     <string name="missing_alarm_body_unnamed">There’s an alarm at %1$s, but Android didn’t say which app set it.</string>
     <string name="alarm_source_unnamed_offer">Alarm %1$s from an unnamed app — tap to use it tonight</string>
     <string name="missing_alarm_use_unnamed">Use the %1$s alarm tonight</string>
-    <string name="missing_alarm_use_unnamed_help">For tonight only. Saved on your BedJet, like a wake time you set yourself.</string>
+    <string name="missing_alarm_use_unnamed_help">For tonight only. The BedJet can use this wake time once the programme is sent and confirmed.</string>
     <string name="missing_alarm_tonight">Set tonight’s wake time</string>
-    <string name="missing_alarm_tonight_help">Saved on your BedJet, so it still wakes you if your phone closes Nocturne.</string>
+    <string name="missing_alarm_tonight_help">Saved for tonight on this phone. Once the BedJet confirms the programme, it can run with Nocturne closed.</string>
     <string name="missing_alarm_fixed">Use a fixed wake time in this profile</string>
     <string name="missing_alarm_sources">Choose alarm apps</string>
+    <string name="tonight_separate_phone_alarm">Next phone alarm %1$s</string>
 </resources>

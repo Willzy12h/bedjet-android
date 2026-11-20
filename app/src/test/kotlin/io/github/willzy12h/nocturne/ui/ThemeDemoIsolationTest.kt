@@ -67,11 +67,14 @@ class ThemeDemoIsolationTest {
     }
 
     private fun renderedHeaderColour(): Color {
-        ui.compose.navTab("Tonight")
+        // Remote shows the same connection label both before first-run setup and in Demo.
+        ui.compose.navTab("Remote")
         val layouts = mutableListOf<TextLayoutResult>()
         ui.compose.onNodeWithTag("status-connection", useUnmergedTree = true).assertIsDisplayed()
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { assertTrue(it(layouts)) }
-        return layouts.single().layoutInput.style.color
+        val colour = layouts.single().layoutInput.style.color
+        ui.compose.navTab("Tonight")
+        return colour
     }
 
     @Test fun demoLightApprovalKeepsTheRealScheduledDarkHoldOnExitAndRecreation() {
@@ -92,8 +95,7 @@ class ThemeDemoIsolationTest {
         assertNotNull(preferences.getString("holdSelection", null))
         assertTrue(preferences.getLong("holdUntil", 0) > ui.graph.now().toInstant().toEpochMilli())
 
-        // The app no longer offers Demo; tests still start one directly.
-        ui.compose.runOnUiThread { ui.model.useDemo() }
+        ui.compose.onNodeWithTag("setup-demo").performScrollTo().performClick()
         ui.waitUntil {
             ui.graph.repository.isDemoSession && ui.graph.repository.settings.value.demoMode &&
                 ui.graph.actions.busy.value.runningLabel == null
@@ -146,8 +148,7 @@ class ThemeDemoIsolationTest {
         assertTrue(preferences.getBoolean("lastDark", false))
         assertNotNull(preferences.getString("holdSelection", null))
 
-        // The app no longer offers Demo; tests still start one directly.
-        ui.compose.runOnUiThread { ui.model.useDemo() }
+        ui.compose.onNodeWithTag("setup-demo").performScrollTo().performClick()
         ui.waitUntil { ui.graph.repository.isDemoSession && ui.graph.actions.busy.value.runningLabel == null }
         settleFrames()
         settings()

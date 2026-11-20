@@ -70,7 +70,7 @@ import kotlin.math.roundToInt
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    val plan = remember(saved, profiles, resume, automation.claims) { AutoStartSchedule.nextScheduled(graph) }
+    val plan = remember(saved, profiles, resume, automation.claims, automation.skippedStarts) { AutoStartSchedule.nextScheduled(graph) }
     fun save(expected: AutoStartSettings? = null, expectedTarget: String? = null, transform: (AutoStartSettings) -> AutoStartSettings) {
         scope.launch {
             var rejected = false

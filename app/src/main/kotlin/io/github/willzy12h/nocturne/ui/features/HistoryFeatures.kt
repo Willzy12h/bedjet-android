@@ -41,9 +41,10 @@ import java.time.format.DateTimeFormatter
         if(uri!=null && !graph.repository.settings.value.demoMode) scope.launch {
             try {
                 if (graph.repository.settings.value.demoMode) return@launch
-                val csv=HistoryCsv.encode(graph.repository.history.value,settings.fahrenheit,identifiers)
+                val history=graph.repository.historyForExport()
                 withContext(Dispatchers.IO) {
                     if (graph.repository.settings.value.demoMode) throw kotlinx.coroutines.CancellationException("Demo session")
+                    val csv=HistoryCsv.encode(history,settings.fahrenheit,identifiers)
                     io.github.willzy12h.nocturne.data.ExportDestination.open(graph.context, uri).use {it.write(csv.toByteArray(Charsets.UTF_8))}}
                 status=graph.context.getString(R.string.feature_export_done)
             } catch(e:kotlinx.coroutines.CancellationException){throw e

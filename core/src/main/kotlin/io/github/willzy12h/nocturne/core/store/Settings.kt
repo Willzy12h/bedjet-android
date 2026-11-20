@@ -101,12 +101,14 @@ data class Settings(
     val quickControlsCollapsed: Boolean = false,
     /** Explicit mode overrides; absent entries retain legacy Warm/Cool values losslessly. */
     val quickDefaults: List<ActionPreset> = emptyList(),
+    val manualControls: List<ManualControls> = emptyList(),
     val setupChecklistCompleted: Boolean = false,
     val setupDismissedOptional: Set<String> = emptySet(),
     /** Collapsing content never removes the section's accessible header. */
     val collapsedTonightSections: Set<String> = emptySet(),
     /** Stable section IDs; unknown, repeated and missing IDs are normalised when displayed. */
     val tonightSectionOrder: List<String> = listOf("night", "wake", "connection"),
+    val allowLockedOff: Boolean = false,
     val quietNightNotification: Boolean = false,
     /** Stable Sleep page section IDs, normalised like [tonightSectionOrder]. */
     val sleepSectionOrder: List<String> = SLEEP_SECTIONS,
@@ -183,11 +185,13 @@ data class Settings(
         val defaults = Settings()
         return copy(
             notificationActions = defaults.notificationActions,
+            allowLockedOff = false,
             snoozeWarm = defaults.snoozeWarm, snoozeCool = defaults.snoozeCool,
             extendWarm = defaults.extendWarm, extendCool = defaults.extendCool,
             boostMinutes = defaults.boostMinutes,
             // As a new install has them: none saved, so each is its built-in (Extend is back to its default too).
             quickDefaults = defaults.quickDefaults,
+            manualControls = emptyList(),
         )
     }
 

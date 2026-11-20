@@ -60,7 +60,27 @@ object AutoStartSchedule {
     private val claimPrefixes = listOf("charger:", "auto-skip:", "cancel:", "charger-unreadable:")
 
     internal fun claimed(graph: Graph, key: String): Boolean =
-        claimPrefixes.any { "$it$key" in graph.repository.automation.value.claims }
+        key in graph.repository.automation.value.skippedStarts || claimPrefixes.any { "$it$key" in graph.repository.automation.value.claims }
+
+    /** Keep a future skipped occurrence visible on Tonight so its owner can undo it until its start time. */
+    fun nextEditable(graph: Graph): AutoStartPlan? =
+        nextScheduled(graph, includeSkipped = true)?.takeIf { it.startAt.isAfter(graph.now()) }
+
+    suspend fun setSkipped(graph: Graph, ticket: AutoStartTicket, skip: Boolean): Boolean {
+        var changed = false
+        graph.repository.updateAutomation { state ->
+            val occurrence = nextEditable(graph)
+            if (occurrence?.ticket() != ticket || (ticket.key in state.skippedStarts) == skip) return@updateAutomation state
+            // A wake just after midnight can belong to yesterday's key. Keep that day's choices too.
+            val oldest = graph.now().toLocalDate().minusDays(1).toString()
+            val retained = state.skippedStarts.filterTo(mutableSetOf()) { it.substringAfterLast(':') >= oldest }
+            if (skip) retained.add(ticket.key) else retained.remove(ticket.key)
+            changed = true
+            state.copy(skippedStarts = retained)
+        }
+        if (changed) ChargerJobs.sync(graph)
+        return changed
+    }
 
     /** One-way interpretation of the old charger setting; a subsequent explicit choice always wins. */
     fun settings(graph: Graph): AutoStartSettings {
@@ -137,12 +157,16 @@ object AutoStartSchedule {
     fun exact(graph: Graph): Boolean = graph.context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
 
     /** The UI and AlarmManager share this next eligible night; due() still validates an already owned attempt. */
-    fun nextScheduled(graph: Graph): AutoStartPlan? {
+    fun nextScheduled(graph: Graph): AutoStartPlan? = nextScheduled(graph, includeSkipped = false)
+
+    private fun nextScheduled(graph: Graph, includeSkipped: Boolean): AutoStartPlan? {
         val queued = graph.context.getSystemService(JobScheduler::class.java).getPendingJob(ChargerJobs.ID)
             ?.takeUnless { it.isPeriodic }?.extras?.let(AutoStartTicket::from)?.key
         val blocked = graph.repository.automation.value.claims.mapNotNull { claim ->
             claimPrefixes.firstOrNull { claim.startsWith(it) }?.let { claim.removePrefix(it) }
-        }.toSet() + listOfNotNull(queued)
+        }.toSet() + listOfNotNull(queued) + if (includeSkipped) emptySet() else graph.repository.automation.value.skippedStarts
+        val due = due(graph)
+        if (due != null && due.key !in blocked) return due
         var after = graph.now()
         repeat(blocked.size + 1) {
             val candidate = next(graph, after) ?: return null

@@ -25,6 +25,8 @@ import kotlinx.serialization.Serializable
     val reason: String? = null,
     val wakeShown: NightIdentity? = null,
     val manualWakeShown: Boolean = false,
+    /** Explicit hand-over belongs to this phone and survives process death. */
+    val releasedDevices: Set<String> = emptySet(),
 ) {
     /**
      * IR-06: the slot write still in question, PENDING (under way, or interrupted by a restart) or UNKNOWN (perhaps
@@ -60,7 +62,15 @@ data class CommandRequest(val command: NightActions.Command, val profileId: Stri
     val expected: NightIdentity?, val requireIdentity: Boolean = false, val replacementConfirmed: Boolean = false,
     val origin: CommandOrigin = CommandOrigin.APP,
     /** The exact quick action reviewed by the caller, including its one-action duration. */
-    val actionPreset: io.github.willzy12h.nocturne.core.store.ActionPreset? = null)
+    val actionPreset: io.github.willzy12h.nocturne.core.store.ActionPreset? = null,
+    /** Binds a visible external Start approval to the same saved programme after a service wait. */
+    val reviewedProfileHash: String? = null)
+
+internal fun reviewedProfileHash(profile: io.github.willzy12h.nocturne.core.plan.Profile): String {
+    val bytes = io.github.willzy12h.nocturne.core.store.BackupCodec.json.encodeToString(
+        io.github.willzy12h.nocturne.core.plan.Profile.serializer(), profile).toByteArray(Charsets.UTF_8)
+    return java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+}
 
 data class TemporaryActionPreview(val plan: io.github.willzy12h.nocturne.core.plan.Plan?, val refusal: String?)
 enum class OutcomeKind { CONFIRMED, ACCEPTED, LOCAL, REFUSED, STALE, FAILED, UNKNOWN, CONFIRMATION_REQUIRED }

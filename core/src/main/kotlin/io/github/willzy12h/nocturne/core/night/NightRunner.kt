@@ -109,16 +109,17 @@ class NightRunner(private val controller: BedJetController, private val now: () 
     fun prepareStart(profile: Profile, alarm: ZonedDateTime?, slot: Int, deviceId: String,
         expected: NightIdentity?, current: ActiveNight?, override: TonightOverride? = null,
         settings: Settings = Settings(),
-        alarmOrigin: String? = null): Preparation {
+        alarmOrigin: String? = null, scheduledStart: ZonedDateTime? = null): Preparation {
         if (current?.identity != expected) return Preparation.Stale(expected, current?.identity)
         val time = now()
-        val preview = NightPreview.forStartNow(profile, time, alarm, override, settings, alarmOrigin)
+        val preview = NightPreview.forStartNow(profile, time, alarm, override, settings, alarmOrigin, scheduledStart)
         val plan = preview.plan ?: return Preparation.Refused(preview.refusalReason.orEmpty(), durationProblem = preview.durationProblem)
         if (slot !in 0..2) return Preparation.Refused("Choose BedJet slot 1 to 3.")
         val wake = preview.wake
         val night = ActiveNight("night-${UUID.randomUUID()}", profile.id, time.toString(), wake.time.toString(),
             wake.fromAlarm, slot, plan.wakeUpStart.toString(), plan.end.toString(), deviceId, profile, wake.origin,
-            applied = AppliedProgram.from(plan), confidence = Confidence.CONFIRMED)
+            applied = AppliedProgram.from(plan), confidence = Confidence.CONFIRMED,
+            shortAlarmNightMinutes = Duration.between(time, wake.time).toMinutes().toInt().takeIf { scheduledStart != null && it < 60 })
         val request = PendingChange(UUID.randomUUID().toString(), ChangeKind.START, night.wakeAt, time.toString(), time.plusMinutes(1).toString(), expected)
         return Preparation.Ready(PreparedChange(plan, night, current, request))
     }
@@ -162,7 +163,9 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             Eligibility.Allowed -> Unit
         }
         val length = Duration.between(ZonedDateTime.parse(night.startedAt), wake)
-        if (length < WakeResolver.MIN_NIGHT || length > WakeResolver.MAX_NIGHT || !wake.isAfter(time))
+        val minimum = night.shortAlarmNightMinutes?.takeIf { it > 0 }
+            ?.let { minOf(WakeResolver.MIN_NIGHT, Duration.ofMinutes(it.toLong())) } ?: WakeResolver.MIN_NIGHT
+        if (length < minimum || length > WakeResolver.MAX_NIGHT || !wake.isAfter(time))
             return Preparation.Refused(NightDurationProblem.OUTSIDE_WINDOW.name, durationProblem = NightDurationProblem.OUTSIDE_WINDOW)
         return try {
             val original = night.temporary?.base?.plan() ?: night.activePlan(profile)

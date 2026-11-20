@@ -170,8 +170,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     }
     val manualLabel = if (night?.trackingManual == true)
         stringResource(if (confirmed) R.string.tonight_manual_until else R.string.planned_end) else null
-    val headline = tonightWakeHeadline(settings, profile, now, alarm, night)
-    val wakeTime = headline.at?.let(Format::clock) ?: stringResource(R.string.ux_unknown_time)
+    val phoneAlarm = acceptedPhoneAlarm(settings, now, alarm, night)
     val editPhase: (Block, ZonedDateTime) -> Unit = phaseEdit@{ block, at ->
         val selected = profile ?: return@phaseEdit
         val displayedPlan = plan ?: return@phaseEdit
@@ -195,12 +194,24 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     var editingBoost by remember { mutableStateOf(false) }
     val sending = rememberPresetSending()
     val tokens = paletteTokens
+    val restoreOffered by model.restoreOffer.collectAsStateWithLifecycle()
+    val fullSetup by model.setupChecklistOpen.collectAsStateWithLifecycle()
+    val unreadable by model.unreadable.collectAsStateWithLifecycle()
+    val restoreUnfinished by model.restoreUnfinished.collectAsStateWithLifecycle()
+    val originalsBlocked by model.originalsBlocked.collectAsStateWithLifecycle()
+    val firstRun = restoreOffered && !settings.demoMode && settings.targetDevice == null && night == null &&
+        settings.rememberedBedJets.isEmpty() && !fullSetup && unreadable.isEmpty() && !restoreUnfinished && !originalsBlocked
     val current = if (confirmed) plan?.stepAt(now) else null
     val profileName = profile?.name ?: night?.profile?.name ?: stringResource(R.string.tonights_night)
 
     Box(modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("tonight-content")
         .padding(horizontal = 16.dp).padding(bottom = 16.dp + FeedbackClearance), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (firstRun) {
+            SetupChecklistCard(model, firstRun = true)
+            RestoreOfferCard(model)
+            return@Column
+        }
         StatusLine(model, runningName = profileName.takeIf { confirmed && night?.trackingManual == false }, onRemote = onOpenRemote)
         BluetoothBanner(model)
         HomeReading(model, settings, current?.let { (index, step) -> Triple(step, index + 1, plan?.steps?.size ?: 0) }, sending.value)
@@ -244,6 +255,13 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
             val end = if (night != null) manualLabel?.let { label -> runCatching { PlanEnd(label, ZonedDateTime.parse(night.endsAt)) }.getOrNull() } else null
             plan?.let { p ->
+                val wakeTime = Format.clock(p.wake)
+                val wakeSource = when (night?.wakeOrigin ?: preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT) {
+                    WakeOrigin.PROFILE_DEFAULT -> R.string.gpt12_wake_profile_fallback
+                    WakeOrigin.OVERRIDE -> R.string.gpt12_wake_override
+                    WakeOrigin.ALARM -> R.string.gpt12_wake_next_alarm
+                    WakeOrigin.AUTO_START -> R.string.wake_origin_auto_start
+                }
                 val summary = planSummary(p, settings.fahrenheit)
                 val detail = stringResource(R.string.parity_show_detail)
                 // UX-08: a chevron always shows that the bar opens; it turns when open, instantly under reduced motion.
@@ -254,10 +272,11 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = detail) { showDetail = !showDetail }
                     .semantics(mergeDescendants = true) { contentDescription = summary ?: profileName; stateDescription = if (showDetail) "" else detail },
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    NightBar(p, now.takeIf { night != null && confirmed }, Modifier.weight(1f), minHeight = 48.dp)
+                    NightBar(p, now.takeIf { night != null && confirmed }, Modifier.weight(1f), height = 40.dp, minHeight = 48.dp, showFan = true)
                     Icon(painterResource(R.drawable.ic_nc_chevron_down), null,
                         Modifier.size(22.dp).rotate(turn).testTag("tonight-detail-chevron"), tint = tokens.ink2)
                 }
+                Text(stringResource(R.string.tonight_chart_fan), color = tokens.ink2, fontSize = 12.sp)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     val tick = Modifier.weight(1f)
                     Tick(if (night != null) Format.clock(p.start) else stringResource(R.string.parity_bed, Format.clock(p.start)), tick, TextAlign.Start)
@@ -265,9 +284,11 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                         tick, TextAlign.Center)
                     // The wake source stays visible under the time: alarm, tonight-only or the profile's fallback.
                     Tick(end?.let { "${it.label} ${Format.clock(it.at)}" } ?: ((if (night != null) wakeTime else stringResource(R.string.parity_wake, wakeTime)) +
-                        "\n" + stringResource(headline.label)),
+                        "\n" + stringResource(wakeSource)),
                         tick.testTag("tonight-fixed-wake").then(if (overridable) Modifier.clickable(onClick = pickWake) else Modifier), TextAlign.End)
                 }
+                if (end == null && phoneAlarm != null && !phoneAlarm.isEqual(p.wake))
+                    Note(stringResource(R.string.tonight_separate_phone_alarm, Format.clock(phoneAlarm)))
                 if (showDetail) PlanCard(p, settings, night?.wakeOrigin ?: preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT,
                     now = now.takeIf { night != null && confirmed }, end = end, middle = night?.profile?.middle ?: profile?.middle,
                     onEditPhase = if (profile == null) null else editPhase)
@@ -342,12 +363,11 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         NightRecoveryControls(model, night, guard, now)
 
+        if (night == null) TonightScheduledStart(model, now)
+
         QuickPresets(model, guard, sending, onEdit = { editingQuick = true }, onEditPreset = { editingPreset = it },
             onEditBoost = { editingBoost = true })
 
-        val unreadable by model.unreadable.collectAsStateWithLifecycle()
-        val restoreUnfinished by model.restoreUnfinished.collectAsStateWithLifecycle()
-        val originalsBlocked by model.originalsBlocked.collectAsStateWithLifecycle()
         val banner = UnreadableBannerState(unreadable, restoreUnfinished, originalsBlocked)
         UnreadableDataBanner(banner, onDismiss = model::dismissUnreadable,
             onRestore = onOpenBackups.takeIf { banner.offersRestore }, onAcceptLoss = model::acceptLostOriginals)

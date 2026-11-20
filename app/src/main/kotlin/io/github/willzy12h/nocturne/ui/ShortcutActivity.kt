@@ -5,6 +5,8 @@ import android.content.Intent
 import io.github.willzy12h.nocturne.night.CommandRequest
 import io.github.willzy12h.nocturne.night.CommandOrigin
 import io.github.willzy12h.nocturne.night.NightAlarms
+import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.store.deviceId
 import android.app.Activity
 import android.app.AlertDialog
 import android.os.Bundle
@@ -34,10 +36,11 @@ class ShortcutActivity : Activity() {
         if (command == null) { finish(); return }
         val current = graph.actions.capture(command, intent.getStringExtra("profile"), requireIdentity = true)
         // Notification requests retain render-time identity. External extras never waive confirmation.
-        val captured = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) current.copy(
+        val fromNotification = intent.getBooleanExtra(EXTRA_CAPTURED, false)
+        val captured = if (fromNotification) current.copy(
             deviceId = intent.getStringExtra(EXTRA_TARGET), expected = NightAlarms.identity(intent)) else current
         val quick = captureQuickAction(graph,
-            captured.copy(origin = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT))
+            captured.copy(origin = if (fromNotification) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT))
         if (graph.repository.activeNight.value != null && quick != null) {
             showTemporaryActionDialog(this, graph, quick, android.R.string.cancel) { selected ->
                 BedJetService.start(this, selected); finish()
@@ -46,6 +49,15 @@ class ShortcutActivity : Activity() {
         }
         // Idle shortcuts still show an approval. Its wording and service request share this captured preset.
         val reviewed = quick?.end ?: captured
+        val repo = graph.repository
+        val requestedProfile = if (command == NightActions.Command.START_NIGHT) {
+            if (reviewed.profileId != null) repo.profile(reviewed.profileId) else repo.tonightsProfile()
+        } else null
+        val active = repo.activeNight.value
+        val approved = reviewed.copy(reviewedProfileHash = requestedProfile?.let { io.github.willzy12h.nocturne.night.reviewedProfileHash(it) },
+            profileId = requestedProfile?.id ?: reviewed.profileId,
+            origin = if (fromNotification) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT,
+            replacementConfirmed = true)
         val recovery = command == NightActions.Command.END_NIGHT || command == NightActions.Command.RESUME
         val title = when (command) {
             NightActions.Command.END_NIGHT -> R.string.guard_title
@@ -63,15 +75,28 @@ class ShortcutActivity : Activity() {
                 setPadding(padding, padding, padding, 0)
                 isAccessibilityHeading = true
             })
-            .setMessage(when (command) {
-                NightActions.Command.END_NIGHT -> getString(R.string.runtime_confirm_stop)
-                NightActions.Command.RESUME -> getString(R.string.guard_resume_body)
-                NightActions.Command.BOOST -> getString(R.string.runtime_confirm_command,
-                    boostDescription(this, requireNotNull(reviewed.actionPreset).minutes))
-                else -> getString(R.string.runtime_confirm_command, NightActions.commandLabel(this, command))
-            })
-            .setPositiveButton(if (recovery) NightActions.commandLabel(this, command) else getString(R.string.runtime_confirm)) { _, _ ->
-                BedJetService.start(this, reviewed.copy(replacementConfirmed = true)); finish()
+            .setMessage(buildList {
+                add(when (command) {
+                    NightActions.Command.END_NIGHT -> getString(R.string.runtime_confirm_stop)
+                    NightActions.Command.RESUME -> getString(R.string.guard_resume_body)
+                    NightActions.Command.BOOST -> getString(R.string.runtime_confirm_command,
+                        boostDescription(this@ShortcutActivity, requireNotNull(reviewed.actionPreset).minutes))
+                    else -> getString(R.string.runtime_confirm_command, NightActions.commandLabel(this@ShortcutActivity, command))
+                })
+                add(shortcutTarget(graph, reviewed.deviceId))
+                if (command == NightActions.Command.START_NIGHT) {
+                    add(requestedProfile?.let { getString(R.string.shortcut_profile, it.name) } ?: getString(R.string.runtime_profile_deleted))
+                    if (active != null) add(getString(R.string.shortcut_replaces,
+                        active.profile?.name ?: repo.profile(active.profileId)?.name ?: getString(R.string.tonights_night)))
+                }
+            }.joinToString("\n"))
+            .setPositiveButton(if (recovery) NightActions.commandLabel(this@ShortcutActivity, command) else getString(R.string.runtime_confirm)) { _, _ ->
+                val profileValid = command != NightActions.Command.START_NIGHT ||
+                    (requestedProfile != null && repo.profile(requestedProfile.id) == requestedProfile)
+                if (repo.settings.value.deviceId() == approved.deviceId && repo.activeNight.value?.identity == approved.expected && profileValid)
+                    BedJetService.start(this, approved)
+                else android.widget.Toast.makeText(this, R.string.shortcut_changed, android.widget.Toast.LENGTH_LONG).show()
+                finish()
             }
             .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }
             .setOnCancelListener { finish() }
@@ -88,4 +113,15 @@ class ShortcutActivity : Activity() {
             }
         }
     }
+}
+
+
+internal fun shortcutTarget(graph: io.github.willzy12h.nocturne.Graph, device: String?): String {
+    val context = graph.context
+    val name = when {
+        device == null -> context.getString(R.string.shortcut_no_target)
+        DeviceId.isDemo(device) -> context.getString(R.string.settings_demo)
+        else -> graph.bleLink.deviceNameFor(device)?.let { "$it (…${device.takeLast(5)})" } ?: device
+    }
+    return context.getString(R.string.shortcut_target, name)
 }

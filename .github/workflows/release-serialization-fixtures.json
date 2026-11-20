@@ -97,7 +97,7 @@
       "endsAtClockTime": true
     },
     "program": {
-      "name": "Original slot · 雨",
+      "name": "Original · 雨",
       "steps": [
         {
           "$ref": "programStep"
@@ -216,7 +216,13 @@
         "history"
       ],
       "sleepRangeDays": 30,
-      "historyKeepDays": 365
+      "historyKeepDays": 365,
+      "manualControls": [
+        {
+          "$ref": "manualControls"
+        }
+      ],
+      "allowLockedOff": true
     },
     "slotBackup": {
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
@@ -478,7 +484,10 @@
       "wakeShown": {
         "$ref": "identity"
       },
-      "manualWakeShown": true
+      "manualWakeShown": true,
+      "releasedDevices": [
+        "ble:AA:BB:CC:DD:EE:01"
+      ]
     },
     "journalWrite": {
       "name": "settings.json",
@@ -500,6 +509,7 @@
       "at": "2026-10-23T22:30Z"
     },
     "automation": {
+      "skippedStarts": ["ble:AA:BB:CC:DD:EE:FF:2026-11-19"],
       "claims": [
         "release-one",
         "release-two"
@@ -568,7 +578,13 @@
         "$ref": "editorPhase"
       }
     },
-    "encodedSharedProfile": "{\"schema\":3,\"createdAt\":\"2026-10-23T22:30Z\",\"profiles\":[{\"id\":\"release-shared-profile\",\"name\":\"Saved \\\"profile\\\" · 夜\",\"start\":[],\"middle\":{\"mode\":\"COOL\",\"fanStart\":35,\"fanEnd\":25,\"tempStart\":44,\"tempEnd\":46,\"rampSteps\":4},\"wake\":[]}],\"settings\":{},\"slotBackups\":[],\"history\":[]}"
+    "encodedSharedProfile": "{\"schema\":3,\"createdAt\":\"2026-10-23T22:30Z\",\"profiles\":[{\"id\":\"release-shared-profile\",\"name\":\"Saved \\\"profile\\\" · 夜\",\"start\":[],\"middle\":{\"mode\":\"COOL\",\"fanStart\":35,\"fanEnd\":25,\"tempStart\":44,\"tempEnd\":46,\"rampSteps\":4},\"wake\":[]}],\"settings\":{},\"slotBackups\":[],\"history\":[]}",
+    "manualControls": {
+      "device": "ble:AA:BB:CC:DD:EE:FF",
+      "mode": "COOL",
+      "temperature": 46,
+      "fanStep": 10
+    }
   },
   "models": {
     "io.github.willzy12h.nocturne.core.night.ActiveNight": [
@@ -887,6 +903,20 @@
         "repositoryNonce": null
       }
     ],
+    "io.github.willzy12h.nocturne.data.Repository$HistoryErasure": [
+      {
+        "protectedIds": ["running"],
+        "removeLiveIds": ["finished"],
+        "cutoff": "2026-11-15T20:00Z",
+        "keepDays": 7
+      },
+      {
+        "protectedIds": [],
+        "removeLiveIds": [],
+        "cutoff": null,
+        "keepDays": null
+      }
+    ],
     "io.github.willzy12h.nocturne.data.Repository$JournalWrite": [
       {
         "$ref": "journalWrite"
@@ -960,6 +990,11 @@
     "io.github.willzy12h.nocturne.ui.ProfileDraft": [
       {
         "$ref": "profileDraft"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.ManualControls": [
+      {
+        "$ref": "manualControls"
       }
     ]
   }

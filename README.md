@@ -64,7 +64,8 @@ first, so you can compare and download it; the app never checks or downloads any
 - **Shortcuts** for Start tonight, Turbo, Boost and Off, usable from Samsung Modes & Routines and Bixby, and a
   **Quick Settings tile** that shows tonight's status and opens the app.
 - **Auto-start** at a fixed time or a set time before your alarm, optionally only while charging, and a
-  **bedtime reminder**.
+  **bedtime reminder**. Tonight shows the next scheduled start. You can skip that one night and undo the skip
+  before it starts. Moving the alarm on the same wake date keeps the skip, and later nights follow your usual schedule.
 - **Keep a profile on the BedJet.** Write a profile to a spare programme slot as a fixed programme the BedJet
   keeps. What was in the slot is saved first so you can restore it.
 - **Sleep page** showing your BedJet nights over 7 days, 30 days or 3 months, with Health Connect sleep stages
@@ -72,6 +73,10 @@ first, so you can compare and download it; the app never checks or downloads any
 - **Palettes and themes**: seven colour palettes, separate night and day palettes on a schedule, and Light, Dark or
   System theme.
 - **Backups**: automatic and manual snapshots, and export/import to a file you choose.
+
+If a full backup cannot be saved, keep the existing installation. Very large libraries from earlier versions
+may exceed the 5 MiB archive limit or another import limit. Share individual profiles from Profiles, and use
+Sleep to export a readable history CSV. The CSV cannot restore nights, settings or original BedJet slot contents.
 
 ## Permissions
 

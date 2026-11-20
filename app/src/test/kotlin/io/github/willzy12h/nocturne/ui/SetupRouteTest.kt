@@ -49,9 +49,14 @@ class SetupRouteTest {
         condition()
     }
 
-    @Test fun tonightOffersNoDemo() {
-        compose.onAllNodesWithText("demo", substring = true, ignoreCase = true).assertCountEquals(0)
+    @Test fun firstRunOffersSeparateConnectAndDemoActions() {
+        compose.onNodeWithTag("setup-pair").assertTextEquals(s(R.string.first_run_connect)).assertIsDisplayed()
+        compose.onNodeWithTag("setup-demo").assertTextEquals(s(R.string.first_run_demo)).assertIsDisplayed()
+        assertFalse(graph.repository.settings.value.demoMode)
         assertNull(graph.repository.settings.value.targetDevice)
+        compose.onNodeWithTag("setup-demo").performClick()
+        waitUntil { graph.repository.isDemoSession && graph.repository.settings.value.demoMode }
+        compose.onNodeWithText(s(R.string.gpt12_exit_demo)).assertIsDisplayed()
     }
 
     @Test fun remoteRoutesToChoosingABedJet() {

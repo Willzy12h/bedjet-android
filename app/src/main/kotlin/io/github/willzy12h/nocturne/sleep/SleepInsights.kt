@@ -12,19 +12,20 @@ import java.time.ZonedDateTime
 import kotlin.math.roundToInt
 
 /** One sleep session from another app in Health Connect. A session with no stages is one "sleeping" stage. */
-data class SleepNight(val start: Instant, val end: Instant, val stages: List<SleepStage>) {
+data class SleepNight(val start: Instant, val end: Instant, val stages: List<SleepStage>, val sourceId: String? = null) {
     companion object {
-        fun of(start: Instant, end: Instant, stages: List<SleepStage>): SleepNight =
+        fun of(start: Instant, end: Instant, stages: List<SleepStage>, sourceId: String? = null): SleepNight =
             SleepNight(start, end, stages.filter { it.end > it.start }.sortedBy { it.start }
-                .ifEmpty { listOf(SleepStage(start, end, SleepInsights.SLEEPING)) })
+                .ifEmpty { listOf(SleepStage(start, end, SleepInsights.SLEEPING)) }, sourceId)
     }
 }
 
 /**
  * One night on the Sleep page: what Health Connect recorded, what the BedJet ran, or both. Either may be
- * missing; a night with no BedJet run still shows its sleep, with the BedJet shown as off.
+ * missing; a night with no BedJet run still shows its sleep, without a BedJet plan.
  */
 data class SleepDay(val date: LocalDate, val sleep: SleepNight?, val record: NightRecord?, val plan: Plan?) {
+    val selectionId: String get() = sleep?.sourceId?.let { "health:$it" } ?: record?.let { "bedjet:${it.id}" } ?: "session:$start/$end"
     val start: Instant get() = sleep?.start ?: plan?.start?.toInstant() ?: ZonedDateTime.parse(record!!.startedAt).toInstant()
     val end: Instant get() = sleep?.end ?: plan?.wake?.toInstant() ?: ZonedDateTime.parse(record!!.wakeAt).toInstant()
 }
@@ -58,15 +59,17 @@ data class SleepNoticed(val wokeAt: Instant, val minutesAfter: Int, val mode: Mo
 
 /**
  * Pure arithmetic behind the Sleep page. It reports what the data shows and never infers a cause; the page's
- * wording says so. Health Connect stage codes: 1 awake, 2 sleeping, 3 out of bed, 4 light, 5 deep, 6 REM.
+ * wording says so. Unknown stages count towards recorded time in bed and never imply time asleep.
  */
 object SleepInsights {
+    const val UNKNOWN = 0
     const val AWAKE = 1
     const val SLEEPING = 2
     const val OUT_OF_BED = 3
     const val LIGHT = 4
     const val DEEP = 5
     const val REM = 6
+    const val AWAKE_IN_BED = 7
 
     /** A wake this soon after a step change counts towards a pattern. */
     const val NOTICE_WINDOW_MINUTES = 10L
@@ -75,7 +78,7 @@ object SleepInsights {
     const val RECENT_NIGHTS = 7
 
     fun isAsleep(stage: Int) = stage == SLEEPING || stage == LIGHT || stage == DEEP || stage == REM
-    fun isAwake(stage: Int) = stage == AWAKE || stage == OUT_OF_BED
+    fun isAwake(stage: Int) = stage == AWAKE || stage == OUT_OF_BED || stage == AWAKE_IN_BED
 
     private fun minutes(from: Instant, to: Instant) = Duration.between(from, to).toMinutes().coerceAtLeast(0).toInt()
 
@@ -95,7 +98,13 @@ object SleepInsights {
             }
         }
         val longest = spells.maxByOrNull { Duration.between(it.first, it.second) }
-        val totals = stages.groupBy { if (isAwake(it.stage)) AWAKE else it.stage }
+        val totals = stages.groupBy {
+            when {
+                isAwake(it.stage) -> AWAKE
+                isAsleep(it.stage) -> it.stage
+                else -> UNKNOWN
+            }
+        }
             .mapValues { (_, list) -> list.sumOf { minutes(it.start, it.end) } }.filterValues { it > 0 }
         return SleepFigures(
             inBedMinutes = inBed,
@@ -153,7 +162,7 @@ object SleepInsights {
         if (others.isEmpty()) return emptyList()
         val average = averages(others, zone).stageMinutes
         val mine = figures(sleep).stageMinutes
-        return listOf(AWAKE, REM, LIGHT, SLEEPING, DEEP).filter { it in mine || it in average }
+        return listOf(AWAKE, REM, LIGHT, SLEEPING, DEEP, UNKNOWN).filter { it in mine || it in average }
             .map { StageComparison(it, mine[it] ?: 0, average[it] ?: 0) }
     }
 

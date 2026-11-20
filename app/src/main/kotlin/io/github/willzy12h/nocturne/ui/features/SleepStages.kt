@@ -43,30 +43,31 @@ import java.time.Instant
 
 /**
  * The rows of the sleep chart, top to bottom as in a hypnogram. Health Connect's stage codes map onto them:
- * awake and out of bed are Awake; "sleeping" without a stage is Asleep; light, deep and REM are their own.
+ * awake, awake in bed and out of bed are Awake; "sleeping" without a stage is Asleep; light, deep and REM are their own.
  */
 enum class SleepLane(@StringRes val label: Int, val colour: Color) {
     AWAKE(R.string.feature_stage_awake_short, Color(0xFFFFB25B)),
     REM(R.string.feature_stage_rem_short, Color(0xFFB48CFF)),
     LIGHT(R.string.feature_stage_light_short, Color(0xFF6EC6FF)),
     ASLEEP(R.string.feature_stage_sleeping, Color(0xFF8FA3C8)),
-    DEEP(R.string.feature_stage_deep_short, Color(0xFF4A63E0));
+    DEEP(R.string.feature_stage_deep_short, Color(0xFF4A63E0)),
+    UNKNOWN(R.string.feature_stage_unknown, Color(0xFF898C9B));
 
     companion object {
-        fun of(stage: Int): SleepLane? = when (stage) {
-            1, 3 -> AWAKE
+        fun of(stage: Int): SleepLane = when (stage) {
+            1, 3, 7 -> AWAKE
             2 -> ASLEEP
             4 -> LIGHT
             5 -> DEEP
             6 -> REM
-            else -> null
+            else -> UNKNOWN
         }
     }
 }
 
 /** Whole minutes in each lane, in lane order; lanes with no time are left out. */
 fun sleepLaneMinutes(stages: List<SleepStage>): List<Pair<SleepLane, Int>> {
-    val totals = stages.mapNotNull { stage -> SleepLane.of(stage.stage)?.let { it to Duration.between(stage.start, stage.end).toMinutes().coerceAtLeast(0) } }
+    val totals = stages.map { stage -> SleepLane.of(stage.stage) to Duration.between(stage.start, stage.end).toMinutes().coerceAtLeast(0) }
         .groupBy({ it.first }, { it.second }).mapValues { (_, minutes) -> minutes.sum().toInt() }
     return SleepLane.entries.mapNotNull { lane -> totals[lane]?.takeIf { it > 0 }?.let { lane to it } }
 }
@@ -80,7 +81,7 @@ fun sleepLaneMinutes(stages: List<SleepStage>): List<Pair<SleepLane, Int>> {
 fun SleepStageChart(stages: List<SleepStage>, start: Instant, end: Instant, plan: Plan?) {
     val tokens = paletteTokens
     val totals = sleepLaneMinutes(stages)
-    val lanes = SleepLane.entries.filter { it != SleepLane.ASLEEP || stages.any { s -> SleepLane.of(s.stage) == it } }
+    val lanes = SleepLane.entries.filter { (it != SleepLane.ASLEEP && it != SleepLane.UNKNOWN) || stages.any { s -> SleepLane.of(s.stage) == it } }
     val span = Duration.between(start, end).toMillis().coerceAtLeast(1).toFloat()
     val words = totals.map { (lane, minutes) -> stringResource(R.string.feature_stage_total, stringResource(lane.label), durationText(minutes)) }
     val summary = stringResource(R.string.feature_stage_chart_accessibility, words.joinToString(", "))
@@ -109,7 +110,7 @@ fun SleepStageChart(stages: List<SleepStage>, start: Instant, end: Instant, plan
                 }
                 var previous: Pair<Float, Float>? = null
                 stages.sortedBy { it.start }.forEach { stage ->
-                    val row = SleepLane.of(stage.stage)?.let(lanes::indexOf)?.takeIf { it >= 0 } ?: return@forEach
+                    val row = lanes.indexOf(SleepLane.of(stage.stage)).takeIf { it >= 0 } ?: return@forEach
                     val left = x(stage.start)
                     val right = maxOf(x(stage.end), left + 1.5f)
                     val top = lane * row + 2.dp.toPx()

@@ -24,8 +24,14 @@
     <string name="settings_quiet_title">Quiet night status</string>
     <string name="settings_quiet_help">While a confirmed night runs, a silent notification shows its wake time with a Stop night button.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
-    <string name="settings_diagnostics_help">Includes app version, phone model, connection state, settings (including BedJet addresses), next phone alarm time and source app package, the current night, the last 50 events and notifications, and the last crash if there was one. Nothing is sent; you choose where to save the file.</string>
+    <string name="settings_diagnostics_help">Includes phone and Bluetooth state, the next phone alarm source app package, relative timings, recent event types and crash code locations. Exact alarm times are optional. You can review the report before saving it.</string>
+    <string name="diagnostics_times">Include exact alarm times</string>
+    <string name="diagnostics_times_help">Useful when investigating a wake-time issue.</string>
     <string name="settings_diagnostics_export">Export diagnostics</string>
+    <string name="diagnostics_preview">Review diagnostics</string>
+    <string name="diagnostics_preparing">Preparing report…</string>
+    <string name="diagnostics_preview_failed">Couldn\'t prepare the diagnostics report.</string>
+    <string name="diagnostics_save">Choose where to save</string>
     <string name="settings_diagnostics_saved">Diagnostics saved.</string>
     <string name="settings_diagnostics_failed">Couldn\'t save diagnostics: %1$s</string>
     <!-- Busy state (U07) -->
@@ -329,4 +335,5 @@
     </plurals>
     <string name="remote_choose_mode_first">Choose a mode above to adjust this.</string>
     <string name="remote_temperature_unused">%1$s runs without a temperature.</string>
+    <string name="tonight_chart_fan">Taller steps mean higher fan speed.</string>
 </resources>

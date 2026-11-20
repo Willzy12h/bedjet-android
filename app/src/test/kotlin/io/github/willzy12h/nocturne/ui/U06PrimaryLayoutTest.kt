@@ -178,7 +178,13 @@ class U06PrimaryLayoutTest(look: U06Look) {
     }
 
     @PrimarySeed(PrimaryScenario.SETUP)
-    @Test fun tonightSetupOffersNoDemo() = checkNoDemoChoice(R.string.tab_tonight)
+    @Test fun tonightFirstRunOffersConnectionAndDemoWithoutSelectingEither() {
+        ui.tab(ui.s(R.string.tab_tonight))
+        ui.control(ui.s(R.string.first_run_connect))
+        ui.control(ui.s(R.string.first_run_demo))
+        assertNull(ui.graph.repository.settings.value.targetDevice)
+        assertFalse(ui.graph.repository.settings.value.demoMode)
+    }
     @PrimarySeed(PrimaryScenario.SETUP)
     @Test fun remoteSetupOffersNoDemo() = checkNoDemoChoice(R.string.tab_remote)
     @PrimarySeed(PrimaryScenario.SETUP)

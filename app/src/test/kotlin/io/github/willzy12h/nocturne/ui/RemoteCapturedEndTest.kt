@@ -75,6 +75,8 @@ class RemoteCapturedEndTest {
         assertEquals(1, graph.link.status.value!!.extra!!.programStep)
         model = AppViewModel(app)
         models.put("captured-end", model)
+        model.onScreenVisible()
+        until { model.hasLiveStatus.value && graph.actions.busy.value.runningLabel == null }
         graph.scope.launch(start = CoroutineStart.UNDISPATCHED) { graph.actions.outcomes.collect { outcomes += it } }
         Unit
     }

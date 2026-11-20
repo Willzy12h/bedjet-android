@@ -41,6 +41,8 @@ import io.github.willzy12h.nocturne.data.MiddleSuggestion
 import io.github.willzy12h.nocturne.data.MorningCheckIn
 import io.github.willzy12h.nocturne.graph
 import io.github.willzy12h.nocturne.night.ClockApps
+import io.github.willzy12h.nocturne.night.ConnectingCommand
+import io.github.willzy12h.nocturne.core.link.latestStatusFrom
 import io.github.willzy12h.nocturne.core.store.AlarmApps
 import io.github.willzy12h.nocturne.night.AlarmSource
 import io.github.willzy12h.nocturne.night.AlarmExplanation
@@ -106,6 +108,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             verified?.takeIf { it.first == target }?.second ?: displayed?.takeIf { it.first == target }?.second
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, bedJetName())
+    /** Keep the selected sleep session while moving between tabs and Settings pages. */
+    internal val selectedSleepSession = MutableStateFlow<String?>(null)
     val history = repo.history.map { records -> records.filterNot { it.isTestRun } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, repo.history.value.filterNot { it.isTestRun })
     fun morningCheckIn(nightId: String): MorningCheckIn? = repo.morningCheckIn(nightId)
@@ -439,6 +443,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // Everything goes through NightActions, so a button can't interleave with a widget or an alarm change.
 
     private var confirmedNight: io.github.willzy12h.nocturne.core.night.NightIdentity? = null
+    private val _connectingCommand = MutableStateFlow<ConnectingCommand?>(null)
+    internal val connectingCommand = _connectingCommand.asStateFlow()
+
+    private fun connectingCommand(request: CommandRequest, label: String, off: Boolean = false): ConnectingCommand {
+        val starting = request.command == NightActions.Command.START_NIGHT
+        fun selectedProfile() = if (request.profileId == null) repo.tonightsProfile() else repo.profile(request.profileId)
+        val profile = if (starting) selectedProfile() else null
+        val wake = profile?.let { startPreview(it).wake }
+        val slot = settings.value.workingSlot
+        val generation = repo.runtime.value.generation
+        val seen = if (hasLiveStatus.value && graph.link.state.value == LinkState.READY)
+            graph.link.latestStatusFrom(request.deviceId) else null
+        return ConnectingCommand(label, off, request.deviceId, seen) {
+            val sameNight = generation == repo.runtime.value.generation && activeNight.value?.identity == request.expected
+            val samePlan = when {
+                !starting -> true
+                profile == null -> false
+                else -> {
+                    val saved = repo.settings.value
+                    val now = graph.now()
+                    val alarm = AlarmSource.describe(getApplication(), saved)
+                    val preview = NightPreview.forStartNow(profile, now, alarm?.time, saved.resolveWakeOverride(now), saved, alarm?.creator)
+                    selectedProfile() == profile && saved.workingSlot == slot && preview.plan != null && preview.wake == wake
+                }
+            }
+            (off && !request.replacementConfirmed) || (sameNight && samePlan)
+        }
+    }
 
     /** Only the positive dialog callback enters this synchronous capture scope. */
     fun withConfirmedNight(expected: io.github.willzy12h.nocturne.core.night.NightIdentity, action: () -> Unit) {
@@ -451,10 +483,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun run(command: NightActions.Command, profileId: String? = null, replacementConfirmed: Boolean = false, onFinished: () -> Unit = {}) {
-        val request = graph.actions.capture(command, profileId, requireIdentity = replacementConfirmed || confirmedNight != null)
+        val request = graph.actions.capture(command, profileId, requireIdentity = command == NightActions.Command.START_NIGHT ||
+            replacementConfirmed || confirmedNight != null)
             .let { it.copy(expected = confirmedNight ?: it.expected, replacementConfirmed = replacementConfirmed || confirmedNight != null,
                 origin = CommandOrigin.APP) }
-        act(hardware = command != NightActions.Command.STOP_TRACKING,
+        val tap = when (command) {
+            NightActions.Command.START_NIGHT, NightActions.Command.OFF, NightActions.Command.END_NIGHT ->
+                connectingCommand(request, NightActions.commandLabel(getApplication(), command), command != NightActions.Command.START_NIGHT)
+            else -> null
+        }
+        act(hardware = command != NightActions.Command.STOP_TRACKING, tap = tap,
             deferBluetoothCheck = command == NightActions.Command.RETIME || command == NightActions.Command.RETRY_RETIME, onFinished = onFinished) {
             graph.actions.execute(request)
         }
@@ -462,7 +500,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** The reviewed target, night and one-action preset remain captured across the dialogue. */
     internal fun runCaptured(request: io.github.willzy12h.nocturne.night.CommandRequest, onFinished: () -> Unit = {}) {
-        act(hardware = request.command != NightActions.Command.STOP_TRACKING, onFinished = onFinished) {
+        val tap = if (request.command == NightActions.Command.STOP_TRACKING) null else connectingCommand(request,
+            if (request.command != NightActions.Command.BOOST && request.actionPreset != null)
+                text(Format.modeNameRes(request.actionPreset.mode)) else NightActions.commandLabel(getApplication(), request.command),
+            request.command in setOf(NightActions.Command.OFF, NightActions.Command.END_NIGHT))
+        act(hardware = request.command != NightActions.Command.STOP_TRACKING, onFinished = onFinished, tap = tap) {
             graph.actions.execute(request.copy(origin = CommandOrigin.APP))
         }
     }
@@ -472,12 +514,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     internal fun remoteCaptured(label: String, request: io.github.willzy12h.nocturne.night.CommandRequest,
         mode: io.github.willzy12h.nocturne.core.protocol.Mode) {
-        act { graph.actions.remote(label, endsNight = true, target = request.deviceId, expected = request.expected,
-            confirms = { it.mode == mode && (request.expected == null || it.extra?.programStep == 0) }) { it.setMode(mode) } }
+        act(tap = connectingCommand(request, label)) { graph.actions.selectRemoteMode(label, request, mode) }
     }
 
-    internal fun remoteDuration(label: String, request: CommandRequest) = act {
-        graph.actions.remoteDuration(label, request.copy(origin = CommandOrigin.APP))
+    internal fun adjustRemoteControl(label: String, mode: io.github.willzy12h.nocturne.core.protocol.Mode,
+        temperature: Int? = null, fanStep: Int? = null, onFinished: () -> Unit) {
+        val captured = graph.actions.capture(NightActions.Command.OFF)
+        act(onFinished = onFinished) { graph.actions.adjustRemoteControl(label, captured, mode, temperature, fanStep) }
+    }
+
+    internal fun remoteDuration(label: String, request: CommandRequest, finishAt: java.time.Instant? = null) = act {
+        graph.actions.remoteDuration(label, request.copy(origin = CommandOrigin.APP), finishAt)
     }
 
     /** A Remote control: sent straight to the BedJet. */
@@ -524,7 +571,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** A message from resources, for outcomes and snackbars. */
     private fun text(id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
 
-    private fun act(hardware: Boolean = true, deferBluetoothCheck: Boolean = false, onFinished: () -> Unit = {}, work: suspend () -> CommandOutcome) {
+    private fun act(hardware: Boolean = true, deferBluetoothCheck: Boolean = false, onFinished: () -> Unit = {},
+        tap: ConnectingCommand? = null, work: suspend () -> CommandOutcome) {
+        if (tap != null) {
+            val prior = _connectingCommand.value
+            if (prior != null && (!tap.off || prior.off)) { onFinished(); return }
+            if (tap.off) prior?.cancelWaiting()
+        }
         // A tap is pending before its coroutine can wait for earlier saves or reach the service/owner.
         val admission = repo.operationAdmission.tryCommand() ?: run {
             report(refusal(text(R.string.import_command_blocked)))
@@ -536,7 +589,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _busy.value = true
         val target = graph.actions.capture(NightActions.Command.OFF).deviceId
         val feedback = if (hardware) tapHaptics.capture() else null
-        viewModelScope.launch {
+        if (tap != null) _connectingCommand.value = tap
+        val job = viewModelScope.launch {
             var radio: BluetoothAdmission? = null
             try {
                 val outcome = try {
@@ -552,19 +606,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             (feedback?.context ?: kotlin.coroutines.EmptyCoroutineContext) +
                             (radio ?: kotlin.coroutines.EmptyCoroutineContext)) {
                             io.github.willzy12h.nocturne.service.BedJetService.runOwned(getApplication(), notifyFailures = false,
-                                deferBluetoothCheck = deferBluetoothCheck) { work() }
+                                deferBluetoothCheck = deferBluetoothCheck) {
+                                if (tap == null) work() else withContext(tap) { work() }
+                            }
                         } else work()
                     }
-                } catch (_: TimeoutCancellationException) { CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
+                } catch (_: TimeoutCancellationException) {
+                    if (tap != null && tap.phase.value != ConnectingCommand.Phase.SENDING)
+                        CommandOutcome(OutcomeKind.FAILED, text(R.string.runtime_connection_no_report), origin = CommandOrigin.APP)
+                    else CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_no_answer), origin = CommandOrigin.APP)
                 } catch (e: CancellationException) { throw e
                 } catch (e: Exception) { CommandOutcome(OutcomeKind.FAILED, e.planMessage(getApplication()) ?: text(R.string.runtime_something_wrong), origin = CommandOrigin.APP) }
                 feedback?.complete(outcome)
                 report(outcome)
             } finally { radio?.close(); feedback?.close(); admission.close() }
-        }.invokeOnCompletion {
+        }
+        tap?.attach(job)
+        job.invokeOnCompletion {
             admission.close()
             pendingCommands--
             _busy.value = pendingCommands > 0
+            if (tap != null) _connectingCommand.compareAndSet(tap, null)
             onFinished()
         }
     }
@@ -688,7 +750,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
     fun setHistoryKeepDays(days: Int) = save { repo.setHistoryKeepDays(days) }
+    internal fun setScheduledStartSkipped(ticket: io.github.willzy12h.nocturne.platform.AutoStartTicket, skip: Boolean) = save {
+        if (!io.github.willzy12h.nocturne.platform.AutoStartSchedule.setSkipped(graph, ticket, skip))
+            throw IllegalStateException(text(R.string.auto_start_review_settings))
+    }
     fun deleteHistory() = save { repo.deleteHistory() }
+    fun retryHistoryErasure() = save { repo.retryHistoryErasure() }
     fun restoreSnapshot(id: String) = stageImport { repo.previewSnapshot(id) }
 
     private fun stageImport(read: suspend () -> ImportPreview?) {
@@ -757,7 +824,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             runCatching { repo.exportTo(uri) }
                 .onSuccess { _messages.tryEmit(text(R.string.runtime_backup_saved)) }
                 .onFailure { if (it is CancellationException) throw it
-                    _messages.tryEmit(text(R.string.runtime_backup_save_failed, it.message.toString())) }
+                    _messages.tryEmit(if (it is BackupException) text(R.string.backup_unrestorable_library)
+                        else text(R.string.runtime_backup_save_failed, it.message.toString())) }
         }
     }
 
@@ -772,12 +840,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Writes the diagnostics file the person chose (NightActions.diagnostics: no private preferences). */
-    fun exportDiagnostics(uri: android.net.Uri,
-        open: ((android.net.Uri) -> java.io.OutputStream?)? = null) {
+    internal suspend fun diagnosticsPreview(includeAlarmTimes: Boolean): String? = try {
+        withContext(Dispatchers.IO) { graph.actions.diagnostics(includeAlarmTimes) }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        _messages.tryEmit(text(R.string.diagnostics_preview_failed))
+        null
+    }
+
+    fun exportDiagnostics(uri: android.net.Uri, includeAlarmTimes: Boolean = false,
+        open: ((android.net.Uri) -> java.io.OutputStream?)? = null) = saveDiagnostics {
+        if (open == null) graph.actions.exportDiagnostics(uri, includeAlarmTimes)
+        else graph.actions.exportDiagnostics(uri, includeAlarmTimes, open)
+    }
+
+    internal fun exportReviewedDiagnostics(uri: android.net.Uri, report: String) = saveDiagnostics {
+        graph.actions.exportReviewedDiagnostics(uri, report)
+    }
+
+    private fun saveDiagnostics(write: suspend () -> Unit) {
         val app = getApplication<Application>()
         graph.scope.launch {
-            runCatching { if (open == null) graph.actions.exportDiagnostics(uri) else graph.actions.exportDiagnostics(uri, open) }
+            runCatching { write() }
                 .onSuccess { _messages.tryEmit(app.getString(R.string.settings_diagnostics_saved)) }
                 .onFailure { if (it is CancellationException) throw it
                     _messages.tryEmit(app.getString(R.string.settings_diagnostics_failed, it.message.orEmpty())) }

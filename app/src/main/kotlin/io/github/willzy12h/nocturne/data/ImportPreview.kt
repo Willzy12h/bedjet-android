@@ -45,6 +45,7 @@ class ImportPreview internal constructor(
     val deviceAssociations: List<String>,
     val incompatibleFields: Int,
     val profilesOnly: Boolean = false,
+    internal val sourceSnapshotId: String? = null,
 ) {
     val canApply: Boolean get() = incompatibleFields == 0
 }

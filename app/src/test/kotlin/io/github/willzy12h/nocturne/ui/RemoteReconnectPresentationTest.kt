@@ -75,7 +75,7 @@ class RemoteReconnectPresentationTest {
         compose.onNodeWithText("Last reported").assertIsDisplayed()
         compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
         assertEquals(LinkState.CONNECTING, model.linkState.value)
-        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsNotEnabled()
+        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsEnabled()
         compose.onNodeWithContentDescription("Temperature").performScrollTo().assertIsNotEnabled()
         compose.navTab("Settings")
         compose.onNodeWithTag("settings-page-bedjet").performScrollTo().performClick()
@@ -88,7 +88,7 @@ class RemoteReconnectPresentationTest {
         compose.runOnUiThread { link.readyWithoutStatus() }
         compose.waitForIdle()
         compose.onNodeWithText("Air 25°C · room 22°C").performScrollTo().assertIsDisplayed()
-        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsNotEnabled()
+        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().assertIsEnabled()
         compose.onNodeWithContentDescription("Fan").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("Last reported").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("status-connection").assertTextEquals("Demo · no BedJet connected")
@@ -106,6 +106,92 @@ class RemoteReconnectPresentationTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(30))
         waitUntil { model.status.value?.actualTemperature == 60 }
         compose.onNodeWithText("Air 30°C · room 22°C").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun cancelConnectingModeDoesNotReplayOnReconnect() {
+        openRemoteAndReconnect()
+        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().performClick()
+        compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
+        compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false) }
+        waitUntil { model.hasLiveStatus.value && !model.busy.value }
+        assertTrue(link.writes.isEmpty())
+    }
+
+    @Test fun offSupersedesAnUnsentPresetAndADuplicateTap() {
+        openRemoteAndReconnect()
+        compose.runOnIdle {
+            val request = model.quickAction(io.github.willzy12h.nocturne.night.NightActions.Command.COOL).end
+            model.runCaptured(request)
+            val first = model.connectingCommand.value
+            model.runCaptured(request)
+            assertSame(first, model.connectingCommand.value)
+            model.run(io.github.willzy12h.nocturne.night.NightActions.Command.OFF)
+        }
+        compose.runOnUiThread { link.readyWithoutStatus() }
+        waitUntil { link.writes.isNotEmpty() }
+        val off = io.github.willzy12h.nocturne.core.protocol.Codec.setMode(Mode.STANDBY)!!
+        assertTrue(link.writes.single().contentEquals(off))
+        compose.runOnUiThread { link.publish(60, false, Mode.STANDBY) }
+        waitUntil { !model.busy.value }
+        assertEquals(1, link.writes.size)
+    }
+
+    @Test fun changedRunningModeAsksBeforeTakingOver() {
+        openRemoteAndReconnect()
+        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().performClick()
+        compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false) }
+        compose.onNodeWithText("Replace run").assertIsDisplayed()
+        assertTrue(link.writes.isEmpty())
+        compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
+        waitUntil { !model.busy.value }
+        assertTrue(link.writes.isEmpty())
+    }
+
+    @Test fun aTrackedNightDoesNotApproveADifferentPhysicalRunDiscoveredOnReconnect() {
+        openRemoteAndReconnect()
+        val profile = graph.repository.profiles.value.first()
+        val now = graph.now()
+        val wake = now.plusHours(8).toString()
+        runBlocking {
+            graph.repository.setActiveNight(io.github.willzy12h.nocturne.core.night.ActiveNight("tracked", profile.id,
+                now.toString(), wake, false, 0, wake, wake, deviceId = "demo", profile = profile))
+        }
+        compose.runOnIdle {
+            val request = model.quickAction(io.github.willzy12h.nocturne.night.NightActions.Command.COOL).end
+            model.runCaptured(request.copy(replacementConfirmed = true))
+        }
+        compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false, Mode.DRY) }
+        compose.onNodeWithText("Replace run").assertIsDisplayed()
+        assertTrue(link.writes.isEmpty())
+        compose.onNodeWithText("Cancel").performClick()
+        waitUntil { !model.busy.value }
+        assertEquals("tracked", graph.repository.activeNight.value?.recordId)
+        assertTrue(link.writes.isEmpty())
+    }
+
+    @Test fun staleConsentAfterAnotherNightChangeCannotSendTheOldRequest() {
+        openRemoteAndReconnect()
+        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().performClick()
+        compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false) }
+        compose.onNodeWithText("Replace run").assertIsDisplayed()
+        runBlocking { graph.repository.updateRuntime { it.copy(generation = it.generation + 1) } }
+        compose.onNodeWithText("Replace run").performClick()
+        waitUntil { !model.busy.value && outcomes.isNotEmpty() }
+        assertTrue(link.writes.isEmpty())
+        assertTrue(outcomes.last().message.contains("changed"))
+    }
+
+    @Test fun replacingAnUnfamiliarRunSendsTheOriginalModeOnce() {
+        openRemoteAndReconnect()
+        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().performClick()
+        compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false) }
+        compose.onNodeWithText("Replace run").assertIsDisplayed().performClick()
+        waitUntil { link.writes.isNotEmpty() }
+        val cool = io.github.willzy12h.nocturne.core.protocol.Codec.setMode(Mode.COOL)!!
+        assertTrue(link.writes.single().contentEquals(cool))
+        compose.runOnUiThread { link.publish(60, false, Mode.COOL) }
+        waitUntil { !model.busy.value }
+        assertEquals(1, link.writes.size)
     }
 
     @Test fun aCachedMatchingAccessoryDoesNotConfirmAnOwnerCommand() {
@@ -156,8 +242,8 @@ class RemoteReconnectPresentationTest {
         val writes = CopyOnWriteArrayList<ByteArray>()
         private var gate: CompletableDeferred<Unit>? = null
         init { publish(50, true) }
-        fun publish(temperature: Int, led: Boolean) {
-            val report = DeviceStatus(600, temperature, 64, Mode.HEAT, 9, 600, 38, 86, 44, 0,
+        fun publish(temperature: Int, led: Boolean, mode: Mode = Mode.HEAT) {
+            val report = DeviceStatus(600, temperature, 64, mode, 9, 600, 38, 86, 44, 0,
                 DeviceStatus.Extra(led, false, 0, 0))
             status.value = report
             sourcedStatus.value = SourcedStatus("demo", report)

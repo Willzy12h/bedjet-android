@@ -39,12 +39,14 @@ data class Preview(val plan: Plan?, val wake: WakeChoice, val refusalReason: Str
     val durationProblem: NightDurationProblem? = null)
 object NightPreview {
     fun forStartNow(profile: Profile, now: ZonedDateTime, alarm: ZonedDateTime?, override: TonightOverride? = null,
-        settings: Settings = Settings(), alarmOrigin: String? = null): Preview {
+        settings: Settings = Settings(), alarmOrigin: String? = null, scheduledStart: ZonedDateTime? = null): Preview {
+        // A due automatic occurrence was agreed at its scheduled start. Compile only the time actually left.
+        val windowStart = scheduledStart?.takeIf { !it.isAfter(now) && now.isBefore(it.plusMinutes(15)) } ?: now
         val overrideTime = override?.let { ZonedDateTime.parse(it.wakeAt) }?.takeIf { it.isAfter(now) }
         val wake = if (overrideTime != null) WakeChoice(overrideTime, false, WakeOrigin.OVERRIDE)
-            else WakeResolver.resolve(profile, now, alarm, AlarmPolicy(settings), alarmOrigin)
-        val length = Duration.between(now, wake.time)
-        if (length < WakeResolver.MIN_NIGHT || length > WakeResolver.MAX_NIGHT) {
+            else WakeResolver.resolve(profile, windowStart, alarm, AlarmPolicy(settings), alarmOrigin)
+        val length = Duration.between(windowStart, wake.time)
+        if (!wake.time.isAfter(now) || length < WakeResolver.MIN_NIGHT || length > WakeResolver.MAX_NIGHT) {
             return Preview(null, wake, NightDurationProblem.OUTSIDE_WINDOW.name, NightDurationProblem.OUTSIDE_WINDOW)
         }
         return try { Preview(PlanCompiler.compile(profile, now, wake.time), wake, null) }

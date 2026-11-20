@@ -3,6 +3,7 @@ package io.github.willzy12h.nocturne.night
 import io.github.willzy12h.nocturne.Graph
 import io.github.willzy12h.nocturne.core.link.BedJetError
 import io.github.willzy12h.nocturne.core.link.BedJetLink
+import io.github.willzy12h.nocturne.core.store.deviceId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -15,6 +16,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,8 +35,17 @@ class LinkSessions(
     private val currentLink: () -> BedJetLink,
     private val now: () -> Long,
     private val graceMs: Long = GRACE_MS,
+    private val handedOver: () -> Boolean = { false },
 ) {
-    constructor(graph: Graph) : this(graph.scope, { graph.link }, { graph.clock.millis() })
+    constructor(graph: Graph) : this(graph.scope, { graph.link }, { graph.clock.millis() }, handedOver = {
+        graph.repository.settings.value.deviceId() in graph.repository.runtime.value.releasedDevices
+    }) {
+        scope.launch {
+            combine(graph.repository.settings, graph.repository.runtime) { settings, runtime ->
+                settings.deviceId() in runtime.releasedDevices
+            }.distinctUntilChanged().collect { refreshHandOver() }
+        }
+    }
 
     private val lock = Mutex()
     @Volatile private var holders = 0
@@ -47,7 +60,7 @@ class LinkSessions(
     private val connects = mutableSetOf<Job>()
     @Volatile private var screenHold = false
 
-    private val _released = MutableStateFlow(false)
+    private val _released = MutableStateFlow(handedOver())
     /** True while the BedJet is released for another phone; see [suspendAutoConnect]. */
     val released: StateFlow<Boolean> = _released.asStateFlow()
     @Volatile private var releasedUntil: Long? = null
@@ -85,7 +98,7 @@ class LinkSessions(
         realRelease = null
         releaseEnds?.cancel()
         releasedUntil = real.until?.takeIf { now() < it }
-        _released.value = releasedUntil != null
+        refreshHandOver()
         releaseEnds = releasedUntil?.takeUnless { it == Long.MAX_VALUE }?.let(::releaseTimer)
     }
 
@@ -166,6 +179,12 @@ class LinkSessions(
         _released.value = true
         releaseEnds?.cancel()
         releaseEnds = untilMs?.let(::releaseTimer)
+        return disconnectReleased()
+    }
+
+    /** Called after the per-device hand-over is committed to the local runtime journal. */
+    @Synchronized internal fun disconnectReleased(): Job {
+        refreshHandOver()
         return scope.launch {
             lock.withLock {
                 connects.forEach { it.cancel() }
@@ -174,9 +193,16 @@ class LinkSessions(
         }
     }
 
+    @Synchronized private fun refreshHandOver() {
+        _released.value = handedOver() || releasedUntil != null
+    }
+
     /** Wall time can move backwards while the monotonic delay waits. Recheck the original absolute deadline. */
     private fun releaseTimer(deadline: Long): Job = scope.launch {
-        while (isReleased()) delay((deadline - now()).coerceAtLeast(1).coerceAtMost(RELEASE_POLL_MS))
+        while (releasedUntil == deadline) {
+            val remaining = deadline - now()
+            if (remaining <= 0) isReleased() else delay(minOf(remaining, RELEASE_POLL_MS))
+        }
     }
 
     @Synchronized fun resumeAutoConnect() {
@@ -187,16 +213,16 @@ class LinkSessions(
     private fun endRelease() {
         releasedUntil = null
         if (!_released.value) return
-        _released.value = false
-        if (screenHold) reconnect()
+        refreshHandOver()
+        if (screenHold && !_released.value) reconnect()
     }
 
     /** Whether the BedJet is released for another phone; a timed release that has run out ends here. */
     @Synchronized private fun isReleased(): Boolean {
-        val until = releasedUntil ?: return false
+        val until = releasedUntil ?: return handedOver()
         if (now() < until) return true
         endRelease()
-        return false
+        return handedOver()
     }
 
     private fun connectionAllowed(): Boolean = !demoTransition && !isReleased()

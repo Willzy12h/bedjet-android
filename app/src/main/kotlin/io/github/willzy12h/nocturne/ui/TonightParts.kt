@@ -16,6 +16,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +28,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import io.github.willzy12h.nocturne.core.store.deviceId
+import io.github.willzy12h.nocturne.night.ConnectingCommand
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -49,6 +53,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -107,7 +113,9 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (()
         settings.targetDevice == null -> stringResource(R.string.status_no_device)
         else -> selectedName ?: DeviceId.address(settings.targetDevice!!) ?: stringResource(R.string.settings_bedjet)
     }
-    val sending = owner.runningLabel != null
+    val tap by model.connectingCommand.collectAsStateWithLifecycle()
+    val tapPhase = tap?.phase?.collectAsStateWithLifecycle()?.value
+    val sending = owner.runningLabel != null && (tapPhase == null || tapPhase == ConnectingCommand.Phase.SENDING)
     val connectionText = when {
         connection == HeaderConnection.DEMO -> stringResource(R.string.parity_status_demo)
         connection == HeaderConnection.BLUETOOTH_OFF -> stringResource(R.string.status_bluetooth_off)
@@ -149,7 +157,15 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (()
     }
 }
 
-private class BarSegment(val minutes: Long, val colours: List<Color>)
+internal data class BarSegment(val minutes: Long, val colours: List<Color>, val heightFraction: Float = 1f)
+
+/** Preserve each actual programme step, including fan-only changes through the Middle. */
+internal fun tonightBarSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> =
+    plan.steps.filter { it.minutes > 0 }.map { planned ->
+        val step = planned.step
+        val height = if (step.mode.usesFan) (step.fanStep + 1) / 20f else .025f
+        BarSegment(planned.minutes.toLong(), listOf(tokens.stepColor(step.mode, step.temperature)), height)
+    }
 
 private fun barSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> {
     val segments = mutableListOf<BarSegment>()
@@ -168,11 +184,11 @@ private fun barSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> {
     return segments.filter { it.minutes > 0 }
 }
 
-/** The design's segmented night: 2 dp gaps, round outer ends, a gradient across the Middle ramp, and a Now marker. */
+/** Compact profile thumbnails group the Middle; Tonight shows its individual fan levels on the same time axis. */
 @Composable
-internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp, minHeight: Dp = height) {
+internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp, minHeight: Dp = height, showFan: Boolean = false) {
     val tokens = paletteTokens
-    val segments = barSegments(plan, tokens)
+    val segments = if (showFan) tonightBarSegments(plan, tokens) else barSegments(plan, tokens)
     val total = segments.sumOf { it.minutes }.coerceAtLeast(1)
     val span = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1)
     val nowFraction = now?.let { (Duration.between(plan.start, it).toMinutes().toFloat() / span).coerceIn(0f, 1f) }
@@ -181,20 +197,22 @@ internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modi
         val gap = 2.dp.toPx()
         val outer = CornerRadius(minOf(10.dp.toPx(), size.height / 2))
         val inner = CornerRadius(minOf(3.dp.toPx(), size.height / 2))
-        val available = size.width - gap * (segments.size - 1).coerceAtLeast(0)
         var x = 0f
         segments.forEachIndexed { i, segment ->
-            val w = available * segment.minutes / total
+            val w = size.width * segment.minutes / total
+            val inset = minOf(gap / 2, w / 4)
+            val start = x + if (i == 0) 0f else inset
+            val end = x + w - if (i == segments.lastIndex) 0f else inset
             val left = if (i == 0) outer else inner
             val right = if (i == segments.lastIndex) outer else inner
             val path = Path().apply {
-                addRoundRect(RoundRect(x, 0f, x + w, size.height, topLeftCornerRadius = left, topRightCornerRadius = right,
+                addRoundRect(RoundRect(start, size.height * (1 - segment.heightFraction), end, size.height, topLeftCornerRadius = left, topRightCornerRadius = right,
                     bottomRightCornerRadius = right, bottomLeftCornerRadius = left))
             }
             val brush = if (segment.colours.size > 1) Brush.horizontalGradient(segment.colours, startX = x, endX = x + w)
                 else SolidColor(segment.colours.first())
             drawPath(path, brush)
-            x += w + gap
+            x += w
         }
         nowFraction?.let {
             val at = (size.width * it).coerceIn(1.5.dp.toPx(), size.width - 1.5.dp.toPx())
@@ -226,6 +244,40 @@ internal fun modeIcon(mode: Mode): Int = when (mode) {
 }
 
 /** The preset the person tapped, shown as "Heat… / Sending" until the BedJet has taken the command. */
+@Composable
+internal fun canRequestBedJet(model: AppViewModel): Boolean {
+    val settings by model.settings.collectAsStateWithLifecycle()
+    val link by model.linkState.collectAsStateWithLifecycle()
+    val off by model.bluetoothOff.collectAsStateWithLifecycle()
+    val released by model.graph.sessions.released.collectAsStateWithLifecycle()
+    return settings.deviceId() != null && !off && !released &&
+        link != io.github.willzy12h.nocturne.core.link.LinkState.UNAUTHORIZED &&
+        link != io.github.willzy12h.nocturne.core.link.LinkState.BLUETOOTH_OFF
+}
+
+@Composable
+internal fun ConnectionActionStatus(model: AppViewModel, modifier: Modifier) {
+    val active by model.connectingCommand.collectAsStateWithLifecycle()
+    val tap = active ?: return
+    val phase by tap.phase.collectAsStateWithLifecycle()
+    val label = when (phase) {
+        ConnectingCommand.Phase.CONNECTING -> R.string.runtime_connecting_action
+        ConnectingCommand.Phase.REPLACE -> R.string.runtime_replace_live_action
+        ConnectingCommand.Phase.SENDING -> R.string.runtime_sending_action
+        ConnectingCommand.Phase.CANCELLED -> return
+    }
+    Column(modifier.fillMaxWidth().testTag("connecting-command")) {
+        Text(stringResource(label, tap.label), Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = paletteTokens.ink)
+        Row {
+            if (phase == ConnectingCommand.Phase.REPLACE)
+                TextButton(onClick = tap::replace) { Text(stringResource(R.string.runtime_replace_live_button)) }
+            if (phase != ConnectingCommand.Phase.SENDING)
+                TextButton(onClick = { tap.cancelWaiting() }) { Text(stringResource(android.R.string.cancel)) }
+        }
+    }
+}
+
+/** The preset awaiting a response from the BedJet. */
 internal class PresetSending(val key: String, val title: String, val color: Color)
 
 /** Each marker belongs to its submitted command, including time waiting in the existing owner's queue. */
@@ -252,7 +304,7 @@ private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?,
     description: String, tag: String, modifier: Modifier, sending: Boolean = false, onLongClick: (() -> Unit)? = null,
     longClickLabel: String? = null, onClick: () -> Unit) {
     StripeTile(stripe = stripe, title = if (sending) "$title…" else title,
-        subtitle = if (sending) stringResource(R.string.parity_sending) else detail ?: " ",
+        subtitle = if (sending) stringResource(R.string.parity_waiting_bedjet) else detail ?: " ",
         level = if (active || sending) TintLevel.ON else TintLevel.TILE, selectedBorder = if (active) stripe else null,
         titleFontWeight = FontWeight.Bold,
         icon = { Icon(painterResource(icon), null, Modifier.size(16.dp), tint = stripe) },
@@ -276,10 +328,8 @@ private fun PresetTile(stripe: Color, icon: Int, title: String, detail: String?,
 internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: MutableState<PresetSending?>, onEdit: () -> Unit,
     onEditPreset: (Mode) -> Unit = {}, onEditBoost: () -> Unit = {}) {
     val settings by model.settings.collectAsStateWithLifecycle()
-    val live by model.hasLiveStatus.collectAsStateWithLifecycle()
-    val link by model.linkState.collectAsStateWithLifecycle()
     val columns = if (LocalConfiguration.current.fontScale >= 1.5f) 2 else 3
-    val canControl = live && link == io.github.willzy12h.nocturne.core.link.LinkState.READY
+    val canControl = canRequestBedJet(model)
     val evidence = quickEvidence(model)
     Column(Modifier.testTag("quick-controls"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -287,9 +337,10 @@ internal fun QuickPresets(model: AppViewModel, guard: NightGuard, sending: Mutab
             AccentLink(stringResource(R.string.action_edit), onEdit, icon = R.drawable.ic_nc_edit)
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY).chunked(columns).forEach { row ->
+            listOf(Mode.TURBO, Mode.HEAT, Mode.COOL, Mode.DRY, null, Mode.STANDBY, Mode.EXTENDED_HEAT).chunked(columns).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { QuickPresetTile(model, guard, it, evidence, canControl, sending, Modifier.weight(1f), onEditPreset, onEditBoost) }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -320,7 +371,7 @@ private fun QuickPresetTile(model: AppViewModel, guard: NightGuard, mode: Mode?,
             val heat = settings.boostMinutes - io.github.willzy12h.nocturne.core.protocol.Limits.TURBO_MINUTES
             PresetTile(BoostColor, R.drawable.ic_nc_ramp, stringResource(R.string.shortcut_boost),
                 if (heat > 0) stringResource(R.string.boost_tile_detail, heat) else stringResource(R.string.boost_tile_turbo_only),
-                canControl && owner.runningLabel == null && owner.queuedCount == 0 && reportedQuickAction(
+                evidence != null && owner.runningLabel == null && owner.queuedCount == 0 && reportedQuickAction(
                     status, link, settings, night, runtime.slotWrite, limits) == Command.BOOST, canControl,
                 boostDescription(context, settings.boostMinutes), "quick-mode-BOOST", modifier,
                 sending.value?.key == "BOOST", onLongClick = onEditBoost,

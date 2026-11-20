@@ -114,6 +114,11 @@ class Graph(val context: Context, private val linkOverride: BedJetLink? = null,
         }
         scope.launch { Notifications.observeWakeResume(context) }
         scope.launch {
+            repository.settings.map { it.allowLockedOff }.distinctUntilChanged().collect { allow ->
+                Notifications.refreshWakePrivacy(context, allow)
+            }
+        }
+        scope.launch {
             repository.settings.map { it.deviceId() }.distinctUntilChanged().flatMapLatest { target ->
                 link.sourcedStatus.map { target to it }
             }.collect { (target, report) ->

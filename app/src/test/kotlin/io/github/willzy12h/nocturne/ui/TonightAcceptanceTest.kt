@@ -46,7 +46,7 @@ class TonightAcceptanceTest {
             }
             graph.repository.saveProfile(profile)
             graph.repository.updateSettings { it.chooseTonight(profile.id, graph.now()).copy(tonightOverride = null) }
-            if (description.methodName.startsWith("acceptedAlarmBeatsTheStoredNight")) {
+            if (description.methodName.startsWith("acceptedAlarmAlongsideTheStoredNight")) {
                 val wake = graph.now().plusHours(8).plusMinutes(30)
                 val plan = PlanCompiler.compile(profile, graph.now(), wake)
                 graph.repository.setActiveNight(ActiveNight("saved", profile.id, graph.now().toString(),
@@ -135,16 +135,16 @@ class TonightAcceptanceTest {
             else section in replacement.repository.settings.value.collapsedTonightSections)
     }
 
-    @Test fun acceptedAlarmBeatsAProfileThatUsesAFixedWake() {
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:30", substring = true)
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Your alarm", substring = true)
+    @Test fun acceptedAlarmAlongsideAProfileThatUsesAFixedWake() {
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
+        ui.compose.onNodeWithText("Next phone alarm 06:30").assertExists()
         assertEquals("The displayed phone alarm must not silently rewrite the profile", false,
             ui.model.tonightsProfile()!!.wakeSource.useAlarm)
     }
 
-    @Test fun acceptedAlarmBeatsTheStoredNightEndWithoutClaimingARetime() {
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("06:30", substring = true)
-        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("Your alarm", substring = true)
+    @Test fun acceptedAlarmAlongsideTheStoredNightEndWithoutClaimingARetime() {
+        ui.compose.onNodeWithTag("tonight-fixed-wake").assertTextContains("07:00", substring = true)
+        ui.compose.onNodeWithText("Next phone alarm 06:30").assertExists()
         assertEquals("2026-10-23T07:00Z", ui.graph.repository.activeNight.value!!.wakeAt)
     }
 

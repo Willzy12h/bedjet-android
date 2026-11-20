@@ -39,7 +39,7 @@ class AndroidSleepSource(context: Context) : SleepSource {
             // Nocturne's own sessions only echo its BedJet nights back; the page shows those from the history instead.
             page.records.filter { it.metadata.dataOrigin.packageName != ownPackage }.forEach { session ->
                 nights += io.github.willzy12h.nocturne.sleep.SleepNight.of(session.startTime, session.endTime,
-                    session.stages.map { SleepStage(it.startTime, it.endTime, it.stage) })
+                    session.stages.map { SleepStage(it.startTime, it.endTime, it.stage) }, sourceId = session.metadata.id)
             }
             token=page.pageToken
         } while (token != null)

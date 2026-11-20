@@ -4,7 +4,10 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsProperties
+import io.github.willzy12h.nocturne.core.store.*
+import io.github.willzy12h.nocturne.data.CrashLog
 import io.github.willzy12h.nocturne.R
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -55,7 +58,10 @@ class DiagnosticsDisclosureTest {
         // No crash yet, so the field is there and empty; the explanation names it either way.
         assertEquals(JsonNull, saved.getValue("lastCrash"))
         val alarm = saved.getValue("alarm").jsonObject
-        assertEquals(ALARM_AT, ZonedDateTime.parse(alarm.getValue("alarmAt").jsonPrimitive.content).toInstant())
+        assertTrue("Precise alarm times are opt-in", "alarmAt" !in alarm)
+        val detailed = Json.parseToJsonElement(ui.graph.actions.diagnostics(includeAlarmTimes = true)).jsonObject
+        assertEquals(ALARM_AT, ZonedDateTime.parse(detailed.getValue("alarm").jsonObject.getValue("alarmAt").jsonPrimitive.content).toInstant())
+        assertTrue(saved.getValue("settings").jsonObject.keys.none { it in setOf("targetDevice", "rememberedBedJets", "manualControls") })
         assertEquals(ALARM_SOURCE, alarm.getValue("creatorPackage").jsonPrimitive.content)
 
         ui.tab(ui.s(R.string.tab_settings))
@@ -73,6 +79,75 @@ class DiagnosticsDisclosureTest {
             explanation.contains("package", ignoreCase = true))
         assertTrue("The export can include the last crash, so that must be disclosed: $explanation",
             explanation.contains("crash", ignoreCase = true))
+    }
+
+
+    @Test fun cancellingThePreviewLeavesTheDocumentPickerClosed() {
+        ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("about")
+        ui.control(ui.s(R.string.settings_diagnostics_export)).performClick()
+        ui.waitUntil { ui.compose.onAllNodesWithTag("diagnostics-preview-content").fetchSemanticsNodes().isNotEmpty() }
+        ui.compose.onNodeWithText(ui.s(R.string.feature_cancel)).performClick()
+        ui.compose.onNodeWithTag("diagnostics-preview-content").assertDoesNotExist()
+        assertNull(shadowOf(ui.compose.activity).nextStartedActivityForResult)
+    }
+
+    @Test fun exportOnlyContainsReviewedDataEvenWhenTheReportChangesWhileThePickerIsOpen() {
+        val graph = ui.graph
+        val repo = graph.repository
+        val at = graph.now().toString()
+        val address = "ble:11:22:33:44:55:66"
+        val profileName = "Synthetic private profile"
+        val eventDetail = "Synthetic event detail"
+        val noticeTitle = "Synthetic notice title"
+        val noticeBody = "Synthetic notice body"
+        val path = "/synthetic/private/path"
+        val message = "Synthetic exception message"
+        val threadName = "synthetic-private-thread"
+        val appClass = "io.github.willzy12h.nocturne.night.NightActions"
+        val failure = IllegalStateException("$message $path").apply {
+            stackTrace = arrayOf(StackTraceElement(appClass, "execute", "$path/Private.kt", 12))
+        }
+        ui.compose.runOnIdle {
+            runBlocking {
+                repo.addRecord(NightRecord("record", "profile", profileName, at, at, false, deviceId = address,
+                    events = listOf(HistoryEvent(at, EventKind.ERROR, eventDetail))))
+                repo.addNotice(LoggedNotice(at, NoticeKind.PROBLEM, noticeTitle, noticeBody))
+            }
+            CrashLog.record(graph.context.filesDir, "local", threadName, failure, graph.now())
+            val trace = requireNotNull(CrashLog.read(graph.context.filesDir))
+            assertTrue(listOf(message, path, threadName).all { it in trace })
+        }
+        ui.tab(ui.s(R.string.tab_settings))
+        ui.compose.openSettingsPage("about")
+        val marker = "diagnostics-preview-content"
+        val privateValues = listOf(address, profileName, eventDetail, noticeTitle, noticeBody, threadName, path, message)
+        for (includeTimes in listOf(false, true)) {
+            if (includeTimes) ui.compose.onNodeWithText(ui.s(R.string.diagnostics_times)).performScrollTo().performClick()
+            ui.control(ui.s(R.string.settings_diagnostics_export)).performClick()
+            ui.waitUntil { ui.compose.onAllNodesWithTag(marker).fetchSemanticsNodes().isNotEmpty() }
+            val reviewed = ui.compose.onNodeWithTag(marker).fetchSemanticsNode().config[SemanticsProperties.Text].single().text
+            val report = Json.parseToJsonElement(reviewed).jsonObject
+            assertEquals(includeTimes, "alarmAt" in report.getValue("alarm").jsonObject)
+            assertTrue(report.getValue("events").toString().contains(EventKind.ERROR.name))
+            assertTrue(report.getValue("notices").toString().contains(NoticeKind.PROBLEM.name))
+            assertTrue(report.getValue("lastCrash").toString().contains("$appClass.execute"))
+            privateValues.forEach { assertTrue("Found private text in preview", it !in reviewed) }
+            assertNull(shadowOf(ui.compose.activity).nextStartedActivityForResult)
+            ui.compose.onNodeWithTag("diagnostics-save").performClick()
+            val request = requireNotNull(shadowOf(ui.compose.activity).nextStartedActivityForResult)
+            assertEquals(Intent.ACTION_CREATE_DOCUMENT, request.intent.action)
+            val uri = Uri.parse("content://diagnostics.test/$includeTimes.json")
+            val output = ByteArrayOutputStream()
+            shadowOf(graph.context.contentResolver).registerOutputStream(uri, output)
+            ui.compose.runOnUiThread {
+                graph.clock = Clock.offset(graph.clock, java.time.Duration.ofMinutes(8))
+                assertTrue(ui.compose.activity.activityResultRegistry.dispatchResult(request.requestCode,
+                    android.app.Activity.RESULT_OK, Intent().setData(uri)))
+            }
+            ui.waitUntil { output.size() > 0 }
+            assertTrue(reviewed.toByteArray(Charsets.UTF_8).contentEquals(output.toByteArray()))
+        }
     }
 
     private companion object {

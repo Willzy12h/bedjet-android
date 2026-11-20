@@ -88,7 +88,7 @@ internal fun setupItemWhy(item: SetupItem): Int? = when (item) {
 
 /** Re-samples OS authority on every resume. Persisted completion never overrides revoked permissions. */
 @Composable
-internal fun SetupChecklistCard(model: AppViewModel) {
+internal fun SetupChecklistCard(model: AppViewModel, firstRun: Boolean = false) {
     val context = LocalContext.current
     val settings by model.settings.collectAsStateWithLifecycle()
     val forced by model.setupChecklistOpen.collectAsStateWithLifecycle()
@@ -102,13 +102,16 @@ internal fun SetupChecklistCard(model: AppViewModel) {
     LifecycleResumeEffect(Unit) { refresh++; onPauseOrDispose { } }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         refresh++
-        if (pairAfterAccess && granted.isNotEmpty() && granted.values.all { it }) pairDialog = true
+        if (pairAfterAccess) {
+            if (granted.isNotEmpty() && granted.values.all { it }) pairDialog = true
+            else note = context.getString(R.string.first_run_nearby_access)
+        }
         pairAfterAccess = false
     }
     val enableBluetooth = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh++ }
     val health = rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) { refresh++ }
-    LaunchedEffect(refresh, settings.demoMode) {
-        healthGranted = if (!settings.demoMode && HealthConnectAccess.platformSupported) try {
+    LaunchedEffect(refresh, settings.demoMode, firstRun) {
+        healthGranted = if (!firstRun && !settings.demoMode && HealthConnectAccess.platformSupported) try {
             val granted = HealthConnectAccess.client(context).permissionController.getGrantedPermissions()
             HealthPermission.getReadPermission(SleepSessionRecord::class) in granted
         } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { false } else false
@@ -167,6 +170,23 @@ internal fun SetupChecklistCard(model: AppViewModel) {
     }
     Card(Modifier.fillMaxWidth().testTag("setup-checklist"), colors = CardDefaults.cardColors(containerColor = paletteTokens.surface)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (firstRun) {
+                Text(stringResource(R.string.first_run_title), style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.semantics { heading() })
+                Button(onClick = { fix(SetupItem.PAIR) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("setup-pair")) {
+                    Text(stringResource(R.string.first_run_connect))
+                }
+                OutlinedButton(onClick = { model.useDemo() }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("setup-demo")) {
+                    Text(stringResource(R.string.first_run_demo))
+                }
+                note?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { open(Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri())) }) {
+                        Text(stringResource(R.string.first_run_app_settings))
+                    }
+                }
+                return@Column
+            }
             Text(stringResource(R.string.uat_setup_title), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { heading() })
             if (snapshot.requiredComplete) Text(stringResource(R.string.uat_setup_complete), style = MaterialTheme.typography.bodySmall)
@@ -211,6 +231,6 @@ internal fun SetupChecklistCard(model: AppViewModel) {
     }
     if (pairDialog) AlertDialog(containerColor = paletteTokens.sheet, onDismissRequest = { pairDialog = false },
         title = { Text(stringResource(R.string.uat_setup_pair)) },
-        text = { Column(Modifier.verticalScroll(rememberScrollState())) { SetupFlow(model) } },
+        text = { Column(Modifier.verticalScroll(rememberScrollState())) { BluetoothBanner(model); SetupFlow(model) } },
         confirmButton = { TextButton(onClick = { pairDialog = false; refresh++ }) { Text(stringResource(R.string.uat_setup_done)) } })
 }

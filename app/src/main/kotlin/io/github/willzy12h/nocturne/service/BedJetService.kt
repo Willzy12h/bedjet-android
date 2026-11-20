@@ -57,6 +57,12 @@ class BedJetService : Service() {
             // coroutine; handoffs also retain a separate caller token until service cleanup has taken over.
             if (commandAdmission == null) commandAdmission = graph.repository.operationAdmission.tryCommand()
                 ?: error(getString(R.string.import_command_blocked))
+            if (request?.origin == CommandOrigin.NOTIFICATION &&
+                request.command in setOf(NightActions.Command.OFF, NightActions.Command.SNOOZE_WARM, NightActions.Command.SNOOZE_COOL,
+                    NightActions.Command.EXTEND_WARM, NightActions.Command.EXTEND_COOL) &&
+                getSystemService(android.app.KeyguardManager::class.java).isDeviceLocked &&
+                !(request.command == NightActions.Command.OFF && graph.repository.settings.value.allowLockedOff))
+                throw SecurityException(getString(R.string.wake_unlock))
             check(admissionId == null || waiting != null) { getString(R.string.bluetooth_request_expired) }
             if (!permitted(this, request?.command ?: NightActions.Command.START_NIGHT)) throw SecurityException(getString(R.string.runtime_connect_permission))
             if (!deferBluetoothCheck && request?.command != NightActions.Command.STOP_TRACKING) BluetoothAvailability.requireEnabled(this)
@@ -209,6 +215,7 @@ class BedJetService : Service() {
         }
 
         const val EXTRA_COMMAND = "command"
+        private const val EXTRA_PROFILE_HASH = "reviewedProfileHash"
         const val EXTRA_PROFILE = "profile"
         private const val EXTRA_TARGET = "target"
         private const val EXTRA_CONFIRMED = "replacementConfirmed"
@@ -222,6 +229,7 @@ class BedJetService : Service() {
         }
         private fun intent(context: Context, captured: CommandRequest) =
             Intent(context, BedJetService::class.java).putExtra(EXTRA_COMMAND, captured.command.name)
+                .putExtra(EXTRA_PROFILE_HASH, captured.reviewedProfileHash)
                 .putExtra(EXTRA_PROFILE, captured.profileId).putExtra(EXTRA_TARGET, captured.deviceId)
                 .putExtra(EXTRA_CONFIRMED, captured.replacementConfirmed).putExtra(EXTRA_STRICT, captured.requireIdentity)
                 .putExtra(EXTRA_ORIGIN, captured.origin.name)
@@ -243,7 +251,7 @@ class BedJetService : Service() {
                     identity.nightId.isBlank() || identity.revision < 0 || intent.getStringExtra(EXTRA_TARGET).isNullOrBlank())) return null
             return CommandRequest(command, intent.getStringExtra(EXTRA_PROFILE), intent.getStringExtra(EXTRA_TARGET),
                 identity, command == NightActions.Command.TEMPORARY || intent.getBooleanExtra(EXTRA_STRICT, false),
-                intent.getBooleanExtra(EXTRA_CONFIRMED, false), origin, preset)
+                intent.getBooleanExtra(EXTRA_CONFIRMED, false), origin, preset, intent.getStringExtra(EXTRA_PROFILE_HASH))
         }
         /** False means no service owns the work. Receivers may only record/schedule a pending retry. */
         fun start(context: Context, command: NightActions.Command, profileId: String? = null,

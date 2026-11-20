@@ -107,8 +107,8 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
     val zone = now.zone
     val today = now.toLocalDate()
     val inRange = remember(data.days, today, range) { SleepInsights.inRange(data.days, today, range) }
-    var selectedDay by rememberSaveable { mutableStateOf<Long?>(null) }
-    val selected = inRange.firstOrNull { it.date.toEpochDay() == selectedDay } ?: inRange.firstOrNull()
+    val selectedSession by model.selectedSleepSession.collectAsStateWithLifecycle()
+    val selected = inRange.firstOrNull { it.selectionId == selectedSession } ?: inRange.firstOrNull()
     val position = selected?.let(inRange::indexOf) ?: -1
     val sleep = selected?.sleep
     val noticed = remember(selected, data.days) { selected?.let { SleepInsights.noticed(it, data.days) } }
@@ -152,7 +152,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
             Text(stringResource(R.string.history_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.semantics { heading() })
             Segmented(SLEEP_RANGES.map { it to rangeNames.getValue(it) }, range, Modifier.fillMaxWidth(), tag = "sleep-range") { days ->
-                selectedDay = null
+                model.selectedSleepSession.value = null
                 model.updateSettings { it.copy(sleepRangeDays = days) }
             }
             Text(stringResource(R.string.sleep_move_hint), color = tokens.ink2, fontSize = 13.sp)
@@ -196,10 +196,10 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
                         )
                     }) {
                     when (id) {
-                        "trend" -> SleepTrendCard(inRange, today, range, selected, zone) { selectedDay = it.date.toEpochDay() }
+                        "trend" -> SleepTrendCard(inRange, today, range, selected, zone) { model.selectedSleepSession.value = it.selectionId }
                         "nights" -> selected?.let { day ->
                             SleepNightPicker(day, zone, inRange.getOrNull(position + 1), inRange.getOrNull(position - 1)) {
-                                selectedDay = it.date.toEpochDay()
+                                model.selectedSleepSession.value = it.selectionId
                             }
                         }
                         "stages" -> selected?.let { SleepNightChart(it, zone, settings.fahrenheit, data.availability) }

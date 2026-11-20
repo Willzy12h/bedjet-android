@@ -92,14 +92,16 @@ class UatRound2RegressionTest {
         val model = model()
         compose.setContent { MaterialTheme { TonightScreen(model, Modifier, onEdit = {}) } }
         compose.onNodeWithTag("setup-checklist").assertIsDisplayed()
-        compose.onNodeWithText("Finish setting up").assertIsDisplayed()
+        compose.onNodeWithText("Set up Nocturne").assertIsDisplayed()
+        compose.onNodeWithText("Try demo").assertIsDisplayed()
+        compose.onNodeWithTag("setup-alarm-apps").assertDoesNotExist()
         compose.onNodeWithTag("setup-pair").performScrollTo().assertIsDisplayed()
     }
 
-    @Test fun U5_quickControlsExposeAllSixApprovedPresetsInsteadOfWarm() {
+    @Test fun U5_quickControlsExposeAllSevenApprovedPresetsInsteadOfWarm() {
         val model = model(demo = true)
         compose.setContent { MaterialTheme { TonightScreen(model, Modifier, onEdit = {}) } }
-        listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST", "STANDBY").forEach {
+        listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST", "STANDBY", "EXTENDED_HEAT").forEach {
             compose.onNodeWithTag("quick-mode-$it").assertExists()
         }
         compose.onAllNodesWithText("Warm").assertCountEquals(0)

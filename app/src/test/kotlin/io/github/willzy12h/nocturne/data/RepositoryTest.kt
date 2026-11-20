@@ -25,6 +25,7 @@ import io.github.willzy12h.nocturne.core.protocol.StoredProgram
 import io.github.willzy12h.nocturne.core.store.BackupBundle
 import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.BackupException
+import io.github.willzy12h.nocturne.core.store.BackupFailure
 import io.github.willzy12h.nocturne.core.store.BackupValidator
 import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.HistoryEvent
@@ -106,6 +107,13 @@ class RepositoryTest {
 
     private fun backup(slot: Int, name: String, device: String = "ble:AA:BB:CC:DD:EE:FF") =
         SlotBackup(device, slot, StoredProgram(name, listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now.toString())
+
+    @Test fun restoringControlsCannotGrantLockedOffConsent() = runBlocking {
+        val repo = repository()
+        val original = repo.bundle()
+        repo.restore(original.copy(settings = original.settings.copy(allowLockedOff = true)))
+        assertFalse(repo.settings.value.allowLockedOff)
+    }
 
     @Test
     fun valuesSurviveARestart() = runBlocking {
@@ -1176,6 +1184,141 @@ class RepositoryTest {
     }
 
     @Test
+    fun erasureCoversAutomaticAndManualSnapshotsAndPreservesProtectedOriginals() = runBlocking {
+        val repo = repository()
+        val device = "ble:AA:BB:CC:DD:EE:FF"
+        repo.recordOriginalSlot(device, 1, program)
+        val at = now.minusDays(1).toString()
+        listOf("finished", "running", "ending").forEach { repo.addRecord(NightRecord(it, "p", "P", at, at, false)) }
+        repo.setActiveNight(ActiveNight("running", "p", at, now.toString(), false, 2, at, now.toString()))
+        repo.updateRuntime { it.copy(ending = PendingEnd(NightIdentity("ending", 2), HistoryEvent(at, EventKind.ENDED, "Ended"))) }
+        val automatic = repo.snapshots.save(repo.bundle(), null, manual = false)
+        repo.snapshotNow("Manual")
+        val manual = repo.snapshotList.value.first { it.manual }
+        repo.deleteHistory()
+        val after = repository()
+        for (id in listOf(automatic.id, manual.id)) {
+            val snapshot = after.snapshots.load(id)!!
+            assertEquals(listOf("running", "ending"), snapshot.history.map { it.id })
+            assertEquals(program, snapshot.slotBackups.single().program)
+            assertTrue(after.restoreSnapshot(id))
+            assertEquals(setOf("running", "ending"), after.history.value.map { it.id }.toSet())
+        }
+    }
+
+    @Test
+    fun shorteningRetentionCleansOldNightsInPreviouslyRestorableSnapshots() = runBlocking {
+        val repo = repository()
+        for ((id, age) in listOf("month" to 20L, "week" to 3L)) {
+            val at = now.minusDays(age).toString()
+            repo.addRecord(NightRecord(id, "p", "P", at, at, false))
+        }
+        repo.snapshotNow("90-day backup")
+        val old = repo.snapshotList.value.single { it.manual }
+        repo.setHistoryKeepDays(7)
+        val after = repository()
+        assertEquals(listOf("week"), after.snapshots.load(old.id)!!.history.map { it.id })
+        assertTrue(after.restoreSnapshot(old.id))
+        assertEquals(listOf("week"), after.history.value.map { it.id })
+    }
+
+    @Test
+    fun recordsAgeOutOfExportsAndManualSnapshotsWithoutRestarting() = runBlocking {
+        var clock = now
+        val output = java.io.ByteArrayOutputStream()
+        val repo = Repository(context, scope, Dispatchers.Unconfined, openOutput = { output }) { clock }
+        val at = now.minusDays(89).toString()
+        repo.addRecord(NightRecord("ageing", "p", "P", at, at, false))
+        repo.addRecord(NightRecord("still-running", "p", "P", at, at, false))
+        repo.setActiveNight(ActiveNight("still-running", "p", at, now.toString(), false, 2, at, now.toString()))
+        clock = clock.plusDays(2)
+        assertEquals(listOf("still-running"), repo.historyForExport().map { it.id })
+        repo.exportTo(Uri.parse("content://test.documents/export.json"))
+        assertEquals(listOf("still-running"), repo.importFrom(output.toByteArray().inputStream()).history.map { it.id })
+        repo.snapshotNow("After the cutoff")
+        val id = repo.snapshotList.value.single { it.manual }.id
+        assertEquals(listOf("still-running"), repo.snapshots.load(id)!!.history.map { it.id })
+    }
+
+    @Test
+    fun recentAutomaticSnapshotDoesNotPostponeExpiryInOlderManualSnapshotsOrLiveStorage() = runBlocking {
+        val repo = repository()
+        val at = now.minusDays(89).toString()
+        repo.addRecord(NightRecord("ageing", "p", "P", at, at, false))
+        repo.snapshotNow("Earlier snapshot")
+        val id = repo.snapshotList.value.single { it.manual }.id
+        val later = now.plusDays(2)
+        val copy = io.github.willzy12h.nocturne.core.store.SnapshotStore(File(dir, "snapshots").toPath()) { later }
+        copy.save(repo.bundle().copy(history = emptyList()), null, manual = false)
+        val restarted = Repository(context, scope, Dispatchers.Unconfined) { later }
+        assertTrue(restarted.snapshots.load(id)!!.history.isEmpty())
+        assertFalse(File(dir, "history.json").readText().contains("ageing"))
+    }
+
+    @Test
+    fun alreadyOpenSnapshotReviewCannotBringErasedHistoryBack() = runBlocking {
+        val repo = repository()
+        val at = now.toString()
+        val onlyInSnapshot = NightRecord("old", "p", "P", at, at, false)
+        val snapshot = repo.snapshots.save(repo.bundle().copy(history = listOf(onlyInSnapshot)), "Old", true)
+        val preview = repo.previewSnapshot(snapshot.id)!!
+        repo.deleteHistory()
+        assertTrue(runCatching { repo.applyImport(preview) }.exceptionOrNull() is BackupException)
+        assertTrue(repo.history.value.isEmpty())
+    }
+
+    @Test
+    fun retryOnlyFinishesTheRecordedErasureAndKeepsARecentlyAddedNight() = runBlocking {
+        var refuseDelete = true
+        val repo = repository(deleteFile = {
+            if (it.name == "history-erasure-pending.json" && refuseDelete) throw IOException("Cannot remove marker")
+            AtomicFile(it).delete()
+        })
+        val at = now.toString()
+        repo.addRecord(NightRecord("old", "p", "P", at, at, false))
+        assertTrue(runCatching { repo.deleteHistory() }.isFailure)
+        assertTrue(repo.historyErasurePending.value)
+        repo.addRecord(NightRecord("later", "p", "P", at, at, false))
+        refuseDelete = false
+        repo.retryHistoryErasure()
+        assertFalse(repo.historyErasurePending.value)
+        assertEquals(listOf("later"), repo.history.value.map { it.id })
+    }
+
+    @Test
+    fun unreadableSnapshotStaysVisibleForRemovalUntilErasureFinishes() = runBlocking {
+        val repo = repository()
+        repo.snapshotNow("Invalid")
+        val bad = repo.snapshotList.value.single { it.manual }
+        File(dir, "snapshots/${bad.id}.json").writeText("unreadable")
+        assertTrue(runCatching { repo.deleteHistory() }.isFailure)
+        assertTrue(repo.snapshotList.value.any { it.id == bad.id })
+        assertTrue(runCatching { repo.snapshotNow("Blocked") }.isFailure)
+        repo.deleteSnapshot(bad.id)
+        repo.snapshotNow("Restored")
+        assertTrue(repo.snapshotList.value.any { it.label == "Restored" })
+    }
+
+    @Test
+    fun interruptedErasureResumesAndCannotRestoreOldSnapshotsInTheMeantime() = runBlocking {
+        var refuse = false
+        val repo = repository(writeFile = { file, bytes ->
+            if (refuse && file.name == "history.json") throw IOException("Disk full")
+            Repository.writeDurably(file, bytes)
+        })
+        val at = now.toString()
+        repo.addRecord(NightRecord("saved", "p", "P", at, at, false))
+        repo.snapshotNow("Manual")
+        val old = repo.snapshotList.value.single { it.manual }
+        refuse = true
+        assertTrue(runCatching { repo.deleteHistory() }.isFailure)
+        assertTrue(runCatching { repo.restoreSnapshot(old.id) }.isFailure)
+        val after = repository()
+        assertTrue(after.history.value.isEmpty())
+        assertTrue(after.snapshots.load(old.id)!!.history.isEmpty())
+    }
+
+    @Test
     fun deletingHistoryRemovesEveryFinishedNight() = runBlocking {
         val repo = repository()
         repo.addRecord(NightRecord("a", "p", "P", now.minusDays(3).toString(), now.minusDays(3).toString(), false))
@@ -1196,6 +1339,70 @@ class RepositoryTest {
         assertFalse("Removed updater credentials must not remain on the phone", secrets.contains("updateToken"))
         assertFalse("Removed updater schedule must not remain on the phone", updates.contains("lastCheck"))
         assertEquals("keep", secrets.getString("unrelated", null))
+    }
+
+    @Test
+    fun exportDoesNotOpenDestinationForAnUnrestorableLibrary() = runBlocking {
+        var opens = 0
+        val repo = repository(openOutput = { opens++; java.io.ByteArrayOutputStream() })
+        repo.addRecord(NightRecord("bad", "profile", "Night", now.toString(), "broken time", false))
+        val result = runCatching { repo.exportTo(Uri.parse("content://test.documents/export.json")) }
+        assertTrue(result.exceptionOrNull() is BackupException)
+        assertEquals(0, opens)
+        val before = repo.profiles.value
+        assertTrue(runCatching { repo.restoreBuiltInProfiles() }.exceptionOrNull() is BackupException)
+        assertEquals(before, repo.profiles.value)
+    }
+
+    @Test
+    fun olderLibraryAboveTheCreationLimitRoundTripsInFull() = runBlocking {
+        val oldLibrary = List(129) { Presets.summerCool.copy(id = "p$it", name = "Profile $it") }
+        File(dir, "profiles.json").writeText(BackupCodec.json.encodeToString(ListSerializer(Profile.serializer()), oldLibrary))
+        val output = java.io.ByteArrayOutputStream()
+        val repo = repository(openOutput = { output })
+        repo.exportTo(Uri.parse("content://test.documents/export.json"))
+        val decoded = repo.importFrom(output.toByteArray().inputStream())
+        assertEquals(emptyList<String>(), BackupValidator.validate(decoded))
+        assertEquals(oldLibrary, decoded.profiles)
+        repo.restore(decoded)
+        assertEquals(oldLibrary, repo.profiles.value)
+        assertTrue(runCatching { repo.saveProfile(oldLibrary.first().copy(id = "new")) }.isFailure)
+        repo.saveProfile(oldLibrary.first().copy(name = "Still editable"))
+        assertEquals("Still editable", repo.profiles.value.first().name)
+    }
+
+    @Test
+    fun libraryOutsideTheRecoveryBoundsCanStillShareAnIndividuallyRestorableProfile() = runBlocking {
+        val profile = Presets.summerCool
+        val library = List(BackupValidator.MAX_PROFILES + 1) { profile.copy(id = "p$it") }
+        val file = File(dir, "profiles.json")
+        file.writeText(BackupCodec.json.encodeToString(ListSerializer(Profile.serializer()), library))
+        var opens = 0
+        val output = java.io.ByteArrayOutputStream()
+        val repo = repository(openOutput = { opens++; output })
+        val destination = Uri.parse("content://test.documents/export.json")
+        assertTrue(runCatching { repo.exportTo(destination) }.exceptionOrNull() is BackupException)
+        assertEquals(0, opens)
+        assertEquals(library, repo.profiles.value)
+        val selected = library.last()
+        repo.exportProfileTo(destination, repo.profileShareRequest(selected))
+        val shared = repo.importFrom(output.toByteArray().inputStream())
+        assertEquals(listOf(selected), shared.profiles)
+        assertTrue(BackupValidator.validate(shared).isEmpty())
+    }
+
+    @Test
+    fun overFiveMiBIsReportedBeforeAnExistingDocumentIsOpened() = runBlocking {
+        var opens = 0
+        val repo = repository(openOutput = { opens++; java.io.ByteArrayOutputStream() })
+        val at = now.toString()
+        val event = HistoryEvent(at, EventKind.RETIMED, "x".repeat(2_000))
+        val night = NightRecord("first", "p", "P", at, at, false, events = List(1_000) { event })
+        repeat(3) { repo.addRecord(night.copy(id = "n$it")) }
+        val failure = runCatching { repo.exportTo(Uri.parse("content://test.documents/existing.json")) }.exceptionOrNull()
+        assertEquals(BackupFailure.TOO_LARGE, (failure as? BackupException)?.failure)
+        assertEquals(0, opens)
+        assertEquals(3, repo.history.value.size)
     }
 
     @Test

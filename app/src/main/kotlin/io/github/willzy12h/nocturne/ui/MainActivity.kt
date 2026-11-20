@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.widthIn
@@ -241,7 +240,11 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         return
     }
     Scaffold(
-        topBar = { Spacer(Modifier.statusBarsPadding()) },
+        topBar = {
+            Box(Modifier.fillMaxWidth().statusBarsPadding(), contentAlignment = Alignment.TopCenter) {
+                ConnectionActionStatus(model, Modifier.widthIn(max = MaxContentWidth).padding(horizontal = 16.dp))
+            }
+        },
         snackbarHost = {
             // Feedback floats over the screen as a small bubble; the content underneath never moves.
             SnackbarHost(snackbar) { data ->
