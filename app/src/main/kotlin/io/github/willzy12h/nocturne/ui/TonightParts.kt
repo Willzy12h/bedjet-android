@@ -256,7 +256,7 @@ internal fun canRequestBedJet(model: AppViewModel): Boolean {
 }
 
 @Composable
-internal fun ConnectionActionStatus(model: AppViewModel) {
+internal fun ConnectionActionStatus(model: AppViewModel, modifier: Modifier) {
     val active by model.connectingCommand.collectAsStateWithLifecycle()
     val tap = active ?: return
     val phase by tap.phase.collectAsStateWithLifecycle()
@@ -266,7 +266,7 @@ internal fun ConnectionActionStatus(model: AppViewModel) {
         ConnectingCommand.Phase.SENDING -> R.string.runtime_sending_action
         ConnectingCommand.Phase.CANCELLED -> return
     }
-    Column(Modifier.fillMaxWidth().testTag("connecting-command")) {
+    Column(modifier.fillMaxWidth().testTag("connecting-command")) {
         Text(stringResource(label, tap.label), Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = paletteTokens.ink)
         Row {
             if (phase == ConnectingCommand.Phase.REPLACE)

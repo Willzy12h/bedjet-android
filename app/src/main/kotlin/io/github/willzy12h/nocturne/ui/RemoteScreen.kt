@@ -120,7 +120,6 @@ fun RemoteScreen(model: AppViewModel, modifier: Modifier) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = FeedbackClearance), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StatusLine(model, runningName = null)
         BluetoothBanner(model)
-        ConnectionActionStatus(model)
         Text(stringResource(R.string.remote_title), color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.semantics { heading() })
         // No BedJet chosen: the route to choosing one, as on Tonight.

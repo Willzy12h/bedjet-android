@@ -64,7 +64,7 @@ internal class ConnectingCommand(
         val running = report.status
         val unfamiliarRun = running.isRunning && (seen == null || !seen.isRunning || seen.mode != running.mode ||
             seen.extra?.programStep != running.extra?.programStep)
-        if (unfamiliarRun && graph.repository.activeNight.value == null) {
+        if (unfamiliarRun) {
             if (!_phase.compareAndSet(Phase.CONNECTING, Phase.REPLACE)) throw CancellationException()
             consent.await()
         }

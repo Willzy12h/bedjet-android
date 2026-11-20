@@ -468,7 +468,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     selectedProfile() == profile && saved.workingSlot == slot && preview.plan != null && preview.wake == wake
                 }
             }
-            off || (sameNight && samePlan)
+            (off && !request.replacementConfirmed) || (sameNight && samePlan)
         }
     }
 

@@ -111,7 +111,7 @@ class RemoteReconnectPresentationTest {
     @Test fun cancelConnectingModeDoesNotReplayOnReconnect() {
         openRemoteAndReconnect()
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().performClick()
-        compose.onNodeWithText("Cancel").performScrollTo().performClick()
+        compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
         compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false) }
         waitUntil { model.hasLiveStatus.value && !model.busy.value }
         assertTrue(link.writes.isEmpty())
@@ -140,18 +140,52 @@ class RemoteReconnectPresentationTest {
         openRemoteAndReconnect()
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().performClick()
         compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false) }
-        compose.onNodeWithText("Replace run").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Replace run").assertIsDisplayed()
         assertTrue(link.writes.isEmpty())
-        compose.onNodeWithText("Cancel").performScrollTo().performClick()
+        compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
         waitUntil { !model.busy.value }
         assertTrue(link.writes.isEmpty())
+    }
+
+    @Test fun aTrackedNightDoesNotApproveADifferentPhysicalRunDiscoveredOnReconnect() {
+        openRemoteAndReconnect()
+        val profile = graph.repository.profiles.value.first()
+        val now = graph.now()
+        val wake = now.plusHours(8).toString()
+        runBlocking {
+            graph.repository.setActiveNight(io.github.willzy12h.nocturne.core.night.ActiveNight("tracked", profile.id,
+                now.toString(), wake, false, 0, wake, wake, deviceId = "demo", profile = profile))
+        }
+        compose.runOnIdle {
+            val request = model.quickAction(io.github.willzy12h.nocturne.night.NightActions.Command.COOL).end
+            model.runCaptured(request.copy(replacementConfirmed = true))
+        }
+        compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false, Mode.DRY) }
+        compose.onNodeWithText("Replace run").assertIsDisplayed()
+        assertTrue(link.writes.isEmpty())
+        compose.onNodeWithText("Cancel").performClick()
+        waitUntil { !model.busy.value }
+        assertEquals("tracked", graph.repository.activeNight.value?.recordId)
+        assertTrue(link.writes.isEmpty())
+    }
+
+    @Test fun staleConsentAfterAnotherNightChangeCannotSendTheOldRequest() {
+        openRemoteAndReconnect()
+        compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().performClick()
+        compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false) }
+        compose.onNodeWithText("Replace run").assertIsDisplayed()
+        runBlocking { graph.repository.updateRuntime { it.copy(generation = it.generation + 1) } }
+        compose.onNodeWithText("Replace run").performClick()
+        waitUntil { !model.busy.value && outcomes.isNotEmpty() }
+        assertTrue(link.writes.isEmpty())
+        assertTrue(outcomes.last().message.contains("changed"))
     }
 
     @Test fun replacingAnUnfamiliarRunSendsTheOriginalModeOnce() {
         openRemoteAndReconnect()
         compose.onNode(hasText("Cool") and hasClickAction()).performScrollTo().performClick()
         compose.runOnUiThread { link.readyWithoutStatus(); link.publish(60, false) }
-        compose.onNodeWithText("Replace run").performScrollTo().performClick()
+        compose.onNodeWithText("Replace run").assertIsDisplayed().performClick()
         waitUntil { link.writes.isNotEmpty() }
         val cool = io.github.willzy12h.nocturne.core.protocol.Codec.setMode(Mode.COOL)!!
         assertTrue(link.writes.single().contentEquals(cool))

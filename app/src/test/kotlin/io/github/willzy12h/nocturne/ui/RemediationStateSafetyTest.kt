@@ -78,9 +78,11 @@ class RemediationStateSafetyTest {
         listOf("TURBO", "HEAT", "COOL", "DRY", "BOOST", "STANDBY").forEach { mode ->
             ui.compose.onNodeWithTag("quick-mode-$mode").performScrollTo().assertIsEnabled()
         }
-        ui.compose.onNodeWithTag("quick-mode-COOL").performClick()
-        ui.compose.onNodeWithText("Cancel").performScrollTo().performClick()
-        ui.waitUntil { !ui.model.busy.value }
+        ui.compose.onNodeWithTag("quick-mode-COOL").performScrollTo().performClick()
+        val pending = requireNotNull(ui.model.connectingCommand.value)
+        ui.compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
+        ui.compose.runOnIdle { assertEquals(io.github.willzy12h.nocturne.night.ConnectingCommand.Phase.CANCELLED, pending.phase.value) }
+        ui.waitUntil { ui.model.connectingCommand.value == null }
         assertTrue("A cancelled preset cannot issue a transport write", link.writes.isEmpty())
     }
 

@@ -214,7 +214,6 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         StatusLine(model, runningName = profileName.takeIf { confirmed && night?.trackingManual == false }, onRemote = onOpenRemote)
         BluetoothBanner(model)
-        ConnectionActionStatus(model)
         HomeReading(model, settings, current?.let { (index, step) -> Triple(step, index + 1, plan?.steps?.size ?: 0) }, sending.value)
         RestoreOfferCard(model)
         SetupChecklistCard(model)

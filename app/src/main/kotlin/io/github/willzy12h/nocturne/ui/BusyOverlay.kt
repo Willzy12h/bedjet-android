@@ -20,6 +20,8 @@ import io.github.willzy12h.nocturne.R
 /** Drawn over Tonight's heading, never as a child of its scrolling controls. Idle emits no layout. */
 @Composable
 fun BusyIndicator(model: AppViewModel) {
+    val tap by model.connectingCommand.collectAsStateWithLifecycle()
+    if (tap != null) return
     val local by model.busy.collectAsStateWithLifecycle()
     val owner by model.commandBusy.collectAsStateWithLifecycle()
     if (!local && owner.runningLabel == null && owner.queuedCount == 0) return
