@@ -48,6 +48,10 @@ data class NightRecord(
     val healthExportVersion: Long = 0,
     val healthExportedVersion: Long = 0,
     val isNap: Boolean = false,
+    /** Receipt time of a standby report from this BedJet while ending the run. */
+    val standbyObservedAt: String? = null,
+    /** Most recent saved report matching the running programme, possibly earlier than the actual stop. */
+    val lastRunningObservedAt: String? = null,
 )
 
 object History {
@@ -63,8 +67,12 @@ object History {
         return records.filter { runCatching { ZonedDateTime.parse(it.startedAt) }.getOrNull()?.isAfter(cutoff) ?: false }
     }
 
-    fun addEvent(records: List<NightRecord>, id: String, event: HistoryEvent): List<NightRecord> =
-        records.map { if (it.id == id) it.copy(events = it.events + event) else it }
+    fun addEvent(records: List<NightRecord>, id: String, event: HistoryEvent, standbyObservedAt: String? = null): List<NightRecord> =
+        records.map { record ->
+            if (record.id != id) record else record.copy(events = record.events + event,
+                standbyObservedAt = standbyObservedAt?.takeUnless { record.isTestRun || DeviceId.isDemo(record.deviceId) }
+                    ?: record.standbyObservedAt)
+        }
 
     /** The nights run on [deviceId]. */
     fun forDevice(records: List<NightRecord>, deviceId: String): List<NightRecord> = records.filter { it.deviceId == deviceId }

@@ -1,23 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Sleep page -->
+    <string name="sleep_range_dates">%1$s – %2$s</string>
+    <plurals name="sleep_bedjet_records">
+        <item quantity="one">%1$d BedJet record</item>
+        <item quantity="other">%1$d BedJet records</item>
+    </plurals>
+    <plurals name="sleep_tracker_sessions">
+        <item quantity="one">%1$d tracker session</item>
+        <item quantity="other">%1$d tracker sessions</item>
+    </plurals>
+    <string name="sleep_read_partial">Health Connect could only read part of this range. Available sessions are shown.</string>
+    <string name="sleep_loading">Reading sleep sessions…</string>
+    <string name="sleep_no_saved_in_range">No saved BedJet records in this range.</string>
+    <string name="sleep_tracker_interval">Tracker session %1$s to %2$s</string>
+    <string name="sleep_bedjet_start">BedJet record started at %1$s</string>
+    <string name="sleep_planned_interval">Planned %1$s to %2$s</string>
+    <string name="sleep_nap_date">Nap · %1$s</string>
+    <string name="sleep_standby_event">BedJet reported standby.</string>
+    <string name="sleep_observed_standby">BedJet reported standby at %1$s.</string>
+    <string name="sleep_last_reading">Last BedJet reading at %1$s. Stop time unknown.</string>
+    <string name="sleep_last_running">Last recorded running at %1$s. Stop time unknown.</string>
+    <string name="sleep_confirmed_start_time">Start confirmed at %1$s.</string>
+    <string name="sleep_time_between_reports">%1$s between the start and standby reports.</string>
+    <string name="sleep_stop_unknown">BedJet stop time unknown.</string>
+    <string name="sleep_bedjet_nap">BedJet nap</string>
     <string name="sleep_range_7">7 days</string>
     <string name="sleep_range_30">30 days</string>
-    <string name="sleep_range_90">3 months</string>
+    <string name="sleep_range_90">90 days</string>
     <string name="sleep_move_hint">Hold a section and drag it to move it.</string>
     <string name="sleep_move_up">Move section up</string>
     <string name="sleep_move_down">Move section down</string>
     <string name="sleep_average_asleep">Average asleep</string>
     <string name="sleep_usual_bedtime">Usual bedtime</string>
-    <string name="sleep_trend_hint">Tap a night to open it.</string>
-    <string name="sleep_trend_none">No sleep from Health Connect in this range yet.</string>
+    <string name="sleep_trend_hint">Each bar shows the selected or longest tracker session on that date. Tap a date, then use the arrows to browse sessions.</string>
+    <string name="sleep_trend_none">Health Connect returned no tracker sessions for these dates.</string>
     <plurals name="sleep_trend_accessibility">
-        <item quantity="one">%1$d night with sleep data. Average asleep %2$s.</item>
-        <item quantity="other">%1$d nights with sleep data. Average asleep %2$s.</item>
+        <item quantity="one">%1$d tracker session. Average asleep %2$s.</item>
+        <item quantity="other">%1$d tracker sessions. Average asleep %2$s.</item>
     </plurals>
     <string name="sleep_trend_hours">%1$d h</string>
-    <string name="sleep_previous_night">Previous night</string>
-    <string name="sleep_next_night">Next night</string>
+    <string name="sleep_previous_night">Previous session</string>
+    <string name="sleep_next_night">Next session</string>
     <string name="sleep_no_bedjet">No BedJet record</string>
     <string name="sleep_no_plan_interval">No recorded step</string>
     <string name="sleep_scrub_hint">Drag across the chart to explore sleep stages and planned BedJet steps.</string>
@@ -42,8 +66,8 @@
     <string name="sleep_figure_efficiency_note">average %1$d%%</string>
     <string name="sleep_figure_none">—</string>
     <plurals name="sleep_compare_title">
-        <item quantity="one">Compared with the night before</item>
-        <item quantity="other">Compared with your %1$d-night average</item>
+        <item quantity="one">Compared with the previous sleep session</item>
+        <item quantity="other">Compared with your %1$d-session average</item>
     </plurals>
     <string name="sleep_compare_none">Comparisons appear once there is an earlier night with sleep stages.</string>
     <string name="sleep_compare_footer">The line is your average. Observations only, not medical advice.</string>
@@ -52,16 +76,16 @@
     <string name="sleep_compare_same">same</string>
     <string name="sleep_noticed">Noticed</string>
     <plurals name="sleep_noticed_text">
-        <item quantity="one">You woke at %1$s, %2$s after the planned change to %3$s. That happened on %4$d of the last %5$d night.</item>
-        <item quantity="other">You woke at %1$s, %2$s after the planned change to %3$s. That happened on %4$d of the last %5$d nights.</item>
+        <item quantity="one">You woke at %1$s, %2$s after the planned change to %3$s. That happened on %4$d of the last %5$d session.</item>
+        <item quantity="other">You woke at %1$s, %2$s after the planned change to %3$s. That happened on %4$d of the last %5$d sessions.</item>
     </plurals>
     <string name="sleep_noticed_caveat">Nocturne only points out patterns; it can\'t say what caused them.</string>
     <string name="sleep_timeline">Stage by stage</string>
     <string name="sleep_timeline_awake">← Awake</string>
     <string name="sleep_timeline_deeper">Deeper →</string>
-    <string name="sleep_timeline_up">Up</string>
-    <string name="sleep_timeline_up_bedjet">Up · programme due to end at %1$s</string>
-    <string name="sleep_nights">Nights</string>
+    <string name="sleep_timeline_up">Tracker session ended</string>
+    <string name="sleep_timeline_up_bedjet">Tracker session ended · programme due to end at %1$s</string>
+    <string name="sleep_nights">BedJet use</string>
 
     <!-- Sleep history (retention) -->
     <string name="sleep_history_title">Sleep history</string>
@@ -69,7 +93,7 @@
     <string name="sleep_keep_for">Keep nights for</string>
     <string name="sleep_keep_7">7 days</string>
     <string name="sleep_keep_30">30 days</string>
-    <string name="sleep_keep_90">3 months</string>
+    <string name="sleep_keep_90">90 days</string>
     <string name="sleep_keep_365">1 year</string>
     <string name="sleep_keep_recommended">Recommended</string>
     <string name="sleep_keep_help">Choosing a shorter time deletes older nights after you confirm. The Sleep page can show up to this much.</string>

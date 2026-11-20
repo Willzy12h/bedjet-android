@@ -2,6 +2,7 @@ package io.github.willzy12h.nocturne.sleep
 
 import io.github.willzy12h.nocturne.core.plan.Plan
 import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.EventKind
 import io.github.willzy12h.nocturne.core.store.NightRecord
 import io.github.willzy12h.nocturne.platform.SleepStage
 import java.time.Duration
@@ -27,8 +28,11 @@ data class SleepNight(val start: Instant, val end: Instant, val stages: List<Sle
 data class SleepDay(val date: LocalDate, val sleep: SleepNight?, val record: NightRecord?, val plan: Plan?) {
     val selectionId: String get() = sleep?.sourceId?.let { "health:$it" } ?: record?.let { "bedjet:${it.id}" } ?: "session:$start/$end"
     val start: Instant get() = sleep?.start ?: plan?.start?.toInstant() ?: ZonedDateTime.parse(record!!.startedAt).toInstant()
-    val end: Instant get() = sleep?.end ?: plan?.wake?.toInstant() ?: ZonedDateTime.parse(record!!.wakeAt).toInstant()
+    val end: Instant get() = sleep?.end ?: savedInstant(record?.standbyObservedAt) ?: plan?.wake?.toInstant()
+        ?: savedInstant(record?.wakeAt) ?: start
 }
+
+private fun savedInstant(text: String?): Instant? = text?.let { runCatching { ZonedDateTime.parse(it).toInstant() }.getOrNull() }
 
 /** The four figures for one night, all whole minutes. */
 data class SleepFigures(
@@ -124,16 +128,44 @@ object SleepInsights {
      */
     fun join(nights: List<SleepNight>, records: List<NightRecord>, zone: ZoneId, planOf: (NightRecord) -> Plan?): List<SleepDay> {
         val timed = records.mapNotNull { record ->
-            runCatching { Triple(record, ZonedDateTime.parse(record.startedAt).toInstant(), ZonedDateTime.parse(record.wakeAt).toInstant()) }.getOrNull()
+            val start = savedInstant(record.startedAt) ?: return@mapNotNull null
+            Triple(record, start, savedInstant(record.standbyObservedAt) ?: savedInstant(record.wakeAt) ?: start)
         }
-        val unused = timed.toMutableList()
-        val days = nights.sortedBy { it.start }.map { night ->
-            val match = unused.filter { (_, start, end) -> start < night.end && end > night.start }
-                .maxByOrNull { (_, start, end) -> Duration.between(maxOf(start, night.start), minOf(end, night.end)) }
-            match?.let(unused::remove)
-            SleepDay(night.end.atZone(zone).toLocalDate(), night, match?.first, match?.first?.let(planOf))
-        } + unused.map { (record, _, end) -> SleepDay(end.atZone(zone).toLocalDate(), null, record, planOf(record)) }
-        return days.sortedByDescending { it.start }
+        // Allocate the strongest overlap first. A short earlier nap must not claim an overnight run.
+        val overlaps = nights.flatMap { night ->
+            timed.mapNotNull { (record, start, end) ->
+                val overlap = Duration.between(maxOf(start, night.start), minOf(end, night.end))
+                if (overlap.isNegative || overlap.isZero) null else Triple(overlap, night, record)
+            }
+        }.sortedByDescending { it.first }
+        val joined = mutableMapOf<SleepNight, NightRecord>()
+        val used = mutableSetOf<String>()
+        overlaps.forEach { (_, night, record) ->
+            if (night !in joined && used.add(record.id)) joined[night] = record
+        }
+        val days = nights.map { night ->
+            val record = joined[night]
+            SleepDay(night.end.atZone(zone).toLocalDate(), night, record, record?.let(planOf))
+        } + timed.filter { it.first.id !in used }.map { (record, start, _) ->
+            val evidence = bedJetEvidence(record)
+            val recorded = evidence.standby ?: evidence.lastRunning ?: evidence.lastReading ?: evidence.confirmedStart ?: start
+            SleepDay(recorded.atZone(zone).toLocalDate(), null, record, planOf(record))
+        }
+        return days.sortedWith(compareByDescending<SleepDay> { it.date }.thenByDescending { it.start })
+    }
+
+    /** A date's bar shows the chosen tracker session, otherwise the longest tracker session on that date. */
+    fun representative(sessions: List<SleepDay>, selected: SleepDay? = null): SleepDay? =
+        selected?.takeIf { it.sleep != null && it in sessions }
+            ?: sessions.filter { it.sleep != null }.maxByOrNull { Duration.between(it.start, it.end) }
+            ?: sessions.firstOrNull()
+
+    data class BedJetEvidence(val confirmedStart: Instant?, val standby: Instant?, val lastRunning: Instant?, val lastReading: Instant?)
+
+    fun bedJetEvidence(record: NightRecord): BedJetEvidence {
+        val confirmed = record.events.firstOrNull { it.kind == EventKind.STARTED && record.bedJetRunConfirmed }?.let { savedInstant(it.at) }
+        return BedJetEvidence(confirmed, savedInstant(record.standbyObservedAt), savedInstant(record.lastRunningObservedAt),
+            record.temperatures.mapNotNull { savedInstant(it.at) }.maxOrNull())
     }
 
     /** The nights whose wake date falls in the last [days] days up to [today]. */

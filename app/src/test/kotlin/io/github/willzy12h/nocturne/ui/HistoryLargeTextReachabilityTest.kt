@@ -41,7 +41,7 @@ class HistoryLargeTextReachabilityTest(private val look: U06Look) {
             start.toString(), wake.toString(), false, events = events)) }
         ui.tab("History")
         ui.waitUntil { ui.compose.onAllNodesWithText("Warm Start, Cool Night", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
-        return "${Format.clock(start)} – ${Format.clock(wake)}"
+        return ui.graph.context.getString(R.string.sleep_planned_interval, Format.clock(start), Format.clock(wake))
     }
 
     @Test fun completeProfileAndTimesRemainReadableAtLargeText() {

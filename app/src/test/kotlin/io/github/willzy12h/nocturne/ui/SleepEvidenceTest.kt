@@ -40,6 +40,36 @@ class SleepEvidenceTest {
         assertEquals(10, SleepInsights.figures(night).stageMinutes[SleepInsights.AWAKE])
     }
 
+    @Test fun trackerIntervalAndObservedStandbyRemainIndependent() {
+        val zone = ZoneOffset.UTC
+        val nap = io.github.willzy12h.nocturne.core.store.NightRecord("nap", "p", "Afternoon", start.toString(),
+            start.plusSeconds(3600).toString(), false, isNap = true, standbyObservedAt = start.plusSeconds(900).toString())
+        val tracker = SleepNight.of(start, start.plusSeconds(2700), emptyList(), "tracker")
+        val day = SleepDay(start.atZone(zone).toLocalDate(), tracker, nap, null)
+        compose.setContent { NocturneTheme {
+            androidx.compose.foundation.layout.Column {
+                SleepNightPicker(day, zone, null, null) {}
+                SleepNightChart(day, zone, false, null)
+            }
+        } }
+        compose.onNodeWithText("BedJet nap", substring = true).assertExists()
+        compose.onNodeWithText("Tracker session ${Format.clock(start.atZone(zone))} to ${Format.clock(tracker.end.atZone(zone))}").assertExists()
+        compose.onNodeWithText("BedJet reported standby at ${Format.dayClock(start.plusSeconds(900).atZone(zone))}.").assertExists()
+    }
+
+    @Test fun plannedCompletionWithoutAStandbyReportOnlyShowsTheLastReading() {
+        val zone = ZoneOffset.UTC
+        val reading = start.plusSeconds(900)
+        val end = start.plusSeconds(3600)
+        val record = io.github.willzy12h.nocturne.core.store.NightRecord("night", "p", "Overnight", start.toString(),
+            end.toString(), false, confirmedCompletionAt = end.toString(),
+            temperatures = listOf(io.github.willzy12h.nocturne.core.store.TempSample(reading.toString(), 20, 24)))
+        val day = SleepDay(start.atZone(zone).toLocalDate(), null, record, null)
+        compose.setContent { NocturneTheme { SleepNightChart(day, zone, false, null) } }
+        compose.onNodeWithText("Last BedJet reading at ${Format.dayClock(reading.atZone(zone))}. Stop time unknown.").assertExists()
+        compose.onNodeWithText("BedJet reported standby", substring = true).assertDoesNotExist()
+    }
+
     @Test fun selectionSurvivesRefreshAndDistinguishesSessionsOnOneDate() {
         val day = start.atZone(ZoneOffset.UTC).toLocalDate()
         val first = SleepNight.of(start, start.plusSeconds(1800), emptyList(), "morning")

@@ -43,6 +43,34 @@ class SleepPageTest {
         ui.waitUntil { ui.graph.repository.settings.value.sleepRangeDays == 30 }
     }
 
+    @Test fun withoutATrackerTheRangeCountsAndBedJetEvidenceStayVisible() {
+        val now = ui.graph.now()
+        val start = now.minusDays(2)
+        val standby = start.plusMinutes(90)
+        ui.compose.runOnUiThread { runBlocking {
+            ui.graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = "ble:AA:BB:CC:DD:EE:11",
+                historyKeepDays = 90, sleepRangeDays = 7, platform = it.platform.copy(healthSleepOverlay = false)) }
+            for (age in listOf(2L, 20L, 60L)) {
+                val at = now.minusDays(age)
+                val started = io.github.willzy12h.nocturne.core.store.HistoryEvent(at.toString(),
+                    io.github.willzy12h.nocturne.core.store.EventKind.STARTED, "Programme confirmed")
+                ui.graph.repository.addRecord(NightRecord("run-$age", "p", "Run $age", at.toString(),
+                    at.plusHours(2).toString(), false, events = listOf(started), bedJetRunConfirmed = true,
+                    standbyObservedAt = at.plusMinutes(90).toString(), isNap = age == 2L))
+            }
+        } }
+        ui.tab("Sleep")
+        ui.compose.onNodeWithText("1 BedJet record").assertExists()
+        for ((range, count) in listOf(30 to 2, 90 to 3)) {
+            ui.compose.onNode(hasText("$range days") and hasClickAction() and hasAnyAncestor(hasTestTag("sleep-range"))).performClick()
+            ui.waitUntil { ui.graph.repository.settings.value.sleepRangeDays == range }
+            ui.compose.onNodeWithText("$count BedJet records").assertExists()
+        }
+        ui.compose.onNodeWithTag("sleep-list").performScrollToKey("history")
+        ui.compose.onNodeWithText("Start confirmed at ${Format.dayClock(start)}. BedJet reported standby at ${Format.dayClock(standby)}.",
+            substring = true, useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+    }
+
     @Test fun movingASectionWithTheAccessibilityActionSavesTheOrder() {
         ui.tab("Sleep")
         val actions = ui.compose.onNodeWithTag("sleep-section-trend").fetchSemanticsNode()
@@ -125,5 +153,8 @@ class SleepPageTest {
         assertEquals(today, lastNight(listOf(day(today), day(today.minusDays(1))), today)?.date)
         assertEquals(today.minusDays(1), lastNight(listOf(day(today.minusDays(1))), today)?.date)
         assertNull(lastNight(listOf(day(today.minusDays(2))), today))
+        val nap = day(today).copy(record = NightRecord("nap", "p", "Quick nap", night.start.toString(), night.end.toString(), false, isNap = true))
+        assertNull(lastNight(listOf(nap), today))
+        assertEquals(day(today.minusDays(1)), lastNight(listOf(nap, day(today.minusDays(1))), today))
     }
 }

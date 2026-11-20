@@ -126,6 +126,8 @@ object BackupValidator {
             night.steps.forEach { time("$what step time", it.startsAt) }
             night.events.forEach { time("$what event time", it.at) }
             night.temperatures.forEach { time("$what temperature reading time", it.at) }
+            night.standbyObservedAt?.let { time("$what standby report", it) }
+            night.lastRunningObservedAt?.let { time("$what running report", it) }
         }
     }
 
@@ -239,7 +241,7 @@ object BackupValidator {
                     if (key == "profileId" && value.isString && (value.content.isBlank() || value.content.length > MAX_ID ||
                             value.content.any { it.isISOControl() })) invalid(path)
                     if (key in setOf("healthExportVersion", "healthExportedVersion") && (value.longOrNull ?: -1) < 0) invalid(path)
-                    if (key == "confirmedCompletionAt" && runCatching { ZonedDateTime.parse(value.content) }.isFailure) invalid(path)
+                    if (key in setOf("confirmedCompletionAt", "standbyObservedAt", "lastRunningObservedAt") && runCatching { ZonedDateTime.parse(value.content) }.isFailure) invalid(path)
                 }
             }
         }
