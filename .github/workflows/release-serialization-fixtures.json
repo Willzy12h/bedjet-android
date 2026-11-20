@@ -97,7 +97,7 @@
       "endsAtClockTime": true
     },
     "program": {
-      "name": "Original slot · 雨",
+      "name": "Original · 雨",
       "steps": [
         {
           "$ref": "programStep"
