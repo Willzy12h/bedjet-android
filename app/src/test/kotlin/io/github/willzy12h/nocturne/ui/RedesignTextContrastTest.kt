@@ -151,7 +151,7 @@ class RedesignTextContrastTest {
     @Test fun everySelectedAddStepChoiceHasAVisibleBoundaryInEveryPalette() {
         ui.compose.runOnUiThread { ui.compose.activity.setContent {
             NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
-                Surface(color = palette.value.tokens.sheet) { AddStepContent(Block.START, false, {}, { _, _ -> }) }
+                Surface(color = palette.value.tokens.sheet) { AddStepContent(Block.START, false, onCancel = {}) { _, _ -> } }
             }
         } }
         Palette.entries.forEach { choice ->
