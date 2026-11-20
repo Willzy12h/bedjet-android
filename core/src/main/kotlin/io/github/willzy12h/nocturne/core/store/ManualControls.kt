@@ -1,5 +1,6 @@
 package io.github.willzy12h.nocturne.core.store
 
+import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.serialization.Serializable
 
@@ -16,7 +17,7 @@ data class ManualControls(val device: String, val mode: Mode, val temperature: I
     }
 }
 
-fun Settings.manualFor(device: String?, mode: Mode) = manualControls.firstOrNull { it.device == device && it.mode == mode }
+fun Settings.manualFor(device: String?, mode: Mode) = manualControls.firstOrNull { device != null && DeviceId.same(it.device, device) && it.mode == mode }
 
 fun Settings.rememberManual(change: ManualControls): Settings {
     if (!change.valid()) return this

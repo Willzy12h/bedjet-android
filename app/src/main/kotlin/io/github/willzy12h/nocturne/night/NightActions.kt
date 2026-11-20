@@ -396,6 +396,8 @@ class NightActions(private val graph: Graph) {
         if (command == Command.START_NIGHT) {
             val profile = if (request.profileId == null) repo.tonightsProfile() else repo.profile(request.profileId)
             if (profile == null) return refused(if (request.profileId == null) R.string.runtime_add_profile else R.string.runtime_profile_deleted)
+            if (request.reviewedProfileHash != null && request.reviewedProfileHash != reviewedProfileHash(profile))
+                return stale(R.string.shortcut_changed)
             advanceGeneration()
             val s = repo.settings.value
             val old = repo.activeNight.value
@@ -2146,7 +2148,8 @@ class NightActions(private val graph: Graph) {
                 manualChange(label, endsNight = true, affectsProgramme = true, confirms = { report ->
                     val elapsedSeconds = (elapsedMs() - sentAt).coerceAtLeast(0) / 1_000
                     val remaining = (preset.minutes * 60L - elapsedSeconds).coerceAtLeast(0)
-                    report.mode == preset.mode && report.remainingSeconds.toLong() in (remaining - 5).coerceAtLeast(0)..remaining &&
+                    report.mode == preset.mode && (finishAt == null || report.extra?.programStep == 0) &&
+                        report.remainingSeconds.toLong() in (remaining - 5).coerceAtLeast(0)..remaining &&
                         (!leaveProgramme || (report.extra?.programStep == 0 &&
                             (!preset.mode.usesTemperature || report.targetTemperature == preset.temperature) &&
                             (!preset.mode.usesFan || report.fanPercent == preset.fanPercent)))
@@ -2174,14 +2177,31 @@ class NightActions(private val graph: Graph) {
                     throw BedJetError.Timeout()
                 val live = graph.link.latestStatusFrom(request.deviceId) ?: throw BedJetError.NotConnected()
                 if (live.mode != mode) throw BedJetError.NotConnected()
-                memory.temperature?.let { saved ->
-                    val minimum = maxOf(mode.temperatureRange.first, live.minTemperature)
-                    val maximum = minOf(mode.temperatureRange.last, live.maxTemperature)
-                    if (minimum > maximum) throw BedJetError.InvalidProgram(text(R.string.remote_custom_temperature))
-                    appliedTemperature = saved.coerceIn(minimum, maximum)
-                    controller.setTemperature(saved.coerceIn(minimum, maximum))
+                val minimum = maxOf(mode.temperatureRange.first, live.minTemperature)
+                val maximum = minOf(mode.temperatureRange.last, live.maxTemperature)
+                if (memory.temperature != null && minimum > maximum) throw BedJetError.InvalidProgram(text(R.string.remote_custom_temperature))
+                appliedTemperature = memory.temperature?.coerceIn(minimum, maximum)
+                val temperature = appliedTemperature ?: live.targetTemperature
+                val fan = memory.fanStep ?: live.fanStep
+                if (CommandSafety.controls(mode, temperature, fan) != null ||
+                    live.remainingSeconds > ProgramStep.longestMinutes(mode, temperature, fan) * 60)
+                    throw BedJetError.ProgramTooLong()
+
+                // Lower the fan first when both values change to avoid a hotter, faster intermediate pair.
+                // The second write uses the unit's confirmed first setting when it enforces its runtime limit.
+                val both = appliedTemperature != null && memory.fanStep != null
+                if (both && fan < live.fanStep) {
+                    if (!sentAndConfirmed({ it.mode == mode && it.fanStep == fan }) { controller.setFan(fan) })
+                        throw BedJetError.Timeout()
+                    controller.setTemperature(temperature)
+                } else {
+                    if (both) {
+                        if (!sentAndConfirmed({ it.mode == mode && it.targetTemperature == temperature }) {
+                                controller.setTemperature(temperature)
+                            }) throw BedJetError.Timeout()
+                    } else appliedTemperature?.let { controller.setTemperature(it) }
+                    memory.fanStep?.let { controller.setFan(it) }
                 }
-                memory.fanStep?.let { controller.setFan(it) }
             }
         }
     }

@@ -107,6 +107,13 @@ class RepositoryTest {
     private fun backup(slot: Int, name: String, device: String = "ble:AA:BB:CC:DD:EE:FF") =
         SlotBackup(device, slot, StoredProgram(name, listOf(ProgramStep(Mode.DRY, 1, 60, 1, 0))), now.toString())
 
+    @Test fun restoringControlsCannotGrantLockedOffConsent() = runBlocking {
+        val repo = repository()
+        val original = repo.bundle()
+        repo.restore(original.copy(settings = original.settings.copy(allowLockedOff = true)))
+        assertFalse(repo.settings.value.allowLockedOff)
+    }
+
     @Test
     fun valuesSurviveARestart() = runBlocking {
         val first = repository()

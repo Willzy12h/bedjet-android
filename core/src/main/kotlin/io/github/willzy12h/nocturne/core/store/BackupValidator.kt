@@ -201,7 +201,7 @@ object BackupValidator {
         settings.setupFanCheckedDevice?.let { bounded(it, "settings.setupFanCheckedDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.setupFanCheckedDevice") }
         if (settings.manualControls.size > ManualControls.MAX_ENTRIES ||
             settings.manualControls.any { !it.valid() } ||
-            settings.manualControls.distinctBy { it.device to it.mode }.size != settings.manualControls.size)
+            settings.manualControls.distinctBy { it.device.uppercase(java.util.Locale.ROOT) to it.mode }.size != settings.manualControls.size)
             invalid("settings.manualControls")
         count(settings.alarmPackages.size, 128, "settings.alarmPackages")
         settings.alarmPackages.take(129).forEach { bounded(it, "settings.alarmPackages", 255) }

@@ -855,7 +855,7 @@ class Repository(
         // app's own is, so it becomes tonight's choice only when there is none (IR-30).
         val importedSettings = bundle.settings.copy(tonightChoice = current.tonightChoice, tonightOverride = current.tonightOverride)
             .migrateTonightChoice(restoreAt)
-        val settings = importedSettings.copy(demoMode = current.demoMode, targetDevice = current.targetDevice,
+        val settings = importedSettings.copy(allowLockedOff = current.allowLockedOff, demoMode = current.demoMode, targetDevice = current.targetDevice,
             rememberedBedJets = current.rememberedBedJets, demoTargetMigrated = current.demoTargetMigrated,
             setupFanCheckedDevice = current.setupFanCheckedDevice,
             platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null, healthSleepExport = false,

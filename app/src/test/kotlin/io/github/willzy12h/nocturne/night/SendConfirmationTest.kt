@@ -618,4 +618,25 @@ class SendConfirmationTest {
         assertEquals(Mode.COOL, graph.link.latestSourcedStatus()?.status?.mode)
     }
 
+    @Test fun externalStartCannotUseAnEditedProfileAfterConsent() = runBlocking {
+        val profile = graph.repository.tonightsProfile()!!
+        val request = graph.actions.capture(NightActions.Command.START_NIGHT, profile.id, requireIdentity = true)
+            .copy(reviewedProfileHash = reviewedProfileHash(profile), replacementConfirmed = true)
+        graph.repository.saveProfile(profile.copy(name = "Changed since approval"))
+        val result = graph.actions.execute(request)
+        assertEquals(OutcomeKind.STALE, result.kind)
+        assertTrue(sent.none { it.contentEquals(Codec.startProgram(2)) })
+    }
+
+    @Test fun restoringHeatChecksTheCombinedFanAndTemperatureBeforeEitherWrite() = runBlocking {
+        useRealHistory()
+        graph.repository.updateSettings { it.rememberManual(ManualControls(target, Mode.HEAT, 72, 19)) }
+        reportStatus = { it.copy(remainingSeconds = 6 * 3600, targetTemperature = 60, fanStep = 0,
+            minTemperature = 45, maxTemperature = 80) }
+        val start = sent.size
+        val result = graph.actions.selectRemoteMode("Heat", graph.actions.capture(NightActions.Command.OFF), Mode.HEAT)
+        assertNotEquals(OutcomeKind.CONFIRMED, result.kind)
+        assertTrue(sent.drop(start).none { it.contentEquals(Codec.setTemperature(72)) || it.contentEquals(Codec.setFan(19)) })
+    }
+
 }

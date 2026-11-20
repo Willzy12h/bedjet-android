@@ -36,10 +36,11 @@ class ShortcutActivity : Activity() {
         if (command == null) { finish(); return }
         val current = graph.actions.capture(command, intent.getStringExtra("profile"), requireIdentity = true)
         // Notification requests retain render-time identity. External extras never waive confirmation.
-        val captured = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) current.copy(
+        val fromNotification = intent.getBooleanExtra(EXTRA_CAPTURED, false)
+        val captured = if (fromNotification) current.copy(
             deviceId = intent.getStringExtra(EXTRA_TARGET), expected = NightAlarms.identity(intent)) else current
         val quick = captureQuickAction(graph,
-            captured.copy(origin = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT))
+            captured.copy(origin = if (fromNotification) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT))
         if (graph.repository.activeNight.value != null && quick != null) {
             showTemporaryActionDialog(this, graph, quick, android.R.string.cancel) { selected ->
                 BedJetService.start(this, selected); finish()
@@ -53,8 +54,9 @@ class ShortcutActivity : Activity() {
             if (reviewed.profileId != null) repo.profile(reviewed.profileId) else repo.tonightsProfile()
         } else null
         val active = repo.activeNight.value
-        val approved = reviewed.copy(profileId = requestedProfile?.id ?: reviewed.profileId,
-            origin = if (intent.getBooleanExtra(EXTRA_CAPTURED, false)) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT,
+        val approved = reviewed.copy(reviewedProfileHash = requestedProfile?.let { io.github.willzy12h.nocturne.night.reviewedProfileHash(it) },
+            profileId = requestedProfile?.id ?: reviewed.profileId,
+            origin = if (fromNotification) CommandOrigin.NOTIFICATION else CommandOrigin.SHORTCUT,
             replacementConfirmed = true)
         val recovery = command == NightActions.Command.END_NIGHT || command == NightActions.Command.RESUME
         val title = when (command) {
@@ -75,11 +77,11 @@ class ShortcutActivity : Activity() {
             })
             .setMessage(buildList {
                 add(when (command) {
-                NightActions.Command.END_NIGHT -> getString(R.string.runtime_confirm_stop)
-                NightActions.Command.RESUME -> getString(R.string.guard_resume_body)
-                NightActions.Command.BOOST -> getString(R.string.runtime_confirm_command,
-                    boostDescription(this@ShortcutActivity, requireNotNull(reviewed.actionPreset).minutes))
-                else -> getString(R.string.runtime_confirm_command, NightActions.commandLabel(this@ShortcutActivity, command))
+                    NightActions.Command.END_NIGHT -> getString(R.string.runtime_confirm_stop)
+                    NightActions.Command.RESUME -> getString(R.string.guard_resume_body)
+                    NightActions.Command.BOOST -> getString(R.string.runtime_confirm_command,
+                        boostDescription(this@ShortcutActivity, requireNotNull(reviewed.actionPreset).minutes))
+                    else -> getString(R.string.runtime_confirm_command, NightActions.commandLabel(this@ShortcutActivity, command))
                 })
                 add(shortcutTarget(graph, reviewed.deviceId))
                 if (command == NightActions.Command.START_NIGHT) {

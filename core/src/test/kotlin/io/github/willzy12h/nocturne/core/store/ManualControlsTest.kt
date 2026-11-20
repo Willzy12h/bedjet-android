@@ -14,6 +14,7 @@ class ManualControlsTest {
         val decoded = BackupCodec.json.decodeFromString(Settings.serializer(),
             BackupCodec.json.encodeToString(Settings.serializer(), settings))
         assertEquals(ManualControls(unit, Mode.COOL, 46, 10), decoded.manualFor(unit, Mode.COOL))
+        assertEquals(10, decoded.manualFor(unit.lowercase(), Mode.COOL)?.fanStep)
         assertNull(decoded.manualFor("ble:00:11:22:33:44:55", Mode.COOL))
         assertNull(decoded.manualFor(unit, Mode.HEAT)?.temperature)
         assertEquals(Settings().quickDefaults, decoded.quickDefaults)

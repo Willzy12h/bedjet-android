@@ -53,7 +53,7 @@ internal fun showTemporaryActionDialog(
         text = night?.let { activity.getString(R.string.temporary_running,
             it.profile?.name ?: activity.getString(R.string.tonights_night)) }
     }
-    if (captured.end.origin == CommandOrigin.SHORTCUT) body.addView(textView().apply { text = shortcutTarget(graph, captured.end.deviceId) })
+    body.addView(textView().apply { text = shortcutTarget(graph, captured.end.deviceId) })
     val details = textView()
     val duration = textView()
     val seek = SeekBar(dialogContext).apply {

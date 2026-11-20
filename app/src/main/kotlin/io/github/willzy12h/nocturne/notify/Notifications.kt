@@ -38,6 +38,7 @@ object Notifications {
     private const val CHANNEL_ALERTS = "alerts"
     const val WORKING_ID = 1
     private const val WAKE_ID = 2
+    private const val WAKE_OFF = "nocturne.wake.off"
     private const val ERROR_ID = 3
     private const val INFO_ID = 5
     private const val BLUETOOTH_OFF_ID = 8
@@ -99,11 +100,30 @@ object Notifications {
         settings.notificationActions.take(3).forEach { action ->
             val lockedOff = action == WakeAction.OFF && settings.allowLockedOff
             val button = Notification.Action.Builder(null, title(context, action, settings),
-                BedJetService.pendingIntent(context, command(action))).setAuthenticationRequired(!lockedOff).build()
+                BedJetService.pendingIntent(context, command(action)))
+                .addExtras(android.os.Bundle().apply { putBoolean(WAKE_OFF, action == WakeAction.OFF) })
+                .setAuthenticationRequired(!lockedOff).build()
             builder.addAction(button)
             if (lockedOff) publicWake.addAction(button)
         }
         context.getSystemService(NotificationManager::class.java).notify(WAKE_ID, builder.setPublicVersion(publicWake.build()).build())
+    }
+
+    /** Rebuild only the controls on the posted notice, keeping its original content and captured intents. */
+    internal fun refreshWakePrivacy(context: Context, allowLockedOff: Boolean) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val original = manager.activeNotifications.firstOrNull { it.id == WAKE_ID }?.notification ?: return
+        val publicWake = Notification.Builder(context, CHANNEL_WAKE).setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.wake_locked)).setContentIntent(openApp(context))
+        val actions = original.actions.orEmpty().map { old ->
+            val lockedOff = old.extras.getBoolean(WAKE_OFF) && allowLockedOff
+            Notification.Action.Builder(old).setAuthenticationRequired(!lockedOff).build().also {
+                if (lockedOff) publicWake.addAction(it)
+            }
+        }
+        manager.notify(WAKE_ID, Notification.Builder.recoverBuilder(context, original)
+            .setVisibility(Notification.VISIBILITY_PRIVATE).setOnlyAlertOnce(true)
+            .setActions(*actions.toTypedArray()).setPublicVersion(publicWake.build()).build())
     }
 
     fun showQuiet(context: Context, night: ActiveNight, settings: Settings, wakePending: Boolean = false) {

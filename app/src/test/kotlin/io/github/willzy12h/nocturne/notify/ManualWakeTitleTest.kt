@@ -66,6 +66,13 @@ class ManualWakeTitleTest {
         Notifications.showWakeUp(app, night, Settings(notificationActions = actions, allowLockedOff = true), logNotice = false)
         assertTrue(notification().actions.first().isAuthenticationRequired)
         assertFalse(notification().publicVersion.actions.single().isAuthenticationRequired)
+        val shown = title()
+        val offIntent = notification().actions.last().actionIntent
+        Notifications.refreshWakePrivacy(app, false)
+        assertTrue(notification().actions.all { it.isAuthenticationRequired })
+        assertTrue(notification().publicVersion.actions.isNullOrEmpty())
+        assertEquals(shown, title())
+        assertEquals(offIntent, notification().actions.last().actionIntent)
     }
 
     @Test fun anUnknownManualRunDoesNotClaimItsUnconfirmedEnd() {

@@ -12,4 +12,5 @@
     <string name="finish_time_result">Finish at about %1$s</string>
     <string name="finish_time_invalid">That finish time is no longer within the available run time. Choose a new time.</string>
     <string name="finish_time_limit">Choose a valid clock time within the next %1$s.</string>
+    <string name="wake_unlock">Unlock your phone to use this wake control.</string>
 </resources>
