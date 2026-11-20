@@ -755,6 +755,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             throw IllegalStateException(text(R.string.auto_start_review_settings))
     }
     fun deleteHistory() = save { repo.deleteHistory() }
+    fun retryHistoryErasure() = save { repo.retryHistoryErasure() }
     fun restoreSnapshot(id: String) = stageImport { repo.previewSnapshot(id) }
 
     private fun stageImport(read: suspend () -> ImportPreview?) {
@@ -823,7 +824,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             runCatching { repo.exportTo(uri) }
                 .onSuccess { _messages.tryEmit(text(R.string.runtime_backup_saved)) }
                 .onFailure { if (it is CancellationException) throw it
-                    _messages.tryEmit(text(R.string.runtime_backup_save_failed, it.message.toString())) }
+                    _messages.tryEmit(if (it is BackupException) text(R.string.backup_unrestorable_library)
+                        else text(R.string.runtime_backup_save_failed, it.message.toString())) }
         }
     }
 

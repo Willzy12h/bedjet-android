@@ -42,6 +42,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -196,15 +197,16 @@ class Repository(
     val notices: StateFlow<List<LoggedNotice>> = _notices.asStateFlow()
     private val _snapshotList = MutableStateFlow(snapshots.list())
     val snapshotList: StateFlow<List<SnapshotInfo>> = _snapshotList.asStateFlow()
+    private val _historyErasurePending = MutableStateFlow(hasPendingErasure())
+    val historyErasurePending = _historyErasurePending.asStateFlow()
 
     private val _runtime = MutableStateFlow(load(RUNTIME) { decode(RuntimeState.serializer(), it) } ?: RuntimeState())
     val runtime: StateFlow<RuntimeState> = _runtime.asStateFlow()
     private fun protectedHistoryIds() = setOfNotNull(_activeNight.value?.recordId, _runtime.value.ending?.identity?.nightId)
 
+    private var expiredOnDisk = false
     private val _history = MutableStateFlow(load(HISTORY, Migrations::decodeHistory).orEmpty().let { records ->
-        val cutoff = now().minusDays(History.keepDays(_settings.value.historyKeepDays).toLong())
-        val protected = protectedHistoryIds()
-        records.filter { it.id in protected || withinRetention(it, cutoff) }
+        records.filter(retainCurrentHistory(now())).also { expiredOnDisk = it.size != records.size }
     })
     val history: StateFlow<List<NightRecord>> = _history.asStateFlow()
     suspend fun updateRuntime(change: (RuntimeState) -> RuntimeState) = update(_runtime, RUNTIME, RuntimeState.serializer(), change)
@@ -409,8 +411,10 @@ class Repository(
             combine(_profiles, _settings) { _, _ -> }.drop(1).debounce(30_000).collect { autoSnapshot() }
         }
         scope.launch {
-            val latest = snapshots.list().firstOrNull { !it.manual }?.createdAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
-            if (latest == null || latest.isBefore(now().minusDays(1))) autoSnapshot(pruneExpired = true)
+            while (true) {
+                autoSnapshot(pruneExpired = true)
+                delay(java.time.Duration.ofDays(1).toMillis())
+            }
         }
     }
 
@@ -480,9 +484,7 @@ class Repository(
     suspend fun setActiveNight(night: ActiveNight?) = update(_activeNight, ACTIVE_NIGHT, ActiveNight.serializer().nullable) { night }
 
     suspend fun addRecord(record: NightRecord) = update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { list ->
-        val cutoff = now().minusDays(History.keepDays(_settings.value.historyKeepDays).toLong())
-        val protected = protectedHistoryIds()
-        (list.filterNot { it.id == record.id } + record).filter { it.id in protected || withinRetention(it, cutoff) }
+        (list.filterNot { it.id == record.id } + record).filter(retainCurrentHistory(now()))
     }
 
     /** Keeps [days] of nights from now on; a shorter period deletes the older nights straight away. */
@@ -498,6 +500,7 @@ class Repository(
 
     /** Deletes every saved night except one still running or being ended. Health Connect keeps its own copy. */
     suspend fun deleteHistory() = serially { if (!isDemoSession) beginHistoryErasure(null) }
+    suspend fun retryHistoryErasure() = serially { if (!isDemoSession) finishHistoryErasure() }
 
     @Serializable private data class HistoryErasure(
         val protectedIds: Set<String>, val removeLiveIds: Set<String>, val cutoff: String?, val keepDays: Int?,
@@ -513,11 +516,18 @@ class Repository(
         val cutoff = days?.let { now().minusDays(minOf(it, History.keepDays(_settings.value.historyKeepDays)).toLong()) }
         val remove = _history.value.filterNot { it.id in protected || withinRetention(it, cutoff) }.map { it.id }.toSet()
         writeValue(HISTORY_ERASURE, HistoryErasure.serializer(), HistoryErasure(protected, remove, cutoff?.toString(), days))
+        _historyErasurePending.value = true
         finishHistoryErasure()
     }
 
     private fun withinRetention(record: NightRecord, cutoff: ZonedDateTime?): Boolean =
         cutoff != null && runCatching { ZonedDateTime.parse(record.startedAt).isAfter(cutoff) }.getOrDefault(false)
+
+    private fun retainCurrentHistory(at: ZonedDateTime): (NightRecord) -> Boolean {
+        val cutoff = at.minusDays(History.keepDays(_settings.value.historyKeepDays).toLong())
+        val protected = protectedHistoryIds()
+        return { it.id in protected || withinRetention(it, cutoff) }
+    }
 
     /** The marker contains IDs and a fixed cut-off, never a copy of the records being removed. */
     private fun finishHistoryErasure() {
@@ -543,7 +553,8 @@ class Repository(
             syncDirectory(dir)
         } finally {
             // An unreadable snapshot must remain selectable for deletion rather than trapping the user.
-            _snapshotList.value = snapshots.list(includeUnreadable = hasPendingErasure())
+            _historyErasurePending.value = hasPendingErasure()
+            _snapshotList.value = snapshots.list(includeUnreadable = _historyErasurePending.value)
         }
     }
 
@@ -760,12 +771,13 @@ class Repository(
     fun bundle(): BackupBundle {
         requireRealSession()
         if (hasPendingErasure()) throw IOException(context.getString(R.string.history_erasure_pending))
+        val at = now()
         return BackupBundle(
-        createdAt = now().toString(),
-        profiles = _profiles.value,
-        settings = _settings.value,
-        slotBackups = _slotBackups.value,
-        history = _history.value,
+            createdAt = at.toString(),
+            profiles = _profiles.value,
+            settings = _settings.value,
+            slotBackups = _slotBackups.value,
+            history = _history.value.filter(retainCurrentHistory(at)),
         )
     }
 
@@ -1031,9 +1043,7 @@ class Repository(
     /** A snapshot's old retention setting cannot bring back nights that aged out while the app was closed. */
     private fun retainedSnapshot(id: String): BackupBundle? {
         val snapshot = snapshots.load(id) ?: return null
-        val cutoff = now().minusDays(History.keepDays(_settings.value.historyKeepDays).toLong())
-        val protected = protectedHistoryIds()
-        return snapshot.copy(history = snapshot.history.filter { it.id in protected || withinRetention(it, cutoff) })
+        return snapshot.copy(history = snapshot.history.filter(retainCurrentHistory(now())))
     }
 
     /** Capture the exact selected profile, with default settings only, in the existing backup format. */
@@ -1089,15 +1099,24 @@ class Repository(
         // Snapshots of the defaults standing in for an unreadable file would push the good ones out.
         if (_unreadable.value.isNotEmpty()) return@serially
         if (pruneExpired) {
-            val protected = protectedHistoryIds()
-            val cutoff = now().minusDays(History.keepDays(_settings.value.historyKeepDays).toLong())
+            val at = now()
+            val keep = retainCurrentHistory(at)
             try {
-                snapshots.redactHistory { it.id in protected || withinRetention(it, cutoff) }
+                val retained = _history.value.filter(keep)
+                if (expiredOnDisk || retained.size != _history.value.size) {
+                    writeValue(HISTORY, ListSerializer(NightRecord.serializer()), retained)
+                    _history.value = retained
+                    expiredOnDisk = false
+                }
+                snapshots.redactHistory(keep)
             } catch (e: IOException) {
                 // Manual erasure surfaces unreadable snapshots and is resumable. A maintenance
                 // failure must not prevent access to other backups. Restore also checks the cut-off.
                 Log.w(TAG, "Could not finish routine snapshot retention", e)
             }
+            val latest = snapshots.list().firstOrNull { !it.manual }?.createdAt
+                ?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
+            if (latest != null && !latest.isBefore(at.minusDays(1))) return@serially
         }
         try {
             if (snapshots.saveIfChanged(bundle())) _snapshotList.value = snapshots.list()

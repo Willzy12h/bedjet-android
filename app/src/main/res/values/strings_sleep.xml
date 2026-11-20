@@ -91,6 +91,7 @@
     <string name="sleep_delete_title">Delete sleep history?</string>
     <string name="sleep_delete_body">This deletes saved nights from history and local snapshots, apart from a night still running or ending. This can\'t be undone. Previously exported files and Health Connect keep their own copies.</string>
     <string name="history_erasure_title">Sleep history deletion is unfinished</string>
+    <string name="history_erasure_retry">Retry unfinished history deletion</string>
     <string name="history_erasure_pending">Retry from Sleep settings. If a local snapshot cannot be read, remove that snapshot in Backups to finish. Backup and restore are paused meanwhile.</string>
     <string name="sleep_delete_confirm">Delete</string>
     <string name="sleep_cancel">Cancel</string>

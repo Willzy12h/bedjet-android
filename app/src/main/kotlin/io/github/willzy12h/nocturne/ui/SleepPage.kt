@@ -621,6 +621,7 @@ internal fun SleepHistorySettings(model: AppViewModel, modifier: Modifier, onBac
     val settings by model.settings.collectAsStateWithLifecycle()
     val history by model.history.collectAsStateWithLifecycle()
     val snapshots by model.snapshots.collectAsStateWithLifecycle()
+    val erasurePending by model.graph.repository.historyErasurePending.collectAsStateWithLifecycle()
     val active by model.activeNight.collectAsStateWithLifecycle()
     val runtime by model.runtime.collectAsStateWithLifecycle()
     val importApplying by model.importApplying.collectAsStateWithLifecycle()
@@ -681,8 +682,13 @@ internal fun SleepHistorySettings(model: AppViewModel, modifier: Modifier, onBac
             SettingsLine(stringResource(R.string.sleep_health), stringResource(if (health) R.string.sleep_health_on else R.string.sleep_health_off_short),
                 tokens.ink, "sleep-health", onClick = onOpenHealth)
             HorizontalDivider(color = tokens.hairline)
-            SettingsLine(stringResource(R.string.sleep_delete), "", tokens.readableText(tokens.bad, tokens.surface), "sleep-delete",
-                enabled = (history.isNotEmpty() || snapshots.isNotEmpty()) && !settings.demoMode) { deleting = true }
+            if (erasurePending && !settings.demoMode) {
+                SettingsLine(stringResource(R.string.history_erasure_retry), stringResource(R.string.history_erasure_pending),
+                    tokens.ink, "sleep-retry-erasure") { model.retryHistoryErasure() }
+            } else {
+                SettingsLine(stringResource(R.string.sleep_delete), "", tokens.readableText(tokens.bad, tokens.surface), "sleep-delete",
+                    enabled = (history.isNotEmpty() || snapshots.isNotEmpty()) && !settings.demoMode) { deleting = true }
+            }
         }
     }
     shrinkTo?.let { days ->
