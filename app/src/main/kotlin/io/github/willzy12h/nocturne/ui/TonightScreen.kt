@@ -363,6 +363,8 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
         }
         NightRecoveryControls(model, night, guard, now)
 
+        if (night == null) TonightScheduledStart(model, now)
+
         QuickPresets(model, guard, sending, onEdit = { editingQuick = true }, onEditPreset = { editingPreset = it },
             onEditBoost = { editingBoost = true })
 

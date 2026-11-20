@@ -6,6 +6,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class AutomationState(
     val claims: List<String> = emptyList(),
     val observed: DeviceObservation? = null,
+    /** Explicit advance skips, keyed by the selected unit and the local night its schedule serves. */
+    val skippedStarts: Set<String> = emptySet(),
 )
 @Serializable data class DeviceObservation(val device: String, val name: String?, val mode: String,
     val running: Boolean, val at: String)

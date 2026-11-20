@@ -509,6 +509,7 @@
       "at": "2026-10-23T22:30Z"
     },
     "automation": {
+      "skippedStarts": ["ble:AA:BB:CC:DD:EE:FF:2026-11-19"],
       "claims": [
         "release-one",
         "release-two"

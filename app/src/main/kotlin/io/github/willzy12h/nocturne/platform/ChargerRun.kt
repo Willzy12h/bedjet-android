@@ -77,7 +77,8 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
             (active == null || ownPendingStart) && graph.link.latestStatusFrom(candidate.device)?.isRunning != true &&
             repo.runtime.value.unresolvedSlotWrite?.let { it.deviceId == candidate.device && it.affectsNights(settings.workingSlot) } != true &&
             !graph.sessions.released.value && permitted() && (!requireReadableData || repo.unreadable.value.isEmpty()) &&
-            settings.platform.validationErrors().isEmpty() && "cancel:${candidate.key}" !in claims &&
+            settings.platform.validationErrors().isEmpty() && candidate.key !in repo.automation.value.skippedStarts &&
+            "cancel:${candidate.key}" !in claims &&
             (ownAttempt || "charger:${candidate.key}" !in claims)
     }
     suspend fun execute() {

@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="tonight_start_scheduled">%1$s is scheduled to start on %2$s.</string>
+    <string name="tonight_start_skipped">Skipping %1$s on %2$s. Your regular schedule continues afterwards.</string>
+    <string name="tonight_skip_start">Skip this start</string>
+    <string name="tonight_undo_skip">Undo skip</string>
     <string name="health_data_rationale">Nocturne reads your sleep stages from Health Connect only when you turn on the sleep overlay, to show them beside your BedJet nights. They are read when you open the Sleep page and are never saved, backed up or sent anywhere. Nocturne writes nothing to Health Connect.</string>
     <string name="auto_start_title">Auto-start</string>
     <string name="auto_start_help">Start one chosen profile on the selected BedJet. Skip if a night is already running, the BedJet can\'t be reached, or the plan changes. Selecting another BedJet pauses this setting; switch Auto-start off and on to link it to that BedJet.</string>

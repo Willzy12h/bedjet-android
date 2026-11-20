@@ -695,6 +695,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSnapshot(id: String) = save { repo.deleteSnapshot(id) }
     fun clearNotices() = save { repo.clearNotices() }
     fun setHistoryKeepDays(days: Int) = save { repo.setHistoryKeepDays(days) }
+    internal fun setScheduledStartSkipped(ticket: io.github.willzy12h.nocturne.platform.AutoStartTicket, skip: Boolean) = save {
+        if (!io.github.willzy12h.nocturne.platform.AutoStartSchedule.setSkipped(graph, ticket, skip))
+            throw IllegalStateException(text(R.string.auto_start_review_settings))
+    }
     fun deleteHistory() = save { repo.deleteHistory() }
     fun restoreSnapshot(id: String) = stageImport { repo.previewSnapshot(id) }
 

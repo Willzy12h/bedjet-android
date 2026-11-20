@@ -71,6 +71,53 @@ class AutoStartSchedulingTest : PlatformGraphFixture() {
         assertNull(context.getSystemService(JobScheduler::class.java).getPendingJob(ChargerJobs.ID))
     }
 
+    @Test fun skippingAnOccurrenceSurvivesRestartAndUndoRestoresThatExactAlarm() = runBlocking {
+        val graph = setup()
+        explicit(graph)
+        val today = AutoStartSchedule.nextScheduled(graph)!!
+        assertTrue(AutoStartSchedule.setSkipped(graph, today.ticket(), true))
+        assertEquals(today.startAt.plusDays(1), AutoStartSchedule.nextScheduled(graph)!!.startAt)
+        val restarted = fresh { Graph(context, DemoBedJet()) }.apply { clock = graph.clock }
+        val shown = AutoStartSchedule.nextEditable(restarted)!!
+        assertEquals(today.key, shown.key)
+        assertTrue(AutoStartSchedule.claimed(restarted, shown.key))
+        assertTrue(AutoStartSchedule.setSkipped(restarted, shown.ticket(), false))
+        assertEquals(today, AutoStartSchedule.nextScheduled(restarted))
+        assertEquals(today.startAt.toInstant().toEpochMilli(), pendingStarts().single().triggerAtMs)
+    }
+
+    @Test fun movedWakeOnTheSameDateStaysSkippedButADifferentNightStillRuns() = runBlocking {
+        val graph = setup()
+        explicit(graph, mode = "BEFORE_WAKE", before = 480)
+        graph.repository.updateSettings { it.copy(tonightOverride = io.github.willzy12h.nocturne.core.plan.TonightOverride(
+            "2026-10-27T07:00Z", graph.now().toString())) }
+        val first = AutoStartSchedule.nextEditable(graph)!!
+        assertTrue(AutoStartSchedule.setSkipped(graph, first.ticket(), true))
+        graph.repository.updateSettings { it.copy(tonightOverride = io.github.willzy12h.nocturne.core.plan.TonightOverride(
+            "2026-10-27T08:00Z", graph.now().toString())) }
+        val updated = AutoStartSchedule.nextEditable(graph)!!
+        assertEquals(first.key, updated.key)
+        assertEquals(first.startAt.plusHours(1), updated.startAt)
+        assertFalse(AutoStartSchedule.setSkipped(graph, first.ticket(), false))
+        assertNotEquals(first.key, AutoStartSchedule.nextScheduled(graph)!!.key)
+        graph.clock = Clock.fixed(updated.startAt.plusMinutes(1).toInstant(), ZoneOffset.UTC)
+        assertFalse(AutoStartSchedule.setSkipped(graph, updated.ticket(), false))
+        assertFalse(ChargerJobs.enqueue(graph, updated.ticket()))
+        assertNotEquals(first.key, AutoStartSchedule.nextScheduled(graph)!!.key)
+    }
+
+    @Test fun oneSkippedLocalDateDoesNotSkipTheNightAfterTheClocksChange() = runBlocking {
+        val graph = setup()
+        val zone = java.time.ZoneId.of("Europe/London")
+        graph.clock = Clock.fixed(Instant.parse("2026-10-24T19:00:00Z"), zone)
+        explicit(graph, fixed = 23 * 60)
+        val tonight = AutoStartSchedule.nextEditable(graph)!!
+        assertTrue(AutoStartSchedule.setSkipped(graph, tonight.ticket(), true))
+        val tomorrow = AutoStartSchedule.nextScheduled(graph)!!
+        assertEquals(tonight.startAt.toLocalDate().plusDays(1), tomorrow.startAt.toLocalDate())
+        assertEquals(25L, java.time.Duration.between(tonight.startAt, tomorrow.startAt).toHours())
+    }
+
     @Test fun relativeStartUsesTheAcceptedNextAlarmEvenForAFixedWakeProfile() = runBlocking {
         val graph = setup()
         val profile = graph.repository.profiles.value.first()
