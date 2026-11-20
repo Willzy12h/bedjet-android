@@ -1232,6 +1232,7 @@ class RepositoryTest {
         repo.addRecord(NightRecord("still-running", "p", "P", at, at, false))
         repo.setActiveNight(ActiveNight("still-running", "p", at, now.toString(), false, 2, at, now.toString()))
         clock = clock.plusDays(2)
+        assertEquals(listOf("still-running"), repo.historyForExport().map { it.id })
         repo.exportTo(Uri.parse("content://test.documents/export.json"))
         assertEquals(listOf("still-running"), repo.importFrom(output.toByteArray().inputStream()).history.map { it.id })
         repo.snapshotNow("After the cutoff")

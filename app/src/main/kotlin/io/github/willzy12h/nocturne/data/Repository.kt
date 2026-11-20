@@ -781,6 +781,8 @@ class Repository(
         )
     }
 
+    suspend fun historyForExport(): List<NightRecord> = serially { bundle().history }
+
     suspend fun snapshotNow(label: String) = serially {
         requireRealSession()
         snapshots.save(bundle(), label.ifBlank { context.getString(R.string.snapshot_label_manual) }, manual = true)
@@ -902,9 +904,15 @@ class Repository(
         deviceId = canonicalImportDevice(night.deviceId), bedJetRunConfirmed = false, confirmedCompletionAt = null,
         healthExportVersion = 0, healthExportedVersion = 0)
 
+    /** Locally protected originals and nights may take a valid incoming archive beyond the reader's limits. */
+    private fun requireRestorableProjection(projected: BackupBundle) {
+        BackupCodec.verifiedBytes(BackupCodec.encode(projected))
+    }
+
     /** Called only with exclusive import admission and the repository writer held. */
     private fun restoreLocked(bundle: BackupBundle, label: String, projected: BackupBundle = restoreProjection(bundle, now())) {
         requireRealSession()
+        requireRestorableProjection(projected)
         val profiles = projected.profiles
         val settings = projected.settings
         val history = projected.history
@@ -946,9 +954,12 @@ class Repository(
             val finalErrors = BackupValidator.validate(checked)
             if (finalErrors.isNotEmpty()) throw BackupException(finalErrors)
             val projected = if (profilesOnly) profileImportProjection(checked) else restoreProjection(checked, now())
-            val projectedErrors = if (profilesOnly) BackupValidator.validate(projected) else emptyList()
-            if (projectedErrors.isNotEmpty()) return@serially ImportPreview("", "", label, checked.createdAt,
-                ImportArea.entries.map { ImportSection(it, emptyList()) }, emptySet(), emptyList(), projectedErrors.size, profilesOnly)
+            try {
+                requireRestorableProjection(projected)
+            } catch (e: BackupException) {
+                return@serially ImportPreview("", "", label, checked.createdAt,
+                    ImportArea.entries.map { ImportSection(it, emptyList()) }, emptySet(), emptyList(), e.errors.size, profilesOnly)
+            }
             val sections = importSections(current, if (profilesOnly) projected else checked, projected)
             if (profilesOnly) return@serially ImportPreview(encoded, importFingerprint(projected), label, checked.createdAt,
                 sections, emptySet(), emptyList(), 0, profilesOnly = true)
@@ -1020,11 +1031,10 @@ class Repository(
             val errors = BackupValidator.validate(checked)
             if (errors.isNotEmpty()) throw BackupException(errors)
             val projected = if (preview.profilesOnly) profileImportProjection(checked) else restoreProjection(checked, now())
-            val projectedErrors = if (preview.profilesOnly) BackupValidator.validate(projected) else emptyList()
-            if (projectedErrors.isNotEmpty()) throw BackupException(projectedErrors)
             if (importFingerprint(projected) != preview.expectedState)
                 throw BackupException(context.getString(R.string.import_preview_changed), failure = BackupFailure.CHANGED)
             if (preview.profilesOnly) {
+                requireRestorableProjection(projected)
                 snapshots.save(bundle(), preview.snapshotLabel, manual = true)
                 _snapshotList.value = snapshots.list()
                 writeAllOrNone(listOf(Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value),

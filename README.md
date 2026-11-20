@@ -74,6 +74,10 @@ first, so you can compare and download it; the app never checks or downloads any
   System theme.
 - **Backups**: automatic and manual snapshots, and export/import to a file you choose.
 
+If a full backup cannot be saved, keep the existing installation. Very large libraries from earlier versions
+may exceed the 5 MiB archive limit or another import limit. Share individual profiles from Profiles, and use
+Sleep to export a readable history CSV. The CSV cannot restore nights, settings or original BedJet slot contents.
+
 ## Permissions
 
 | Permission | Why |

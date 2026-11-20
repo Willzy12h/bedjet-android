@@ -43,6 +43,22 @@ class ImportPreviewRepositoryTest {
     }
     @After fun finish() { scope.cancel() }
 
+    @Test fun mergingProtectedOriginalsCannotProduceAnUnrestorableLibrary() = runBlocking {
+        val repo = repo()
+        repo.recordOriginalSlot(device, 0, null)
+        val before = repo.bundle()
+        val originals = List(BackupValidator.MAX_ORIGINALS) { index ->
+            SlotBackup("ble:00:11:22:33:%02X:%02X".format(java.util.Locale.ROOT, index / 256, index % 256),
+                0, null, now.toString())
+        }
+        val incoming = before.copy(slotBackups = originals)
+        assertTrue(BackupValidator.validate(incoming).isEmpty())
+        assertFalse(repo.previewImport(incoming).canApply)
+        failure(runCatching { repo.restore(incoming) }.exceptionOrNull(), BackupFailure.INVALID)
+        assertEquals(before, repo.bundle())
+        assertTrue(repo.snapshotList.value.none { it.manual })
+    }
+
     @Test fun theReviewUsesTheExactProtectedResultAndCreatesNoRecoverySnapshot() = runBlocking {
         val repo = repo()
         repo.updateSettings { it.copy(targetDevice = device) }
