@@ -8,6 +8,13 @@
       "fanPercent": 45,
       "minutes": 12
     },
+    "nap": {
+      "durationMinutes": 120,
+      "opening": [{ "$ref": "phase" }],
+      "untilWake": { "mode": "COOL", "temperature": 44, "fanPercent": 40, "minutes": 1 },
+      "afterWake": [{ "mode": "COOL", "temperature": 44, "fanPercent": 80, "minutes": 10 }],
+      "useProfileOpening": false
+    },
     "middle": {
       "mode": "COOL",
       "fanStart": 35,
@@ -222,7 +229,8 @@
           "$ref": "manualControls"
         }
       ],
-      "allowLockedOff": true
+      "allowLockedOff": true,
+      "napPreset": { "$ref": "nap" }
     },
     "slotBackup": {
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
@@ -302,6 +310,9 @@
         }
       ],
       "isTestRun": true,
+      "isNap": false,
+      "standbyObservedAt": "2026-10-24T07:12:05Z",
+      "lastRunningObservedAt": "2026-10-24T07:10Z",
       "bedJetRunConfirmed": true,
       "confirmedCompletionAt": "2026-10-24T07:12Z",
       "healthExportVersion": 4294967298,
@@ -329,7 +340,8 @@
       "pending": null,
       "actualEnd": null,
       "trackingManual": true,
-      "isTestRun": true
+      "isTestRun": true,
+      "isNap": false
     },
     "pending": {
       "requestId": "release-change",
@@ -358,7 +370,7 @@
       "commandVersion": 9
     },
     "backup": {
-      "schema": 3,
+      "schema": 4,
       "createdAt": "2026-10-23T22:30Z",
       "profiles": [
         {
@@ -432,7 +444,9 @@
         "$ref": "event"
       },
       "isTestRun": true,
-      "confirmedCompletionAt": "2026-10-24T07:12Z"
+      "confirmedCompletionAt": "2026-10-24T07:12Z",
+      "isNap": false,
+      "standbyObservedAt": "2026-10-24T07:12:05Z"
     },
     "delivery": {
       "id": "release-delivery",
@@ -656,6 +670,11 @@
       {
         "$ref": "quietMiddle"
       }
+    ],
+    "io.github.willzy12h.nocturne.core.plan.NapPreset": [
+      { "$ref": "nap" },
+      { "untilWake": null, "useProfileOpening": true },
+      {}
     ],
     "io.github.willzy12h.nocturne.core.plan.Phase": [
       {
