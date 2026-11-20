@@ -272,7 +272,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = detail) { showDetail = !showDetail }
                     .semantics(mergeDescendants = true) { contentDescription = summary ?: profileName; stateDescription = if (showDetail) "" else detail },
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    NightBar(p, now.takeIf { night != null && confirmed }, Modifier.weight(1f), height = 40.dp, minHeight = 48.dp, showFan = true)
+                    NightBar(p, now.takeIf { night != null && confirmed }, Modifier.weight(1f), height = 40.dp, minHeight = 48.dp)
                     Icon(painterResource(R.drawable.ic_nc_chevron_down), null,
                         Modifier.size(22.dp).rotate(turn).testTag("tonight-detail-chevron"), tint = tokens.ink2)
                 }
@@ -392,7 +392,15 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                         chosen = p; model.updateSettings { it.chooseTonight(p.id, model.now()) }; choosing = false
                     }.testTag("tonight-choose-${p.id}"), verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = profile?.id == p.id, onClick = null, colors = nocturneRadioColors())
-                        Text(p.name, Modifier.padding(start = 12.dp))
+                        Column(Modifier.weight(1f).padding(start = 12.dp, top = 8.dp, bottom = 8.dp)) {
+                            Text(p.name)
+                            val previewPlan = remember(p, alarm, scheduleWindow) { model.previewPlan(p).getOrNull() }
+                            previewPlan?.let {
+                                val summary = profileSummary(p)
+                                NightBar(it, null, Modifier.testTag("picker-timeline-${p.id}")
+                                    .semantics { contentDescription = summary }, height = 22.dp)
+                            }
+                        }
                     }
                 }
             }
