@@ -216,7 +216,13 @@
         "history"
       ],
       "sleepRangeDays": 30,
-      "historyKeepDays": 365
+      "historyKeepDays": 365,
+      "manualControls": [
+        {
+          "$ref": "manualControls"
+        }
+      ],
+      "allowLockedOff": true
     },
     "slotBackup": {
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
@@ -568,7 +574,13 @@
         "$ref": "editorPhase"
       }
     },
-    "encodedSharedProfile": "{\"schema\":3,\"createdAt\":\"2026-10-23T22:30Z\",\"profiles\":[{\"id\":\"release-shared-profile\",\"name\":\"Saved \\\"profile\\\" · 夜\",\"start\":[],\"middle\":{\"mode\":\"COOL\",\"fanStart\":35,\"fanEnd\":25,\"tempStart\":44,\"tempEnd\":46,\"rampSteps\":4},\"wake\":[]}],\"settings\":{},\"slotBackups\":[],\"history\":[]}"
+    "encodedSharedProfile": "{\"schema\":3,\"createdAt\":\"2026-10-23T22:30Z\",\"profiles\":[{\"id\":\"release-shared-profile\",\"name\":\"Saved \\\"profile\\\" · 夜\",\"start\":[],\"middle\":{\"mode\":\"COOL\",\"fanStart\":35,\"fanEnd\":25,\"tempStart\":44,\"tempEnd\":46,\"rampSteps\":4},\"wake\":[]}],\"settings\":{},\"slotBackups\":[],\"history\":[]}",
+    "manualControls": {
+      "device": "ble:AA:BB:CC:DD:EE:FF",
+      "mode": "COOL",
+      "temperature": 46,
+      "fanStep": 10
+    }
   },
   "models": {
     "io.github.willzy12h.nocturne.core.night.ActiveNight": [
@@ -960,6 +972,11 @@
     "io.github.willzy12h.nocturne.ui.ProfileDraft": [
       {
         "$ref": "profileDraft"
+      }
+    ],
+    "io.github.willzy12h.nocturne.core.store.ManualControls": [
+      {
+        "$ref": "manualControls"
       }
     ]
   }

@@ -2153,12 +2153,15 @@ class NightActions(private val graph: Graph) {
         }
 
     suspend fun selectRemoteMode(label: String, request: CommandRequest, mode: Mode): CommandOutcome {
-        val memory = repo.settings.value.manualFor(request.deviceId, mode)
+        var appliedFan: Int? = null
         var appliedTemperature: Int? = null
         return remote(label, endsNight = true, target = request.deviceId, expected = request.expected,
             confirms = { it.mode == mode && (request.expected == null || it.extra?.programStep == 0) &&
                 (appliedTemperature == null || it.targetTemperature == appliedTemperature) &&
-                (memory?.fanStep == null || it.fanStep == memory.fanStep) }) { controller ->
+                (appliedFan == null || it.fanStep == appliedFan) }) { controller ->
+            // Resolve after acquiring the command owner: an earlier slider may just have saved a new value.
+            val memory = repo.settings.value.manualFor(request.deviceId, mode)
+            appliedFan = memory?.fanStep
             if (memory == null) controller.setMode(mode)
             else {
                 if (!sentAndConfirmed({ it.mode == mode && it.extra?.programStep == 0 }) { controller.setMode(mode) })
