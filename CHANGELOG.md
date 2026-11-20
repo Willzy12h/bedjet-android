@@ -3,6 +3,14 @@
 Each release's full notes are in [docs/releases](docs/releases) and on the
 [releases page](https://github.com/Willzy12h/bedjet-android/releases).
 
+## 1.1.0-beta.8
+
+- Off waits for the selected BedJet to report standby. Start night and quick presets can wait for a connection and be cancelled before sending.
+- Remote remembers confirmed temperature and fan changes per BedJet and mode. Manual runs can finish at a chosen time.
+- Tonight shows fan speed by step height, adds Long heat to the quick presets and lets you skip one scheduled start or undo the skip.
+- Backups are checked before writing. Deleting history also removes it from Nocturne’s recovery snapshots. Diagnostics export previews the file you will save.
+- Sleep distinguishes separate sessions on the same day and shows where BedJet observations are missing. [Full beta.8 release notes](docs/releases/1.1.0-beta.8.md)
+
 ## 1.1.0-beta.7
 - "Can't see your alarm?" help on Tonight when no alarm is found, with tonight's wake time, a fixed profile wake time
   or a choice of alarm apps.

@@ -1,6 +1,6 @@
 # Next beta engineering handover
 
-Integration branch `codex/nocturne-next-beta` starts at published beta.7, `18705776806da1efc0e62b327926f3bc679f3acd`. The maintainer requested Android only. The independent worktrees start from the same revision. This is a review branch. Promotion, release numbering and publication require a separate release decision.
+Integration branch `codex/nocturne-next-beta` starts at published beta.7, `18705776806da1efc0e62b327926f3bc679f3acd`. The maintainer requested Android only. The release candidate is `1.1.0-beta.8` (20261120). Merging this candidate into `main` triggers protected signing and prerelease publication after the release checks pass. Maintainer approval is pending.
 
 ## Agreed scope
 
@@ -63,5 +63,7 @@ Use a BedJet 3 and a phone with the current public Nocturne installed. Record ph
 6. Set Finish at on a manual run, verify the appliance timer and disconnect the phone. Check that it finishes within the selected minute. Check a scheduled skip, Undo and its normal alarm-triggered start independently.
 
 ## Signing and build changes
+
+The installer diagnosis reproduced Android's `INSTALL_FAILED_UPDATE_INCOMPATIBLE` when installing the review APK over public beta.7. The same review APK installed and launched on a clean API 36 emulator. Use the signed APK from the public GitHub release for an in-place update. The PR produces the unsigned candidate for the protected signer and a separately test-signed APK for verification. [Public release notes](releases/1.1.0-beta.8.md)
 
 PR jobs use disposable test signing and transfer an unsigned artefact. The existing protected production job signs verified public prereleases as well as stable releases with the established Nocturne certificate. The optional long-lived test-signing step was removed from PR CI. If old test keys are still stored as repository-level Actions secrets, the repository owner should remove them there or scope them to a protected environment; workflow edits alone cannot revoke repository-level access. No credentials were inspected. The wrapper checksum is pinned to the official 8.14.3 binary digest.
