@@ -49,8 +49,10 @@ class ManualTrackingTest {
     /** Snooze, then keep tracking the run the BedJet reports. */
     private suspend fun keptSnooze(): ActiveNight {
         start()
-        assertEquals(OutcomeKind.CONFIRMED, graph.actions.execute(graph.actions.capture(NightActions.Command.SNOOZE_WARM)).kind)
-        assertEquals(OutcomeKind.LOCAL, graph.actions.execute(graph.actions.capture(NightActions.Command.KEEP_TRACKING)).kind)
+        val snooze = graph.actions.execute(graph.actions.capture(NightActions.Command.SNOOZE_WARM))
+        assertEquals(snooze.message, OutcomeKind.CONFIRMED, snooze.kind)
+        val keep = graph.actions.execute(graph.actions.capture(NightActions.Command.KEEP_TRACKING))
+        assertEquals(keep.message, OutcomeKind.LOCAL, keep.kind)
         val n = graph.repository.activeNight.value!!
         assertTrue(n.trackingManual)
         assertEquals(Confidence.CONFIRMED, n.confidence)

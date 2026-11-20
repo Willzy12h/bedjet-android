@@ -396,7 +396,8 @@ class RuntimeFixRoundTest {
         at("2026-10-21T23:01:00Z")
         for (command in listOf(NightActions.Command.SNOOZE_COOL, NightActions.Command.EXTEND_WARM,
             NightActions.Command.EXTEND_COOL, NightActions.Command.KEEP_TRACKING)) {
-            assertTrue(execute(command).succeeded)
+            val result = execute(command)
+            assertTrue("$command: ${result.kind} – ${result.message}", result.succeeded)
             assertSameRecoveryChoice(offer)
         }
         graph.actions.remote("Lights off", confirms = { it.extra?.ledEnabled == false }) { it.setLed(false) }

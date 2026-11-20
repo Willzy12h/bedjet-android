@@ -65,6 +65,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.channels.FileChannel
+import java.nio.file.AccessDeniedException
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
@@ -1445,12 +1446,34 @@ class Repository(
                 // File.renameTo cannot replace an existing destination, leaving the old bytes visible.
                 // A failed replacement must never be reported as a durable write.
                 val pending = File(file.path + ".new")
-                if (pending.exists()) Files.move(pending.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+                if (pending.exists()) finishAtomicReplacement {
+                    Files.move(pending.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+                }
             } catch (e: IOException) {
                 atomic.failWrite(out)
                 throw e
             }
             file.absoluteFile.parentFile?.let(syncDirectory)
+        }
+
+        /** Windows can briefly deny replacement while another handle is closing. Keep the staged bytes until the move succeeds. */
+        internal fun finishAtomicReplacement(onWindows: Boolean = File.separatorChar == '\\', move: () -> Unit) {
+            var backoffMs = 10L
+            while (true) {
+                try {
+                    move()
+                    return
+                } catch (denied: AccessDeniedException) {
+                    // Five waits total 310 ms. Android and permanent errors retain the ordinary failure path.
+                    if (!onWindows || backoffMs > 160) throw denied
+                    try { Thread.sleep(backoffMs) } catch (interrupted: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        denied.addSuppressed(interrupted)
+                        throw denied
+                    }
+                    backoffMs *= 2
+                }
+            }
         }
 
         /**
