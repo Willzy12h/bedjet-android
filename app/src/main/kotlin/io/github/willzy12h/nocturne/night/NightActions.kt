@@ -1752,6 +1752,9 @@ class NightActions(private val graph: Graph) {
         val requestedSequence = request.endRequestedSequence?.takeIf { request.endRequestedEpoch == statusEpoch }
         if (request.endRequested != night.identity || status.isRunning || receipt == null || receipt.epoch != statusEpoch ||
             receipt.sequence <= maxOf(observationStartedSequence, requestedSequence ?: observationStartedSequence)) return false
+        val latest = graph.link.latestSourcedStatus()
+        if (latest != null && latest.receiptOrder >= receipt.sequence &&
+            (!latest.isFrom(night.deviceId) || latest.status.isRunning)) return false
         finishLocked(night, EventKind.STOPPED, request.endRequestedLabel ?: text(R.string.runtime_stopped))
         return true
     }

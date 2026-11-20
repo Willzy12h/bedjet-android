@@ -183,6 +183,19 @@ class SendConfirmationTest {
         assertEquals("repeated reports cannot duplicate the end", 1, events(n).count { it.kind == EventKind.STOPPED })
     }
 
+    @Test fun delayedStandbyCannotFinishAnUnconfirmedOffAfterANewerRunningReport() = runBlocking {
+        useRealHistory()
+        val n = start()
+        swallow = press(Mode.STANDBY)
+        assertEquals(OutcomeKind.UNKNOWN, run(NightActions.Command.OFF).kind)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        val standby = demo.latestSourcedStatus()!!
+        demo.send(Codec.setMode(Mode.COOL)!!)
+        graph.actions.observeStatus(standby, target)
+        assertEquals(n.identity, graph.repository.activeNight.value?.identity)
+        assertTrue(events(n).none { it.kind == EventKind.STOPPED })
+    }
+
     @Test fun lateOffConfirmationNeedsTheTargetButNotProgrammeProgress() = runBlocking {
         useRealHistory()
         val n = start(); advance(30)
