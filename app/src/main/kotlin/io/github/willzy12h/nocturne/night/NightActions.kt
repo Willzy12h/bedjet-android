@@ -433,7 +433,7 @@ class NightActions(private val graph: Graph) {
         advanceGeneration(preserveOffer = command in TIMED_MANUAL || repo.activeNight.value?.trackingManual != false)
         return when (command) {
             Command.OFF, Command.END_NIGHT -> manualChange(text(R.string.runtime_off), endsNight = true, confirms = { it.mode == Mode.STANDBY },
-                allowCurrentStatus = repo.activeNight.value == null, unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
+                unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
             Command.TURBO -> quick(request.actionPreset ?: ActionPreset(Mode.TURBO, 86, 100, 10),
                 request.actionPreset?.let { capturedPresetMessage(context, it) } ?: text(R.string.runtime_turbo))
             Command.COOL -> quick(request.actionPreset ?: repo.settings.value.extendCool,

@@ -157,14 +157,17 @@ class SendConfirmationTest {
         assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
     }
 
-    @Test fun offAlreadyInStandbyIsStillSentAndConfirmedWithoutAFreshRead() = runBlocking {
+    @Test fun untimedOffWithOnlyAPreviousStandbyReportRemainsUnconfirmed() = runBlocking {
         demo.connect()
         swallow = press(Mode.STANDBY)
 
-        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
-        assertEquals(1, sent.size)
+        // Keep replaying the same selected-unit receipt, including after the attempted fresh read.
+        foreign = demo.latestSourcedStatus()
+        val outcome = run(NightActions.Command.OFF)
+        assertEquals(OutcomeKind.ACCEPTED, outcome.kind)
+        assertEquals(text(R.string.runtime_off_unconfirmed), outcome.message)
         assertTrue(sent.single().contentEquals(Codec.setMode(Mode.STANDBY)!!))
-        assertEquals(0, disconnects)
+        assertEquals(1, disconnects)
     }
 
     @Test fun aLateStandbyReportClosesAnUnconfirmedOffAsStoppedWithoutAnotherWrite() = runBlocking {
