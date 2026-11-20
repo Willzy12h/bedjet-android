@@ -127,13 +127,13 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val scheduleWindow = if (now.hour < 12) now.toLocalDate().minusDays(1) else now.toLocalDate()
     var chosen by remember(choiceId, scheduleWindow, profiles) { mutableStateOf(settings.resolveProfile(profiles, now)) }
     val night = running
-    val profile = if (night == null) chosen else profiles.firstOrNull { it.id == night.profileId }
+    val profile = if (night == null) chosen else profiles.firstOrNull { !night.isNap && it.id == night.profileId }
     val preview = if (night == null) profile?.let { model.startPreview(it, now) } else null
     val plan = if (night == null) preview?.plan else remember(night, profiles) { model.activePlan() }
     val plannedWake = night?.wakeAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() } ?: preview?.wake?.time
     val wakeOverride = settings.resolveWakeOverride(now)
     val confirmed = night != null && night.confidence == Confidence.CONFIRMED && nightStatus.confidence == Confidence.CONFIRMED
-    val overridable = night == null || (confirmed && !night.trackingManual && !night.isTestRun)
+    val overridable = night == null || (confirmed && !night.trackingManual && !night.isTestRun && !night.isNap)
     // [then] runs after the chosen wake is saved, so "choose a wake and start" is one step for the user.
     val pickWakeThen: (then: (() -> Unit)?) -> Unit = { then ->
         if (overridable) {
@@ -150,6 +150,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     val pickWake: () -> Unit = { pickWakeThen(null) }
     // A night that would be too long (usually a daytime start) can still start now once it has a wake time that fits.
     val needsWake = night == null && plan == null && preview?.durationProblem != null && overridable
+    var nightWakeOffer by rememberSaveable { mutableStateOf(false) }
     val explanation = AlarmExplanation.resolve(settings, profile, now, alarm, night, runtime, nightStatus, previewWake = preview?.wake)
     var choosingAlarmApps by remember { mutableStateOf(false) }
     if (choosingAlarmApps) AlarmAppsDialog(model, onDismiss = { choosingAlarmApps = false }) {
@@ -172,7 +173,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
     }
     val manualLabel = if (night?.trackingManual == true)
         stringResource(if (confirmed) R.string.tonight_manual_until else R.string.planned_end) else null
-    val phoneAlarm = acceptedPhoneAlarm(settings, now, alarm, night)
+    val phoneAlarm = if (night?.isNap == true) null else acceptedPhoneAlarm(settings, now, alarm, night)
     val editPhase: (Block, ZonedDateTime) -> Unit = phaseEdit@{ block, at ->
         val selected = profile ?: return@phaseEdit
         val displayedPlan = plan ?: return@phaseEdit
@@ -230,7 +231,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     Modifier.testTag("tonight-change"))
             }
             if (night != null) {
-                if (settings.demoMode || !confirmed || night.trackingManual || night.isTestRun)
+                if (settings.demoMode || !confirmed || night.trackingManual || night.isTestRun || night.isNap)
                     Text(profileName, color = tokens.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 if (!confirmed || night.trackingManual) {
                     val state = stringResource(when (nightStatus.confidence ?: night.confidence) {
@@ -258,7 +259,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             val end = if (night != null) manualLabel?.let { label -> runCatching { PlanEnd(label, ZonedDateTime.parse(night.endsAt)) }.getOrNull() } else null
             plan?.let { p ->
                 val wakeTime = Format.clock(p.wake)
-                val wakeSource = when (night?.wakeOrigin ?: preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT) {
+                val wakeSource = if (night?.isNap == true) R.string.nap_wake else when (night?.wakeOrigin ?: preview?.wake?.origin ?: WakeOrigin.PROFILE_DEFAULT) {
                     WakeOrigin.PROFILE_DEFAULT -> R.string.gpt12_wake_profile_fallback
                     WakeOrigin.OVERRIDE -> R.string.gpt12_wake_override
                     WakeOrigin.ALARM -> R.string.gpt12_wake_next_alarm
@@ -305,10 +306,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                         else -> stringResource(R.string.tonight_start_now)
                     },
                     enabled = !busy && (plan != null || needsWake), onClick = {
-                        if (needsWake) pickWakeThen {
-                            // Only start when the chosen wake gives a night that fits; otherwise the card explains again.
-                            if (model.startPreview(selected).plan != null) model.run(Command.START_NIGHT, selected.id)
-                        } else model.run(Command.START_NIGHT, selected.id)
+                        if (needsWake) nightWakeOffer = true else model.run(Command.START_NIGHT, selected.id)
                     })
             } else {
                 plan?.steps?.getOrNull((current?.first ?: -1) + 1)?.takeIf { confirmed }?.let { next ->
@@ -331,7 +329,7 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
                     val turnOff = stringResource(R.string.guard_turn_off)
                     Button(onClick = { guard.confirm(turnOff) { model.run(Command.END_NIGHT) } }, colors = pill, shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("tonight-end-night")) {
-                        Text(stringResource(R.string.parity_end_night), fontSize = 14.sp,
+                        Text(stringResource(if (night.isNap) R.string.nap_end else R.string.parity_end_night), fontSize = 14.sp,
                             color = if (tokens.dark) Color(0xFFFFB3A8) else tokens.bad, fontWeight = FontWeight.SemiBold)
                     }
                 }
@@ -351,14 +349,20 @@ fun TonightScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> 
             }
         }
 
+        QuickNapControls(model, settings, chosen, alarm, guard, busy, nightWakeOffer, { nightWakeOffer = false }) {
+            val selected = chosen
+            if (selected != null) pickWakeThen {
+                if (model.startPreview(selected).plan != null) model.run(Command.START_NIGHT, selected.id)
+            }
+        }
         // One line explains the wake; an alarm from a calendar app is simply ignored, without comment. Any other
         // app's ignored alarm is named, with a tap to choose that app.
         val clockApps by model.clockApps.collectAsStateWithLifecycle()
         val calendarApps = remember { io.github.willzy12h.nocturne.night.ClockApps.calendarApps(context) }
-        if (!explanation.isStrayAlarm(clockApps, calendarApps)) {
+        if (night?.isNap != true && !explanation.isStrayAlarm(clockApps, calendarApps)) {
             AlarmExplanationLine(explanation, openExplanation)
         }
-        wakeOverride?.let { override ->
+        wakeOverride?.takeUnless { night?.isNap == true }?.let { override ->
             runCatching { ZonedDateTime.parse(override.expiresAt) }.getOrNull()?.let { lapses ->
                 Note(stringResource(R.string.override_expiry, Format.clock(lapses), lapses.format(DateTimeFormatter.ofPattern("EEE d MMM"))))
             }
@@ -507,7 +511,7 @@ internal fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
-private fun Note(text: String) = Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+internal fun Note(text: String) = Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
 @Composable
 private fun surfaceCard() = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface)

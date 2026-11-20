@@ -51,9 +51,10 @@ object NapProgramme {
 
     private fun compile(preset: NapPreset, start: ZonedDateTime, wake: ZonedDateTime?, selectedProfile: Profile?): Plan {
         val requestedWake = wake ?: start.plusMinutes(preset.durationMinutes.toLong())
-        val planStart = if (wake == null) start else start.minusNanos(Math.floorMod(
-            (start.second - wake.second) * 1_000_000_000L + start.nano - wake.nano,
-            60_000_000_000L))
+        // Absolute choices use the BedJet’s whole-minute clock. Relative durations keep the START seconds.
+        val planStart = if (wake == null) start else start.withSecond(wake.second).withNano(wake.nano).let {
+            if (it.isAfter(start)) it.minusMinutes(1) else it
+        }
         if (wake != null && Duration.between(start, wake) < Duration.ofMinutes(1))
             throw PlanException("Choose a nap wake time at least a minute ahead.")
         val available = Duration.between(planStart, requestedWake).toMinutes()

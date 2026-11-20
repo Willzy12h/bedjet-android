@@ -102,7 +102,7 @@ object ReplacementPolicy {
 @Serializable data class AlarmObservation(val id: String, val nightId: String, val deviceId: String, val observedAt: String)
 
 @Serializable data class PendingEnd(val identity: NightIdentity, val event: io.github.willzy12h.nocturne.core.store.HistoryEvent,
-    val isTestRun: Boolean = false, val confirmedCompletionAt: String? = null)
+    val isTestRun: Boolean = false, val confirmedCompletionAt: String? = null, val isNap: Boolean = false)
 
 /** Submission target carried across the service handoff and checked under command ownership. */
 internal class SubmissionTarget(val deviceId: String?) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {

@@ -342,6 +342,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
     private fun checkExecutionTime(change: PreparedChange) {
         val time = now()
         if (!time.isBefore(ZonedDateTime.parse(change.request.deadline))) throw PlanException("This request has expired.")
+        if (change.intended.isNap && change.request.kind == ChangeKind.START && !change.relativeNap && !time.isBefore(change.plan.wake))
+            throw PlanException("The chosen nap wake time has passed.")
         val rewrite = change.request.kind in setOf(ChangeKind.RETIME, ChangeKind.REAPPLY, ChangeKind.TEMPORARY)
         if (rewrite &&
             change.previous != null && !time.isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) {

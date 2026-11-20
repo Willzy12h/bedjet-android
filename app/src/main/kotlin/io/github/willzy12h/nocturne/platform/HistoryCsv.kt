@@ -48,7 +48,13 @@ object HistoryCsv {
             }
             fun step(s: RecordedStep, revision: String) = emit("step", s.startsAt, revision=revision, mode=s.mode.name,
                 temp=s.temperature, fan=s.fanPercent.toString(), minutes=s.minutes.toString(), detail=s.block.name)
-            emit("night", n.startedAt, n.wakeAt, detail=if (n.wakeFromAlarm) "Phone alarm" else "Profile or override")
+            val timing = when {
+                n.isNap && n.wakeFromAlarm -> "Accepted phone alarm at start"
+                n.isNap -> "Fixed nap timing"
+                n.wakeFromAlarm -> "Phone alarm"
+                else -> "Profile or override"
+            }
+            emit(if (n.isNap) "nap" else "night", n.startedAt, n.wakeAt, detail = timing)
             n.steps.forEach { step(it, "0") }
             n.revisions.forEach { r ->
                 emit("revision", r.start, r.wake, r.revision.toString())

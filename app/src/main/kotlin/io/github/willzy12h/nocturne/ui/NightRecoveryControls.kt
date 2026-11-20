@@ -42,7 +42,7 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
     }
     val resumeSaved = stringResource(R.string.guard_resume_saved)
     val resumePrevious = stringResource(R.string.guard_resume_previous)
-    val hasMore = night != null
+    val hasMore = night != null && !night.isNap
     var more by remember(hasMore) { mutableStateOf(false) }
     var stopTracking by remember { mutableStateOf<CommandRequest?>(null) }
     Column {

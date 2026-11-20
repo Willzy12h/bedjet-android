@@ -122,11 +122,39 @@ class PickerInitialTimeTest {
         compose.onNodeWithTag("tonight-fixed-wake").assertExists()
     }
 
+    @Test fun oneTapNapUsesTheDisplayedDurationAndOffersASeparateClockChoice() {
+        compose.onNodeWithTag("quick-nap-start").performScrollTo().assertTextContains("Quick nap · 90 min")
+        compose.onNodeWithTag("quick-nap-options").performScrollTo().performClick()
+        compose.onNodeWithText(s(R.string.nap_choose_time)).assertExists()
+        compose.onNodeWithText(s(R.string.nap_alarm_unavailable)).assertExists()
+        compose.onNodeWithText(s(R.string.feature_cancel)).performClick()
+        compose.onNodeWithTag("quick-nap-start").performScrollTo().performClick()
+        waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED }
+        assertTrue(graph.repository.activeNight.value!!.isNap)
+        compose.onNodeWithTag("tonight-fixed-wake").assertHasNoClickAction()
+        compose.onNodeWithTag("quick-nap-start").performScrollTo().performClick()
+        compose.onNodeWithText(s(R.string.guard_keep)).assertExists()
+    }
+
+    @Test fun outOfRangeWakeCanStartTheRelativeNapWithoutChangingTheNightOverride() {
+        val now = graph.now()
+        save { updateSettings { it.setWakeOverride(now.plusMinutes(20), now) } }
+        val before = graph.repository.settings.value.tonightOverride
+        compose.onNodeWithText(s(R.string.tonight_choose_wake_and_start)).performScrollTo().performClick()
+        compose.onNodeWithTag("nap-range-start").performClick()
+        waitUntil { graph.repository.activeNight.value?.confidence == Confidence.CONFIRMED }
+        val active = graph.repository.activeNight.value!!
+        assertTrue(active.isNap)
+        assertEquals(now.plusMinutes(90).toString(), active.wakeAt)
+        assertEquals(before, graph.repository.settings.value.tonightOverride)
+    }
+
     @Test fun outOfRangeWakeStartsTheNightOnceAFittingWakeIsChosen() {
         val now = graph.now()
         save { updateSettings { it.setWakeOverride(now.plusMinutes(20), now) } }
         assertNull(graph.repository.activeNight.value)
         compose.onNodeWithText(s(R.string.tonight_choose_wake_and_start)).performScrollTo().performClick()
+        compose.onNodeWithTag("nap-range-regular").performClick()
 
         val (dialog, picker) = picker()
         compose.runOnUiThread { picker.hour = 6; picker.minute = 10 }

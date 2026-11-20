@@ -407,6 +407,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    internal fun captureNap(profile: Profile?, wake: ZonedDateTime? = null, alarm: AlarmSource.NextAlarm? = null) =
+        graph.actions.captureNap(profile, wake, alarm)
+
+    internal fun runNap(nap: NightActions.NapStart) {
+        val request = nap.request.copy(replacementConfirmed = confirmedNight != null && confirmedNight == nap.request.expected)
+        act(tap = connectingCommand(request, text(R.string.nap_title), nap = nap)) {
+            graph.actions.startNap(nap.copy(request = request))
+        }
+    }
+
     fun shortTestPreview(): ShortTestPreview? = graph.actions.shortTestPreview()
     fun startShortTest(preview: ShortTestPreview) = act { graph.actions.startShortTest(preview) }
 
@@ -456,8 +466,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _connectingCommand = MutableStateFlow<ConnectingCommand?>(null)
     internal val connectingCommand = _connectingCommand.asStateFlow()
 
-    private fun connectingCommand(request: CommandRequest, label: String, off: Boolean = false): ConnectingCommand {
-        val starting = request.command == NightActions.Command.START_NIGHT
+    private fun connectingCommand(request: CommandRequest, label: String, off: Boolean = false, nap: NightActions.NapStart? = null): ConnectingCommand {
+        val starting = nap == null && request.command == NightActions.Command.START_NIGHT
         fun selectedProfile() = if (request.profileId == null) repo.tonightsProfile() else repo.profile(request.profileId)
         val profile = if (starting) selectedProfile() else null
         val wake = profile?.let { startPreview(it).wake }
@@ -468,6 +478,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return ConnectingCommand(label, off, request.deviceId, seen) {
             val sameNight = generation == repo.runtime.value.generation && activeNight.value?.identity == request.expected
             val samePlan = when {
+                nap != null -> graph.actions.napStillCurrent(nap)
                 !starting -> true
                 profile == null -> false
                 else -> {
