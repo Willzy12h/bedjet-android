@@ -184,22 +184,22 @@ internal class U06ControlSemanticsTest(look: U06Look) {
         fixture.snackbar()
         fixture.quick(fixture.graph.repository.settings.value.extendWarm).performClick()
         fixture.waitUntil {
-            graph.link.status.value?.let { it.mode == Mode.HEAT && it.targetTemperature == 64 && it.fanPercent == 30 } == true &&
+            graph.link.status.value?.let { it.mode == Mode.HEAT && it.targetTemperature == 80 && it.fanPercent == 30 } == true &&
                 graph.actions.busy.value.runningLabel == null
         }
         fixture.tab(s(R.string.tab_remote))
         fixture.waitUntil { compose.onAllNodes(hasContentDescription(s(R.string.slider_temp)) and progress).fetchSemanticsNodes().isNotEmpty() }
         for (useFahrenheit in listOf(false, true)) {
             fahrenheit(useFahrenheit)
-            val temp = scalar(s(R.string.slider_temp), 64f, temperature("32", "90", useFahrenheit))
+            val temp = scalar(s(R.string.slider_temp), 80f, temperature("40", "104", useFahrenheit))
             val fan = scalar(s(R.string.slider_fan), 30f, percent(30))
             compose.onAllNodes(adjustable, useUnmergedTree = true).assertCountEquals(2)
             // The semantics action must update both the real demo status and the spoken value.
-            temp.performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(65f)) }
-            fixture.waitUntil { graph.link.status.value?.targetTemperature == 65 }
-            scalar(s(R.string.slider_temp), 65f, temperature("32.5", "91", useFahrenheit))
-            temp.performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(64f)) }
-            fixture.waitUntil { graph.link.status.value?.targetTemperature == 64 }
+            temp.performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(79f)) }
+            fixture.waitUntil { graph.link.status.value?.targetTemperature == 79 }
+            scalar(s(R.string.slider_temp), 79f, temperature("39.5", "103", useFahrenheit))
+            temp.performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(80f)) }
+            fixture.waitUntil { graph.link.status.value?.targetTemperature == 80 }
             fan.performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(35f)) }
             fixture.waitUntil { graph.link.status.value?.fanPercent == 35 }
             scalar(s(R.string.slider_fan), 35f, percent(35))
