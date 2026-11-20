@@ -81,6 +81,24 @@ class QuickNapRuntimeTest {
         assertEquals(0, writes)
     }
 
+    @Test fun oneOffDurationStartsAtTheTransportWriteAndKeepsTheSavedPreset() = runBlocking {
+        val saved = graph.repository.settings.value.napPreset
+        val captured = graph.actions.captureNap(null, durationOverride = 30)
+        val actualStart = graph.now().plusSeconds(19)
+        delayStartSeconds = 19
+
+        val outcome = graph.actions.startNap(captured)
+
+        assertEquals(outcome.message, OutcomeKind.CONFIRMED, outcome.kind)
+        val night = graph.repository.activeNight.value!!
+        assertEquals(actualStart.toString(), night.startedAt)
+        assertEquals(actualStart.plusMinutes(30).toString(), night.wakeAt)
+        assertEquals(actualStart.plusMinutes(40).toString(), night.endsAt)
+        assertEquals(listOf(10, 20, 10), night.applied.steps.map { it.minutes })
+        assertEquals(night.wakeAt, graph.repository.history.value.single().wakeAt)
+        assertEquals(saved, graph.repository.settings.value.napPreset)
+    }
+
     @Test fun interruptedHistorySettlementRecoversTheActualStartAndItsSteps() = runBlocking {
         val start = graph.now()
         val prep = graph.runner().prepareNap("Quick nap", graph.repository.settings.value.napPreset, start.plusMinutes(90), false, null,
@@ -99,7 +117,7 @@ class QuickNapRuntimeTest {
     }
 
     @Test fun changedPresetOrSlotAndUnconfirmedReplacementDoNotSend() = runBlocking {
-        val original = graph.actions.captureNap(null)
+        val original = graph.actions.captureNap(null, durationOverride = 30)
         graph.repository.updateSettings { it.copy(napPreset = it.napPreset.copy(durationMinutes = 55)) }
         assertEquals(OutcomeKind.STALE, graph.actions.startNap(original).kind)
         val changedSlot = graph.actions.captureNap(null)

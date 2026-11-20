@@ -78,6 +78,8 @@ class U06PrimaryLayoutTest(look: U06Look) {
     @Test fun idleStartHasItsWholeLabelAndTouchTargetAboveFeedback() {
         withAndWithoutFeedback {
             ui.control(ui.s(R.string.tonight_start_now))
+            ui.checkControl(ui.compose.onNodeWithTag("quick-nap-start"), "Quick nap").assertHasClickAction()
+            ui.checkControl(ui.compose.onNodeWithTag("quick-nap-options"), "Nap options").assertHasClickAction()
             quickButtons()
         }
     }

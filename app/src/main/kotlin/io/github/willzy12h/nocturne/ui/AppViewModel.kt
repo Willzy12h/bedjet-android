@@ -407,8 +407,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    internal fun captureNap(profile: Profile?, wake: ZonedDateTime? = null, alarm: AlarmSource.NextAlarm? = null) =
-        graph.actions.captureNap(profile, wake, alarm)
+    internal fun captureNap(profile: Profile?, wake: ZonedDateTime? = null, alarm: AlarmSource.NextAlarm? = null,
+        durationOverride: Int? = null) = graph.actions.captureNap(profile, wake, alarm, durationOverride)
 
     internal fun runNap(nap: NightActions.NapStart) {
         val request = nap.request.copy(replacementConfirmed = confirmedNight != null && confirmedNight == nap.request.expected)
