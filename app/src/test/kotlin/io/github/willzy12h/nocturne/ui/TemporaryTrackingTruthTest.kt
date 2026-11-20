@@ -22,11 +22,19 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class TemporaryTrackingTruthTest {
-    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, _ -> runBlocking {
+    private val ui = U06Fixture(U06Look.MIDNIGHT, widthDp = 411, fontScale = 1f) { fixture, description -> runBlocking {
         fixture.graph.actions.confirmMs = 20
         fixture.graph.actions.freshStatusMs = 20
         assertEquals(OutcomeKind.CONFIRMED, fixture.graph.actions.execute(
             fixture.graph.actions.capture(Command.START_NIGHT)).kind)
+        // Create the pre-existing manual run before the screen subscribes to command notifications.
+        if (description.methodName == "manualTemporaryChoiceDoesNotClaimARunningSavedProgramme") {
+            val actions = fixture.graph.actions
+            val snoozed = actions.execute(actions.capture(Command.SNOOZE_WARM))
+            assertEquals(snoozed.message, OutcomeKind.CONFIRMED, snoozed.kind)
+            val kept = actions.execute(actions.capture(Command.KEEP_TRACKING))
+            assertEquals(kept.message, OutcomeKind.LOCAL, kept.kind)
+        }
     } }
     @get:Rule val rules = ui.rules
 
@@ -74,10 +82,6 @@ class TemporaryTrackingTruthTest {
         checkChoice()
     }
     @Test fun manualTemporaryChoiceDoesNotClaimARunningSavedProgramme() {
-        ui.compose.runOnUiThread { runBlocking {
-            ui.graph.actions.execute(ui.graph.actions.capture(Command.SNOOZE_WARM))
-            ui.graph.actions.execute(ui.graph.actions.capture(Command.KEEP_TRACKING))
-        } }
         assertTrue(ui.graph.repository.activeNight.value!!.trackingManual)
         checkChoice()
     }

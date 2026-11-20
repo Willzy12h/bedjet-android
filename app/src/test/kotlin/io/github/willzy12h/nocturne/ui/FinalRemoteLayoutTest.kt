@@ -99,11 +99,15 @@ class FinalRemoteLayoutTest {
         fun iconBounds() = ui.compose.onNodeWithTag("reading-mode-icon", useUnmergedTree = true)
             .fetchSemanticsNode().boundsInRoot
         fun moves(expected: Boolean) {
-            clock.advanceTimeBy(32)
+            // Give the new layout and its animation frame clock time to settle after a mode change.
+            clock.advanceTimeBy(96)
             val first = iconBounds()
-            clock.advanceTimeBy(456)
+            val changed = (1..8).map {
+                clock.advanceTimeBy(176)
+                first != iconBounds()
+            }.any { it }
             assertEquals("Mode ${report.value.mode}, recent=${recent.value}, simple=${settings.value.simpleView}",
-                expected, first != iconBounds())
+                expected, changed)
         }
         try {
             AndroidSettings.Global.putFloat(resolver, scale, 1f)

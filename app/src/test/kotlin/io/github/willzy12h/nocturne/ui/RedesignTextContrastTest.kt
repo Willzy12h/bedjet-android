@@ -53,9 +53,11 @@ class RedesignTextContrastTest {
     @get:Rule val rules = ui.rules
     private val palette = mutableStateOf(Palette.MIDNIGHT_INK)
 
-    private fun layout(text: String, scroll: Boolean = true): TextLayoutResult {
+    private fun layout(text: String, scroll: Boolean = true): TextLayoutResult =
+        layout(ui.compose.onAllNodesWithText(text, useUnmergedTree = true)[0], scroll)
+
+    private fun layout(node: SemanticsNodeInteraction, scroll: Boolean = true): TextLayoutResult {
         val results = mutableListOf<TextLayoutResult>()
-        val node = ui.compose.onAllNodesWithText(text, useUnmergedTree = true)[0]
         if (scroll) node.performScrollTo()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
         return results.single()
@@ -457,12 +459,13 @@ class RedesignTextContrastTest {
                 it.setMode(mode)
                 if (mode == Mode.HEAT) it.setTemperature(64)
             }
-            ui.waitUntil { ui.graph.link.status.value?.mode == mode && !ui.model.busy.value }
-            val reading = requireNotNull(ui.graph.link.status.value)
-            val label = Format.modeName(mode) + if (mode.usesTemperature) " " + Format.temp(reading.targetTemperature, false) else ""
+            ui.waitUntil { ui.model.hasLiveStatus.value && ui.model.status.value?.mode == mode && !ui.model.busy.value }
+            val label = if (mode == Mode.HEAT) ui.s(R.string.run_status_heat) else Format.modeName(mode)
+            val status = ui.compose.onNodeWithTag("home-run-status", useUnmergedTree = true)
             Palette.entries.forEach { choice ->
                 ui.compose.runOnIdle { palette.value = choice }
-                checkText("$choice reported $mode", layout(label), choice.tokens.ground)
+                status.assertTextContains(label, substring = true)
+                checkText("$choice reported $mode", layout(status), choice.tokens.ground)
             }
         }
     }
