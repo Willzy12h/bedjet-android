@@ -23,7 +23,7 @@ class TonightFanChartTest {
             assertEquals(.7f, bars[0].heightFraction, .001f)
             assertEquals(.25f, bars[1].heightFraction, .001f)
             assertEquals(bars[1].heightFraction, bars[2].heightFraction)
-            assertNotEquals(bars[1].colours, bars[2].colours)
+            assertNotEquals(bars[1].colour, bars[2].colour)
             assertTrue(bars[3].heightFraction < .05f)
         }
     }

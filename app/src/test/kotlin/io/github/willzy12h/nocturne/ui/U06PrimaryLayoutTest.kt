@@ -131,10 +131,10 @@ class U06PrimaryLayoutTest(look: U06Look) {
     @PrimarySeed(PrimaryScenario.IDLE)
     @Test fun remoteModeAndTimerControlsAreReachableAboveFeedback() {
         val graph = ui.graph
-        val warmPreset = graph.repository.settings.value.extendWarm
+        val warmPreset = io.github.willzy12h.nocturne.core.store.QuickDefaults.resolve(graph.repository.settings.value, Mode.HEAT)
         val warmFeedback = ui.compose.activity.resources.getQuantityString(
             R.plurals.runtime_captured_action_duration, warmPreset.minutes, ui.s(R.string.mode_heat), warmPreset.minutes)
-        ui.quick(ui.graph.repository.settings.value.extendWarm).performClick()
+        ui.quick(warmPreset).performClick()
         ui.waitUntil { graph.link.status.value?.mode == Mode.HEAT && graph.actions.busy.value.runningLabel == null }
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isNotEmpty() }
         // Dismiss the command's real feedback so the first pass has no snackbar and the controlled one can follow.
@@ -143,13 +143,15 @@ class U06PrimaryLayoutTest(look: U06Look) {
         ui.waitUntil { ui.compose.onAllNodesWithText(warmFeedback).fetchSemanticsNodes().isEmpty() }
         ui.tab(ui.s(R.string.tab_remote))
         ui.waitUntil { ui.compose.onAllNodesWithText(ui.s(R.string.remote_run_for)).fetchSemanticsNodes().isNotEmpty() }
-        assertEquals("The Heat fixture must report its four-hour runtime ceiling", 240, graph.link.status.value?.maxRuntimeMinutes)
+        assertEquals("The unit limits 40°C Heat at 30% fan to two hours", 120, graph.link.status.value?.maxRuntimeMinutes)
         withAndWithoutFeedback {
             listOf(R.string.mode_cool, R.string.mode_heat, R.string.mode_long_heat,
                 R.string.mode_turbo, R.string.mode_dry, R.string.mode_off).forEach { ui.control(ui.s(it)) }
             listOf(15, 30).forEach { ui.control(ui.s(R.string.minutes_short, it)) }
-            listOf(1, 2, 4).forEach { ui.control(ui.s(R.string.duration_hours, it)) }
-            ui.compose.onAllNodes(hasText(ui.s(R.string.duration_hours, 8)) and hasClickAction()).assertCountEquals(0)
+            listOf(1, 2).forEach { ui.control(ui.s(R.string.duration_hours, it)) }
+            listOf(4, 8).forEach {
+                ui.compose.onAllNodes(hasText(ui.s(R.string.duration_hours, it)) and hasClickAction()).assertCountEquals(0)
+            }
             // Boost lives on Tonight's Quick Presets only; Remote has no Boost of its own.
             ui.compose.onNodeWithTag("quick-mode-BOOST").assertDoesNotExist()
         }

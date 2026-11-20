@@ -11,8 +11,8 @@ object QuickDefaults {
 
     fun builtIn(mode: Mode): ActionPreset = when (mode) {
         Mode.TURBO -> ActionPreset(mode, 86, 100, 10)
-        Mode.HEAT -> ActionPreset(mode, 64, 30, 30)
-        Mode.EXTENDED_HEAT -> ActionPreset(mode, 60, 30, 30)
+        Mode.HEAT -> ActionPreset(mode, 80, 30, 30)
+        Mode.EXTENDED_HEAT -> ActionPreset(mode, 60, 30, 150)
         // Cool runs for as long as the BedJet allows (11 h 59 min, shown as 12 hours) until it is customised.
         Mode.COOL -> ActionPreset(mode, 44, 40, Limits.MAX_STEP_MINUTES)
         Mode.DRY -> ActionPreset(mode, 56, 40, 30)
@@ -22,11 +22,13 @@ object QuickDefaults {
     fun resolve(settings: Settings, mode: Mode): ActionPreset {
         require(mode in modes)
         return settings.quickDefaults.firstOrNull { it.mode == mode }
-            ?: listOf(settings.extendWarm, settings.extendCool.takeIf { it != LEGACY_COOL }).firstOrNull { it?.mode == mode }
+            ?: settings.extendWarm.takeIf { it.mode == mode && it != LEGACY_WARM }
+            ?: settings.extendCool.takeIf { it.mode == mode && it != LEGACY_COOL }
             ?: builtIn(mode)
     }
 
-    /** An untouched Extend Cool still holds this; only a customised one stands in for the Cool quick default. */
+    /** The old Extend slots serve as quick defaults only when they carry a custom setting. */
+    private val LEGACY_WARM = Settings().extendWarm
     private val LEGACY_COOL = Settings().extendCool
 
     /** The longest run the BedJet allows for these settings: Cool and Dry 11 h 59 min, Turbo 10 min, hot Heat less. */

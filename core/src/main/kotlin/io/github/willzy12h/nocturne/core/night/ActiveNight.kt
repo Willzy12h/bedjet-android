@@ -65,8 +65,11 @@ import java.time.ZonedDateTime
      * Only nights saved by those versions carry it, and it is still read so a night running across the upgrade keeps
      * its window (see AlarmPolicy.earliest). Null for every other night. */
     val shortAlarmNightMinutes: Int? = null,
+    val isNap: Boolean = false,
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)
+    /** Resume rebuilds remaining steps as durations. A nap that depends on a fixed clock must retain its wake. */
+    val hasClockTimedNap: Boolean get() = isNap && (temporary?.base ?: applied).programSteps.any { it.endsAtClockTime }
     val usesLiveProfileFallback: Boolean get() = profile == null
     /** A kept, freshly checked manual run has a captured end. UNKNOWN adjustments retain only an old timestamp. */
     val hasPlannedManualEnd: Boolean get() = trackingManual && confidence == Confidence.CONFIRMED

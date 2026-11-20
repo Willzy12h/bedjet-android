@@ -59,10 +59,10 @@ class BackupException(message: String, val errors: List<String> = listOf(message
 object BackupCodec {
     /**
      * 2 added the device to slot backups and nights, and the empty-slot marker. 3 added the palettes, the Cooldown
-     * offer answer and the Quiet middle fan; older versions' strict parser refuses those fields, so the bump makes them
-     * say "from a newer version" instead of "damaged". See [Migrations].
+     * offer answer and the Quiet middle fan. 4 adds the nap preset and observed BedJet history times.
+     * Older versions recognise a newer export before their strict field checks. See [Migrations].
      */
-    const val SCHEMA = 3
+    const val SCHEMA = 4
 
     val json = Json {
         ignoreUnknownKeys = true

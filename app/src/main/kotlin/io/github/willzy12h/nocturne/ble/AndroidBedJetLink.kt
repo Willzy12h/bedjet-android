@@ -37,7 +37,7 @@ class AndroidBedJetLink(private val context: Context, radio: GattRadio? = null, 
     val verifiedNames: StateFlow<Pair<String, String?>?> get() = names.verified
     val displayNames: StateFlow<Pair<String, String?>?> get() = names.displayed
     private val engine = GattLink(radio ?: AndroidRadio(context, ::hasPermissions), target,
-        onName = names::display, onVerifiedName = names::verify,
+        clock = android.os.SystemClock::elapsedRealtime, onName = names::display, onVerifiedName = names::verify,
         noTargetMessage = { context.getString(io.github.willzy12h.nocturne.R.string.ble_no_target) })
 
     override val state: StateFlow<LinkState> get() = engine.state

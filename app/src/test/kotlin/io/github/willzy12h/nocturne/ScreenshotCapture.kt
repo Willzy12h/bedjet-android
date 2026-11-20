@@ -350,12 +350,17 @@ class ScreenshotCapture {
             if (graph.link.status.value == null) compose.runOnUiThread { graph.sessions.reconnect() }
             compose.waitUntil(15_000) { settle(250); graph.link.status.value != null }
             compose.onAllNodesWithText("Tonight")[0].performClick()
-            settle()
+            // Feedback from the previous Remote capture can extend over the Boost tile.
+            compose.waitUntil(15_000) {
+                settle(1_000)
+                compose.onAllNodesWithTag("feedback-bubble").fetchSemanticsNodes().isEmpty()
+            }
             compose.onNodeWithTag("quick-mode-BOOST", useUnmergedTree = true).performScrollTo()
             settle()
             shot("$look-01-tonight-presets")
             compose.onNodeWithTag("quick-mode-BOOST", useUnmergedTree = true).performTouchInput { longClick() }
             settle()
+            compose.onNodeWithTag("boost-editor").assertIsDisplayed()
             shot("$look-02-boost-editor")
             compose.onAllNodesWithText(compose.activity.getString(R.string.feature_cancel))[0].performClick()
             settle()

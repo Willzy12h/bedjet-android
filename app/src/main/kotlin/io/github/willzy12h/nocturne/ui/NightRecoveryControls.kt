@@ -37,12 +37,12 @@ fun NightRecoveryControls(model: AppViewModel, night: ActiveNight?, guard: Night
     val runtime by model.runtime.collectAsStateWithLifecycle()
     val settings by model.settings.collectAsStateWithLifecycle()
     val offer = runtime.resumeOffer?.takeIf { candidate ->
-        candidate.night.deviceId == settings.deviceId() && candidate.commandVersion == runtime.generation &&
+        !candidate.night.hasClockTimedNap && candidate.night.deviceId == settings.deviceId() && candidate.commandVersion == runtime.generation &&
             runCatching { now.isBefore(ZonedDateTime.parse(candidate.expiresAt)) }.getOrDefault(false)
     }
     val resumeSaved = stringResource(R.string.guard_resume_saved)
     val resumePrevious = stringResource(R.string.guard_resume_previous)
-    val hasMore = night != null
+    val hasMore = night != null && !night.isNap
     var more by remember(hasMore) { mutableStateOf(false) }
     var stopTracking by remember { mutableStateOf<CommandRequest?>(null) }
     Column {

@@ -131,6 +131,42 @@ class RepositoryTest {
         assertEquals(emptyList<String>(), second.unreadable.value)
     }
 
+    @Test fun windowsCanFinishTheSameStagedWriteAfterATemporarySharingDenial() {
+        val original = File(dir, "target").apply { writeText("old") }
+        val pending = File(dir, "target.new").apply { writeText("new") }
+        var attempts = 0
+        Repository.finishAtomicReplacement(onWindows = true) {
+            assertEquals("old", original.readText())
+            assertEquals("new", pending.readText())
+            if (++attempts <= 2) throw java.nio.file.AccessDeniedException(original.path)
+            java.nio.file.Files.move(pending.toPath(), original.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        }
+        assertEquals(3, attempts)
+        assertEquals("new", original.readText())
+        assertFalse(pending.exists())
+    }
+
+    @Test fun replacementRetriesAreBoundedAndOtherIoFailuresRemainImmediate() {
+        val denied = java.nio.file.AccessDeniedException("target")
+        var attempts = 0
+        val permanent = assertThrows(java.nio.file.AccessDeniedException::class.java) {
+            Repository.finishAtomicReplacement(onWindows = true) { attempts++; throw denied }
+        }
+        assertSame(denied, permanent)
+        assertEquals(6, attempts)
+        attempts = 0
+        assertThrows(java.nio.file.AccessDeniedException::class.java) {
+            Repository.finishAtomicReplacement(onWindows = false) { attempts++; throw denied }
+        }
+        assertEquals(1, attempts)
+        attempts = 0
+        assertThrows(IOException::class.java) {
+            Repository.finishAtomicReplacement(onWindows = true) { attempts++; throw IOException("Disk full") }
+        }
+        assertEquals(1, attempts)
+    }
+
     /** IR-29: the rename that replaces a file is itself made durable by syncing the directory after it. */
     @Test
     fun aDurableWriteSyncsTheDirectoryAfterTheRename() {

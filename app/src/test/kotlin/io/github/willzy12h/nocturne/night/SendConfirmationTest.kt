@@ -94,6 +94,20 @@ class SendConfirmationTest {
 
     // Off and End night
 
+    @Test fun stoppingANapRecordsStandbyAndPreservesTonightsWakeChoice() = runBlocking {
+        useRealHistory()
+        graph.repository.updateSettings { it.setWakeOverride(graph.now().plusHours(8), graph.now()) }
+        val savedWake = graph.repository.settings.value.tonightOverride
+        assertNotNull(savedWake)
+        assertEquals(OutcomeKind.CONFIRMED, graph.actions.startNap(graph.actions.captureNap(null)).kind)
+        advance(12)
+        assertEquals(OutcomeKind.CONFIRMED, run(NightActions.Command.OFF).kind)
+        val record = graph.repository.history.value.single()
+        assertTrue(record.isNap)
+        assertEquals(graph.now().toString(), record.standbyObservedAt)
+        assertEquals(savedWake, graph.repository.settings.value.tonightOverride)
+    }
+
     @Test fun offTheBedJetReportsEndsTheNight() = runBlocking {
         useRealHistory()
         val n = start(); advance(30)
@@ -102,6 +116,7 @@ class SendConfirmationTest {
         assertEquals(text(R.string.runtime_off), outcome.message)
         assertNull(graph.repository.activeNight.value)
         assertTrue(events(n).any { it.kind == EventKind.STOPPED })
+        assertEquals(graph.now().toString(), graph.repository.history.value.single().standbyObservedAt)
     }
 
     @Test fun offTheBedJetNeverReportsLeavesTheNightUnknownAndOffCanBeSentAgain() = runBlocking {
@@ -170,6 +185,58 @@ class SendConfirmationTest {
         assertEquals(1, disconnects)
     }
 
+    @Test fun matchingRunningReportsAreSavedAtABoundedCadenceWithoutClaimingAStop() = runBlocking {
+        useRealHistory()
+        start()
+        advance(10)
+        graph.actions.observeStatus(demo.status.value!!, target)
+        val first = graph.now().toString()
+        assertEquals(first, graph.repository.history.value.single().lastRunningObservedAt)
+        advance(1)
+        graph.actions.observeStatus(demo.status.value!!, target)
+        assertEquals(first, graph.repository.history.value.single().lastRunningObservedAt)
+        advance(5)
+        graph.actions.observeStatus(demo.status.value!!, target)
+        val record = graph.repository.history.value.single()
+        assertEquals(graph.now().toString(), record.lastRunningObservedAt)
+        assertNull(record.standbyObservedAt)
+    }
+
+    @Test fun physicalRemoteStandbyBeforeTheEndIsEvidenceButTrackingStillNeedsRecovery() = runBlocking {
+        useRealHistory()
+        val night = start()
+        advance(15)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.actions.observeStatus(demo.status.value!!, target)
+        val record = graph.repository.history.value.single()
+        assertEquals(graph.now().toString(), record.standbyObservedAt)
+        assertEquals(Confidence.UNKNOWN, graph.repository.activeNight.value?.confidence)
+        assertTrue(events(night).any { it.kind == EventKind.REMOTE_CHANGE })
+        assertTrue(events(night).none { it.kind == EventKind.STOPPED || it.kind == EventKind.ENDED })
+    }
+
+    @Test fun stalePhysicalStandbyBeforeANewerRunningReportCannotAcquireStandbyEvidence() = runBlocking {
+        useRealHistory()
+        start()
+        advance(15)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        val older = demo.latestSourcedStatus()!!
+        demo.send(Codec.setMode(Mode.COOL)!!)
+        graph.actions.observeStatus(older, target)
+        assertNull(graph.repository.history.value.single().standbyObservedAt)
+    }
+
+    @Test fun standbyObservedAfterTheProgrammeEndRetainsTheReceiptTime() = runBlocking {
+        useRealHistory()
+        val night = start()
+        val observedAt = ZonedDateTime.parse(night.endsAt).plusMinutes(4)
+        graph.clock = Clock.fixed(observedAt.toInstant(), ZoneOffset.UTC)
+        demo.send(Codec.setMode(Mode.STANDBY)!!)
+        graph.actions.observeStatus(demo.status.value!!, target, receivedAt = observedAt)
+        assertEquals(observedAt.toString(), graph.repository.history.value.single().standbyObservedAt)
+        assertEquals(1, events(night).count { it.kind == EventKind.ENDED })
+    }
+
     @Test fun aLateStandbyReportClosesAnUnconfirmedOffAsStoppedWithoutAnotherWrite() = runBlocking {
         useRealHistory()
         val n = start(); advance(30)
@@ -179,6 +246,7 @@ class SendConfirmationTest {
         demo.send(Codec.setMode(Mode.STANDBY)!!)
         graph.actions.observeStatus(demo.status.value!!, target)
         assertNull("a later target Standby confirms the pending Off", graph.repository.activeNight.value)
+        assertEquals(graph.now().toString(), graph.repository.history.value.single().standbyObservedAt)
         assertEquals(writes, sent.size)
         assertEquals(1, events(n).count { it.kind == EventKind.STOPPED })
         assertTrue(events(n).none { it.kind == EventKind.ENDED })

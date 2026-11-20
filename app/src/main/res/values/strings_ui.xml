@@ -206,6 +206,9 @@
     <!-- Remote (P6). The "… set" and "… on/off" labels also name the command while it waits for the BedJet. -->
     <string name="remote_title">Remote</string>
     <string name="remote_connect">Connect to your BedJet to use the remote.</string>
+    <string name="reading_room">Room %1$s</string>
+    <string name="reading_demo">Demo reading</string>
+    <string name="reading_recent">Recent BedJet reading</string>
     <string name="remote_air_room">Air %1$s · room %2$s</string>
     <string name="remote_program_step">Running step %1$d of a night</string>
     <string name="remote_temperature_set">Temperature set</string>
@@ -284,7 +287,6 @@
     <string name="profiles_middle_short">%1$s fan %2$d→%3$d%%</string>
     <!-- History (P6) -->
     <string name="history_title">Sleep</string>
-    <string name="history_empty">Nights you run appear here, with every change made during them.</string>
     <!-- A recorded step: time, block, mode, [temperature,] fan and length. -->
     <string name="history_step_temp">%1$s  %2$s: %3$s, %4$s, fan %5$d%%, %6$s</string>
     <string name="history_step">%1$s  %2$s: %3$s, fan %4$d%%, %5$s</string>

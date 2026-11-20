@@ -72,6 +72,45 @@ class NightActions(private val graph: Graph) {
         CommandRequest(command, profileId, repo.settings.value.deviceId(), repo.activeNight.value?.identity, requireIdentity,
             origin = defaultCommandOrigin(command))
 
+    internal data class NapStart(val request: CommandRequest, val preset: NapPreset, val slot: Int,
+        val profile: Profile?, val wake: ZonedDateTime?, val alarm: AlarmSource.NextAlarm?)
+
+    internal fun captureNap(selectedProfile: Profile?, wake: ZonedDateTime? = null, alarm: AlarmSource.NextAlarm? = null): NapStart {
+        val settings = repo.settings.value
+        return NapStart(capture(Command.START_NIGHT, requireIdentity = true), settings.napPreset, settings.workingSlot,
+            selectedProfile.takeIf { settings.napPreset.useProfileOpening }, wake, alarm)
+    }
+
+    internal fun napStillCurrent(nap: NapStart): Boolean {
+        val settings = repo.settings.value
+        if (settings.napPreset != nap.preset || settings.workingSlot != nap.slot) return false
+        if (nap.preset.useProfileOpening && (nap.profile == null || repo.tonightsProfile() != nap.profile)) return false
+        return nap.alarm?.let { chosen ->
+            val current = AlarmSource.describe(context, settings)
+            chosen.counts && chosen.time == nap.wake && current?.counts == true && current.time.isEqual(chosen.time) &&
+                current.creator == chosen.creator
+        } ?: true
+    }
+
+    internal suspend fun startNap(nap: NapStart): CommandOutcome =
+        owned(text(R.string.nap_title), nap.request.deviceId, MIN_BUDGET_MS, origin = CommandOrigin.APP) {
+            val request = nap.request
+            val target = request.deviceId ?: return@owned refused(R.string.runtime_choose_target)
+            if (request.expected != repo.activeNight.value?.identity || !napStillCurrent(nap)) return@owned stale()
+            if (ReplacementPolicy.decide(Command.START_NIGHT, repo.activeNight.value).needsConfirmation && !request.replacementConfirmed)
+                return@owned CommandOutcome(OutcomeKind.CONFIRMATION_REQUIRED, text(R.string.runtime_replace_confirmation))
+            slotBackupsRefusal(nap.slot)?.let { return@owned it }
+            connected {
+                if (!napStillCurrent(nap)) return@connected stale()
+                val prepared = graph.runner().prepareNap(text(R.string.nap_title), nap.preset, nap.wake, nap.alarm != null,
+                    nap.profile, nap.slot, target, request.expected, repo.activeNight.value)
+                if (prepared is Preparation.Ready) advanceGeneration()
+                apply(prepared, R.string.nap_started, validate = {
+                    if (!napStillCurrent(nap)) throw PlanException(text(R.string.runtime_stale))
+                })
+            }
+        }
+
     fun shortTestPreview(): ShortTestPreview? = repo.settings.value.deviceId()?.let {
         ShortTestPreview(it, repo.settings.value.workingSlot, graph.now())
     }
@@ -345,13 +384,13 @@ class NightActions(private val graph: Graph) {
                 ?.copy(commandVersion = it.generation + 1)) }
     }
     private fun validResumeOffer(runtime: RuntimeState): ResumeOffer? = runtime.resumeOffer?.takeIf {
-        it.commandVersion == runtime.generation && it.night.deviceId == repo.settings.value.deviceId() &&
+        !it.night.hasClockTimedNap && it.commandVersion == runtime.generation && it.night.deviceId == repo.settings.value.deviceId() &&
             graph.now().isBefore(ZonedDateTime.parse(it.expiresAt)) && graph.now().isBefore(ZonedDateTime.parse(it.night.wakeAt))
     }
     /** [night] leaves its programme for a manual run: offer to resume the programme, as Stop tracking would. A night
      * already manual keeps the offer it has, since its own steps are not a programme to resume. */
     private suspend fun offerProgrammeResume(night: ActiveNight) {
-        if (night.trackingManual) return
+        if (night.trackingManual || night.hasClockTimedNap) return
         val offer = io.github.willzy12h.nocturne.core.night.stopTracking(night, text(R.string.runtime_manual_tracking), graph.now(),
             repo.runtime.value.generation).resumeOffer
         // The newest programme actually displaced wins; its own 15-minute window starts at this adjustment.
@@ -423,6 +462,7 @@ class NightActions(private val graph: Graph) {
         }
         if (command == Command.REAPPLY) {
             val night = repo.activeNight.value ?: return refused(R.string.runtime_no_night)
+            if (night.isNap) return refused(R.string.nap_fixed_wake)
             if (night.isTestRun) return refused(R.string.short_test_fixed_plan)
             if (night.trackingManual) return refused(R.string.runtime_manual_tracking)
             val profile = repo.profile(night.profileId) ?: return refused(R.string.runtime_profile_deleted)
@@ -430,10 +470,10 @@ class NightActions(private val graph: Graph) {
             advanceGeneration()
             return apply(graph.runner().reapply(night, profile, night.identity, repo.settings.value.resolveWakeOverride(graph.now())?.wakeAt?.let(ZonedDateTime::parse)), R.string.runtime_reapplied)
         }
-        advanceGeneration(preserveOffer = command in TIMED_MANUAL || repo.activeNight.value?.trackingManual != false)
+        advanceGeneration(preserveOffer = command in TIMED_MANUAL || repo.activeNight.value?.trackingManual != false || repo.activeNight.value?.hasClockTimedNap == true)
         return when (command) {
             Command.OFF, Command.END_NIGHT -> manualChange(text(R.string.runtime_off), endsNight = true, confirms = { it.mode == Mode.STANDBY },
-                unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
+                isOff = true, unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
             Command.TURBO -> quick(request.actionPreset ?: ActionPreset(Mode.TURBO, 86, 100, 10),
                 request.actionPreset?.let { capturedPresetMessage(context, it) } ?: text(R.string.runtime_turbo))
             Command.COOL -> quick(request.actionPreset ?: repo.settings.value.extendCool,
@@ -488,7 +528,7 @@ class NightActions(private val graph: Graph) {
     }
     private fun confirmedPreparedProgramme(change: PreparedChange): ActiveNight? = repo.activeNight.value?.takeIf {
         change.request.kind in setOf(ChangeKind.START, ChangeKind.REAPPLY, ChangeKind.RESUME, ChangeKind.TEMPORARY) &&
-            it == change.intended && it.confidence == Confidence.CONFIRMED && !it.trackingManual && !hasUnreconciledProgramme(it)
+            change.matchesConfirmed(it) && it.confidence == Confidence.CONFIRMED && !it.trackingManual && !hasUnreconciledProgramme(it)
     }
     /** A revision and its event share one durable history write, so interrupted settlement can repeat safely. */
     private suspend fun recordConfirmedProgramme(change: PreparedChange, night: ActiveNight, message: Int) {
@@ -505,7 +545,7 @@ class NightActions(private val graph: Graph) {
         }
         val existing = repo.history.value.firstOrNull { it.id == night.recordId }
         val record = existing ?: NightRecord(night.recordId, night.profileId, night.profile!!.name, night.startedAt,
-            night.wakeAt, night.wakeFromAlarm, night.applied.steps, deviceId = night.deviceId, isTestRun = night.isTestRun)
+            night.wakeAt, night.wakeFromAlarm, night.applied.steps, deviceId = night.deviceId, isTestRun = night.isTestRun, isNap = night.isNap)
         val revised = NightMutation.Applied(change.plan, night).recordRevision(record)
         val started = existing == null || change.request.kind == ChangeKind.START
         val events = if (night.applied in record.revisions) record.events else record.events +
@@ -516,9 +556,13 @@ class NightActions(private val graph: Graph) {
                 change.previous?.trackingManual == false && events.none {
                     it.kind in setOf(EventKind.ERROR, EventKind.STOPPED, EventKind.REMOTE_CHANGE, EventKind.RECOVERED)
                 })
-        repo.addRecord(revised.copy(events = events, bedJetRunConfirmed = continuous && !repo.settings.value.demoMode &&
-            !night.isTestRun && !io.github.willzy12h.nocturne.core.link.DeviceId.isDemo(night.deviceId) &&
-                night.deviceId.startsWith("ble:") && night.confidence == Confidence.CONFIRMED && night.pending == null))
+        // A new programme confirmed after an earlier observed standby has a new running interval.
+        val restarted = record.standbyObservedAt != null && night.applied !in record.revisions
+        val confirmedRun = continuous && !repo.settings.value.demoMode && !night.isTestRun && !DeviceId.isDemo(night.deviceId) &&
+            night.deviceId.startsWith("ble:") && night.confidence == Confidence.CONFIRMED && night.pending == null
+        repo.addRecord(revised.copy(events = events, bedJetRunConfirmed = confirmedRun,
+            standbyObservedAt = if (restarted) null else record.standbyObservedAt,
+            lastRunningObservedAt = if (restarted) events.last().at else record.lastRunningObservedAt))
     }
     private fun temporaryShortened(change: PreparedChange): Boolean {
         if (change.request.kind != ChangeKind.RETIME) return false
@@ -544,7 +588,7 @@ class NightActions(private val graph: Graph) {
         val result = graph.runner().apply(change, { repo.activeNight.value }, { repo.runtime.value.generation },
             publish = {
                 try { publishNight(it) } catch (e: Exception) {
-                    if (it != change.intended || repo.activeNight.value != it) throw e
+                    if (!change.matchesConfirmed(it) || repo.activeNight.value != it) throw e
                     // The confirmed snapshot is already durable. Defer a later local failure (including
                     // cancellation) beyond the core's hardware-failure catch so it cannot undo that proof.
                     confirmedPublicationFailure = e
@@ -556,7 +600,7 @@ class NightActions(private val graph: Graph) {
                     repo.history.value.none { record -> record.id == it.recordId }) {
                     repo.addRecord(NightRecord(intended.recordId, intended.profileId, intended.profile!!.name, intended.startedAt,
                         intended.wakeAt, intended.wakeFromAlarm, intended.applied.steps, deviceId = intended.deviceId,
-                        isTestRun = intended.isTestRun))
+                        isTestRun = intended.isTestRun, isNap = intended.isNap))
                 }
                 if (it.confidence != Confidence.CONFIRMED) Notifications.cancelQuiet(context)
             }, validate = validate, onConfirmed = { programmeConfirmed(change.intended, it) },
@@ -707,7 +751,7 @@ class NightActions(private val graph: Graph) {
      */
     private suspend fun manualChange(message: String, endsNight: Boolean, affectsProgramme: Boolean = false,
         confirms: ((DeviceStatus) -> Boolean)?, allowCurrentStatus: Boolean = false,
-        unconfirmed: String = text(R.string.runtime_sent_unconfirmed, message),
+        isOff: Boolean = false, unconfirmed: String = text(R.string.runtime_sent_unconfirmed, message),
         work: suspend () -> Unit): CommandOutcome {
         val night = repo.activeNight.value
         val requestedAt = graph.now()
@@ -732,7 +776,8 @@ class NightActions(private val graph: Graph) {
             }
             if (endsNight && night != null) {
                 if (confirmed) {
-                    val end = PendingEnd(night.identity, event(EventKind.STOPPED, message), isTestRun = night.isTestRun)
+                    val end = PendingEnd(night.identity, event(EventKind.STOPPED, message), isTestRun = night.isTestRun,
+                        isNap = night.isNap, standbyObservedAt = if (isOff) graph.now().toString() else null)
                     confirmedEnd = end
                     finishLocked(night, EventKind.STOPPED, message, end)
                 }
@@ -822,7 +867,7 @@ class NightActions(private val graph: Graph) {
         if (repo.activeNight.value?.identity == night.identity) finishLocked(night, kind, detail)
     }
     private suspend fun finishLocked(night: ActiveNight, kind: EventKind, detail: String,
-        end: PendingEnd = PendingEnd(night.identity, event(kind, detail), isTestRun = night.isTestRun,
+        end: PendingEnd = PendingEnd(night.identity, event(kind, detail), isTestRun = night.isTestRun, isNap = night.isNap,
             confirmedCompletionAt = confirmedCompletion(night, kind))) {
         val transition = io.github.willzy12h.nocturne.core.night.stopTracking(night, detail, graph.now(), repo.runtime.value.generation)
         // IR-06: a slot write made in this night, or one that displaced it, ends with it.
@@ -831,7 +876,7 @@ class NightActions(private val graph: Graph) {
             endRequestedEpoch = null, endRequestedSequence = null,
             resumeOffer = when {
                 kind == EventKind.ENDED -> null
-                night.trackingManual -> validResumeOffer(it)
+                night.trackingManual || night.hasClockTimedNap -> validResumeOffer(it)
                 else -> transition.resumeOffer
             }, reason = null,
             wakeShown = null, manualWakeShown = false, slotWrite = it.slotWrite?.takeUnless { w -> w.belongsTo(night.recordId) }) }
@@ -852,10 +897,10 @@ class NightActions(private val graph: Graph) {
         val end = repo.runtime.value.ending ?: return
         val active = repo.activeNight.value
         if (active == null || active.identity == end.identity) {
-            repo.completeHistoryRecord(end.identity.nightId, end.event, end.confirmedCompletionAt)
+            repo.completeHistoryRecord(end.identity.nightId, end.event, end.confirmedCompletionAt, end.standbyObservedAt)
             publishNight(null)
-            if (!end.isTestRun && active?.isTestRun != true &&
-                repo.history.value.none { it.id == end.identity.nightId && it.isTestRun })
+            if (!end.isTestRun && !end.isNap && active?.isTestRun != true && active?.isNap != true &&
+                repo.history.value.none { it.id == end.identity.nightId && (it.isTestRun || it.isNap) })
                 repo.updateSettings { it.clearWakeOverride() }
             NightAlarms.cancel(context)
             Notifications.cancelWakeUp(context)
@@ -865,18 +910,22 @@ class NightActions(private val graph: Graph) {
     }
     private suspend fun stopTrackingLocked(): CommandOutcome {
         val n = repo.activeNight.value ?: return refused(R.string.runtime_no_night)
-        advanceGeneration(preserveOffer = n.trackingManual)
+        advanceGeneration(preserveOffer = n.trackingManual || n.hasClockTimedNap)
         finishLocked(n, EventKind.STOPPED, text(R.string.runtime_stop_tracking))
         return CommandOutcome(OutcomeKind.LOCAL, text(R.string.runtime_stop_tracking))
     }
     suspend fun expire(expected: NightIdentity? = repo.activeNight.value?.identity): Boolean = lock.withLock { expireLocked(expected) }
-    private suspend fun expireLocked(expected: NightIdentity?): Boolean {
+    private suspend fun expireLocked(expected: NightIdentity?, standbyObservedAt: ZonedDateTime? = null): Boolean {
         val n = repo.activeNight.value ?: return false
         // The old programme end cannot convert an unconfirmed explicit ending command into natural completion.
         if (repo.runtime.value.endRequested == n.identity) return false
         if (n.identity != expected || io.github.willzy12h.nocturne.core.night.expire(n, graph.now()) == null) return false
         advanceGeneration()
-        finishLocked(n, EventKind.ENDED, text(R.string.runtime_ended)); return true
+        val detail = text(R.string.runtime_ended)
+        finishLocked(n, EventKind.ENDED, detail, PendingEnd(n.identity, event(EventKind.ENDED, detail), n.isTestRun,
+            confirmedCompletionAt = confirmedCompletion(n, EventKind.ENDED), isNap = n.isNap,
+            standbyObservedAt = standbyObservedAt?.toString()))
+        return true
     }
     val retimePending: Boolean get() = repo.runtime.value.retime != null || repo.runtime.value.alarmInbox != null
     suspend fun retryPendingRetime(): String? = if (!retimePending) null else owned(label(Command.RETIME), repo.settings.value.deviceId(), MIN_BUDGET_MS,
@@ -942,6 +991,7 @@ class NightActions(private val graph: Graph) {
             if (!retimePending) NightAlarms.cancelRetry(context)
             return refused(R.string.runtime_no_night)
         }
+        if (night.isNap) return local(R.string.nap_fixed_wake)
         if (!graph.now().isBefore(ZonedDateTime.parse(night.wakeUpStart))) {
             expireRetimeFor(night.recordId)
             return local(R.string.runtime_unchanged)
@@ -1519,7 +1569,7 @@ class NightActions(private val graph: Graph) {
     suspend fun wakeUp(expected: NightIdentity?) = lock.withLock { wakeUpLocked(expected) }
     private suspend fun wakeUpLocked(expected: NightIdentity?) {
         val n = repo.activeNight.value ?: return
-        if (n.identity != expected || n.trackingManual || n.confidence != Confidence.CONFIRMED || repo.runtime.value.wakeShown == n.identity ||
+        if (n.identity != expected || n.trackingManual || n.isNap || n.confidence != Confidence.CONFIRMED || repo.runtime.value.wakeShown == n.identity ||
             hasUnreconciledProgramme(n) ||
             graph.now().isBefore(ZonedDateTime.parse(n.wakeUpStart)) || !graph.now().isBefore(ZonedDateTime.parse(n.endsAt))) return
         repo.updateRuntime { it.copy(wakeShown = n.identity, manualWakeShown = false) }
@@ -1565,11 +1615,16 @@ class NightActions(private val graph: Graph) {
         if (target != repo.settings.value.deviceId() || !DeviceId.same(source, target) ||
             (!receivedDuringProgramme && graph.link.state.value != LinkState.READY)) return
         val n = repo.activeNight.value ?: return
-        if (finishRequestedEnd(status, receipt)) return
+        if (finishRequestedEnd(status, receipt, receivedAt)) return
         if (!admitProgrammeReceipt(observed, n)) return
         // Off is established by the head itself; no optional programme-progress tail can make it running.
         if (n.confidence == Confidence.CONFIRMED && !n.trackingManual && !status.isRunning) {
-            recordTakeover(n)
+            val latest = graph.link.latestSourcedStatus()
+            val witnessed = receipt?.epoch == statusEpoch && receipt.sequence > observationStartedSequence &&
+                DeviceId.same(n.deviceId, target) && latest != null && latest.receiptOrder >= receipt.sequence &&
+                latest.isFrom(n.deviceId) && !latest.status.isRunning
+            if (witnessed && !receivedAt.isBefore(ZonedDateTime.parse(n.endsAt)) && expireLocked(n.identity, receivedAt)) return
+            recordTakeover(n, standbyObservedAt = if (witnessed) receivedAt else null)
             return
         }
         val extra = status.extra ?: return
@@ -1580,7 +1635,14 @@ class NightActions(private val graph: Graph) {
         if (n.confidence != Confidence.CONFIRMED) return
         // IR-08: a kept manual run is watched against its own step.
         if (n.trackingManual) { if (contradictsManual(n, status, receivedAt)) recordTakeover(n); return }
-        if (matchesCurrentProgramme(n, status, receivedAt)) return
+        if (matchesCurrentProgramme(n, status, receivedAt)) {
+            if (status.isRunning && receipt?.epoch == statusEpoch && receipt.sequence > observationStartedSequence) {
+                // History is best-effort. A failed sample must not interrupt the status collector or command settlement.
+                try { repo.recordRunningReport(n, receivedAt) } catch (e: CancellationException) { throw e }
+                catch (_: java.io.IOException) { }
+            }
+            return
+        }
         recordTakeover(n)
     }
 
@@ -1751,7 +1813,7 @@ class NightActions(private val graph: Graph) {
         }
     }
     /** Receipt order never depends on wall time. Restored/legacy markers require a new report in this runtime. */
-    private suspend fun finishRequestedEnd(status: DeviceStatus, receipt: StatusReceipt?): Boolean {
+    private suspend fun finishRequestedEnd(status: DeviceStatus, receipt: StatusReceipt?, receivedAt: ZonedDateTime = graph.now()): Boolean {
         val night = repo.activeNight.value ?: return false
         val request = repo.runtime.value
         val requestedSequence = request.endRequestedSequence?.takeIf { request.endRequestedEpoch == statusEpoch }
@@ -1760,7 +1822,9 @@ class NightActions(private val graph: Graph) {
         val latest = graph.link.latestSourcedStatus()
         if (latest != null && latest.receiptOrder >= receipt.sequence &&
             (!latest.isFrom(night.deviceId) || latest.status.isRunning)) return false
-        finishLocked(night, EventKind.STOPPED, request.endRequestedLabel ?: text(R.string.runtime_stopped))
+        val detail = request.endRequestedLabel ?: text(R.string.runtime_stopped)
+        finishLocked(night, EventKind.STOPPED, detail, PendingEnd(night.identity, event(EventKind.STOPPED, detail),
+            isTestRun = night.isTestRun, isNap = night.isNap, standbyObservedAt = receivedAt.toString()))
         return true
     }
     /** An automatic or programme-preserving rewrite never silently undoes a physical-remote change (IR-01).
@@ -1771,14 +1835,18 @@ class NightActions(private val graph: Graph) {
             return reconcileProgrammeOutcome(CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover), notificationHandled = true))
         // A local CONFIRMED night is not evidence that the BedJet still runs our programme: a remote Off or
         // manual change may have happened while disconnected.
-        if (matchesCurrentProgramme(n, freshStatus(), graph.now())) return null
-        recordTakeover(n)
+        val report = freshReport()
+        val receivedAt = graph.now()
+        if (matchesCurrentProgramme(n, report.status, receivedAt)) return null
+        recordTakeover(n, standbyObservedAt = receivedAt.takeIf { report.isFrom(n.deviceId) && !report.status.isRunning })
         return CommandOutcome(OutcomeKind.UNKNOWN, text(R.string.runtime_takeover), notificationHandled = true)
     }
-    private suspend fun recordTakeover(n: ActiveNight) {
+    private suspend fun recordTakeover(n: ActiveNight, standbyObservedAt: ZonedDateTime? = null) {
         publishNight(n.copy(confidence = Confidence.UNKNOWN))
         repo.updateRuntime { it.copy(retime = null, reason = text(R.string.runtime_takeover)) }
-        repo.addEvent(n.recordId, event(EventKind.REMOTE_CHANGE, text(R.string.runtime_takeover)))
+        val historyEvent = standbyObservedAt?.let { HistoryEvent(it.toString(), EventKind.REMOTE_CHANGE,
+            text(R.string.sleep_standby_event)) } ?: event(EventKind.REMOTE_CHANGE, text(R.string.runtime_takeover))
+        repo.addEvent(n.recordId, historyEvent, standbyObservedAt?.toString())
         NightAlarms.cancelRetry(context)
         Notifications.showInfo(context, text(R.string.runtime_takeover_title), text(R.string.runtime_takeover))
     }
@@ -1949,6 +2017,7 @@ class NightActions(private val graph: Graph) {
         owned(text(R.string.runtime_override_label), repo.settings.value.deviceId(), if (expected != null) MIN_BUDGET_MS else 0) {
         val n = repo.activeNight.value
         if (n?.identity != expected) return@owned stale()
+        if (n?.isNap == true) return@owned refused(R.string.nap_fixed_wake)
         if (n?.isTestRun == true) return@owned refused(R.string.short_test_fixed_plan)
         if (n != null && (n.confidence != Confidence.CONFIRMED || n.trackingManual)) return@owned refused(R.string.runtime_reconcile_needed)
         if (n == null) {
@@ -2288,7 +2357,7 @@ class NightActions(private val graph: Graph) {
     internal fun wakeChangePending(night: ActiveNight? = repo.activeNight.value, runtime: RuntimeState = repo.runtime.value,
         settings: Settings = repo.settings.value): Boolean {
         val target = settings.deviceId()
-        if (night == null || night.deviceId != target) return false
+        if (night == null || night.isNap || night.deviceId != target) return false
         return runtime.retime?.let { it.expected == night.identity && it.deviceId == target } == true ||
             runtime.alarmInbox?.let { it.nightId == night.recordId && it.deviceId == target } == true
     }

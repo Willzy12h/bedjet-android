@@ -254,7 +254,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                             verticalAlignment = Alignment.CenterVertically) { actions() }
                     }
                     val wake = model.wakePreview(profile)
-                    val description = describe(profile)
+                    val description = profileSummary(profile)
                     val wakeDescription = stringResource(R.string.wake_time) + " " + Format.clock(wake.time)
                     model.previewPlan(profile).getOrNull()?.let {
                         NightBar(it, null, Modifier.testTag("profile-timeline-${profile.id}")
@@ -480,7 +480,7 @@ private fun WeekdayDots(days: Set<Int>) {
 }
 
 @Composable
-private fun describe(profile: Profile): String {
+internal fun profileSummary(profile: Profile): String {
     val nothing = stringResource(R.string.profiles_nothing)
     val start = profile.start.map { stringResource(R.string.profiles_phase_short, modeName(it.mode), it.minutes) }.joinToString(" → ").ifEmpty { nothing }
     val quiet = profile.middle.quietFan

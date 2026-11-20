@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.plan.Profile
+import io.github.willzy12h.nocturne.core.plan.NapPreset
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -26,6 +27,21 @@ class SavedDataCompatibilityTest {
         val expected = ManualControls("ble:02:00:00:00:00:08", Mode.COOL, temperature = 46, fanStep = 11)
         assertEquals(expected, settings.manualFor(settings.targetDevice, Mode.COOL))
         assertEquals(expected, backup.settings.manualFor(backup.settings.targetDevice, Mode.COOL))
+        assertEquals(NapPreset(), settings.napPreset)
+        assertEquals(settings.napPreset, backup.settings.napPreset)
+        assertEquals(BackupCodec.SCHEMA, backup.schema)
+        assertTrue(backup.history.none { it.isNap })
+    }
+
+    @Test fun `beta 9 keeps the edited nap and observed BedJet history`() {
+        val saved = versions.single { it.name == "1.1.0-beta.9" }
+        val settings = BackupCodec.json.decodeFromString(Settings.serializer(), File(saved, "settings.json").readText())
+        val backup = BackupCodec.decode(File(saved, "backup.json").readText())
+        assertEquals(NapPreset(durationMinutes = 105), settings.napPreset)
+        assertEquals(settings, backup.settings)
+        val nap = backup.history.single { it.isNap }
+        assertEquals("2026-11-20T14:54:00Z", nap.lastRunningObservedAt)
+        assertEquals("2026-11-20T14:55:00Z", nap.standbyObservedAt)
     }
 
     @TestFactory fun `every released version's saved data still reads`(): List<DynamicTest> {

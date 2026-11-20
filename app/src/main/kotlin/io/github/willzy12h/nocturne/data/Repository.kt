@@ -65,6 +65,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.channels.FileChannel
+import java.nio.file.AccessDeniedException
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
@@ -558,11 +559,32 @@ class Repository(
         }
     }
 
-    suspend fun addEvent(recordId: String, event: HistoryEvent) =
-        update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { History.addEvent(it, recordId, event) }
+    suspend fun addEvent(recordId: String, event: HistoryEvent, standbyObservedAt: String? = null) =
+        update(_history, HISTORY, ListSerializer(NightRecord.serializer())) { History.addEvent(it, recordId, event, standbyObservedAt) }
+
+    /** Save at most one matching running receipt per five minutes without collecting further telemetry. */
+    suspend fun recordRunningReport(night: ActiveNight, receivedAt: ZonedDateTime) {
+        if (isDemoSession || night.isTestRun || DeviceId.isDemo(night.deviceId)) return
+        fun due(record: NightRecord): Boolean {
+            if (record.id != night.recordId || !DeviceId.same(record.deviceId, night.deviceId)) return false
+            val last = record.lastRunningObservedAt?.let { runCatching { ZonedDateTime.parse(it) }.getOrNull() }
+            return last == null || java.time.Duration.between(last, receivedAt).toMinutes() >= 5
+        }
+        if (_history.value.none(::due)) return
+        serially {
+            if (isDemoSession || _activeNight.value?.identity != night.identity) return@serially
+            val current = _history.value
+            val index = current.indexOfFirst(::due)
+            if (index < 0) return@serially
+            val amended = current.toMutableList().apply { this[index] = this[index].copy(lastRunningObservedAt = receivedAt.toString()) }
+            writeValue(HISTORY, ListSerializer(NightRecord.serializer()), amended)
+            _history.value = amended
+        }
+    }
 
     /** The ending journal can replay after a crash without duplicating an event or advancing its export version. */
-    suspend fun completeHistoryRecord(recordId: String, event: HistoryEvent, confirmedCompletionAt: String?) = serially {
+    suspend fun completeHistoryRecord(recordId: String, event: HistoryEvent, confirmedCompletionAt: String?,
+        standbyObservedAt: String? = null) = serially {
             if (_settings.value.demoMode) return@serially
             val before = _history.value
             val records = before.map { record ->
@@ -573,8 +595,9 @@ class Repository(
                             event.kind == EventKind.ENDED && events.none { e -> e.kind in
                                 setOf(EventKind.ERROR, EventKind.STOPPED, EventKind.REMOTE_CHANGE, EventKind.RECOVERED) }
                     }
-                    if (completed == null || completed == record.confirmedCompletionAt) record.copy(events = events)
-                    else record.copy(events = events, confirmedCompletionAt = completed,
+                    val observed = standbyObservedAt?.takeUnless { record.isTestRun || DeviceId.isDemo(record.deviceId) } ?: record.standbyObservedAt
+                    if (completed == null || completed == record.confirmedCompletionAt) record.copy(events = events, standbyObservedAt = observed)
+                    else record.copy(events = events, standbyObservedAt = observed, confirmedCompletionAt = completed,
                         healthExportVersion = maxOf(record.healthExportVersion.saturatedIncrement(),
                             java.time.ZonedDateTime.parse(completed).toInstant().toEpochMilli(), 1))
                 }
@@ -1423,12 +1446,34 @@ class Repository(
                 // File.renameTo cannot replace an existing destination, leaving the old bytes visible.
                 // A failed replacement must never be reported as a durable write.
                 val pending = File(file.path + ".new")
-                if (pending.exists()) Files.move(pending.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+                if (pending.exists()) finishAtomicReplacement {
+                    Files.move(pending.toPath(), file.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+                }
             } catch (e: IOException) {
                 atomic.failWrite(out)
                 throw e
             }
             file.absoluteFile.parentFile?.let(syncDirectory)
+        }
+
+        /** Windows can briefly deny replacement while another handle is closing. Keep the staged bytes until the move succeeds. */
+        internal fun finishAtomicReplacement(onWindows: Boolean = File.separatorChar == '\\', move: () -> Unit) {
+            var backoffMs = 10L
+            while (true) {
+                try {
+                    move()
+                    return
+                } catch (denied: AccessDeniedException) {
+                    // Five waits total 310 ms. Android and permanent errors retain the ordinary failure path.
+                    if (!onWindows || backoffMs > 160) throw denied
+                    try { Thread.sleep(backoffMs) } catch (interrupted: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        denied.addSuppressed(interrupted)
+                        throw denied
+                    }
+                    backoffMs *= 2
+                }
+            }
         }
 
         /**

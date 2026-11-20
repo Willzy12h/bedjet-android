@@ -9,6 +9,18 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 
 class UatQuickDefaultsTest {
+    @Test fun factoryPresetsChangeWithoutResettingExplicitOrLegacyChoices() {
+        val oldHeat = ActionPreset(Mode.HEAT, 64, 30, 30)
+        val oldLongHeat = ActionPreset(Mode.EXTENDED_HEAT, 60, 30, 30)
+        val upgraded = Json.decodeFromString<Settings>("""{"extendWarm":{"mode":"HEAT","temperature":64,"fanPercent":30,"minutes":30}}""")
+        assertEquals(ActionPreset(Mode.HEAT, 80, 30, 30), QuickDefaults.resolve(upgraded, Mode.HEAT))
+        assertEquals(oldLongHeat.copy(minutes = 150), QuickDefaults.resolve(upgraded, Mode.EXTENDED_HEAT))
+        val edited = upgraded.copy(quickDefaults = listOf(oldHeat, oldLongHeat))
+        val restored = Json.decodeFromString<Settings>(Json.encodeToString(edited))
+        assertEquals(oldHeat, QuickDefaults.resolve(restored, Mode.HEAT))
+        assertEquals(oldLongHeat, QuickDefaults.resolve(restored, Mode.EXTENDED_HEAT))
+    }
+
     @Test fun legacyWarmMigratesToItsActualModeWithoutLosingValues() {
         val warm = ActionPreset(Mode.EXTENDED_HEAT, 65, 45, 47)
         val cool = ActionPreset(Mode.COOL, 43, 65, 23)

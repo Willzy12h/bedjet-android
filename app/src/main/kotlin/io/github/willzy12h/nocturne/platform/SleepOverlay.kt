@@ -12,20 +12,57 @@ interface SleepSource {
     suspend fun nights(start: Instant, end: Instant): List<io.github.willzy12h.nocturne.sleep.SleepNight> = emptyList()
 }
 
-data class SleepNights(val availability: SleepAvailability, val nights: List<io.github.willzy12h.nocturne.sleep.SleepNight> = emptyList())
+data class SleepNights(
+    val availability: SleepAvailability,
+    val nights: List<io.github.willzy12h.nocturne.sleep.SleepNight> = emptyList(),
+    val partial: Boolean = false,
+)
 
-/** Reads the Sleep page's range of nights, with the same availability outcomes as [SleepOverlayReader]. */
+/** Historical access can end inside the selected range. Read newer dates first so they survive that boundary. */
 class SleepNightsReader(private val available: () -> Boolean, private val source: () -> SleepSource) {
-    suspend fun read(start: Instant, end: Instant): SleepNights {
-        if (!available()) return SleepNights(SleepAvailability.ABSENT)
-        return try {
+    suspend fun read(start: Instant, end: Instant, comparisonStart: Instant = start, overlapStart: Instant = start): SleepNights {
+        try {
+            if (!available()) return SleepNights(SleepAvailability.ABSENT)
             val client = source()
             if (!client.permitted()) return SleepNights(SleepAvailability.PERMISSION)
-            val nights = client.nights(start, end).filter { it.end > it.start }.sortedByDescending { it.start }
-            SleepNights(if (nights.isEmpty()) SleepAvailability.EMPTY else SleepAvailability.AVAILABLE, nights)
+            val nights = mutableListOf<io.github.willzy12h.nocturne.sleep.SleepNight>()
+            var readable = false
+            var partial = false
+            var until = end
+            // Read the preceding evening separately: a tracker can index an overnight session by its start.
+            // A denied comparison week must not swallow a readable session ending on the first visible date.
+            for (limit in listOf(start, overlapStart, comparisonStart).distinct()) {
+                val optional = limit < overlapStart
+                var window = java.time.Duration.ofDays(7)
+                while (until > limit) {
+                    val from = maxOf(limit, until.minus(window))
+                    try {
+                        nights += client.nights(from, until).filter { it.end > it.start }
+                        readable = true
+                        until = from
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        if (!client.permitted()) return SleepNights(SleepAvailability.PERMISSION)
+                        if (e is SecurityException && window.toDays() > 1 && !optional) {
+                            // The historical permission boundary can bisect a week.
+                            window = java.time.Duration.ofDays(1)
+                            continue
+                        }
+                        // The current sleep permission was checked above. A failed read alone cannot prove revocation.
+                        if (!readable) return SleepNights(SleepAvailability.ERROR)
+                        partial = !optional
+                        break
+                    }
+                }
+                if (until > limit) break
+            }
+            if (!client.permitted()) return SleepNights(SleepAvailability.PERMISSION)
+            val sorted = nights.distinctBy { it.sourceId ?: "${it.start}/${it.end}" }.sortedByDescending { it.start }
+            return SleepNights(if (sorted.isEmpty()) SleepAvailability.EMPTY else SleepAvailability.AVAILABLE, sorted, partial)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e
-        } catch (_: SecurityException) { SleepNights(SleepAvailability.PERMISSION)
-        } catch (_: Exception) { SleepNights(SleepAvailability.ERROR) }
+        } catch (_: SecurityException) { return SleepNights(SleepAvailability.PERMISSION)
+        } catch (_: Exception) { return SleepNights(SleepAvailability.ERROR) }
     }
 }
 class SleepOverlayReader(private val available: () -> Boolean, private val source: () -> SleepSource) {

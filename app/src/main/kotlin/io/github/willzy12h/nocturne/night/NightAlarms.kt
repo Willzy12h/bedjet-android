@@ -19,7 +19,7 @@ object NightAlarms {
     const val EXTRA_NIGHT = "nightId"
     const val EXTRA_REVISION = "revision"
     fun schedule(context: Context, night: ActiveNight) {
-        if (!night.trackingManual) set(context, ACTION_WAKE_UP, ZonedDateTime.parse(night.wakeUpStart), night.identity)
+        if (!night.trackingManual && !night.isNap) set(context, ACTION_WAKE_UP, ZonedDateTime.parse(night.wakeUpStart), night.identity)
         else cancel(context, ACTION_WAKE_UP)
         set(context, ACTION_NIGHT_END, ZonedDateTime.parse(night.endsAt), night.identity)
     }

@@ -151,7 +151,7 @@ def main():
                 raise VerificationError(f"Missing compiled factory discovered by the pre-R8 fixture: {name}")
         libraries, consumers = dependencies([Path(path) for path in inputs["classpath"]], set(classes))
         r8 = resolved_r8(inputs)
-        java = str(Path(inputs["javaHome"]) / "bin/java")
+        java = str(Path(inputs["javaHome"]) / "bin" / ("java.exe" if os.name == "nt" else "java"))
         version_output = run([java, "-cp", str(r8), "com.android.tools.r8.R8", "--version"], args.output / "r8-version.log")
         match = re.search(r"^R8 (\S+)", version_output, re.MULTILINE)
         if not match:

@@ -74,15 +74,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.time.ZonedDateTime
+
+private const val READING_RECENT_MS = 10_000L
 
 /** The screens' view of the app: stored data, the live BedJet, and the actions behind every button. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -161,51 +162,60 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _hasLiveStatus = MutableStateFlow(false)
     /** Whether the displayed value came from the selected target's current visible connection. */
     val hasLiveStatus: StateFlow<Boolean> = _hasLiveStatus.asStateFlow()
-    /** Retain the selected target's last display while hidden/reconnecting; only visible screens collect live data.
-     * Control fields stay live; sensor changes of at least half a degree publish at most every 30 seconds. */
+    /** A real sensor head stays recent for ten seconds. Replaying or supplementing it cannot renew its age. */
+    val readingFresh = combine(visible, repo.settings.map { it.deviceId() }.distinctUntilChanged()) { shown, target ->
+        target.takeIf { shown }
+    }.flatMapLatest { target ->
+        if (target == null) flowOf(false)
+        else graph.link.sourcedStatus.map { it?.takeIf { report -> report.isFrom(target) }?.measuredAtElapsedMs }
+            .distinctUntilChanged().transformLatest { measuredAt ->
+                val age = measuredAt?.let { SystemClock.elapsedRealtime() - it }
+                if (age != null && age in 0 until READING_RECENT_MS) {
+                    emit(true)
+                    delay(READING_RECENT_MS - age)
+                }
+                emit(false)
+            }.onStart { emit(false) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(0, 0), false)
+
+    /** Retain a selected unit's last display when hidden or disconnected. Controls use every report;
+     * coalesce sensor bursts against a fixed deadline so continuous readings cannot postpone the next update. */
     val status: StateFlow<DeviceStatus?> = repo.settings.map { it.deviceId() }.distinctUntilChanged().flatMapLatest { target ->
-        // These survive a visibility change, but never a selected-target change.
-        var lastSensors: Pair<Int, Int>? = null
-        var lastSensorAt = 0L
         visible.flatMapLatest { shown ->
             if (!shown) {
                 _hasLiveStatus.value = false
                 emptyFlow<DeviceStatus?>()
             } else {
-                val live = graph.link.sourcedStatus.map { displayedStatus(it, target) }
-                    .onEach { if (it == null) _hasLiveStatus.value = false }
-                val temperatures = live.map { it?.let { s -> s.actualTemperature to s.ambientTemperature } }
-                    .distinctUntilChanged().transformLatest<Pair<Int, Int>?, Pair<Int, Int>> { sensors ->
-                        // A retired connection cancels its queued sample without erasing the display cache.
-                        if (sensors == null) return@transformLatest
-                        val previous = lastSensors
-                        if (previous != null) emit(previous)
-                        if (previous == sensors) return@transformLatest
-                        if (previous != null) delay((lastSensorAt + 30_000 - SystemClock.elapsedRealtime()).coerceAtLeast(0))
-                        // Protocol sensor values are half-degrees: one unit is the 0.5 °C threshold.
-                        val next = if (previous == null) sensors else
-                            (if (kotlin.math.abs(sensors.first - previous.first) >= 1) sensors.first else previous.first) to
-                            (if (kotlin.math.abs(sensors.second - previous.second) >= 1) sensors.second else previous.second)
-                        lastSensors = next
-                        lastSensorAt = SystemClock.elapsedRealtime()
-                        emit(next)
+                var previous: DeviceStatus? = null
+                var publishedAt = 0L
+                graph.link.sourcedStatus.transformLatest { report ->
+                    val current = displayedStatus(report, target)
+                    if (current == null) {
+                        previous = null
+                        _hasLiveStatus.value = false
+                        return@transformLatest
                     }
-                combine(live, temperatures) { current, (actual, ambient) ->
-                    current?.copy(actualTemperature = actual, ambientTemperature = ambient)
-                }.transform<DeviceStatus?, DeviceStatus?> {
-                    if (it == null) _hasLiveStatus.value = false
-                    else {
-                        emit(it)
-                        _hasLiveStatus.value = true
+                    val last = previous
+                    if (last == null || current.actualTemperature != last.actualTemperature ||
+                        current.ambientTemperature != last.ambientTemperature) {
+                        val wait = publishedAt + 1_000 - SystemClock.elapsedRealtime()
+                        if (last != null && wait > 0) {
+                            emit(current.copy(actualTemperature = last.actualTemperature, ambientTemperature = last.ambientTemperature))
+                            _hasLiveStatus.value = true
+                            delay(wait)
+                        }
+                        publishedAt = SystemClock.elapsedRealtime()
+                        previous = current
                     }
+                    emit(current)
+                    _hasLiveStatus.value = true
                 }
             }
         }.onStart {
             _hasLiveStatus.value = false
-            emit(null) // A different selected target must never inherit the previous unit's display.
+            emit(null) // A newly selected unit never inherits readings from the old one.
         }
-    }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private var pendingCommands = 0
     private val _busy = MutableStateFlow(false)
@@ -397,6 +407,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    internal fun captureNap(profile: Profile?, wake: ZonedDateTime? = null, alarm: AlarmSource.NextAlarm? = null) =
+        graph.actions.captureNap(profile, wake, alarm)
+
+    internal fun runNap(nap: NightActions.NapStart) {
+        val request = nap.request.copy(replacementConfirmed = confirmedNight != null && confirmedNight == nap.request.expected)
+        act(tap = connectingCommand(request, text(R.string.nap_title), nap = nap)) {
+            graph.actions.startNap(nap.copy(request = request))
+        }
+    }
+
     fun shortTestPreview(): ShortTestPreview? = graph.actions.shortTestPreview()
     fun startShortTest(preview: ShortTestPreview) = act { graph.actions.startShortTest(preview) }
 
@@ -446,8 +466,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _connectingCommand = MutableStateFlow<ConnectingCommand?>(null)
     internal val connectingCommand = _connectingCommand.asStateFlow()
 
-    private fun connectingCommand(request: CommandRequest, label: String, off: Boolean = false): ConnectingCommand {
-        val starting = request.command == NightActions.Command.START_NIGHT
+    private fun connectingCommand(request: CommandRequest, label: String, off: Boolean = false, nap: NightActions.NapStart? = null): ConnectingCommand {
+        val starting = nap == null && request.command == NightActions.Command.START_NIGHT
         fun selectedProfile() = if (request.profileId == null) repo.tonightsProfile() else repo.profile(request.profileId)
         val profile = if (starting) selectedProfile() else null
         val wake = profile?.let { startPreview(it).wake }
@@ -458,6 +478,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return ConnectingCommand(label, off, request.deviceId, seen) {
             val sameNight = generation == repo.runtime.value.generation && activeNight.value?.identity == request.expected
             val samePlan = when {
+                nap != null -> graph.actions.napStillCurrent(nap)
                 !starting -> true
                 profile == null -> false
                 else -> {

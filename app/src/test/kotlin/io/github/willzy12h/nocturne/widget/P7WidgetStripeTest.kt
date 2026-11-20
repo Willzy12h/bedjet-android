@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.preferencesOf
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.compose
@@ -40,6 +41,7 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
     private fun descendants(v: View): List<View> = listOf(v) +
         if (v is ViewGroup) (0 until v.childCount).flatMap { descendants(v.getChildAt(it)) } else emptyList()
 
+    private data class Placement(val widget: GlanceAppWidget, val state: Preferences, val label: String, val temperature: Int)
     private data class Example(val command: String, val label: String, val page: String, val mode: Mode)
 
     @Test fun controlLabelsHaveReadableContrastOnTheirFill() = runBlocking {
@@ -92,22 +94,27 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
                 Example("WARM", "Warm", "HEAT", Mode.HEAT),
                 Example("TURBO", "Turbo 10m", "TURBO", Mode.TURBO),
                 Example("OFF", "Off", "OFF", Mode.STANDBY))) {
-                val temperature = if (typedMode == Mode.STANDBY) 0 else QuickDefaults.resolve(context.graph.repository.settings.value, typedMode).temperature
-                val expected = palette.tokens.stepColor(typedMode, temperature).toArgb()
-                for (single in listOf(false, true)) {
-                    val widget: GlanceAppWidget = if (single) SingleActionWidget() else QuickControlsWidget()
-                    val state = if (single) preferencesOf(SingleActionWidget.KEY_COMMAND to command,
-                        SingleActionWidget.KEY_LABEL to label)
-                    else preferencesOf(QuickControlsWidget.KEY_PRESETS to page)
+                val settings = context.graph.repository.settings.value
+                val presetTemperature = if (typedMode == Mode.STANDBY) 0 else QuickDefaults.resolve(settings, typedMode).temperature
+                val presetLabel = requireNotNull(widgetPreset(context, page)).label
+                // Existing WARM command tiles run the saved Extend Warm settings; new HEAT preset tiles run Quick Heat.
+                val legacyTemperature = if (command == "WARM") settings.extendWarm.temperature else presetTemperature
+                val placements = listOf(
+                    Placement(QuickControlsWidget(), preferencesOf(QuickControlsWidget.KEY_PRESETS to page), presetLabel, presetTemperature),
+                    Placement(SingleActionWidget(), preferencesOf(SingleActionWidget.KEY_PRESET to page), presetLabel, presetTemperature),
+                    Placement(SingleActionWidget(), preferencesOf(SingleActionWidget.KEY_COMMAND to command,
+                        SingleActionWidget.KEY_LABEL to label), label, legacyTemperature),
+                )
+                for ((widget, state, shown, temperature) in placements) {
+                    val expected = palette.tokens.stepColor(typedMode, temperature).toArgb()
                     val root = widget.compose(context, size = size, state = state).apply(context, FrameLayout(context))
                     val density = context.resources.displayMetrics.density
                     root.measure(View.MeasureSpec.makeMeasureSpec((size.width.value * density).toInt(), View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec((size.height.value * density).toInt(), View.MeasureSpec.EXACTLY))
                     root.layout(0, 0, root.measuredWidth, root.measuredHeight)
-                    val shown = if (single) label else widgetPreset(context, page)!!.label
                     val action = requireNotNull(widgetControl(root, shown)) { "$shown must be tappable" }
-                    assertTrue("$label must be at least 48dp", action.width / density >= 48 && action.height / density >= 48)
-                    assertTrue("$label must retain its action description", widgetDescription(action).isNotBlank())
+                    assertTrue("$shown must be at least 48dp", action.width / density >= 48 && action.height / density >= 48)
+                    assertTrue("$shown must retain its action description", widgetDescription(action).isNotBlank())
                     val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
                     root.draw(Canvas(bitmap))
                     val stripe = palette.tokens.stepColor(typedMode, temperature)
@@ -129,7 +136,7 @@ class P7WidgetStripeTest : PlatformGraphFixture() {
                         if (foundStripeAndTint) break
                     }
                     bitmap.recycle()
-                    assertTrue("$palette $command ${widget.javaClass.simpleName} needs a 4dp stripe beside its tinted row", foundStripeAndTint)
+                    assertTrue("$palette $shown ${widget.javaClass.simpleName} needs a 4dp stripe beside its tinted row", foundStripeAndTint)
                 }
             }
         }

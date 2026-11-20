@@ -72,6 +72,7 @@ object Notifications {
 
     /** The wake-up notification. It stays until the night ends or Off is pressed. */
     fun showWakeUp(context: Context, night: ActiveNight, settings: Settings, status: String? = null, logNotice: Boolean = true) {
+        if (night.isNap) return
         val wake = io.github.willzy12h.nocturne.ui.Format.clock(night.wakeAt)
         // Only a kept, confirmed manual run has a captured end; an uncertain adjustment can retain an old timestamp.
         val ordinaryTitle = when {
@@ -133,7 +134,7 @@ object Notifications {
         // While a wake-up change is pending, say so, as Tonight does, instead of a plain "Waking at".
         val notification = Notification.Builder(context, CHANNEL_WORKING).setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(if (wakePending) R.string.quiet_pending else if (night.isTestRun)
-                R.string.short_test_saved else R.string.runtime_quiet, wake)).setContentIntent(openApp(context)).setOngoing(true).setOnlyAlertOnce(true)
+                R.string.short_test_saved else if (night.isNap) R.string.nap_quiet else R.string.runtime_quiet, wake)).setContentIntent(openApp(context)).setOngoing(true).setOnlyAlertOnce(true)
             .addAction(Notification.Action.Builder(null, context.getString(R.string.runtime_end), confirmation(context, NightActions.Command.END_NIGHT)).build())
             .build()
         context.getSystemService(NotificationManager::class.java).notify(6, notification)

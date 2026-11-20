@@ -17,6 +17,8 @@ import io.github.willzy12h.nocturne.core.plan.TonightOverride
 import io.github.willzy12h.nocturne.core.plan.TurboChain
 import io.github.willzy12h.nocturne.core.plan.WakeChoice
 import io.github.willzy12h.nocturne.core.plan.WakeResolver
+import io.github.willzy12h.nocturne.core.plan.NapPreset
+import io.github.willzy12h.nocturne.core.plan.NapProgramme
 import io.github.willzy12h.nocturne.core.plan.ShortBedJetTest
 import io.github.willzy12h.nocturne.core.plan.NightDurationException
 import io.github.willzy12h.nocturne.core.plan.NightDurationProblem
@@ -92,6 +94,24 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         }
     } catch (_: DateTimeException) { false }
 
+    fun prepareNap(name: String, preset: NapPreset, wake: ZonedDateTime?, fromAlarm: Boolean, selectedProfile: Profile?,
+        slot: Int, deviceId: String, expected: NightIdentity?, current: ActiveNight?): Preparation {
+        if (current?.identity != expected) return Preparation.Stale(expected, current?.identity)
+        if (slot !in 0 until Limits.SLOTS) return Preparation.Refused("Choose BedJet slot 1 to 3.")
+        val start = now()
+        return try {
+            val plan = NapProgramme.plan(preset, start, wake, selectedProfile)
+            val profile = NapProgramme.snapshot(name, preset, selectedProfile)
+            val night = ActiveNight("nap-" + UUID.randomUUID(), profile.id, start.toString(), plan.wake.toString(),
+                fromAlarm && wake != null && Duration.between(plan.wake, wake).abs() < Duration.ofMinutes(1),
+                slot, plan.wakeUpStart.toString(), plan.end.toString(), deviceId, profile, WakeOrigin.OVERRIDE,
+                applied = AppliedProgram.from(plan), confidence = Confidence.CONFIRMED, isNap = true)
+            val request = PendingChange(UUID.randomUUID().toString(), ChangeKind.START, night.wakeAt, start.toString(),
+                start.plusMinutes(1).toString(), expected)
+            Preparation.Ready(PreparedChange(plan, night, current, request, relativeNap = wake == null))
+        } catch (e: PlanException) { Preparation.Refused(e.message.orEmpty()) }
+    }
+
     fun prepareShortTest(name: String, slot: Int, deviceId: String, current: ActiveNight?): Preparation {
         if (current != null) return Preparation.Refused("A night is already active.")
         if (slot !in 0..2) return Preparation.Refused("Choose BedJet slot 1 to 3.")
@@ -130,6 +150,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         settings: Settings = Settings(),
         alarmOrigin: String? = null): Preparation {
         if (night.identity != expected) return Preparation.Stale(expected, night.identity)
+        if (night.isNap) return Preparation.Refused("The agreed nap wake time is fixed.", unchanged = true)
         val profile = night.profile ?: liveProfile ?: return Preparation.Refused("The saved profile is unavailable.")
         if (night.wakeOrigin == WakeOrigin.OVERRIDE) return Preparation.Refused("Tonight's wake override is unchanged.", unchanged = true)
         // Auto-start captures the starting wake; the saved profile still controls later alarm following.
@@ -155,6 +176,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
     private fun prepareRewrite(night: ActiveNight, expected: NightIdentity, profile: Profile, wake: ZonedDateTime,
         origin: WakeOrigin, kind: ChangeKind, deadline: ZonedDateTime,
         reapplyProfile: Boolean = kind == ChangeKind.REAPPLY): Preparation {
+        if (night.isNap) return Preparation.Refused("The agreed nap wake time is fixed.")
         val time = now()
         val request = PendingChange(UUID.randomUUID().toString(), kind, wake.toString(), time.toString(), deadline.toString(), expected)
         when (val check = Eligibility.check(night, time, request)) {
@@ -196,6 +218,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
 
     /** Resume is guarded by both no active night and the command version captured at stop/replacement. */
     fun resume(offer: ResumeOffer, now: ZonedDateTime, commandVersion: Long): Preparation {
+        if (offer.night.hasClockTimedNap) return Preparation.Refused("Start a new nap to choose a fresh wake time.")
         if (commandVersion != offer.commandVersion) return Preparation.Stale(offer.night.identity, null)
         if (!now.isBefore(ZonedDateTime.parse(offer.expiresAt)) || !now.isBefore(ZonedDateTime.parse(offer.night.wakeAt))) return Preparation.Refused("The resume offer has expired.")
         val profile = offer.night.profile ?: return Preparation.Refused("The saved profile is unavailable.")
@@ -260,6 +283,7 @@ class NightRunner(private val controller: BedJetController, private val now: () 
         val pending = change.pendingNight
         var writeMayHaveHappened = false
         var startMayHaveHappened = false
+        var confirmed = change.intended
         fun ownsPending(night: ActiveNight?): Boolean = night?.identity == pending.identity &&
             night.confidence == Confidence.PENDING && night.pending?.requestId == change.request.requestId
         fun checkOwnership() {
@@ -282,19 +306,22 @@ class NightRunner(private val controller: BedJetController, private val now: () 
             checkOwnership()
             checkExecutionTime(change)
             validate()
-            controller.startProgram(change.intended.slot, onStartAttempt = { startMayHaveHappened = true },
+            controller.startProgram(change.intended.slot, onStartAttempt = {
+                startMayHaveHappened = true
+                if (change.startsNap) confirmed = change.confirmedAt(now())
+            },
                 beforePrepare = { afterWrite(); checkOwnership(); checkExecutionTime(change); validate() }, onConfirmed = onConfirmed) {
                 checkOwnership()
                 checkExecutionTime(change)
                 validate()
             }
-            publish(change.intended)
-            return NightMutation.Applied(change.plan, change.intended)
+            publish(confirmed)
+            return NightMutation.Applied(if (change.relativeNap) confirmed.applied.plan()!! else change.plan, confirmed)
         } catch (e: Exception) {
             // A committed confirmation stays authoritative even when returning from its writer was cancelled.
-            if (current() == change.intended && change.intended.confidence == Confidence.CONFIRMED) {
+            if (current() == confirmed && confirmed.confidence == Confidence.CONFIRMED) {
                 if (e is CancellationException) throw e
-                return NightMutation.Applied(change.plan, change.intended)
+                return NightMutation.Applied(if (change.relativeNap) confirmed.applied.plan()!! else change.plan, confirmed)
             }
             // Restore a known pre-write state, otherwise retain this exact request's uncertain intention.
             val failed = if (!writeMayHaveHappened && before != null) before else pending.copy(confidence =
@@ -316,6 +343,8 @@ class NightRunner(private val controller: BedJetController, private val now: () 
     private fun checkExecutionTime(change: PreparedChange) {
         val time = now()
         if (!time.isBefore(ZonedDateTime.parse(change.request.deadline))) throw PlanException("This request has expired.")
+        if (change.intended.isNap && change.request.kind == ChangeKind.START && !change.relativeNap && !time.isBefore(change.plan.wake))
+            throw PlanException("The chosen nap wake time has passed.")
         val rewrite = change.request.kind in setOf(ChangeKind.RETIME, ChangeKind.REAPPLY, ChangeKind.TEMPORARY)
         if (rewrite &&
             change.previous != null && !time.isBefore(ZonedDateTime.parse(change.previous.wakeUpStart))) {

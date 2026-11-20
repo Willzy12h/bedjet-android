@@ -330,6 +330,31 @@ class GattLinkTest {
     }
 
     @Test
+    fun aSplitStatusTimestampsTheSensorHeadAndKeepsItsAgeWhenTheRemainderArrives() = runBlocking {
+        var elapsed = 1_000L
+        val measured = GattLink(fake.radio, { target }, TIMINGS, clock = { elapsed })
+        try {
+            measured.connect()
+            val port = fake.ports.single()
+            port.holdStatusReads = true
+            elapsed = 2_000
+            port.notify(Status.head())
+            eventually { Attr.STATUS in port.reads }
+            val head = measured.latestSourcedStatus()!!
+            assertEquals(2_000L, head.measuredAtElapsedMs)
+            elapsed = 5_000
+            port.answerStatusRead(Status.remainder(programStep = 2))
+            eventually { measured.latestSourcedStatus()?.status?.extra?.programStep == 2 }
+            val completed = measured.latestSourcedStatus()!!
+            assertEquals(2, completed.status.extra?.programStep)
+            assertEquals(head.measuredAtElapsedMs, completed.measuredAtElapsedMs)
+            port.notify(Status.full(programStep = 2))
+            fake.drain()
+            assertEquals(5_000L, measured.latestSourcedStatus()?.measuredAtElapsedMs)
+        } finally { measured.shutdown() }
+    }
+
+    @Test
     fun anOldProgramStepDoesNotConfirmANewStartButAFreshOneDoes() = runBlocking {
         // The unit was already running a program when we connected.
         fake.behaviour = FakeRadio.Behaviour(firstStatus = programmeStatus())

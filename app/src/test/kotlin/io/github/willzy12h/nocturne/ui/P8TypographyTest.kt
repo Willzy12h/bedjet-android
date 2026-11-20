@@ -28,7 +28,8 @@ class P8TypographyTest {
     @Test fun packagedFontLicencesPreserveTheCompleteUpstreamNotices() {
         val expected = java.io.File("../docs/licences/FIGTREE-OFL.txt").readText() + "\n\n" +
             java.io.File("../docs/licences/BRICOLAGE-OFL.txt").readText()
-        assertEquals(expected, org.robolectric.RuntimeEnvironment.getApplication().getString(R.string.font_licences_text))
+        assertEquals(expected.replace("\r\n", "\n"),
+            org.robolectric.RuntimeEnvironment.getApplication().getString(R.string.font_licences_text))
     }
 
     @Test fun renderedScreenTitleAndBodyUseDesignFamilies() {

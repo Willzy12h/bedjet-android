@@ -421,7 +421,7 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boolean, plan: Plan?,
+internal fun PhaseList(block: Block, label: String, phases: List<Phase>, f: Boolean, plan: Plan?,
     focus: EditorPhaseSelection?, focusRequest: Int, limits: ProfileLimits, onAdd: () -> Unit, onChange: (List<Phase>) -> Unit) {
     var open by remember(block) { mutableStateOf<Int?>(null) }
     val rowHeights = remember(block) { mutableMapOf<Int, Int>() }
@@ -540,7 +540,7 @@ private fun Labelled(label: String, content: @Composable () -> Unit) {
 
 /** "AT 23:10 − 32° +": an adjustable temperature, so screen readers can still set it directly. */
 @Composable
-private fun TempStepper(mode: Mode, value: Int, caption: String, label: String, fahrenheit: Boolean, tag: String,
+internal fun TempStepper(mode: Mode, value: Int, caption: String, label: String, fahrenheit: Boolean, tag: String,
     modifier: Modifier = Modifier, onChange: (Int) -> Unit) {
     val tokens = paletteTokens
     val range = mode.temperatureRange
@@ -657,7 +657,7 @@ private fun Middle.withFanLimits(limits: ProfileLimits): Middle {
 }
 
 @Composable
-private fun FanSlider(value: Int, label: String, limits: ProfileLimits = ProfileLimits(), mode: Mode, onChange: (Int) -> Unit) {
+internal fun FanSlider(value: Int, label: String, limits: ProfileLimits = ProfileLimits(), mode: Mode, onChange: (Int) -> Unit) {
     val low = ((limits.minFan + 4) / 5) * 5
     val high = (limits.maxFan / 5) * 5
     val hasRange = low < high

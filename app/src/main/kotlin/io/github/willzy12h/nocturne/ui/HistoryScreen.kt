@@ -83,6 +83,7 @@ import io.github.willzy12h.nocturne.core.store.MorningComfort
 import io.github.willzy12h.nocturne.data.MiddleSuggestion
 import io.github.willzy12h.nocturne.ui.features.HealthSleepOverlay
 import io.github.willzy12h.nocturne.ui.features.HistoryExportButton
+import io.github.willzy12h.nocturne.platform.SleepAvailability
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
@@ -101,14 +102,15 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
     val settings by model.settings.collectAsStateWithLifecycle()
     val tokens = paletteTokens
     val range = settings.normalisedSleepRange()
-    // Eight days more than the range, so the oldest night in range can still be compared with the week before it.
-    val data = rememberSleepDays(model, range + SleepInsights.RECENT_NIGHTS + 1)
+    val data = rememberSleepDays(model, range, comparisonDays = SleepInsights.RECENT_NIGHTS)
     val now = model.now()
     val zone = now.zone
     val today = now.toLocalDate()
     val inRange = remember(data.days, today, range) { SleepInsights.inRange(data.days, today, range) }
     val selectedSession by model.selectedSleepSession.collectAsStateWithLifecycle()
-    val selected = inRange.firstOrNull { it.selectionId == selectedSession } ?: inRange.firstOrNull()
+    val latestDate = inRange.firstOrNull()?.date
+    val selected = inRange.firstOrNull { it.selectionId == selectedSession }
+        ?: SleepInsights.representative(inRange.takeWhile { it.date == latestDate })
     val position = selected?.let(inRange::indexOf) ?: -1
     val sleep = selected?.sleep
     val noticed = remember(selected, data.days) { selected?.let { SleepInsights.noticed(it, data.days) } }
@@ -155,6 +157,16 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
                 model.selectedSleepSession.value = null
                 model.updateSettings { it.copy(sleepRangeDays = days) }
             }
+            val format = DateTimeFormatter.ofPattern("d MMM yyyy")
+            Text(stringResource(R.string.sleep_range_dates, today.minusDays(range - 1L).format(format), today.format(format)),
+                color = tokens.ink, fontSize = 14.sp)
+            val bedJetCount = inRange.count { it.record != null }
+            val counts = mutableListOf(pluralStringResource(R.plurals.sleep_bedjet_records, bedJetCount, bedJetCount))
+            if (data.availability in setOf(SleepAvailability.AVAILABLE, SleepAvailability.EMPTY)) {
+                val sleepCount = inRange.count { it.sleep != null }
+                counts += pluralStringResource(R.plurals.sleep_tracker_sessions, sleepCount, sleepCount)
+            }
+            Text(counts.joinToString(" · "), color = tokens.ink2, fontSize = 13.sp)
             Text(stringResource(R.string.sleep_move_hint), color = tokens.ink2, fontSize = 13.sp)
         }
     }
@@ -163,9 +175,21 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp).testTag("sleep-list"), state = listState,
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!pinned) item(key = "header") { header() }
-            if (data.healthOff) item(key = "health-off") {
-                Column(Modifier.sleepCard(tokens).testTag("sleep-health-off").clickable(role = Role.Button) { onOpenPage("health") }) {
-                    Text(stringResource(R.string.sleep_health_off), color = tokens.ink2, fontSize = 14.sp)
+            val status = when {
+                data.healthOff -> R.string.sleep_health_off
+                data.partial -> R.string.sleep_read_partial
+                data.availability == null -> R.string.sleep_loading
+                data.availability == SleepAvailability.PERMISSION -> R.string.feature_health_permission
+                data.availability == SleepAvailability.ABSENT -> R.string.feature_health_absent
+                data.availability == SleepAvailability.ERROR -> R.string.feature_health_error
+                inRange.none { it.sleep != null } -> R.string.sleep_trend_none
+                else -> null
+            }
+            if (status != null) item(key = "health-status") {
+                val canConfigure = data.healthOff || data.availability in setOf(SleepAvailability.PERMISSION, SleepAvailability.ABSENT)
+                Column(Modifier.sleepCard(tokens).testTag("sleep-health-off").then(
+                    if (canConfigure) Modifier.clickable(role = Role.Button) { onOpenPage("health") } else Modifier)) {
+                    Text(stringResource(status), color = tokens.ink2, fontSize = 14.sp)
                 }
             }
             items(shown, key = { it }) { id ->
@@ -207,7 +231,7 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
                         "compare" -> selected?.let { SleepCompareCard(it, data.days, zone) }
                         "noticed" -> noticed?.let { SleepNoticedCard(it, zone, settings.fahrenheit) }
                         "timeline" -> sleep?.let { SleepTimelineCard(it, selected.plan, zone, settings.fahrenheit) }
-                        "history" -> SavedNights(model, settings) { retention = true }
+                        "history" -> SavedNights(model, settings, inRange.mapNotNull { it.record }) { retention = true }
                     }
                 }
             }
@@ -217,13 +241,11 @@ fun HistoryScreen(model: AppViewModel, modifier: Modifier, onBack: (() -> Unit)?
 
 /** The saved BedJet nights: how long they are kept, a card per night (the newest three, then the rest on request) and export. */
 @Composable
-private fun SavedNights(model: AppViewModel, settings: io.github.willzy12h.nocturne.core.store.Settings, onRetention: () -> Unit) {
-    val history by model.history.collectAsStateWithLifecycle()
+private fun SavedNights(model: AppViewModel, settings: io.github.willzy12h.nocturne.core.store.Settings, nights: List<NightRecord>, onRetention: () -> Unit) {
     val profiles by model.profiles.collectAsStateWithLifecycle()
     val activeNight by model.activeNight.collectAsStateWithLifecycle()
     val tokens = paletteTokens
     var earlier by rememberSaveable { mutableStateOf(false) }
-    val nights = history.sortedByDescending { it.startedAt }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.sleep_nights), color = tokens.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 8.dp).semantics { heading() })
@@ -232,7 +254,7 @@ private fun SavedNights(model: AppViewModel, settings: io.github.willzy12h.noctu
                 stringResource(R.string.sleep_history_row_detail, stringResource(keepName(History.keepDays(settings.historyKeepDays)))),
                 tokens.ink, "sleep-history-row", onClick = onRetention)
         }
-        if (history.isEmpty()) Text(stringResource(R.string.history_empty), color = tokens.ink2, fontSize = 15.sp)
+        if (nights.isEmpty()) Text(stringResource(R.string.sleep_no_saved_in_range), color = tokens.ink2, fontSize = 15.sp)
         nights.take(RECENT_NIGHTS).forEach { night -> key(night.id) { NightCard(model, night, profiles, settings, activeNight) } }
         if (nights.size > RECENT_NIGHTS) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tokens.surface)
@@ -290,9 +312,10 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (night.wakeFromAlarm) Icon(painterResource(R.drawable.ic_nc_alarm), stringResource(R.string.parity_history_alarm),
                                 Modifier.padding(end = 6.dp).size(14.dp), tint = tokens.ink2)
-                            Text("${Format.clock(night.startedAt)} – ${Format.clock(night.wakeAt)}", color = tokens.ink2, fontSize = 15.sp)
+                            Text(stringResource(R.string.sleep_planned_interval, Format.clock(night.startedAt), Format.clock(night.wakeAt)), color = tokens.ink2, fontSize = 15.sp)
                         }
                     }
+                    BedJetEvidenceText(night, model.now().zone)
                     HealthSleepOverlay(model.graph, night, historyPlan(night), open)
                     if (completed && !checkedIn && activeNight?.recordId != night.id) {
                         AccentLink(stringResource(R.string.checkin_button), { checkingIn = true }, fontSize = 14.sp)
@@ -407,8 +430,9 @@ private fun NightCard(model: AppViewModel, night: NightRecord, profiles: List<io
 /** "Tonight", "Last night", a weekday within the week, then the date. */
 @Composable
 private fun nightLabel(night: NightRecord, now: ZonedDateTime, running: Boolean): String {
-    if (running) return stringResource(R.string.parity_history_tonight)
     val start = runCatching { ZonedDateTime.parse(night.startedAt).withZoneSameInstant(now.zone) }.getOrNull() ?: return ""
+    if (night.isNap) return stringResource(R.string.sleep_nap_date, start.format(DateTimeFormatter.ofPattern("EEE d MMM")))
+    if (running) return stringResource(R.string.parity_history_tonight)
     val days = java.time.temporal.ChronoUnit.DAYS.between(start.toLocalDate(), now.toLocalDate())
     return when {
         days <= 1 -> stringResource(R.string.parity_history_last_night)

@@ -22,7 +22,22 @@ enum class TemporaryRefusal {
 }
 /** No hardware work has happened. Persist [pendingNight] before executing this change. */
 data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previous: ActiveNight?, val request: PendingChange,
-    val expectedCommand: Long? = null) {
+    val expectedCommand: Long? = null, val relativeNap: Boolean = false) {
+    val startsNap: Boolean get() = intended.isNap && request.kind == ChangeKind.START
+
+    /** Record the transport START separately from the device-clock schedule, which stays fixed for an explicit wake. */
+    fun confirmedAt(at: ZonedDateTime): ActiveNight {
+        if (!startsNap) return intended
+        if (!relativeNap) return intended.copy(startedAt = at.toString())
+        val shift = Duration.between(plan.start, at)
+        val actual = Plan(at, plan.wake.plus(shift), plan.steps.map { it.copy(startsAt = it.startsAt.plus(shift)) })
+        return intended.copy(startedAt = at.toString(), wakeAt = actual.wake.toString(), endsAt = actual.end.toString(),
+            wakeUpStart = actual.wakeUpStart.toString(), applied = AppliedProgram.from(actual, intended.revision))
+    }
+
+    fun matchesConfirmed(actual: ActiveNight): Boolean = actual == if (startsNap && actual.identity == intended.identity)
+        confirmedAt(ZonedDateTime.parse(actual.startedAt)) else intended
+
     val pendingNight: ActiveNight get() = (previous ?: intended.copy(applied = AppliedProgram())).copy(
         confidence = Confidence.PENDING, pending = request.copy(intended = intended),
     )
@@ -30,12 +45,17 @@ data class PreparedChange(val plan: Plan, val intended: ActiveNight, val previou
 sealed interface NightMutation {
     data class Applied(val plan: Plan, val night: ActiveNight): NightMutation {
         /** Idempotent append; the original steps remain the first revision for old readers. */
-        fun recordRevision(record: NightRecord): NightRecord = record.copy(
-            revisions = record.revisions.ifEmpty {
-                if (record.steps.isEmpty()) emptyList() else listOf(AppliedProgram(record.steps, record.startedAt, record.wakeAt))
-            }.filterNot { it.revision == night.applied.revision } + night.applied,
-            wakeAt = night.wakeAt, wakeFromAlarm = night.wakeFromAlarm,
-        )
+        fun recordRevision(record: NightRecord): NightRecord {
+            // A fresh nap can start several seconds after its pre-write history row was persisted.
+            val initial = if (night.isNap && night.applied.revision == 0) record.copy(
+                startedAt = night.startedAt, steps = night.applied.steps, isNap = true) else record
+            return initial.copy(
+                revisions = initial.revisions.ifEmpty {
+                    if (initial.steps.isEmpty()) emptyList() else listOf(AppliedProgram(initial.steps, initial.startedAt, initial.wakeAt))
+                }.filterNot { it.revision == night.applied.revision } + night.applied,
+                wakeAt = night.wakeAt, wakeFromAlarm = night.wakeFromAlarm,
+            )
+        }
     }
     data class Stale(val expected: NightIdentity?, val actual: NightIdentity?): NightMutation
     data class Refused(val reason: String): NightMutation
@@ -67,7 +87,7 @@ object Eligibility {
 @Serializable data class ResumeOffer(val night: ActiveNight, val remaining: List<RecordedStep>, val stoppedAt: String,
     val expiresAt: String, val commandVersion: Long)
 data class LocalTransition(val night: ActiveNight, val event: HistoryEvent, val resumeOffer: ResumeOffer?) {
-    fun settingsAfter(settings: Settings): Settings = if (night.isTestRun) settings else settings.clearWakeOverride()
+    fun settingsAfter(settings: Settings): Settings = if (night.isTestRun || night.isNap) settings else settings.clearWakeOverride()
 }
 /** Local only: callers persist this transition and the offer under the same command lock. */
 fun stopTracking(night: ActiveNight, reason: String, at: ZonedDateTime, commandVersion: Long = 0): LocalTransition {
@@ -83,7 +103,7 @@ fun stopTracking(night: ActiveNight, reason: String, at: ZonedDateTime, commandV
             else -> s
         }
     }.filter { it.minutes > 0 }
-    val offer = if (!night.isTestRun && night.profile != null && at.isBefore(ZonedDateTime.parse(night.wakeAt))) {
+    val offer = if (!night.isTestRun && !underlying.hasClockTimedNap && night.profile != null && at.isBefore(ZonedDateTime.parse(night.wakeAt))) {
         ResumeOffer(underlying, remaining, at.toString(), at.plusMinutes(15).toString(), commandVersion)
     } else null
     return LocalTransition(night.copy(actualEnd = at.toString(), pending = null), HistoryEvent(at.toString(), EventKind.STOPPED, reason), offer)

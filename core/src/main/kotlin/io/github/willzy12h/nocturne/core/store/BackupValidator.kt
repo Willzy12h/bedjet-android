@@ -1,6 +1,7 @@
 package io.github.willzy12h.nocturne.core.store
 
 import io.github.willzy12h.nocturne.core.link.DeviceId
+import io.github.willzy12h.nocturne.core.plan.NapProgramme
 import io.github.willzy12h.nocturne.core.plan.Phase
 import io.github.willzy12h.nocturne.core.plan.Profile
 import io.github.willzy12h.nocturne.core.protocol.Limits
@@ -125,6 +126,8 @@ object BackupValidator {
             night.steps.forEach { time("$what step time", it.startsAt) }
             night.events.forEach { time("$what event time", it.at) }
             night.temperatures.forEach { time("$what temperature reading time", it.at) }
+            night.standbyObservedAt?.let { time("$what standby report", it) }
+            night.lastRunningObservedAt?.let { time("$what running report", it) }
         }
     }
 
@@ -199,6 +202,7 @@ object BackupValidator {
         settings.tonightChoice?.let { bounded(it.profileId, "settings.tonightChoice.profileId", MAX_ID) }
         settings.targetDevice?.let { bounded(it, "settings.targetDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.targetDevice") }
         settings.setupFanCheckedDevice?.let { bounded(it, "settings.setupFanCheckedDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.setupFanCheckedDevice") }
+        if (NapProgramme.validate(settings.napPreset) != null) invalid("settings.napPreset")
         if (settings.manualControls.size > ManualControls.MAX_ENTRIES ||
             settings.manualControls.any { !it.valid() } ||
             settings.manualControls.distinctBy { it.device.uppercase(java.util.Locale.ROOT) to it.mode }.size != settings.manualControls.size)
@@ -237,7 +241,7 @@ object BackupValidator {
                     if (key == "profileId" && value.isString && (value.content.isBlank() || value.content.length > MAX_ID ||
                             value.content.any { it.isISOControl() })) invalid(path)
                     if (key in setOf("healthExportVersion", "healthExportedVersion") && (value.longOrNull ?: -1) < 0) invalid(path)
-                    if (key == "confirmedCompletionAt" && runCatching { ZonedDateTime.parse(value.content) }.isFailure) invalid(path)
+                    if (key in setOf("confirmedCompletionAt", "standbyObservedAt", "lastRunningObservedAt") && runCatching { ZonedDateTime.parse(value.content) }.isFailure) invalid(path)
                 }
             }
         }

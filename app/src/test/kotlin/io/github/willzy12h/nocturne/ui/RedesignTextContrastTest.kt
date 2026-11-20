@@ -151,7 +151,7 @@ class RedesignTextContrastTest {
     @Test fun everySelectedAddStepChoiceHasAVisibleBoundaryInEveryPalette() {
         ui.compose.runOnUiThread { ui.compose.activity.setContent {
             NocturneTheme(ui.graph.repository.settings.collectAsState().value, ui.graph.now(), paletteOverride = palette.value) {
-                Surface(color = palette.value.tokens.sheet) { AddStepContent(Block.START, false, {}, { _, _ -> }) }
+                Surface(color = palette.value.tokens.sheet) { AddStepContent(Block.START, false, onCancel = {}) { _, _ -> } }
             }
         } }
         Palette.entries.forEach { choice ->
@@ -519,9 +519,16 @@ class RedesignTextContrastTest {
         } }
         Palette.entries.forEach { choice ->
             ui.compose.runOnIdle { palette.value = choice }
-            val t = choice.tokens
-            val background = t.surface2.compositeOver(t.surface.compositeOver(t.ground))
-            checkText("$choice History issue", layout("1 issue"), background)
+            ui.compose.onNodeWithTag("sleep-list").performScrollToKey("history")
+            val pill = ui.compose.onNodeWithTag("history-issues-contrast-history", useUnmergedTree = true)
+                .assertIsDisplayed().assertTextEquals("1 issue")
+            val text = layout("1 issue", scroll = false)
+            val bounds = pill.fetchSemanticsNode().boundsInRoot
+            pixels { bitmap ->
+                // The pill has 12 dp of horizontal padding. Sample the background clear of the lettering.
+                val x = (bounds.left + 6f * ui.compose.density.density).toInt()
+                checkText("$choice History issue", text, Color(bitmap.getPixel(x, bounds.center.y.toInt())))
+            }
         }
     }
 

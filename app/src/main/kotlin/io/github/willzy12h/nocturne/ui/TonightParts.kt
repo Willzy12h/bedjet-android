@@ -39,11 +39,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -157,38 +155,21 @@ internal fun StatusLine(model: AppViewModel, runningName: String?, onRemote: (()
     }
 }
 
-internal data class BarSegment(val minutes: Long, val colours: List<Color>, val heightFraction: Float = 1f)
+internal data class BarSegment(val minutes: Long, val colour: Color, val heightFraction: Float)
 
 /** Preserve each actual programme step, including fan-only changes through the Middle. */
 internal fun tonightBarSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> =
     plan.steps.filter { it.minutes > 0 }.map { planned ->
         val step = planned.step
         val height = if (step.mode.usesFan) (step.fanStep + 1) / 20f else .025f
-        BarSegment(planned.minutes.toLong(), listOf(tokens.stepColor(step.mode, step.temperature)), height)
+        BarSegment(planned.minutes.toLong(), tokens.stepColor(step.mode, step.temperature), height)
     }
 
-private fun barSegments(plan: Plan, tokens: PaletteTokens): List<BarSegment> {
-    val segments = mutableListOf<BarSegment>()
-    var middle = mutableListOf<Color>()
-    var middleMinutes = 0L
-    fun flush() {
-        if (middle.isNotEmpty()) segments += BarSegment(middleMinutes, middle.toList())
-        middle = mutableListOf(); middleMinutes = 0
-    }
-    plan.steps.forEach { step ->
-        val colour = tokens.stepColor(step.step.mode, step.step.temperature)
-        if (step.block == Block.MIDDLE) { middle += colour; middleMinutes += step.minutes }
-        else { flush(); segments += BarSegment(step.minutes.toLong(), listOf(colour)) }
-    }
-    flush()
-    return segments.filter { it.minutes > 0 }
-}
-
-/** Compact profile thumbnails group the Middle; Tonight shows its individual fan levels on the same time axis. */
+/** Tonight and its profile previews use the same duration, fan and temperature scales. */
 @Composable
-internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp, minHeight: Dp = height, showFan: Boolean = false) {
+internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modifier, height: Dp = 30.dp, minHeight: Dp = height) {
     val tokens = paletteTokens
-    val segments = if (showFan) tonightBarSegments(plan, tokens) else barSegments(plan, tokens)
+    val segments = tonightBarSegments(plan, tokens)
     val total = segments.sumOf { it.minutes }.coerceAtLeast(1)
     val span = Duration.between(plan.start, plan.end).toMinutes().coerceAtLeast(1)
     val nowFraction = now?.let { (Duration.between(plan.start, it).toMinutes().toFloat() / span).coerceIn(0f, 1f) }
@@ -209,9 +190,7 @@ internal fun NightBar(plan: Plan, now: ZonedDateTime?, modifier: Modifier = Modi
                 addRoundRect(RoundRect(start, size.height * (1 - segment.heightFraction), end, size.height, topLeftCornerRadius = left, topRightCornerRadius = right,
                     bottomRightCornerRadius = right, bottomLeftCornerRadius = left))
             }
-            val brush = if (segment.colours.size > 1) Brush.horizontalGradient(segment.colours, startX = x, endX = x + w)
-                else SolidColor(segment.colours.first())
-            drawPath(path, brush)
+            drawPath(path, segment.colour)
             x += w
         }
         nowFraction?.let {

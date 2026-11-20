@@ -75,20 +75,48 @@ class SleepInsightsTest {
         val matched = record("a", bed.minusMinutes(20), bed.plusHours(7))
         val bedJetOnly = record("b", bed.minusDays(3), bed.minusDays(3).plusHours(8))
         val days = SleepInsights.join(listOf(sleep, other), listOf(matched, bedJetOnly), zone) { null }
-        assertEquals(listOf(LocalDate.of(2026, 10, 21), LocalDate.of(2026, 10, 20), LocalDate.of(2026, 10, 18)), days.map { it.date })
+        assertEquals(listOf(LocalDate.of(2026, 10, 21), LocalDate.of(2026, 10, 20), LocalDate.of(2026, 10, 17)), days.map { it.date })
         assertEquals("a", days[0].record?.id)
         // No BedJet run: Health Connect's night stays, with no record.
         assertNull(days[1].record)
         assertNotNull(days[1].sleep)
         // No Health Connect data: the BedJet night stays, with no sleep.
+        // The date of a BedJet-only record comes from evidence or its recorded start, rather than its scheduled wake.
         assertEquals("b", days[2].record?.id)
         assertNull(days[2].sleep)
     }
 
+    @Test fun malformedLegacyAndAbsentTimesCannotInventReportsOrHideTheSavedRecord() {
+        val malformed = record("malformed", bed, bed.plusHours(8)).copy(
+            standbyObservedAt = "bad date", lastRunningObservedAt = "bad date",
+            temperatures = listOf(io.github.willzy12h.nocturne.core.store.TempSample("bad date", 20, 24)))
+        val evidence = SleepInsights.bedJetEvidence(malformed)
+        assertNull(evidence.standby)
+        assertNull(evidence.lastRunning)
+        assertNull(evidence.lastReading)
+        assertEquals(malformed, SleepInsights.join(emptyList(), listOf(malformed), zone) { null }.single().record)
+        val badPlan = malformed.copy(wakeAt = "unknown")
+        val day = SleepInsights.join(emptyList(), listOf(badPlan), zone) { null }.single()
+        assertEquals(bed.toInstant(), day.end)
+    }
+
+    @Test fun longerTrackerSessionWinsOverlapAndBedJetOnlySelectionCannotHideSleepBar() {
+        val brief = night(bed.minusHours(1), LIGHT to 90)
+        val overnight = night(bed.plusMinutes(30), LIGHT to 400)
+        val matched = record("bed", bed, bed.plusHours(7))
+        val later = record("nap", bed.plusHours(16), bed.plusHours(17))
+        val days = SleepInsights.join(listOf(brief, overnight), listOf(matched, later), zone) { null }
+        assertEquals("bed", days.single { it.sleep == overnight }.record?.id)
+        val sameDate = days.filter { it.date == overnight.end.atZone(zone).toLocalDate() }
+        val bedJetOnly = sameDate.single { it.record?.id == "nap" }
+        assertEquals(overnight, SleepInsights.representative(sameDate, bedJetOnly)?.sleep)
+    }
+
     @Test fun inRangeKeepsTheLastDaysUpToToday() {
-        val days = (0..40).map { SleepDay(LocalDate.of(2026, 10, 30).minusDays(it.toLong()), night(bed, LIGHT to 60), null, null) }
+        val days = (0..100).map { SleepDay(LocalDate.of(2026, 10, 30).minusDays(it.toLong()), night(bed, LIGHT to 60), null, null) }
         assertEquals(7, SleepInsights.inRange(days, LocalDate.of(2026, 10, 30), 7).size)
         assertEquals(30, SleepInsights.inRange(days, LocalDate.of(2026, 10, 30), 30).size)
+        assertEquals(90, SleepInsights.inRange(days, LocalDate.of(2026, 10, 30), 90).size)
     }
 
     @Test fun usualBedtimeAveragesAcrossMidnight() {

@@ -16,7 +16,9 @@ enum class LinkState { BLUETOOTH_OFF, UNAUTHORIZED, SEARCHING, CONNECTING, READY
  */
 data class SourcedStatus(val source: String?, val status: DeviceStatus,
     /** Stamped before a report can be buffered; copies retain the original receipt. */
-    val receiptOrder: Long = StatusReceiptOrder.next()) {
+    val receiptOrder: Long = StatusReceiptOrder.next(),
+    /** Monotonic time of the sensor packet, when supplied by a physical transport. */
+    val measuredAtElapsedMs: Long? = null) {
     /** Whether this report may stand for [target]'s state: a report from another BedJet never does. */
     fun isFrom(target: String?): Boolean = source == null || DeviceId.same(source, target)
 }

@@ -315,7 +315,8 @@ internal val ADD_STEP_CHOICES = listOf(
 /** The design's "Add a step" sheet body: which group, which kind, then "Next: set it up". */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun AddStepContent(initial: Block, fahrenheit: Boolean, onCancel: () -> Unit, onAdd: (Block, Phase) -> Unit) {
+internal fun AddStepContent(initial: Block, fahrenheit: Boolean, onCancel: () -> Unit,
+    groups: List<Block> = listOf(Block.START, Block.WAKE, Block.AFTER_WAKE), onAdd: (Block, Phase) -> Unit) {
     val tokens = paletteTokens
     var block by remember { mutableStateOf(initial) }
     var choice by remember { mutableStateOf(ADD_STEP_CHOICES[1]) }
@@ -326,8 +327,9 @@ internal fun AddStepContent(initial: Block, fahrenheit: Boolean, onCancel: () ->
             Text(stringResource(R.string.parity_add_step), Modifier.weight(1f), color = tokens.ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             AccentLink(stringResource(R.string.feature_cancel), onCancel, fontSize = 15.sp)
         }
-        Segmented(listOf(Block.START to stringResource(R.string.parity_group_start), Block.WAKE to stringResource(R.string.parity_group_wake),
-            Block.AFTER_WAKE to stringResource(R.string.parity_group_after)), block, tag = "add-group") { block = it }
+        val groupLabels = listOf(Block.START to stringResource(R.string.parity_group_start), Block.WAKE to stringResource(R.string.parity_group_wake),
+            Block.AFTER_WAKE to stringResource(R.string.parity_group_after))
+        Segmented(groupLabels.filter { it.first in groups }, block, tag = "add-group") { block = it }
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
             maxItemsInEachRow = if (LocalConfiguration.current.fontScale >= 1.5f) 2 else 3) {
             ADD_STEP_CHOICES.forEach { phase ->

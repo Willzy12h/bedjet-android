@@ -55,6 +55,7 @@ class HealthRunProvenanceTest : PlatformGraphFixture() {
         val night = graph.repository.activeNight.value!!
         graph.clock = Clock.fixed(ZonedDateTime.parse(night.endsAt).toInstant(), ZoneOffset.UTC)
         assertTrue(graph.actions.expire(night.identity))
+        assertNull(graph.repository.history.value.single().standbyObservedAt)
         assertEquals(night.endsAt,
             json(graph.repository.history.value.single())["confirmedCompletionAt"]?.jsonPrimitive?.contentOrNull)
     }
@@ -73,6 +74,7 @@ class HealthRunProvenanceTest : PlatformGraphFixture() {
         val graph = setup()
         graph.actions.perform(Command.START_NIGHT, graph.repository.profiles.value.first().id)
         graph.actions.perform(Command.STOP_TRACKING)
+        assertNull(graph.repository.history.value.single().standbyObservedAt)
         assertNull(json(graph.repository.history.value.single())["confirmedCompletionAt"]?.jsonPrimitive?.contentOrNull)
     }
 
