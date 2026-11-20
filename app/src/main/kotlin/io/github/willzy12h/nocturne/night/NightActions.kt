@@ -164,6 +164,7 @@ class NightActions(private val graph: Graph) {
     }
     /** No FGS, detached launch or retry. Job cancellation propagates after durable uncertainty is saved. */
     suspend fun performJobOwned(request: CommandRequest, automaticWake: io.github.willzy12h.nocturne.core.plan.WakeChoice? = null,
+        scheduledStart: ZonedDateTime? = null,
         stillEligible: () -> Boolean = { true }, onPrepared: (PreparedChange) -> Unit = {},
         eligible: suspend (DeviceStatus) -> Boolean): CommandOutcome =
         owned(label(request.command), request.deviceId, minimumRemainingMs = MIN_BUDGET_MS, origin = CommandOrigin.CHARGER) {
@@ -176,7 +177,7 @@ class NightActions(private val graph: Graph) {
             connected {
                 val fresh = freshStatus()
                 if (repo.activeNight.value != null || !eligible(fresh) || !stillEligible()) return@connected refused(R.string.runtime_ineligible)
-                run(request, manualPreset, automaticWake, stillEligible, onPrepared)
+                run(request, manualPreset, automaticWake, stillEligible, onPrepared, scheduledStart)
             }
         }
 
@@ -388,7 +389,7 @@ class NightActions(private val graph: Graph) {
 
     private suspend fun run(request: CommandRequest, manualPreset: ActionPreset?,
         automaticWake: io.github.willzy12h.nocturne.core.plan.WakeChoice? = null, stillEligible: () -> Boolean = { true },
-        onPrepared: (PreparedChange) -> Unit = {}): CommandOutcome {
+        onPrepared: (PreparedChange) -> Unit = {}, scheduledStart: ZonedDateTime? = null): CommandOutcome {
         if (request.deviceId != repo.settings.value.deviceId()) return stale(R.string.runtime_target_changed)
         val command = request.command
         if (command == Command.RESUME) return resumeLocked()
@@ -404,7 +405,7 @@ class NightActions(private val graph: Graph) {
                 io.github.willzy12h.nocturne.core.plan.TonightOverride(it.time.toString(), graph.now().toString())
             }
             val prepared = graph.runner().prepareStart(profile, alarm?.time, s.workingSlot, request.deviceId!!,
-                old?.identity, old, override, s, alarm?.creator)
+                old?.identity, old, override, s, alarm?.creator, scheduledStart)
             val attributed = if (explicit == null && automaticWake != null && prepared is Preparation.Ready)
                 Preparation.Ready(prepared.change.copy(intended = prepared.change.intended.copy(
                     wakeOrigin = WakeOrigin.AUTO_START, wakeFromAlarm = automaticWake.fromAlarm))) else prepared

@@ -72,6 +72,28 @@ class AutoStartExecutionTest : PlatformGraphFixture() {
         assertTrue(messages.any { it.extras.getString("android.text").orEmpty().contains("confirmed", ignoreCase = true) })
     }
 
+    @Test fun aFixedOccurrenceRemainsScheduledDuringItsDeliveryWindow() = runBlocking {
+        val graph = setup()
+        val expected = AutoStartSchedule.nextScheduled(graph)!!
+        graph.clock = Clock.offset(graph.clock, java.time.Duration.ofSeconds(1))
+        assertEquals(expected.ticket(), AutoStartSchedule.nextScheduled(graph)?.ticket())
+        graph.clock = Clock.offset(graph.clock, java.time.Duration.ofMinutes(15))
+        assertNotEquals(expected.ticket(), AutoStartSchedule.nextScheduled(graph)?.ticket())
+    }
+
+    @Test fun aOneHourOffsetSurvivesTheChargingCountdown() = runBlocking {
+        val graph = setup()
+        graph.repository.updateSettings { it.copy(platform = it.platform.copy(autoStart =
+            it.platform.autoStart!!.copy(mode = AutoStartMode.BEFORE_WAKE, minutesBeforeWake = 60, onlyIfCharging = true))) }
+        alarm("2026-10-26T23:30:00Z")
+        val ticket = AutoStartSchedule.due(graph)!!.ticket()
+        ChargerRun(graph, { true }, { _, _ -> true }, {
+            graph.clock = Clock.offset(graph.clock, java.time.Duration.ofMinutes(1))
+        }, { true }, ticket).execute()
+        assertEquals(Instant.parse("2026-10-26T23:30:00Z"),
+            java.time.ZonedDateTime.parse(graph.repository.activeNight.value!!.wakeAt).toInstant())
+    }
+
     @Test fun chargingOptInSkipsUnpluggedAndRetainsTheCancelGrace() = runBlocking {
         val graph = setup()
         graph.repository.updateSettings { it.copy(platform = it.platform.copy(autoStart = it.platform.autoStart!!.copy(onlyIfCharging = true))) }

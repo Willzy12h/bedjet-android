@@ -143,6 +143,8 @@ object AutoStartSchedule {
         val blocked = graph.repository.automation.value.claims.mapNotNull { claim ->
             claimPrefixes.firstOrNull { claim.startsWith(it) }?.let { claim.removePrefix(it) }
         }.toSet() + listOfNotNull(queued)
+        val due = due(graph)
+        if (due != null && due.key !in blocked) return due
         var after = graph.now()
         repeat(blocked.size + 1) {
             val candidate = next(graph, after) ?: return null

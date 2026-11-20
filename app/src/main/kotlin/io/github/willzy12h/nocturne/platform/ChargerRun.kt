@@ -63,7 +63,7 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
             current.automatic?.fingerprint != candidate.automatic?.fingerprint || settings.deviceId() != candidate.device) return false
         val alarm = AlarmSource.describe(graph.context, settings)
         val override = settings.resolveWakeOverride(now) ?: candidate.automatic?.wakeAt?.let { TonightOverride(it.toString(), now.toString()) }
-        val preview = NightPreview.forStartNow(candidate.profile, now, alarm?.time, override, settings, alarm?.creator)
+        val preview = NightPreview.forStartNow(candidate.profile, now, alarm?.time, override, settings, alarm?.creator, candidate.automatic?.startAt)
         val claims = repo.automation.value.claims
         val active = repo.activeNight.value
         val ownPendingStart = ownAttempt && active?.pending?.kind == ChangeKind.START &&
@@ -73,7 +73,7 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
         val minutes = preview.plan?.let { Duration.between(it.start, it.wake).toMinutes() } ?: 0
         return (candidate.automatic?.settings?.enabled ?: settings.platform.chargerAutoStart) &&
             (!candidate.requiresCharging || charging()) && selected && preview.plan != null &&
-            minutes >= (if (candidate.automatic == null) 180 else 60) && candidate.window.contains(now) &&
+            (candidate.automatic != null || minutes >= 180) && candidate.window.contains(now) &&
             (active == null || ownPendingStart) && graph.link.latestStatusFrom(candidate.device)?.isRunning != true &&
             repo.runtime.value.unresolvedSlotWrite?.let { it.deviceId == candidate.device && it.affectsNights(settings.workingSlot) } != true &&
             !graph.sessions.released.value && permitted() && (!requireReadableData || repo.unreadable.value.isEmpty()) &&
@@ -102,7 +102,7 @@ class ChargerRun(private val graph: Graph, private val charging: () -> Boolean,
         var prepared: PreparedChange? = null
         val outcome = try {
             BedJetService.runJobOwned(graph) {
-                graph.actions.performJobOwned(request, automaticWake = capturedWake,
+                graph.actions.performJobOwned(request, automaticWake = capturedWake, scheduledStart = candidate.automatic?.startAt,
                     stillEligible = { candidate.automatic == null || eligible(candidate, ownAttempt = true) },
                     onPrepared = { prepared = it }) { fresh ->
                     currentCoroutineContext().ensureActive()
