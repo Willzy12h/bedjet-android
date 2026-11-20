@@ -1,6 +1,25 @@
 # Next beta engineering handover
 
-Integration branch `codex/nocturne-next-beta` starts at published beta.7, `18705776806da1efc0e62b327926f3bc679f3acd`. The maintainer requested Android only. The release candidate is `1.1.0-beta.8` (20261120). Merging this candidate into `main` triggers protected signing and prerelease publication after the release checks pass. Maintainer approval is pending.
+## Android changes after beta.8
+
+The integration branch `codex/nb9-android` starts at the [published beta.8](https://github.com/Willzy12h/bedjet-android/releases/tag/v1.1.0-beta.8), commit `0ffdcc2c9aa8cb4cfb7f4aa40996ff1f58a8d6b0`.
+
+- **Quick nap** counts from the BedJet start. The default is 10 minutes of Turbo, 30 minutes of Heat at 35°C and 30% fan, then Cool at 22°C and 40% fan up to the 90-minute wake point. Cooling continues for 10 minutes at 80% fan. The nap editor allows shorter or longer durations, stage edits and a profile-opening-only run. Clock time and the phone’s next eligible alarm are explicit alternatives. If the BedJet cannot meet the selected clock time with those stages, Nocturne explains why and still offers a duration-based start. The phone’s Clock app owns any alarm sound.
+- **Presets and previews** share the stepped fan chart across Tonight and Profiles. Untouched Heat now starts at 40°C for 30 minutes and Long heat at 30°C for 150 minutes. Check an upgrade with customised legacy Extend settings and explicit Quick settings.
+- **Temperature readings** use incoming BedJet reports. On Tonight and Remote, check Turbo to Cool, a stable temperature, reconnect, reduced motion and a switch between units. A stationary value can be current. A moving icon needs recent reports of a running mode.
+- **Sleep** keeps tracker sleep, BedJet use and missing observations distinct. Test a date containing both an overnight sleep and a nap, a three-month query with restricted access and a disconnection before the end of a run.
+
+**Physical acceptance pending.** With a BedJet 3, shorten the test preset and check the transition at wake and the later switch to standby, including with the phone disconnected. Verify a relative nap ignores a nearer phone alarm and that explicitly selecting the alarm displays the intended time. Switch from Heat to Cool, then interrupt Bluetooth to check when the icon stops. Compare a known night in Health Connect with the date and source shown in Sleep.
+
+The Midnight Ink fixed-clock capture produced 19 images on Robolectric API 34. Independent review covered naps that wait for connection, fixed wake times the device cannot meet, resuming after interruption and late standby reports. The R8 JVM compatibility check passed 142 saved-data cases across 61 models. The release APK built locally with shrinking enabled and without a signing key.
+
+**Windows verification at `28376c6`.** All 381 core tests passed. Of 2,045 Android debug tests, 1,978 passed, 44 skipped and 23 failed. Debug and release assembly passed. Debug lint reported zero issues.
+
+All 23 failures were in home-screen widget tests (12 command feedback, 10 confirmation, one import admission). AndroidX DataStore 1.0.0 calls `File.renameTo` to replace an existing widget preferences file. Windows rejected that replacement in a single-process probe and in a separate checkout of the published beta.8. Some assertions then saw pending or stale widget state. Run the full gate on the repository’s Linux CI before signing the next beta.
+
+## Published beta.8
+
+Integration branch `codex/nocturne-next-beta` started at beta.7, `18705776806da1efc0e62b327926f3bc679f3acd`. PR #32 was merged and the signed prerelease was published on 20 November 2026.
 
 ## Agreed scope
 
