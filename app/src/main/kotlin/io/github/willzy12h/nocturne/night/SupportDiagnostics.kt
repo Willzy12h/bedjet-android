@@ -20,7 +20,7 @@ internal fun supportDiagnostics(graph: Graph, includeAlarmTimes: Boolean): Strin
     fun ageMinutes(at: String) = runCatching { Duration.between(ZonedDateTime.parse(at), now).toMinutes() }.getOrNull()
     val alarm = AlarmSource.diagnostics(graph.context, settings, night?.let { repo.profile(it.profileId) } ?: repo.tonightsProfile(),
         night, repo.runtime.value, graph.actions.status.value, now)
-    return buildJsonObject {
+    val report = buildJsonObject {
         put("version", BuildConfig.VERSION_NAME)
         put("deviceModel", android.os.Build.MODEL)
         put("phone", PhoneDiagnostics.snapshot(graph.context))
@@ -67,8 +67,11 @@ internal fun supportDiagnostics(graph: Graph, includeAlarmTimes: Boolean): Strin
             JsonArray(trace.lineSequence().map { it.trim() }.mapNotNull { frame.matchEntire(it)?.groupValues?.get(1) }
                 .take(12).map(::JsonPrimitive).toList())
         } ?: JsonNull)
-    }.toString()
+    }
+    return reportFormat.encodeToString(JsonObject.serializer(), report)
 }
+
+private val reportFormat = Json { prettyPrint = true }
 
 // Share code locations only; exception messages, paths and thread names can contain free text.
 private val frame = Regex("""at (io\.github\.willzy12h\.nocturne\.[A-Za-z0-9_$.<>]+)\([^)]*\)""")

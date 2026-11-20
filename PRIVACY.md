@@ -55,7 +55,7 @@ Uninstalling Nocturne deletes all of this. You can also delete sleep history in 
 ## Files you export
 
 Backups, history exports and diagnostics are only written when you ask, to a location you pick. Once saved, those
-files are under your control. A diagnostics file contains phone and Bluetooth state, numbered device labels, programme confidence, the alarm source package, relative timings, event types and Nocturne crash code locations. You can include exact alarm times for a timing investigation. It contains no Health Connect data. Nothing is sent anywhere unless you share the file yourself.
+files are under your control. A diagnostics file contains phone and Bluetooth state, numbered device labels, programme confidence, the alarm source package, relative timings, event types and Nocturne crash code locations. You can include exact alarm times for a timing investigation. Nocturne shows the complete report for you to review before you choose a file. It saves the copy you reviewed. It contains no Health Connect data. Nothing is sent anywhere unless you share the file yourself.
 
 ## Children
 

@@ -838,12 +838,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Writes the diagnostics file the person chose (NightActions.diagnostics: no private preferences). */
+    internal suspend fun diagnosticsPreview(includeAlarmTimes: Boolean): String? = try {
+        withContext(Dispatchers.IO) { graph.actions.diagnostics(includeAlarmTimes) }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        _messages.tryEmit(text(R.string.diagnostics_preview_failed))
+        null
+    }
+
     fun exportDiagnostics(uri: android.net.Uri, includeAlarmTimes: Boolean = false,
-        open: ((android.net.Uri) -> java.io.OutputStream?)? = null) {
+        open: ((android.net.Uri) -> java.io.OutputStream?)? = null) = saveDiagnostics {
+        if (open == null) graph.actions.exportDiagnostics(uri, includeAlarmTimes)
+        else graph.actions.exportDiagnostics(uri, includeAlarmTimes, open)
+    }
+
+    internal fun exportReviewedDiagnostics(uri: android.net.Uri, report: String) = saveDiagnostics {
+        graph.actions.exportReviewedDiagnostics(uri, report)
+    }
+
+    private fun saveDiagnostics(write: suspend () -> Unit) {
         val app = getApplication<Application>()
         graph.scope.launch {
-            runCatching { if (open == null) graph.actions.exportDiagnostics(uri, includeAlarmTimes) else graph.actions.exportDiagnostics(uri, includeAlarmTimes, open) }
+            runCatching { write() }
                 .onSuccess { _messages.tryEmit(app.getString(R.string.settings_diagnostics_saved)) }
                 .onFailure { if (it is CancellationException) throw it
                     _messages.tryEmit(app.getString(R.string.settings_diagnostics_failed, it.message.orEmpty())) }
