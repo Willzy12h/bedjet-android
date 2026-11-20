@@ -265,8 +265,10 @@ class ScreenshotCapture {
         tap(s(R.string.checkin_keep), scroll = false)
         tab("Tonight")
         save { graph.repository.updateSettings { it.copy(demoMode = false, targetDevice = null) } }
-        compose.onNodeWithText(s(R.string.setup_choose_title)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(s(R.string.first_run_title)).performScrollTo().assertIsDisplayed()
         shot("gaps-$look-07-setup-title")
+        tap(s(R.string.first_run_connect))
+        compose.onNodeWithText(s(R.string.setup_choose_title)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(s(R.string.setup_find)).performScrollTo().assertIsDisplayed()
         shot("gaps-$look-07-setup-chooser")
         // The production banner itself, with a documented unreadable-history fixture.
