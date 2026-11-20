@@ -65,6 +65,7 @@ import java.time.ZonedDateTime
      * Only nights saved by those versions carry it, and it is still read so a night running across the upgrade keeps
      * its window (see AlarmPolicy.earliest). Null for every other night. */
     val shortAlarmNightMinutes: Int? = null,
+    val isNap: Boolean = false,
 ) {
     val identity: NightIdentity get() = NightIdentity(recordId, revision)
     val usesLiveProfileFallback: Boolean get() = profile == null

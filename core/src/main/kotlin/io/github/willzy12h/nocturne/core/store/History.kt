@@ -47,6 +47,7 @@ data class NightRecord(
     /** Monotonic provider version; a successful upsert is acknowledged separately. */
     val healthExportVersion: Long = 0,
     val healthExportedVersion: Long = 0,
+    val isNap: Boolean = false,
 )
 
 object History {
