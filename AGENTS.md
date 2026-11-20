@@ -22,6 +22,7 @@ it needs no manual step.
   `./gradlew :core:test` for core or `./gradlew :app:testDebugUnitTest --tests '*AlarmRuleTest*'` for one area.
   CI runs the full suite, lint and the release checks on every pull request.
 - Never commit signing keys or other secrets.
+- For an authorised phone-testing beta, set a version code higher than the current public release before running candidate CI. Deliver the Nocturne release-signed APK so it installs over the existing public beta.
 - When you bump `release.properties`, add the new version's saved data under
   `core/src/test/resources/saved-data/<versionName>/`: a `profiles.json` with "Summer, cooler" edited (days 6 and 7,
   fan start 70) and an own profile `own-1` on days 1 to 3, a `settings.json` with working slot 1 and Fahrenheit on, and

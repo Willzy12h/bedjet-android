@@ -33,6 +33,17 @@ class SavedDataCompatibilityTest {
         assertTrue(backup.history.none { it.isNap })
     }
 
+    @Test fun `beta 9 keeps the edited nap and observed BedJet history`() {
+        val saved = versions.single { it.name == "1.1.0-beta.9" }
+        val settings = BackupCodec.json.decodeFromString(Settings.serializer(), File(saved, "settings.json").readText())
+        val backup = BackupCodec.decode(File(saved, "backup.json").readText())
+        assertEquals(NapPreset(durationMinutes = 105), settings.napPreset)
+        assertEquals(settings, backup.settings)
+        val nap = backup.history.single { it.isNap }
+        assertEquals("2026-11-20T14:54:00Z", nap.lastRunningObservedAt)
+        assertEquals("2026-11-20T14:55:00Z", nap.standbyObservedAt)
+    }
+
     @TestFactory fun `every released version's saved data still reads`(): List<DynamicTest> {
         assertTrue(versions.size >= 4, "saved-data holds a folder per released version")
         return versions.map { version ->
