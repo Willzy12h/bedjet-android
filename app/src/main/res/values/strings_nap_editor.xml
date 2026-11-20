@@ -1,0 +1,13 @@
+<resources>
+    <string name="nap_editor_title">Edit nap preset</string>
+    <string name="nap_editor_duration">Nap duration</string>
+    <string name="nap_editor_opening_only">Use the selected profile’s opening steps</string>
+    <string name="nap_editor_opening_detail">Stop when the opening finishes or the nap duration is reached.</string>
+    <string name="nap_editor_fill">Run until wake time</string>
+    <string name="nap_editor_fill_help">This stage fills the time left after the opening steps.</string>
+    <string name="nap_editor_clock_preview">Wake at %1$s · Off at %2$s</string>
+    <string name="nap_editor_finishes">Off at %1$s</string>
+    <string name="nap_editor_invalid">Check the nap duration and stages.</string>
+    <string name="nap_editor_duration_invalid">Enter a duration of at least one minute, with minutes from 0 to 59.</string>
+    <string name="nap_editor_duration_clipped">Only the opening stages that fit will run.</string>
+</resources>
