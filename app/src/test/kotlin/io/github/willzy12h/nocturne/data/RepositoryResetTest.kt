@@ -3,6 +3,8 @@ package io.github.willzy12h.nocturne.data
 import android.app.Application
 import android.content.ContextWrapper
 import io.github.willzy12h.nocturne.core.plan.Presets
+import io.github.willzy12h.nocturne.core.protocol.Mode
+import io.github.willzy12h.nocturne.core.store.ManualControls
 import io.github.willzy12h.nocturne.core.store.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,12 +78,22 @@ class RepositoryResetTest {
 
     @Test fun resettingControlsKeepsEverythingElse() = runBlocking {
         val repo = repository()
-        repo.updateSettings { it.copy(fahrenheit = true, boostMinutes = 5, snoozeWarm = it.snoozeWarm.copy(minutes = 3)) }
+        val device = "ble:AA:BB:CC:DD:EE:FF"
+        val remembered = ManualControls(device, Mode.COOL, temperature = 46, fanStep = 10)
+        repo.updateSettings { it.copy(fahrenheit = true, targetDevice = device, boostMinutes = 25,
+            snoozeWarm = it.snoozeWarm.copy(minutes = 3), manualControls = listOf(remembered)) }
+        val before = repo.settings.value
         repo.snapshotBeforeReset()
         repo.updateSettings(Settings::withDefaultControls)
         val settings = repo.settings.value
         assertTrue(settings.controlsAreDefault)
         assertTrue(settings.fahrenheit)
-        assertEquals(1, repo.snapshotList.value.count { it.manual })
+        assertEquals(device, settings.targetDevice)
+        assertTrue(settings.manualControls.isEmpty())
+        val snapshot = repo.snapshotList.value.single { it.manual }
+        assertEquals(before, repo.snapshots.load(snapshot.id)!!.settings)
+        assertTrue(repo.restoreSnapshot(snapshot.id))
+        assertEquals(listOf(remembered), repo.settings.value.manualControls)
+        assertEquals(25, repo.settings.value.boostMinutes)
     }
 }

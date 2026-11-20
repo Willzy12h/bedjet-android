@@ -116,8 +116,8 @@ class KeepSettingsUiTest {
 
     @Test fun settingsResetsControlsAfterConfirming() {
         val model = model()
-        model.updateSettings { it.copy(boostMinutes = 5, fahrenheit = true) }
-        waitFor { model.settings.value.boostMinutes == 5 }
+        model.updateSettings { it.copy(boostMinutes = 25, fahrenheit = true) }
+        waitFor { model.settings.value.boostMinutes == 25 }
         compose.setContent {
             val settings by model.settings.collectAsState()
             NocturneTheme(settings, model.now()) { SettingsScreen(model, Modifier) }
