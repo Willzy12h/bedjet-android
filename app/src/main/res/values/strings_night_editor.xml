@@ -133,5 +133,4 @@
     <string name="parity_profiles_imported">Profiles imported</string>
     <string name="parity_profile_import_title">Review profiles</string>
     <string name="parity_profile_import_help">Only profiles in this file will be added or replaced. Your other profiles, settings, history and saved BedJet originals are kept.</string>
-    <string name="parity_day_off">%1$s (off)</string>
 </resources>

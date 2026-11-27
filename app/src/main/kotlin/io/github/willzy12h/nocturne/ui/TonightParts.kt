@@ -239,18 +239,21 @@ internal fun ConnectionActionStatus(model: AppViewModel, modifier: Modifier) {
     val tap = active ?: return
     val phase by tap.phase.collectAsStateWithLifecycle()
     val label = when (phase) {
-        ConnectingCommand.Phase.CONNECTING -> R.string.runtime_connecting_action
-        ConnectingCommand.Phase.REPLACE -> R.string.runtime_replace_live_action
-        ConnectingCommand.Phase.SENDING -> R.string.runtime_sending_action
+        ConnectingCommand.Phase.CONNECTING -> if (tap.startsNight) stringResource(R.string.tonight_running_connecting_start)
+            else stringResource(R.string.runtime_connecting_action, tap.label)
+        ConnectingCommand.Phase.REPLACE -> stringResource(R.string.runtime_replace_live_action, tap.label)
+        ConnectingCommand.Phase.SENDING -> stringResource(R.string.runtime_sending_action, tap.label)
         ConnectingCommand.Phase.CANCELLED -> return
     }
     Column(modifier.fillMaxWidth().testTag("connecting-command")) {
-        Text(stringResource(label, tap.label), Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = paletteTokens.ink)
+        Text(label, Modifier.semantics { liveRegion = LiveRegionMode.Polite }, color = paletteTokens.ink)
         Row {
             if (phase == ConnectingCommand.Phase.REPLACE)
                 TextButton(onClick = tap::replace) { Text(stringResource(R.string.runtime_replace_live_button)) }
             if (phase != ConnectingCommand.Phase.SENDING)
-                TextButton(onClick = { tap.cancelWaiting() }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = { tap.cancelWaiting() }) {
+                    Text(stringResource(if (tap.startsNight) R.string.tonight_running_cancel_start else android.R.string.cancel))
+                }
         }
     }
 }

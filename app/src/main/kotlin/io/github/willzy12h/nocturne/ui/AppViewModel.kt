@@ -149,6 +149,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** A restore still not finished on disk; the banner says so instead of "set aside" (P5). */
     val restoreUnfinished = repo.restoreUnfinished
     val nightStatus = graph.actions.status
+    internal val phoneOffConfirmed = graph.actions.phoneOffConfirmed
     val runtime = repo.runtime
     private val _foundBedJets = MutableStateFlow<List<FoundBedJet>>(emptyList())
     val foundBedJets: StateFlow<List<FoundBedJet>> = _foundBedJets.asStateFlow()
@@ -475,7 +476,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val generation = repo.runtime.value.generation
         val seen = if (hasLiveStatus.value && graph.link.state.value == LinkState.READY)
             graph.link.latestStatusFrom(request.deviceId) else null
-        return ConnectingCommand(label, off, request.deviceId, seen) {
+        return ConnectingCommand(label, off, request.deviceId, seen, startsNight = starting) {
             val sameNight = generation == repo.runtime.value.generation && activeNight.value?.identity == request.expected
             val samePlan = when {
                 nap != null -> graph.actions.napStillCurrent(nap)
@@ -674,6 +675,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun saveProfile(profile: Profile) = save { repo.saveProfile(profile) }
+    fun setWeeklyProfile(day: java.time.DayOfWeek, profileId: String?) = save { repo.setWeeklyProfile(day, profileId) }
+    fun setWeeklyFallback(profileId: String?) = save { repo.setWeeklyFallback(profileId) }
     /** "Next night": saved for later nights only; the running night keeps its snapshot, and the person is told so (U10). */
     fun saveProfileForNextNight(profile: Profile) = save {
         repo.saveProfile(profile)

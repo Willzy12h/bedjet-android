@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="weekly_schedule">Weekly schedule</string>
+    <string name="weekly_intro">Choose the usual profile for each night.</string>
+    <string name="weekly_tonight_override">%1$s · %2$s</string>
+    <string name="weekly_today">%1$s · Today</string>
+    <string name="weekly_every_day">Every %1$s</string>
+    <string name="weekly_save_day">Save %1$s</string>
+    <string name="weekly_use_default">Use default</string>
+    <string name="weekly_use_default_named">Use default · %1$s</string>
+    <string name="weekly_default_named">Default · %1$s</string>
+    <string name="weekly_default_title">Default profile</string>
+    <string name="weekly_no_default">No default profile</string>
+    <string name="weekly_save_default">Save default</string>
+    <string name="weekly_default_explanation">Used on nights with no assigned profile.</string>
+    <string name="weekly_edit_profile">Edit %1$s</string>
+    <string name="weekly_edit_schedule">Edit weekly schedule</string>
+    <string name="weekly_usage_with_default">%1$s · Default</string>
+    <string name="weekly_no_days">No days assigned</string>
+    <string name="weekly_expanded">Expanded</string>
+    <string name="weekly_collapsed">Collapsed</string>
+    <string name="weekly_used">In your weekly schedule</string>
+    <string name="weekly_active_edit">Saving applies to future starts.</string>
+    <string name="tonight_from_weekly_schedule">From your %1$s schedule</string>
+    <string name="tonight_from_fallback">From your default profile</string>
+    <string name="tonight_no_schedule">Choose a profile for tonight or set a weekly default.</string>
+    <string name="tonight_choice_expiry">Tonight only · until %1$s</string>
+    <string name="tonight_choice_noon_today">noon today</string>
+    <string name="tonight_choice_noon_tomorrow">noon tomorrow</string>
+    <string name="tonight_use_profile">Use tonight</string>
+    <string name="tonight_after_wake_off">Off at %1$s</string>
+    <string name="tonight_after_wake_mode">%1$s until %2$s, then Off</string>
+    <string name="tonight_after_wake_steps">After waking · Off at %1$s</string>
+</resources>

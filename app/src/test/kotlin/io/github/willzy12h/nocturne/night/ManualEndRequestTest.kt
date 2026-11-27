@@ -9,10 +9,13 @@ import io.github.willzy12h.nocturne.core.protocol.*
 import io.github.willzy12h.nocturne.core.store.*
 import io.github.willzy12h.nocturne.data.Repository
 import io.github.willzy12h.nocturne.graph
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
@@ -107,6 +110,35 @@ class ManualEndRequestTest {
 
     @Test fun aLateEndNightKeepsItsOffLabel() = runBlocking {
         assertLateLabel(NightActions.Command.END_NIGHT, "BedJet off.")
+    }
+
+    @Test fun lateAppOffConfirmationNamesTheEndedNightAndDoesNotRepeat() = runBlocking {
+        val confirmations = mutableListOf<NightActions.PhoneOffConfirmation>()
+        val listener = launch(start = CoroutineStart.UNDISPATCHED) { graph.actions.phoneOffConfirmed.collect { confirmations += it } }
+        try {
+            val night = unresolved(NightActions.Command.END_NIGHT)
+            assertTrue(confirmations.isEmpty())
+            standby(graph.now().plusSeconds(1))
+            standby(graph.now().plusSeconds(2))
+            yield()
+            assertEquals(NightActions.PhoneOffConfirmation(night.identity, realTarget, graph.repository.runtime.value.generation),
+                confirmations.single())
+        } finally { listener.cancel() }
+    }
+
+    @Test fun lateWidgetOffCannotInheritAnEarlierAppRequest() = runBlocking {
+        val confirmations = mutableListOf<NightActions.PhoneOffConfirmation>()
+        val listener = launch(start = CoroutineStart.UNDISPATCHED) { graph.actions.phoneOffConfirmed.collect { confirmations += it } }
+        try {
+            unresolved(NightActions.Command.END_NIGHT)
+            val request = graph.actions.capture(NightActions.Command.OFF)
+                .copy(replacementConfirmed = true, origin = CommandOrigin.WIDGET)
+            assertEquals(OutcomeKind.UNKNOWN, graph.actions.execute(request).kind)
+            standby(graph.now().plusSeconds(1))
+            yield()
+            assertNull(graph.repository.activeNight.value)
+            assertTrue(confirmations.isEmpty())
+        } finally { listener.cancel() }
     }
 
     @Test fun aLateTurboEndKeepsTheTurboLabel() = runBlocking {

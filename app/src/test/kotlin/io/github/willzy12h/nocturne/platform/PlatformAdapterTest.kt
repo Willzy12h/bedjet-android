@@ -41,6 +41,24 @@ class PlatformAdapterTest : io.github.willzy12h.nocturne.platform.PlatformGraphF
         graph.clock=Clock.offset(graph.clock,Duration.ofHours(3))
         assertFalse(BedtimeReminders.deliver(graph,profile.id,bedtime))
     }
+    @Test fun fridayOnlyReminderRearmsForNextWeekAfterTodaysReminderHasPassed() = runBlocking {
+        val graph = context.graph
+        graph.clock = Clock.fixed(Instant.parse("2026-11-27T23:00:00Z"), ZoneOffset.UTC)
+        val repo = graph.repository
+        val profile = repo.profiles.value.first().copy(bedtimeMinute = 22 * 60 + 30)
+        repo.saveProfile(profile)
+        repo.setWeeklyFallback(null)
+        repo.setWeeklyProfile(DayOfWeek.FRIDAY, profile.id)
+        repo.updateSettings { it.copy(platform = it.platform.copy(bedtimeReminder = true, reminderMinutes = 30)) }
+
+        BedtimeReminders.sync(graph)
+
+        val alarms = shadowOf(context.getSystemService(android.app.AlarmManager::class.java)).scheduledAlarms
+        val reminder = alarms.single {
+            shadowOf(it.operationIntent).savedIntent.component?.className == BedtimeReminderReceiver::class.java.name
+        }
+        assertEquals(Instant.parse("2026-12-04T22:00:00Z").toEpochMilli(), reminder.triggerAtMs)
+    }
     @Test fun fullBatteryWithoutPowerIsNotCharging() {
         // Seed the system-only sticky battery broadcast; Robolectric has no public replacement setter.
         @Suppress("DEPRECATION")

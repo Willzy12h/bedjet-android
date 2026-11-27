@@ -12,6 +12,7 @@ import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import kotlinx.serialization.json.*
+import java.time.DayOfWeek
 import java.time.ZonedDateTime
 
 /**
@@ -200,6 +201,15 @@ object BackupValidator {
         if (settings.setupDismissedOptional.any { it !in setOf("health", "widget") }) invalid("settings.setupDismissedOptional")
         settings.selectedProfileId?.let { bounded(it, "settings.selectedProfileId", MAX_ID) }
         settings.tonightChoice?.let { bounded(it.profileId, "settings.tonightChoice.profileId", MAX_ID) }
+        settings.weeklySchedule?.let { schedule ->
+            val days = DayOfWeek.values().map { it.name }.toSet()
+            if (schedule.profileByDay.size > days.size) invalid("settings.weeklySchedule.profileByDay")
+            schedule.profileByDay.entries.take(days.size).forEach { (day, id) ->
+                if (day !in days) invalid("settings.weeklySchedule.profileByDay")
+                bounded(id, "settings.weeklySchedule.profileByDay", MAX_ID)
+            }
+            schedule.fallbackProfileId?.let { bounded(it, "settings.weeklySchedule.fallbackProfileId", MAX_ID) }
+        }
         settings.targetDevice?.let { bounded(it, "settings.targetDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.targetDevice") }
         settings.setupFanCheckedDevice?.let { bounded(it, "settings.setupFanCheckedDevice", MAX_ID); if (!SAVED_DEVICE.matches(it)) invalid("settings.setupFanCheckedDevice") }
         if (NapProgramme.validate(settings.napPreset) != null) invalid("settings.napPreset")

@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.content.Intent
 import android.view.HapticFeedbackConstants
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -148,7 +149,8 @@ private enum class Tab(@androidx.annotation.StringRes val label: Int, @androidx.
 }
 
 @Serializable
-private data class ProfileDraft(val original: Profile, val edited: Profile, val selection: EditorPhaseSelection? = null)
+private data class ProfileDraft(val original: Profile, val edited: Profile, val selection: EditorPhaseSelection? = null,
+    val futureStartsOnly: Boolean = false)
 
 @androidx.compose.runtime.Composable
 private fun NocturneApp(model: AppViewModel, tonightRequest: Int) {
@@ -172,6 +174,16 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         }
     }
     var tab by rememberSaveable { mutableStateOf(Tab.TONIGHT) }
+    var scheduleFrom by rememberSaveable { mutableStateOf<Tab?>(null) }
+    var weeklyPicker by rememberSaveable { mutableStateOf<Int?>(null) }
+    var weeklySelection by rememberSaveable { mutableStateOf<String?>(null) }
+    val weeklyScroll = rememberScrollState()
+    val closeSchedule = {
+        scheduleFrom = null
+        weeklyPicker = null
+        weeklySelection = null
+    }
+    val openSchedule = { scheduleFrom = tab }
     val setupRequest by model.setupChecklistRequest.collectAsStateWithLifecycle()
     var handledSetupRequest by rememberSaveable { mutableIntStateOf(0) }
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
@@ -184,11 +196,13 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
     var alarmsRequest by remember { mutableIntStateOf(0) }
     // Tonight's "Last night" card opens Settings at the Sleep page.
     var sleepRequest by remember { mutableIntStateOf(0) }
-    val edit: (Profile) -> Unit = { profile ->
+    val editDraft: (Profile, Boolean) -> Unit = { profile, futureStartsOnly ->
         val parked = parkedDrafts.firstOrNull { Json.decodeFromString<ProfileDraft>(it).original.id == profile.id }
-        draftJson = parked ?: Json.encodeToString(ProfileDraft(profile, profile))
+        val draft = parked?.let { Json.decodeFromString<ProfileDraft>(it) } ?: ProfileDraft(profile, profile)
+        draftJson = Json.encodeToString(draft.copy(futureStartsOnly = futureStartsOnly))
         if (parked != null) parkedDrafts = parkedDrafts - parked
     }
+    val edit: (Profile) -> Unit = { editDraft(it, false) }
     val editPhase: (Profile, EditorPhaseSelection) -> Unit = { profile, selection ->
         edit(profile)
         draftJson = draftJson?.let { encoded ->
@@ -204,6 +218,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
             handledSetupRequest = setupRequest
             if (setupRequest > 0) {
                 draftJson?.let { parkedDrafts = parkedDrafts + it; draftJson = null }
+                closeSchedule()
                 tab = Tab.TONIGHT
             }
         }
@@ -217,6 +232,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                 parkedDrafts = parkedDrafts + it
                 draftJson = null
             }
+            closeSchedule()
             tab = Tab.TONIGHT
         }
     }
@@ -225,6 +241,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
         val draft = Json.decodeFromString<ProfileDraft>(json)
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) { Box(Modifier.widthIn(max = MaxContentWidth)) {
         ProfileEditor(model, draft.original, onDone = { draftJson = null },
+            futureStartsOnly = draft.futureStartsOnly,
             initialDraft = draft.edited, initialPhase = draft.selection, onDraftChange = { edited ->
                 val updated = Json.encodeToString(draft.copy(edited = edited))
                 if (draftJson?.let { Json.decodeFromString<ProfileDraft>(it).original.id } == draft.original.id) {
@@ -238,6 +255,10 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
             })
         } }
         return
+    }
+    BackHandler(enabled = scheduleFrom != null) {
+        if (weeklyPicker != null) { weeklyPicker = null; weeklySelection = null }
+        else closeSchedule()
     }
     Scaffold(
         topBar = {
@@ -291,7 +312,7 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
                         val label = androidx.compose.ui.res.stringResource(it.label)
                         NavigationBarItem(
                             selected = tab == it,
-                            onClick = { if (tab == it && it == Tab.SETTINGS) settingsHomeRequest++; tab = it },
+                            onClick = { if (tab == it && it == Tab.SETTINGS) settingsHomeRequest++; closeSchedule(); tab = it },
                             modifier = if (compactNavigation) Modifier.semantics { contentDescription = label } else Modifier,
                             icon = { Icon(androidx.compose.ui.res.painterResource(it.icon), null, Modifier.size(22.dp)) },
                             label = if (compactNavigation) null else { { Text(label, fontSize = 12.sp,
@@ -309,13 +330,19 @@ private fun SessionApp(model: AppViewModel, tonightRequest: Int) {
       // Phones use the full width; on tablets and in landscape the content stays a readable column.
       Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
         val modifier = Modifier.widthIn(max = MaxContentWidth)
-        when (tab) {
+        val scheduleOrigin = scheduleFrom
+        if (scheduleOrigin != null) WeeklyScheduleScreen(model, modifier, weeklyScroll,
+            backLabel = stringResource(scheduleOrigin.label), picker = weeklyPicker, selectedId = weeklySelection,
+            onPicker = { day, selection -> weeklyPicker = day; weeklySelection = selection },
+            onBack = closeSchedule, onEdit = { editDraft(it, true) })
+        else when (tab) {
             Tab.TONIGHT -> TonightScreen(model, modifier, onEdit = edit, onEditPhase = editPhase,
+                onOpenSchedule = openSchedule,
                 onOpenRemote = { tab = Tab.REMOTE },
                 onOpenBackups = { tab = Tab.SETTINGS; alarmsRequest = 0; sleepRequest = 0; backupsRequest++ },
                 onOpenAlarmSettings = { tab = Tab.SETTINGS; backupsRequest = 0; sleepRequest = 0; alarmsRequest++ },
                 onOpenSleep = { tab = Tab.SETTINGS; backupsRequest = 0; alarmsRequest = 0; sleepRequest++ })
-            Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit)
+            Tab.PROFILES -> ProfilesScreen(model, modifier, onEdit = edit, onOpenSchedule = openSchedule)
             Tab.REMOTE -> RemoteScreen(model, modifier)
             Tab.SETTINGS -> SettingsScreen(model, modifier, backupsRequest, alarmsRequest, settingsHomeRequest,
                 onBackupsRequestHandled = { if (backupsRequest == it) backupsRequest = 0 },

@@ -23,6 +23,7 @@ internal class ConnectingCommand(
     val off: Boolean,
     private val target: String?,
     private val seen: DeviceStatus?,
+    val startsNight: Boolean,
     private val current: () -> Boolean,
 ) : AbstractCoroutineContextElement(Key) {
     companion object Key : CoroutineContext.Key<ConnectingCommand>

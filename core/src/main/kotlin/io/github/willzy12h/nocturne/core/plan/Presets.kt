@@ -49,8 +49,8 @@ object Presets {
     fun byId(id: String): Profile? = all.firstOrNull { it.id == id }
 
     /**
-     * [profile] with its built-in temperatures, fan speeds, timings and name put back; the days it is the default for
-     * stay. Null for a profile the person made, which has no default.
+     * [profile] with its built-in temperatures, fan speeds, timings and name put back. Preserves legacy days for
+     * migration. Null for a profile the person made, which has no default.
      */
     fun reset(profile: Profile): Profile? = byId(profile.id)?.copy(days = profile.days)
 

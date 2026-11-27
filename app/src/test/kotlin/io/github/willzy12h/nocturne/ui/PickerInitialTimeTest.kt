@@ -196,7 +196,9 @@ class PickerInitialTimeTest {
             wakeSource = profile.wakeSource.copy(defaultWakeMinute = 8 * 60 + 20))
         save { saveProfile(other) }
         compose.onNodeWithTag("tonight-change").performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-profile-list").performScrollToKey(other.id)
         compose.onNodeWithTag("tonight-choose-${other.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-picker-use").performClick()
         waitUntil { graph.repository.settings.value.tonightChoice?.profileId == other.id }
         compose.onNodeWithText(s(R.string.tonight_set_wake)).performScrollTo().performClick()
 

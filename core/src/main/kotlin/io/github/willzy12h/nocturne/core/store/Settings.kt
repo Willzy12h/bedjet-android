@@ -120,6 +120,8 @@ data class Settings(
     val cooldownOfferAnswered: Boolean = false,
     val platform: PlatformSettings = PlatformSettings(),
     val napPreset: NapPreset = NapPreset(),
+    /** Null until the library's legacy day choices and first-profile fallback have been migrated. */
+    val weeklySchedule: WeeklySchedule? = null,
 ) {
     fun normalisedRememberedBedJets(): List<String> = (listOfNotNull(targetDevice) + rememberedBedJets)
         .mapNotNull { id -> DeviceId.address(id)?.takeIf { it.matches(Regex("[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}")) }?.let(DeviceId::ble) }
@@ -175,9 +177,21 @@ data class Settings(
         if (tonightChoice == null && selectedProfileId != null) chooseTonight(selectedProfileId, at) else copy(selectedProfileId = null)
     fun resolveTonightChoice(at: ZonedDateTime): TonightChoice? =
         tonightChoice?.takeIf { at.isBefore(ZonedDateTime.parse(it.expiresAt)) }
+
+    fun effectiveWeeklySchedule(profiles: List<Profile>): WeeklySchedule = weeklySchedule ?: WeeklySchedule.fromLegacy(profiles)
+
+    fun migrateWeeklySchedule(profiles: List<Profile>): Settings =
+        if (weeklySchedule == null) copy(weeklySchedule = effectiveWeeklySchedule(profiles)) else this
+
+    fun resolveScheduledProfile(profiles: List<Profile>, at: ZonedDateTime): Profile? {
+        val schedule = effectiveWeeklySchedule(profiles)
+        val assignedId = schedule.profileIdFor(at.dayOfWeek)
+        return profiles.firstOrNull { it.id == assignedId } ?: profiles.firstOrNull { it.id == schedule.fallbackProfileId }
+    }
+
     fun resolveProfile(profiles: List<Profile>, at: ZonedDateTime): Profile? =
-        profiles.firstOrNull { it.id == resolveTonightChoice(at)?.profileId }
-            ?: profiles.firstOrNull { at.dayOfWeek.value in it.days } ?: profiles.firstOrNull()
+        resolveTonightChoice(at)?.profileId?.let { id -> profiles.firstOrNull { it.id == id } }
+            ?: resolveScheduledProfile(profiles, at)
 
     /**
      * The controls back to how a new install has them: the wake notification's buttons, Snooze and Extend, Boost and
