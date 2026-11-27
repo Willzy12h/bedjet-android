@@ -1,8 +1,13 @@
 package io.github.willzy12h.nocturne.ui
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Rect
 import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.semantics.SemanticsProperties
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import androidx.compose.ui.test.*
@@ -17,6 +22,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -96,16 +103,46 @@ class FinalRemoteLayoutTest {
         val scale = AndroidSettings.Global.ANIMATOR_DURATION_SCALE
         val originalScale = AndroidSettings.Global.getFloat(resolver, scale, 1f)
         val clock = ui.compose.mainClock
-        fun iconBounds() = ui.compose.onNodeWithTag("reading-mode-icon", useUnmergedTree = true)
-            .fetchSemanticsNode().boundsInRoot
+        fun renderedIconBounds(tag: String): Rect {
+            // Sample the whole fixed slot. Accessibility bounds need not track drawing transforms.
+            val slot = ui.compose.onNodeWithTag(tag, useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot
+            val width = slot.width.roundToInt()
+            val height = slot.height.roundToInt()
+            assertTrue("The reading icon slot is visible", width > 0 && height > 0)
+            val root = ui.compose.activity.window.decorView
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            return try {
+                ui.compose.runOnUiThread {
+                    root.draw(Canvas(bitmap).apply { translate(-slot.left, -slot.top) })
+                }
+                val background = bitmap.getPixel(0, 0)
+                val icon = Rect()
+                for (y in 0 until height) for (x in 0 until width) {
+                    val pixel = bitmap.getPixel(x, y)
+                    // Ignore weak antialiasing at the edge of the outline.
+                    val difference = maxOf(abs(Color.red(pixel) - Color.red(background)),
+                        abs(Color.green(pixel) - Color.green(background)), abs(Color.blue(pixel) - Color.blue(background)))
+                    if (difference >= 48) icon.union(x, y, x + 1, y + 1)
+                }
+                assertFalse("The slot contains the rendered icon", icon.isEmpty)
+                icon
+            } finally { bitmap.recycle() }
+        }
         fun moves(expected: Boolean) {
-            // Give the new layout and its animation frame clock time to settle after a mode change.
-            clock.advanceTimeBy(96)
-            val first = iconBounds()
-            val changed = (1..8).map {
+            // A paused Compose clock does not guarantee a platform-thread snapshot write has been observed.
+            ui.compose.runOnUiThread { Snapshot.sendApplyNotifications() }
+            val frameTag = "reading-mode-icon-slot-${report.value.mode.name}-$expected"
+            ui.waitUntil { ui.compose.onAllNodesWithTag(frameTag, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
+            // Sample a full animation cycle after the new mode is drawn. One pixel of edge rasterisation may vary.
+            clock.advanceTimeBy(320)
+            val bounds = (1..16).map {
                 clock.advanceTimeBy(176)
-                first != iconBounds()
-            }.any { it }
+                renderedIconBounds(frameTag)
+            }
+            val changed = listOf<(Rect) -> Int>({ it.left }, { it.top }, { it.right }, { it.bottom }).any { edge ->
+                bounds.maxOf(edge) - bounds.minOf(edge) >= 2
+            }
             assertEquals("Mode ${report.value.mode}, recent=${recent.value}, simple=${settings.value.simpleView}",
                 expected, changed)
         }
