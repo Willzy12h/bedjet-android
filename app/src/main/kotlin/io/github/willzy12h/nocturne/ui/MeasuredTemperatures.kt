@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
@@ -33,14 +32,12 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.Settings
-import kotlin.math.roundToInt
 
 private val ReadingIconSize = 22.dp
 private val ReadingCoolTravel = 2.dp
@@ -122,8 +119,10 @@ private fun ReadingModeIcon(mode: Mode, recent: Boolean, boost: Boolean) {
             initialValue = 0f, targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(1_300, easing = FastOutSlowInEasing), RepeatMode.Reverse),
             label = "Airflow or heat")
-        if (cooling) Modifier.offset { IntOffset((ReadingCoolTravel.toPx() * strength).roundToInt(), 0) }
-        else Modifier.graphicsLayer { scaleY = 1f - .12f * strength }
+        Modifier.graphicsLayer {
+            if (cooling) translationX = ReadingCoolTravel.toPx() * strength
+            else scaleY = 1f - .12f * strength
+        }
     } else Modifier
     val tokens = paletteTokens
     // Keep airflow motion inside the fixed slot, including where the icon meets the edge of a narrow display.

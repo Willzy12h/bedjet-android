@@ -97,7 +97,7 @@ import java.util.UUID
 private data class PinRequest(val profile: Profile, val target: String?, val workingSlot: Int,
     val previewedAt: ZonedDateTime, val preview: Preview)
 
-private enum class ProfilesListItem { WEEKLY_SCHEDULE, RESTORE_BUILT_IN }
+private enum class ProfilesListItem { REORDER_HINT, WEEKLY_SCHEDULE, RESTORE_BUILT_IN }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -153,11 +153,12 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             Pill(stringResource(R.string.parity_new), tokens.ink, tokens.ground, tag = "profiles-new",
                 description = stringResource(R.string.profiles_new)) { adding = true }
         }
-        if (profiles.size > 1) Text(stringResource(R.string.profiles_reorder_hint),
-            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), color = tokens.ink2, fontSize = 13.sp)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = listState,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = FeedbackClearance),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (profiles.size > 1) item(key = ProfilesListItem.REORDER_HINT) {
+                Text(stringResource(R.string.profiles_reorder_hint), color = tokens.ink2, fontSize = 13.sp)
+            }
             item(key = ProfilesListItem.WEEKLY_SCHEDULE) {
                 val today = model.now()
                 val selected = settings.resolveScheduledProfile(profiles, today)

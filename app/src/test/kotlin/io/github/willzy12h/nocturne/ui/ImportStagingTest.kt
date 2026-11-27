@@ -52,12 +52,14 @@ class ImportStagingTest {
 
     @Test fun choosingAnImportFileDoesNotApplyItBeforeTheReviewIsAccepted() {
         val before = graph.repository.bundle()
+        val settingsBefore = graph.repository.settings.value
         input = BackupCodec.encode(before.copy(profiles = emptyList(), settings = before.settings.copy(fahrenheit = !before.settings.fahrenheit)))
         val message = graph.scope.async(start = CoroutineStart.UNDISPATCHED) { model.messages.first() }
         model.import(Uri.parse("content://test/backup.json"))
         until { message.isCompleted }
+        assertTrue("The file must reach a review that can be applied", model.importPreview.value?.canApply == true)
         assertEquals("Reading a selected file must only stage the preview", before.profiles, graph.repository.profiles.value)
-        assertEquals(before.settings, graph.repository.settings.value)
+        assertEquals(settingsBefore, graph.repository.settings.value)
         assertEquals(before.history, graph.repository.history.value)
         assertEquals(before.slotBackups, graph.repository.slotBackups.value)
         assertTrue("The before-import recovery snapshot belongs to confirmation, not preview", graph.repository.snapshotList.value.none { it.manual })
