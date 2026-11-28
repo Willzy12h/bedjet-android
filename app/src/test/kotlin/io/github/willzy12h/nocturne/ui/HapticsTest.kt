@@ -55,8 +55,7 @@ class HapticsTest {
         ReflectionHelpers.setField(app, "graph", graph)
         graph.clock = Clock.fixed(Instant.parse("2026-10-25T22:30:00Z"), ZoneOffset.UTC)
         graph.repository.updateSettings { it.copy(demoMode = true) }
-        graph.actions.confirmMs = 1
-        graph.actions.freshStatusMs = 1
+        // These cases exercise haptic attribution after confirmation, with the normal time allowed for a reply.
         model = AppViewModel(app)
         models.put("haptics", model)
         model.onScreenVisible()
