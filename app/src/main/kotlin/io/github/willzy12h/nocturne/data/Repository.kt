@@ -37,6 +37,7 @@ import io.github.willzy12h.nocturne.core.store.deviceId
 import io.github.willzy12h.nocturne.core.store.SlotBackup
 import io.github.willzy12h.nocturne.core.store.SnapshotInfo
 import io.github.willzy12h.nocturne.core.store.SnapshotStore
+import io.github.willzy12h.nocturne.core.store.WeeklySchedule
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +72,7 @@ import java.nio.file.StandardOpenOption
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.security.MessageDigest
+import java.time.DayOfWeek
 import java.time.ZonedDateTime
 import java.util.Base64
 import java.util.UUID
@@ -405,8 +407,23 @@ class Repository(
                     context.getString(R.string.runtime_restore_unfinished_notice)))
             }.onFailure { Log.e(TAG, "Couldn't log the unfinished restore", it) }
         }
-        if (_settings.value.selectedProfileId != null) scope.launch {
-            updateSettings { it.migrateTonightChoice(settingsLoadedAt) }
+        if (_settings.value.selectedProfileId != null || (!startedEmpty && _settings.value.weeklySchedule == null)) scope.launch {
+            try {
+                serially {
+                    if (isDemoSession) return@serially
+                    val current = _settings.value
+                    val migrated = current.migrateTonightChoice(settingsLoadedAt).let {
+                        if (PROFILES in _unreadable.value || SETTINGS in _unreadable.value) it
+                        else it.migrateWeeklySchedule(_profiles.value)
+                    }
+                    if (migrated == current) return@serially
+                    writeValue(SETTINGS, Settings.serializer(), migrated)
+                    publishSettings(migrated)
+                }
+            } catch (e: IOException) {
+                // The readable legacy data still resolves the same way. A later edit can persist the migration.
+                Log.w(TAG, "Couldn't save the profile schedule migration", e)
+            }
         }
         scope.launch {
             combine(_profiles, _settings) { _, _ -> }.drop(1).debounce(30_000).collect { autoSnapshot() }
@@ -423,17 +440,18 @@ class Repository(
 
     fun profile(id: String?): Profile? = _profiles.value.firstOrNull { it.id == id }
 
-    /** The profile for tonight: the one picked, else the one set for today's weekday, else the first. */
+    /** The tonight-only choice, today's weekly assignment or the explicitly saved fallback, in that order. */
     fun tonightsProfile(now: ZonedDateTime = now()): Profile? =
         _settings.value.migrateTonightChoice(settingsLoadedAt).resolveProfile(_profiles.value, now)
 
-    suspend fun saveProfile(profile: Profile) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list ->
-        if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it }
-        else {
+    suspend fun saveProfile(profile: Profile) = serially {
+        val list = _profiles.value
+        val updated = if (list.any { it.id == profile.id }) list.map { if (it.id == profile.id) profile else it } else {
             if (list.size >= BackupValidator.PROFILE_CREATION_LIMIT)
                 throw IOException(context.getString(R.string.profile_library_full, BackupValidator.PROFILE_CREATION_LIMIT))
             list + profile
         }
+        writeProfileLibrary(updated)
     }
 
     suspend fun answerCooldownOffer(expected: Map<String, List<Phase>>, expectedSessionRevision: Long = sessionRevision.value): Boolean {
@@ -466,18 +484,65 @@ class Repository(
     }
 
     /** UX-02: saves the Profiles list in [ids] order; a profile [ids] does not name keeps its place after them. */
-    suspend fun reorderProfiles(ids: List<String>) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list ->
+    suspend fun reorderProfiles(ids: List<String>) = serially {
+        val list = _profiles.value
         val byId = list.associateBy { it.id }
-        ids.distinct().mapNotNull(byId::get) + list.filterNot { it.id in ids }
+        writeProfileLibrary(ids.distinct().mapNotNull(byId::get) + list.filterNot { it.id in ids })
     }
 
-    suspend fun deleteProfile(id: String) = update(_profiles, PROFILES, ListSerializer(Profile.serializer())) { list -> list.filterNot { it.id == id } }
+    suspend fun deleteProfile(id: String) = serially {
+        val list = _profiles.value
+        val remaining = list.filterNot { it.id == id }
+        if (remaining.size == list.size) return@serially
+        val settings = _settings.value
+        val schedule = settings.effectiveWeeklySchedule(list).retainingProfiles(remaining)
+        writeProfileLibrary(remaining, settings.copy(weeklySchedule = schedule))
+    }
+
+    suspend fun setWeeklyProfile(day: DayOfWeek, profileId: String?) = updateWeeklySchedule(profileId) {
+        it.withProfile(day, profileId)
+    }
+
+    suspend fun setWeeklyFallback(profileId: String?) = updateWeeklySchedule(profileId) { it.copy(fallbackProfileId = profileId) }
+
+    private suspend fun updateWeeklySchedule(profileId: String?, change: (WeeklySchedule) -> WeeklySchedule) = updateSettings {
+        val profiles = _profiles.value
+        if (profileId != null && profiles.none { it.id == profileId })
+            throw IOException(context.getString(R.string.runtime_profile_deleted))
+        it.copy(weeklySchedule = change(it.effectiveWeeklySchedule(profiles)))
+    }
 
     suspend fun updateSettings(change: (Settings) -> Settings) = update(_settings, SETTINGS, Settings.serializer()) {
         change(it).migrateTonightChoice(now()).withoutUnidentifiedAlarms().let { changed ->
-            if (isDemoSession) changed.copy(demoMode = true, targetDevice = null, rememberedBedJets = emptyList(),
-                setupFanCheckedDevice = null) else changed
+            val settings = if (PROFILES in _unreadable.value) changed else changed.migrateWeeklySchedule(_profiles.value)
+            if (isDemoSession) settings.copy(demoMode = true, targetDevice = null, rememberedBedJets = emptyList(),
+                setupFanCheckedDevice = null) else settings
         }
+    }
+
+    /** Freeze the schedule against the previous library before replacing, adding to or reordering that library. */
+    private fun writeProfileLibrary(profiles: List<Profile>, settings: Settings = _settings.value.migrateWeeklySchedule(_profiles.value),
+        journal: Boolean = false) {
+        val serializer = ListSerializer(Profile.serializer())
+        val priorSettings = _settings.value
+        if (settings == priorSettings && !journal) {
+            writeValue(PROFILES, serializer, profiles)
+            _profiles.value = profiles
+            return
+        }
+        writeAllOrNone(buildList {
+            if (settings != priorSettings) {
+                add(Write(SETTINGS, encode(Settings.serializer(), priorSettings), encode(Settings.serializer(), settings)) {
+                    publishSettings(settings)
+                })
+            }
+            add(Write(PROFILES, encode(serializer, _profiles.value), encode(serializer, profiles)) { _profiles.value = profiles })
+        })
+    }
+
+    private fun publishSettings(settings: Settings) {
+        _settings.value = settings
+        _settingsPublication.value += 1
     }
 
     // Night state
@@ -795,10 +860,11 @@ class Repository(
         requireRealSession()
         if (hasPendingErasure()) throw IOException(context.getString(R.string.history_erasure_pending))
         val at = now()
+        val profiles = _profiles.value
         return BackupBundle(
             createdAt = at.toString(),
-            profiles = _profiles.value,
-            settings = _settings.value,
+            profiles = profiles,
+            settings = _settings.value.migrateWeeklySchedule(profiles),
             slotBackups = _slotBackups.value,
             history = _history.value.filter(retainCurrentHistory(at)),
         )
@@ -825,14 +891,12 @@ class Repository(
     }
 
     /**
-     * Puts every built-in profile back as it ships, keeping the nights it is set for, and adds back any that were
-     * deleted. The person's own profiles stay as they are. A snapshot is saved first.
+     * Puts every built-in profile back as it ships and adds back any that were deleted. The weekly schedule and
+     * the person's own profiles stay as they are. A snapshot is saved first.
      */
     suspend fun restoreBuiltInProfiles() = serially {
         snapshotBeforeResetLocked()
-        val profiles = Presets.restore(_profiles.value)
-        writeValue(PROFILES, ListSerializer(Profile.serializer()), profiles)
-        _profiles.value = profiles
+        writeProfileLibrary(Presets.restore(_profiles.value))
     }
 
     suspend fun deleteSnapshot(id: String) = serially {
@@ -892,7 +956,9 @@ class Repository(
         // app's own is, so it becomes tonight's choice only when there is none (IR-30).
         val importedSettings = bundle.settings.copy(tonightChoice = current.tonightChoice, tonightOverride = current.tonightOverride)
             .migrateTonightChoice(restoreAt)
-        val settings = importedSettings.copy(allowLockedOff = current.allowLockedOff, demoMode = current.demoMode, targetDevice = current.targetDevice,
+        val schedule = importedSettings.effectiveWeeklySchedule(bundle.profiles).retainingProfiles(bundle.profiles)
+        val settings = importedSettings.copy(weeklySchedule = schedule,
+            allowLockedOff = current.allowLockedOff, demoMode = current.demoMode, targetDevice = current.targetDevice,
             rememberedBedJets = current.rememberedBedJets, demoTargetMigrated = current.demoTargetMigrated,
             setupFanCheckedDevice = current.setupFanCheckedDevice,
             platform = bundle.settings.platform.copy(chargerAutoStart = false, chargerDevice = null, healthSleepExport = false,
@@ -1060,8 +1126,7 @@ class Repository(
                 requireRestorableProjection(projected)
                 snapshots.save(bundle(), preview.snapshotLabel, manual = true)
                 _snapshotList.value = snapshots.list()
-                writeAllOrNone(listOf(Write(PROFILES, encode(ListSerializer(Profile.serializer()), _profiles.value),
-                    encode(ListSerializer(Profile.serializer()), projected.profiles)) { _profiles.value = projected.profiles }))
+                writeProfileLibrary(projected.profiles, projected.settings, journal = true)
             } else restoreLocked(checked, preview.snapshotLabel, projected)
         } } finally { admission.close() }
     }
@@ -1274,7 +1339,7 @@ class Repository(
             toSetAside += file.baseFile
             return JournalState.DAMAGED
         }
-        // A restore clears the unreadable report; a morning check-in, the other multi-file change, does not.
+        // Only a full restore clears the unreadable report.
         if (entries.keys == setOf(PROFILES, SETTINGS, HISTORY, SLOT_BACKUPS)) AtomicFile(File(dir, UNREADABLE)).delete()
         pendingJournal = entries
         return try {

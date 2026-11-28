@@ -60,9 +60,10 @@ object BackupCodec {
     /**
      * 2 added the device to slot backups and nights, and the empty-slot marker. 3 added the palettes, the Cooldown
      * offer answer and the Quiet middle fan. 4 adds the nap preset and observed BedJet history times.
+     * 5 adds the weekly profile schedule and fallback.
      * Older versions recognise a newer export before their strict field checks. See [Migrations].
      */
-    const val SCHEMA = 4
+    const val SCHEMA = 5
 
     val json = Json {
         ignoreUnknownKeys = true

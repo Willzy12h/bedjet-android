@@ -109,9 +109,6 @@ import io.github.willzy12h.nocturne.core.plan.TurboChain
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.night.CommandRequest
 import io.github.willzy12h.nocturne.night.NightActions
-import java.time.DayOfWeek
-import java.time.format.TextStyle
-import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.abs
 
@@ -121,10 +118,12 @@ private val PHASE_MODES = listOf(Mode.COOL, Mode.HEAT, Mode.EXTENDED_HEAT, Mode.
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
-    initialDraft: Profile? = null, onDraftChange: (Profile) -> Unit = {}, initialPhase: EditorPhaseSelection? = null) {
+    initialDraft: Profile? = null, onDraftChange: (Profile) -> Unit = {}, initialPhase: EditorPhaseSelection? = null,
+    futureStartsOnly: Boolean = false) {
     var profile by remember(original.id) { mutableStateOf(initialDraft ?: original) }
     LaunchedEffect(profile) { onDraftChange(profile) }
     val settings by model.settings.collectAsStateWithLifecycle()
+    val profiles by model.profiles.collectAsStateWithLifecycle()
     val f = settings.fahrenheit
     val preview = model.previewPlan(profile)
     val validDurations = (profile.start + profile.wake + profile.afterWake).all { it.minutes in 1..720 }
@@ -185,10 +184,13 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
     val wake = model.wakePreview(profile)
     val tokens = paletteTokens
     val save = {
-        if (trackingTonight && profile != original) {
+        if (trackingTonight && profile != original && !futureStartsOnly) {
             applyTonightTo = model.graph.actions.capture(NightActions.Command.REAPPLY, requireIdentity = true)
                 .copy(expected = night?.identity)
-        } else { model.saveProfile(profile); onDone() }
+        } else {
+            if (trackingTonight && profile != original) model.saveProfileForNextNight(profile) else model.saveProfile(profile)
+            onDone()
+        }
     }
     fun phasesOf(block: Block) = when (block) { Block.START -> profile.start; Block.WAKE -> profile.wake; else -> profile.afterWake }
     fun setPhases(block: Block, phases: List<Phase>) {
@@ -212,9 +214,9 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
             DemoModePanel(model)
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                AccentLink(stringResource(R.string.parity_back, stringResource(R.string.profiles_title)), leave,
-                    Modifier.testTag("editor-back"), fontSize = 15.sp)
-                Box(Modifier.weight(1f))
+                val origin = stringResource(if (futureStartsOnly) R.string.weekly_schedule else R.string.profiles_title)
+                AccentLink(stringResource(R.string.parity_back, origin), leave,
+                    Modifier.weight(1f).testTag("editor-back"), fontSize = 15.sp)
                 AccentLink(stringResource(R.string.editor_save), save, Modifier.testTag("editor-save"),
                     enabled = preview.isSuccess && profile.name.isNotBlank() && validDurations, fontSize = 15.sp)
             }
@@ -223,7 +225,8 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(profile.name, color = tokens.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                if (trackingTonight) Text(stringResource(R.string.editor_running_tonight), color = tokens.ink2, fontSize = 13.sp)
+                if (trackingTonight) Text(stringResource(if (futureStartsOnly) R.string.weekly_active_edit else R.string.editor_running_tonight),
+                    color = tokens.ink2, fontSize = 13.sp)
                 // The name and season come first: they are what a new profile needs before anything else.
                 OutlinedTextField(profile.name, { profile = profile.copy(name = it.take(40)) }, label = { Text(stringResource(R.string.editor_name)) }, modifier = Modifier.fillMaxWidth(), colors = nocturneTextFieldColors())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -256,14 +259,8 @@ fun ProfileEditor(model: AppViewModel, original: Profile, onDone: () -> Unit,
                     TimeRow(stringResource(if (profile.wakeSource.useAlarm) R.string.editor_wake_no_alarm else R.string.wake_time), profile.wakeSource.defaultWakeMinute) {
                         profile = profile.copy(wakeSource = profile.wakeSource.copy(defaultWakeMinute = it))
                     }
-                    Text(stringResource(R.string.editor_days), style = MaterialTheme.typography.labelLarge)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        DayOfWeek.entries.forEach { day ->
-                            FilterChip(day.value in profile.days, {
-                                profile = profile.copy(days = if (day.value in profile.days) profile.days - day.value else profile.days + day.value)
-                            }, label = { Text(day.getDisplayName(TextStyle.SHORT, Locale.getDefault())) }, colors = nocturneFilterChipColors())
-                        }
-                    }
+                    Text(stringResource(R.string.weekly_used), style = MaterialTheme.typography.labelLarge)
+                    Text(weeklyProfileUsage(settings.effectiveWeeklySchedule(profiles), original.id), color = tokens.ink2)
                 }
 
                 PhaseList(Block.START, stringResource(R.string.parity_group_start), profile.start, f, preview.getOrNull(), focusedPhase, focusRequest,

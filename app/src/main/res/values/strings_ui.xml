@@ -41,8 +41,6 @@
     <!-- Next-night edits, pending wake changes and the tonight-only wake (U10, F01) -->
     <string name="next_night_saved">Saved for next night. Tonight\'s night keeps the settings it started with.</string>
     <string name="tonight_edits_next_night">Your saved edits to %1$s start with the next night. Tonight keeps the settings it started with.</string>
-    <string name="wake_requested">Requested wake %1$s — waiting for your BedJet to confirm.</string>
-    <string name="wake_requested_unknown">A new wake time is waiting for your BedJet to confirm.</string>
     <string name="override_expiry">Tonight only: it lapses at %1$s on %2$s. After that your profile and alarm decide the wake time again.</string>
     <string name="quiet_pending">Wake-up change pending (planned %1$s)</string>
     <!-- Kept manual run (P3b review) -->
@@ -240,7 +238,6 @@
     <string name="editor_wake_with_alarm">Wake with my alarm</string>
     <string name="editor_wake_with_alarm_help">On: wakes you with your next alarm from the alarm app chosen in Settings. Off: always wakes at the fixed time below.</string>
     <string name="editor_wake_no_alarm">Wake time when there\'s no alarm</string>
-    <string name="editor_days">Default for these days</string>
     <string name="editor_limits">Limits</string>
     <string name="editor_limits_help">Nothing in this profile, or a snooze or extend while it runs, goes outside these.</string>
     <string name="editor_fan_limits">Fan %1$d–%2$d%%</string>

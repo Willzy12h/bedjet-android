@@ -104,6 +104,7 @@ class GapsCoverageTest {
         compose.onNodeWithTag("tonight-change").performScrollTo().performClick()
         compose.onNodeWithTag("picker-timeline-${other.id}", useUnmergedTree = true).assertExists()
         compose.onNodeWithTag("tonight-choose-${other.id}").performScrollTo().performClick()
+        compose.onNodeWithTag("tonight-picker-use").performClick()
         waitUntil { graph.repository.settings.value.tonightChoice?.profileId == other.id }
         compose.onNode(hasText(other.name, substring = true, ignoreCase = true) and hasAnyAncestor(hasTestTag("tonight-card")), useUnmergedTree = true).assertExists()
         return scheduled.name

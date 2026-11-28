@@ -111,7 +111,9 @@ class WakeFeedbackTest {
             graph.repository.setActiveNight(night.copy(confidence = Confidence.PENDING,
                 pending = PendingChange("r1", ChangeKind.RETIME, requested.toString(), graph.now().toString(), graph.now().plusMinutes(10).toString(), night.identity)))
         } }
-        waitFor(s(R.string.wake_requested, Format.clock(requested)))
+        waitFor(s(R.string.tonight_running_requested_wake))
+        compose.onNode(hasText(s(R.string.tonight_running_requested_wake)) and hasText(Format.clock(requested))).assertExists()
+        compose.onNode(hasText(s(R.string.tonight_running_last_wake)) and hasText(Format.clock(night.wakeAt))).assertExists()
         compose.onNodeWithTag("tonight-fixed-wake")
             .assert(hasAnyDescendant(hasText(s(R.string.gpt12_wake_profile_fallback), substring = true)))
             .assert(hasAnyDescendant(hasText(Format.clock(night.wakeAt), substring = true)))

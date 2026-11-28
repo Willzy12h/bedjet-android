@@ -65,6 +65,7 @@ import io.github.willzy12h.nocturne.data.ProfileShareRequest
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.mutableIntStateOf
@@ -96,9 +97,11 @@ import java.util.UUID
 private data class PinRequest(val profile: Profile, val target: String?, val workingSlot: Int,
     val previewedAt: ZonedDateTime, val preview: Preview)
 
+private enum class ProfilesListItem { REORDER_HINT, WEEKLY_SCHEDULE, RESTORE_BUILT_IN }
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit) {
+fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) -> Unit, onOpenSchedule: () -> Unit = {}) {
     val context = LocalContext.current
     val profiles by model.profiles.collectAsStateWithLifecycle()
     val settings by model.settings.collectAsStateWithLifecycle()
@@ -136,6 +139,7 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
         if (uri != null && request != null) model.shareProfile(uri, BackupCodec.json.decodeFromString<ProfileShareRequest>(request))
     }
 
+    val schedule = settings.effectiveWeeklySchedule(profiles)
     Column(modifier.fillMaxSize()) {
         // The design's title row: "Profiles", then Import and the primary "+ New" pill.
         FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
@@ -149,11 +153,28 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
             Pill(stringResource(R.string.parity_new), tokens.ink, tokens.ground, tag = "profiles-new",
                 description = stringResource(R.string.profiles_new)) { adding = true }
         }
-        if (profiles.size > 1) Text(stringResource(R.string.profiles_reorder_hint),
-            Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), color = tokens.ink2, fontSize = 13.sp)
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = listState,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = FeedbackClearance),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (profiles.size > 1) item(key = ProfilesListItem.REORDER_HINT) {
+                Text(stringResource(R.string.profiles_reorder_hint), color = tokens.ink2, fontSize = 13.sp)
+            }
+            item(key = ProfilesListItem.WEEKLY_SCHEDULE) {
+                val today = model.now()
+                val selected = settings.resolveScheduledProfile(profiles, today)
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(tokens.surface)
+                    .clickable(role = Role.Button, onClick = onOpenSchedule).testTag("profiles-weekly-schedule")
+                    .heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(stringResource(R.string.weekly_schedule), color = tokens.ink, fontWeight = FontWeight.SemiBold)
+                        Text("${weekdayName(today.dayOfWeek)} · ${selected?.name ?: stringResource(R.string.weekly_no_default)}",
+                            color = tokens.ink2, fontSize = 13.sp)
+                    }
+                    Icon(painterResource(R.drawable.ic_nc_chevron_down), null,
+                        Modifier.size(16.dp).rotate(-90f), tint = tokens.ink2)
+                }
+            }
             items(shown, key = { it.id }) { profile ->
                 var more by remember(profile.id) { mutableStateOf(false) }
                 val copyName = stringResource(R.string.profiles_copy_name, profile.name)
@@ -267,14 +288,14 @@ fun ProfilesScreen(model: AppViewModel, modifier: Modifier, onEdit: (Profile) ->
                             else stringResource(R.string.profiles_wake_default, Format.clock(wake.time), Format.clockOfDay(profile.wakeSource.defaultWakeMinute))
                         Text(times, Modifier.weight(1f).align(Alignment.CenterVertically).semantics { contentDescription = "$times. $wakeText" },
                             color = tokens.ink2, fontSize = 15.sp)
-                        WeekdayDots(profile.days)
+                        Text(weeklyProfileUsage(schedule, profile.id), color = tokens.ink2, fontSize = 13.sp)
                     }
                 }
                 }
             }
             if (!settings.cooldownOfferAnswered) item { CooldownOfferCard(model, profiles, settings.fahrenheit) }
             // Only when a built-in profile has been changed or deleted, so there is something to put back.
-            if (Presets.canRestore(profiles)) item(key = "restore-built-in") {
+            if (Presets.canRestore(profiles)) item(key = ProfilesListItem.RESTORE_BUILT_IN) {
                 TextButton(onClick = { confirmRestore = true }, enabled = !importApplying) {
                     Text(stringResource(R.string.profiles_restore_builtin))
                 }
@@ -458,26 +479,6 @@ private fun MenuRow(text: String, icon: Int, color: Color, onClick: () -> Unit) 
     DropdownMenuItem(text = { Text(text, color = color, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
         leadingIcon = { Icon(painterResource(icon), null, Modifier.size(20.dp), tint = color) },
         modifier = Modifier.padding(horizontal = 6.dp), onClick = onClick)
-
-/** M T W T F S S: the days this profile is the default for, filled in the accent. */
-@Composable
-private fun WeekdayDots(days: Set<Int>) {
-    val tokens = paletteTokens
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        java.time.DayOfWeek.entries.forEach { day ->
-            val on = day.value in days
-            val dayName = day.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
-            val dayDescription = if (on) dayName else stringResource(R.string.parity_day_off, dayName)
-            Box(Modifier.sizeIn(minWidth = 28.dp, minHeight = 28.dp).clip(CircleShape)
-                .background(if (on) tokens.accent.copy(alpha = .38f) else tokens.surface2)
-                .semantics { contentDescription = dayDescription },
-                contentAlignment = Alignment.Center) {
-                Text(day.getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale.getDefault()),
-                    color = if (on) tokens.ink else tokens.ink2, fontSize = 12.sp, lineHeight = 12.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
-}
 
 @Composable
 internal fun profileSummary(profile: Profile): String {

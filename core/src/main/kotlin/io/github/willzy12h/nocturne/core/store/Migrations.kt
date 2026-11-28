@@ -27,8 +27,8 @@ object Migrations {
         while (schema < BackupCodec.SCHEMA) {
             current = when (schema) {
                 1 -> oneToTwo(current)
-                // Both revisions added defaulted fields. A missing observation stays unknown.
-                2, 3 -> JsonObject(current + ("schema" to JsonPrimitive(schema + 1)))
+                // These revisions added defaulted fields. The repository migrates a missing weekly schedule.
+                2, 3, 4 -> JsonObject(current + ("schema" to JsonPrimitive(schema + 1)))
                 else -> error("No migration from schema $schema")
             }
             schema++

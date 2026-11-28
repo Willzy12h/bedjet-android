@@ -22,6 +22,7 @@ import io.github.willzy12h.nocturne.core.plan.TonightOverride
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.protocol.ProgramStep
 import io.github.willzy12h.nocturne.core.protocol.StoredProgram
+import io.github.willzy12h.nocturne.core.store.AutoStartSettings
 import io.github.willzy12h.nocturne.core.store.BackupBundle
 import io.github.willzy12h.nocturne.core.store.BackupCodec
 import io.github.willzy12h.nocturne.core.store.BackupException
@@ -63,6 +64,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.time.DayOfWeek
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Collections
@@ -230,6 +232,71 @@ class RepositoryTest {
         repo.restore(older)
         assertEquals(listOf(backup(1, "user's own"), backup(2, "slot two").copy(imported = true),
             backup(1, "demo's", "demo").copy(imported = true)), repo.slotBackups.value)
+    }
+
+    @Test
+    fun upgradingKeepsTheLegacyWeekdayAndFallbackWhenProfilesAreReordered() = runBlocking {
+        val fallback = Presets.summerCool
+        val firstWednesday = Presets.winterWarm.copy(days = setOf(3))
+        val secondWednesday = Presets.springAutumn.copy(days = setOf(3))
+        File(dir, "profiles.json").writeText(BackupCodec.json.encodeToString(ListSerializer(Profile.serializer()),
+            listOf(fallback, firstWednesday, secondWednesday)))
+        File(dir, "settings.json").writeText("""{"fahrenheit":true}""")
+
+        val repo = repository()
+        assertEquals(firstWednesday.id, repo.tonightsProfile(now)?.id)
+        assertEquals(fallback.id, repo.tonightsProfile(now.plusDays(1))?.id)
+        repo.reorderProfiles(listOf(secondWednesday.id, firstWednesday.id, fallback.id))
+
+        val restarted = repository()
+        assertEquals(firstWednesday.id, restarted.tonightsProfile(now)?.id)
+        assertEquals(fallback.id, restarted.tonightsProfile(now.plusDays(1))?.id)
+        assertTrue(restarted.settings.value.fahrenheit)
+    }
+
+    @Test
+    fun deletingTheFallbackDoesNotSilentlyPickAnotherAndResetDoesNotReviveIt() = runBlocking {
+        val repo = repository()
+        assertEquals(Presets.summerCool.id, repo.tonightsProfile()?.id)
+
+        repo.deleteProfile(Presets.summerCool.id)
+        assertNull(repo.tonightsProfile())
+        assertNull(repository().tonightsProfile())
+        repo.restoreBuiltInProfiles()
+
+        assertTrue(repo.profile(Presets.summerCool.id) != null)
+        assertNull(repository().tonightsProfile())
+    }
+
+    @Test
+    fun profileOnlyImportDoesNotApplyWeekdaysFromTheIncomingProfiles() = runBlocking {
+        val repo = repository()
+        val replacement = Presets.winterWarm.copy(days = setOf(3))
+        val reviewed = repo.previewImport(importable().copy(profiles = listOf(replacement)), profilesOnly = true)
+
+        repo.applyImport(reviewed)
+
+        assertEquals(replacement, repository().profile(replacement.id))
+        assertEquals(Presets.summerCool.id, repository().tonightsProfile()?.id)
+    }
+
+    @Test
+    fun savingTheWeeklyScheduleLeavesTheRunningNightAndExplicitAutoStartIntact() = runBlocking {
+        val repo = repository()
+        val scheduled = AutoStartSettings(profileId = Presets.hotSleeper.id, fixedMinute = 21 * 60)
+        repo.updateSettings { it.copy(platform = it.platform.copy(autoStart = scheduled)) }
+        val active = ActiveNight("current", Presets.hotSleeper.id, now.toString(), now.plusHours(8).toString(),
+            false, 2, now.plusHours(7).toString(), now.plusHours(9).toString(), profile = Presets.hotSleeper)
+        repo.setActiveNight(active)
+
+        repo.setWeeklyProfile(DayOfWeek.WEDNESDAY, Presets.winterWarm.id)
+        repo.setWeeklyFallback(Presets.springAutumn.id)
+
+        val restarted = repository()
+        assertEquals(Presets.winterWarm.id, restarted.tonightsProfile()?.id)
+        assertEquals(Presets.springAutumn.id, restarted.tonightsProfile(now.plusDays(1))?.id)
+        assertEquals(active, restarted.activeNight.value)
+        assertEquals(scheduled, restarted.settings.value.platform.autoStart)
     }
 
     // Durable before visible

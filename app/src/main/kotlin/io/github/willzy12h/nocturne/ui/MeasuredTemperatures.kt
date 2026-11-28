@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
@@ -22,7 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -33,14 +34,12 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.willzy12h.nocturne.R
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Mode
 import io.github.willzy12h.nocturne.core.store.Settings
-import kotlin.math.roundToInt
 
 private val ReadingIconSize = 22.dp
 private val ReadingCoolTravel = 2.dp
@@ -117,17 +116,20 @@ private fun ReadingModeIcon(mode: Mode, recent: Boolean, boost: Boolean) {
     val heating = mode == Mode.HEAT || mode == Mode.EXTENDED_HEAT
     val cooling = mode == Mode.COOL
     val icon = readingModeIcon(mode, boost)
-    val motion = if (!boost && (heating || cooling) && recent && rememberMotionAllowed()) {
+    val animated = !boost && (heating || cooling) && recent && rememberMotionAllowed()
+    val motion = if (animated) {
         val strength by rememberInfiniteTransition(label = "Reported operating mode").animateFloat(
             initialValue = 0f, targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(1_300, easing = FastOutSlowInEasing), RepeatMode.Reverse),
             label = "Airflow or heat")
-        if (cooling) Modifier.offset { IntOffset((ReadingCoolTravel.toPx() * strength).roundToInt(), 0) }
-        else Modifier.graphicsLayer { scaleY = 1f - .12f * strength }
+        Modifier.drawWithContent {
+            if (cooling) translate(left = ReadingCoolTravel.toPx() * strength) { this@drawWithContent.drawContent() }
+            else scale(scaleX = 1f, scaleY = 1f - .12f * strength) { this@drawWithContent.drawContent() }
+        }
     } else Modifier
     val tokens = paletteTokens
     // Keep airflow motion inside the fixed slot, including where the icon meets the edge of a narrow display.
-    Box(Modifier.width(ReadingIconSize + ReadingCoolTravel)) {
+    Box(Modifier.width(ReadingIconSize + ReadingCoolTravel).testTag("reading-mode-icon-slot-${mode.name}-$animated")) {
         Icon(painterResource(icon), contentDescription = null,
             modifier = Modifier.size(ReadingIconSize).then(motion).testTag("reading-mode-icon"),
             tint = tokens.readableText(if (boost) BoostColor else tokens.modeColor(mode), tokens.ground, 3f))

@@ -23,11 +23,15 @@ object BedtimeReminders {
         val settings=graph.repository.settings.value;val now=graph.now()
         alarms.cancel(pending(graph,intent))
         if (!settings.platform.bedtimeReminder || settings.platform.validationErrors().isNotEmpty()) return
-        val next=(0L..2L).mapNotNull { offset ->
-            val date=now.toLocalDate().plusDays(offset)
-            val profile=settings.resolveProfile(graph.repository.profiles.value,date.atTime(12,0).atZone(now.zone)) ?: return@mapNotNull null
+        val profiles = graph.repository.profiles.value
+        val leadMinutes = settings.platform.reminderMinutes.toLong()
+        val firstDate = now.plusMinutes(leadMinutes).toLocalDate()
+        // A weekday may be the sole assignment, with a reminder due on the preceding calendar day.
+        val next=(0L..7L).mapNotNull { offset ->
+            val date=firstDate.plusDays(offset)
+            val profile=settings.resolveProfile(profiles,date.atTime(12,0).atZone(now.zone)) ?: return@mapNotNull null
             val bedtime=date.atStartOfDay().plusMinutes(profile.bedtimeMinute.toLong()).atZone(now.zone)
-            val due=bedtime.minusMinutes(settings.platform.reminderMinutes.toLong())
+            val due=bedtime.minusMinutes(leadMinutes)
             if (due.isAfter(now)) Triple(profile,bedtime,due) else null
         }.minByOrNull {it.third.toInstant()} ?: return
         intent.putExtra("profile",next.first.id).putExtra("bedtime",next.second.toString())

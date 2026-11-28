@@ -57,6 +57,11 @@ class NightActions(private val graph: Graph) {
     val busy: StateFlow<BusyState> = _busy.asStateFlow()
     private val _outcomes = MutableSharedFlow<CommandOutcome>(extraBufferCapacity = 16)
     val outcomes: SharedFlow<CommandOutcome> = _outcomes.asSharedFlow()
+    internal data class PhoneOffConfirmation(val identity: NightIdentity, val deviceId: String, val generation: Long)
+    private val _phoneOffConfirmed = MutableSharedFlow<PhoneOffConfirmation>(extraBufferCapacity = 1)
+    internal val phoneOffConfirmed = _phoneOffConfirmed.asSharedFlow()
+    // UI feedback belongs to this process and to the exact receipt boundary written in the end journal.
+    private var phoneOffReceipt: StatusReceipt? = null
     /** A slot write colours the status only while it is in question and concerns the tracked night, or, with no night,
      * only when a night could depend on it; an unknown pin of another slot is reported by its own outcome (IR-06). */
     val status: StateFlow<NightStatus> = combine(repo.activeNight, repo.runtime, repo.settings, unreconciledProgramme) { n, r, s, observed ->
@@ -161,7 +166,7 @@ class NightActions(private val graph: Graph) {
     suspend fun execute(request: CommandRequest): CommandOutcome = owned(label(request.command), request.deviceId,
         minimumRemainingMs = if (request.command != Command.STOP_TRACKING) MIN_BUDGET_MS else 0,
         retimeWork = request.command == Command.RETIME || request.command == Command.RETRY_RETIME,
-        origin = currentCoroutineContext()[CommandOriginContext]?.origin?.takeUnless { it == CommandOrigin.APP } ?: request.origin) {
+        origin = request.effectiveOrigin()) {
         // A visible Off approval belongs to its reviewed night; unconfirmed emergency Off remains target-based.
         if (request.command != Command.CHECK_BEDJET && (request.command != Command.OFF || request.replacementConfirmed) &&
             (request.requireIdentity || request.command == Command.TEMPORARY) &&
@@ -206,6 +211,10 @@ class NightActions(private val graph: Graph) {
             else -> slotWriteRefusal(request.command) ?: connected { run(request, manualPreset) }
         }
     }
+
+    private suspend fun CommandRequest.effectiveOrigin(): CommandOrigin =
+        currentCoroutineContext()[CommandOriginContext]?.origin?.takeUnless { it == CommandOrigin.APP } ?: origin
+
     /** No FGS, detached launch or retry. Job cancellation propagates after durable uncertainty is saved. */
     suspend fun performJobOwned(request: CommandRequest, automaticWake: io.github.willzy12h.nocturne.core.plan.WakeChoice? = null,
         scheduledStart: ZonedDateTime? = null,
@@ -478,7 +487,8 @@ class NightActions(private val graph: Graph) {
         advanceGeneration(preserveOffer = command in TIMED_MANUAL || repo.activeNight.value?.trackingManual != false || repo.activeNight.value?.hasClockTimedNap == true)
         return when (command) {
             Command.OFF, Command.END_NIGHT -> manualChange(text(R.string.runtime_off), endsNight = true, confirms = { it.mode == Mode.STANDBY },
-                isOff = true, unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
+                isOff = true, phoneOff = request.effectiveOrigin() == CommandOrigin.APP,
+                unconfirmed = text(R.string.runtime_off_unconfirmed)) { graph.controller().stop() }
             Command.TURBO -> quick(request.actionPreset ?: ActionPreset(Mode.TURBO, 86, 100, 10),
                 request.actionPreset?.let { capturedPresetMessage(context, it) } ?: text(R.string.runtime_turbo))
             Command.COOL -> quick(request.actionPreset ?: repo.settings.value.extendCool,
@@ -756,7 +766,7 @@ class NightActions(private val graph: Graph) {
      */
     private suspend fun manualChange(message: String, endsNight: Boolean, affectsProgramme: Boolean = false,
         confirms: ((DeviceStatus) -> Boolean)?, allowCurrentStatus: Boolean = false,
-        isOff: Boolean = false, unconfirmed: String = text(R.string.runtime_sent_unconfirmed, message),
+        isOff: Boolean = false, phoneOff: Boolean = false, unconfirmed: String = text(R.string.runtime_sent_unconfirmed, message),
         work: suspend () -> Unit): CommandOutcome {
         val night = repo.activeNight.value
         val requestedAt = graph.now()
@@ -776,6 +786,7 @@ class NightActions(private val graph: Graph) {
                 NightAlarms.cancelRetry(context)
             }
             val confirmed = sentAndConfirmed(confirms, allowCurrentStatus, requireProgress = !endsNight) {
+                if (endsNight && night != null) phoneOffReceipt = requestedReceipt.takeIf { phoneOff }
                 writeMayHaveHappened = true
                 work()
             }
@@ -874,7 +885,10 @@ class NightActions(private val graph: Graph) {
     private suspend fun finishLocked(night: ActiveNight, kind: EventKind, detail: String,
         end: PendingEnd = PendingEnd(night.identity, event(kind, detail), isTestRun = night.isTestRun, isNap = night.isNap,
             confirmedCompletionAt = confirmedCompletion(night, kind))) {
-        val transition = io.github.willzy12h.nocturne.core.night.stopTracking(night, detail, graph.now(), repo.runtime.value.generation)
+        val runtime = repo.runtime.value
+        val fromAppOff = end.standbyObservedAt != null && kind == EventKind.STOPPED && runtime.endRequested == night.identity &&
+            phoneOffReceipt?.let { it.epoch == runtime.endRequestedEpoch && it.sequence == runtime.endRequestedSequence } == true
+        val transition = io.github.willzy12h.nocturne.core.night.stopTracking(night, detail, graph.now(), runtime.generation)
         // IR-06: a slot write made in this night, or one that displaced it, ends with it.
         repo.updateRuntime { it.copy(ending = end,
             endRequested = null, endRequestedLabel = null, endRequestedAt = null, retime = null,
@@ -886,6 +900,9 @@ class NightActions(private val graph: Graph) {
             }, reason = null,
             wakeShown = null, manualWakeShown = false, slotWrite = it.slotWrite?.takeUnless { w -> w.belongsTo(night.recordId) }) }
         completeLocalEnd()
+        phoneOffReceipt = null
+        if (fromAppOff && repo.activeNight.value == null && DeviceId.same(night.deviceId, repo.settings.value.deviceId()))
+            _phoneOffConfirmed.tryEmit(PhoneOffConfirmation(night.identity, night.deviceId, runtime.generation))
         repo.runtime.value.resumeOffer?.let { Notifications.showResume(context) }
     }
     /** A clock or an ENDED label alone cannot turn uncertain tracking into a confirmed completed programme. */

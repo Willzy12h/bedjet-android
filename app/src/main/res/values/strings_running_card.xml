@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tonight_running_confirmed">Running on BedJet</string>
+    <string name="tonight_running_awaiting_status">Waiting for a current BedJet report</string>
+    <string name="tonight_running_scheduled">Programme scheduled on BedJet</string>
+    <string name="tonight_running_connecting_start">Connecting to start</string>
+    <string name="tonight_running_cancel_start">Cancel start</string>
+    <string name="tonight_running_start_pending">Start pending</string>
+    <string name="tonight_running_start_waiting">Waiting for the BedJet to confirm the start.</string>
+    <string name="tonight_running_alarm_pending">Alarm change pending</string>
+    <string name="tonight_running_wake_pending">Wake change pending</string>
+    <string name="tonight_running_wake_waiting">The BedJet still needs to confirm the new wake time.</string>
+    <string name="tonight_running_phone_alarm">Phone alarm</string>
+    <string name="tonight_running_requested_wake">Requested wake</string>
+    <string name="tonight_running_last_wake">Last confirmed wake</string>
+    <string name="tonight_running_last_off">Last confirmed Off time</string>
+    <string name="tonight_running_started_at">Started %1$s</string>
+    <string name="tonight_running_wake">Wake</string>
+    <string name="tonight_running_wake_source">%1$s · %2$s</string>
+    <string name="tonight_running_after_wake">After waking</string>
+    <string name="tonight_running_after_wake_mode">%1$s until %2$s, then Off</string>
+    <string name="tonight_running_off_confirmed">Off confirmed</string>
+    <string name="tonight_running_night_ended">Night ended</string>
+    <string name="tonight_running_bedjet_off">The BedJet confirmed it is off.</string>
+    <string name="tonight_running_back">Back to Tonight</string>
+</resources>

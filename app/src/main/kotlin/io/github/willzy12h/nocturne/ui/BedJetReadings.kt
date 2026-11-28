@@ -20,6 +20,7 @@ import io.github.willzy12h.nocturne.core.link.DeviceId
 import io.github.willzy12h.nocturne.core.link.LinkState
 import io.github.willzy12h.nocturne.core.night.Confidence
 import io.github.willzy12h.nocturne.core.plan.Plan
+import io.github.willzy12h.nocturne.core.plan.PlannedStep
 import io.github.willzy12h.nocturne.core.plan.ProfileLimits
 import io.github.willzy12h.nocturne.core.protocol.DeviceStatus
 import io.github.willzy12h.nocturne.core.protocol.Mode
@@ -32,7 +33,7 @@ import java.time.ZonedDateTime
 /** Present device evidence and planned changes in the same way on both screens. */
 @Composable
 internal fun BedJetReadings(model: AppViewModel, settings: Settings, tag: String, modifier: Modifier = Modifier,
-    keepTemperaturesWhileDisconnected: Boolean = true, sending: PresetSending? = null) {
+    keepTemperaturesWhileDisconnected: Boolean = true, sending: PresetSending? = null, showRunStatus: Boolean = true) {
     val reading by model.status.collectAsStateWithLifecycle()
     val live by model.hasLiveStatus.collectAsStateWithLifecycle()
     val link by model.linkState.collectAsStateWithLifecycle()
@@ -56,7 +57,7 @@ internal fun BedJetReadings(model: AppViewModel, settings: Settings, tag: String
     }
     val verifiedStep = if (latest != null && current) plan?.let { reportedStepIndex(it, latest, now) } else null
     val nextStep = if (verifiedStep != null && plan != null && latest != null)
-        plan.steps.drop(verifiedStep + 1).firstOrNull { it.startsAt.isAfter(now) && !it.step.matches(latest) } else null
+        nextReportedStep(plan, latest, verifiedStep, now) else null
     val reportedEnd = remember(target, latest?.mode, latest?.remainingSeconds) {
         latest?.remainingSeconds?.takeIf { it > 0 }?.let { now.plusSeconds(it.toLong()) }
     }
@@ -86,7 +87,7 @@ internal fun BedJetReadings(model: AppViewModel, settings: Settings, tag: String
             latest == null -> null
             else -> observedMode(latest, current, isBoost)
         }
-        if (title != null || detail != null) Text(
+        if (showRunStatus && (title != null || detail != null)) Text(
             listOfNotNull(title, detail.takeIf { sending == null }).joinToString("\n"),
             modifier = Modifier.testTag(if (tag == "remote") "remote-status" else "home-run-status"),
             color = tokens.ink2, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -101,12 +102,15 @@ internal fun reportedStepIndex(plan: Plan, reading: DeviceStatus, now: ZonedDate
     return received.takeIf { it == timed && plan.steps[timed].step.matches(reading) }
 }
 
+internal fun nextReportedStep(plan: Plan, reading: DeviceStatus, verifiedStep: Int, now: ZonedDateTime): PlannedStep? =
+    plan.steps.drop(verifiedStep + 1).firstOrNull { it.startsAt.isAfter(now) && !it.step.matches(reading) }
+
 private fun ProgramStep.matches(reading: DeviceStatus): Boolean = mode == reading.mode &&
     (!mode.usesFan || fanStep == reading.fanStep) &&
     (!mode.usesTemperature || temperature == reading.targetTemperature)
 
 @Composable
-private fun nextChange(reading: DeviceStatus, next: ProgramStep, at: ZonedDateTime, fahrenheit: Boolean): String {
+internal fun nextChange(reading: DeviceStatus, next: ProgramStep, at: ZonedDateTime, fahrenheit: Boolean): String {
     val time = Format.clock(at)
     if (next.mode == reading.mode && next.mode.usesFan && next.fanStep != reading.fanStep &&
         (!next.mode.usesTemperature || next.temperature == reading.targetTemperature)) {
@@ -119,7 +123,7 @@ private fun nextChange(reading: DeviceStatus, next: ProgramStep, at: ZonedDateTi
 }
 
 @Composable
-private fun observedMode(reading: DeviceStatus, current: Boolean, boost: Boolean): String {
+internal fun observedMode(reading: DeviceStatus, current: Boolean, boost: Boolean): String {
     val mode = modeName(reading.mode)
     val state = when {
         !current -> when (reading.mode) {

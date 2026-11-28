@@ -5,11 +5,15 @@ import android.os.Looper
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.hasScrollToKeyAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToKey
+import androidx.compose.ui.test.performScrollToNode
 import androidx.lifecycle.ViewModelStore
 import io.github.willzy12h.nocturne.App
 import io.github.willzy12h.nocturne.Graph
@@ -87,15 +91,21 @@ class KeepSettingsUiTest {
             val settings by model.settings.collectAsState()
             NocturneTheme(settings, model.now()) { ProfilesScreen(model, Modifier, onEdit = {}) }
         }
-        compose.onNodeWithText(text(R.string.profiles_restore_builtin)).assertDoesNotExist()
+        val list = compose.onNode(hasScrollToKeyAction())
+        val lastProfileId = model.profiles.value.last().id
+        val restoreLabel = text(R.string.profiles_restore_builtin)
+        list.performScrollToKey(lastProfileId)
+        compose.onNodeWithText(restoreLabel).assertDoesNotExist()
         val summer = model.profiles.value.first()
         model.saveProfile(summer.copy(name = "Mine", days = setOf(6)))
         waitFor { model.profiles.value.first().name == "Mine" }
-        compose.onNodeWithText(text(R.string.profiles_restore_builtin)).performScrollTo().performClick()
+        list.performScrollToNode(hasText(restoreLabel))
+        compose.onNodeWithText(restoreLabel).performClick()
         compose.onNodeWithText(text(R.string.profiles_restore_builtin_confirm)).performClick()
         waitFor { model.profiles.value.first().name == summer.name }
         assertEquals(setOf(6), model.profiles.value.first().days)
-        compose.onNodeWithText(text(R.string.profiles_restore_builtin)).assertDoesNotExist()
+        list.performScrollToKey(lastProfileId)
+        compose.onNodeWithText(restoreLabel).assertDoesNotExist()
     }
 
     @Test fun editorResetsOnlyTheDraftOfAChangedBuiltInProfile() {

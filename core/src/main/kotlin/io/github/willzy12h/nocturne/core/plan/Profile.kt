@@ -91,7 +91,7 @@ data class Profile(
     val wakeSource: WakeSource = WakeSource(),
     /** Minutes after midnight; for previews and auto-start. */
     val bedtimeMinute: Int = 22 * 60 + 30,
-    /** ISO days of week (1 = Monday) this is the default profile for. */
+    /** Legacy ISO days of week (1 = Monday), used when migrating the weekly schedule. */
     val days: Set<Int> = emptySet(),
     val turboChain: TurboChain = TurboChain.TURBO_THEN_HEAT,
 )

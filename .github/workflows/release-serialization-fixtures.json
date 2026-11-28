@@ -137,6 +137,13 @@
         "$ref": "autoStart"
       }
     },
+    "weeklySchedule": {
+      "profileByDay": {
+        "MONDAY": "release-profile",
+        "FRIDAY": "release-profile"
+      },
+      "fallbackProfileId": "release-profile"
+    },
     "settings": {
       "workingSlot": 1,
       "selectedProfileId": "legacy-profile",
@@ -230,7 +237,8 @@
         }
       ],
       "allowLockedOff": true,
-      "napPreset": { "$ref": "nap" }
+      "napPreset": { "$ref": "nap" },
+      "weeklySchedule": { "$ref": "weeklySchedule" }
     },
     "slotBackup": {
       "deviceId": "ble:AA:BB:CC:DD:EE:FF",
@@ -370,7 +378,7 @@
       "commandVersion": 9
     },
     "backup": {
-      "schema": 4,
+      "schema": 5,
       "createdAt": "2026-10-23T22:30Z",
       "profiles": [
         {
@@ -590,7 +598,8 @@
       },
       "selection": {
         "$ref": "editorPhase"
-      }
+      },
+      "futureStartsOnly": true
     },
     "encodedSharedProfile": "{\"schema\":3,\"createdAt\":\"2026-10-23T22:30Z\",\"profiles\":[{\"id\":\"release-shared-profile\",\"name\":\"Saved \\\"profile\\\" · 夜\",\"start\":[],\"middle\":{\"mode\":\"COOL\",\"fanStart\":35,\"fanEnd\":25,\"tempStart\":44,\"tempEnd\":46,\"rampSteps\":4},\"wake\":[]}],\"settings\":{},\"slotBackups\":[],\"history\":[]}",
     "manualControls": {
@@ -900,6 +909,12 @@
       "EXTEND_COOL",
       "OFF"
     ],
+    "io.github.willzy12h.nocturne.core.store.WeeklySchedule": [
+      {
+        "$ref": "weeklySchedule"
+      },
+      {}
+    ],
     "io.github.willzy12h.nocturne.data.ProfileShareRequest": [
       {
         "encodedProfile": {
@@ -1009,6 +1024,10 @@
     "io.github.willzy12h.nocturne.ui.ProfileDraft": [
       {
         "$ref": "profileDraft"
+      },
+      {
+        "original": { "$ref": "profile" },
+        "edited": { "$ref": "profile" }
       }
     ],
     "io.github.willzy12h.nocturne.core.store.ManualControls": [
